@@ -1,6 +1,6 @@
-import { GameClient, connectEmbedded, ReplayPlayer, verifyReplay, type RoomState } from '@crashwif/game-sdk';
+import { GameClient, connectEmbedded, ReplayPlayer, verifyReplay, type RoomState, type ServerMessage } from '@crashwif/game-sdk';
 import { free } from '@crashwif/crash-math';
-import { drawScene, type SceneView } from './scene';
+import { createScene, type SceneView } from './scene';
 import replay from './replay.json';
 
 const canvas = document.querySelector<HTMLCanvasElement>('canvas')!;
@@ -9,14 +9,15 @@ const status = document.querySelector<HTMLElement>('#status')!;
 const bet = document.querySelector<HTMLButtonElement>('#bet')!;
 const cashout = document.querySelector<HTMLButtonElement>('#cashout')!;
 const restart = document.querySelector<HTMLButtonElement>('#restart')!;
-const view: SceneView = { phase: 'waiting', currentX100: 100, elapsed: 0, crashAge: 0 };
+const view: SceneView = { phase: 'waiting', currentX100: 100, elapsed: 0, crashAge: 0, stake: null, cashoutX100: null, payout: null };
+const scene = createScene({ reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches });
 let runningSince: number | null = null;
 let crashTime = 0;
 let clockOffset = 0;
 let frame = 0;
 let close = () => {};
 
-function change(state: RoomState) {
+function change(state: RoomState, message: ServerMessage | null) {
   const round = state.round;
   if (!round) return;
   if (view.phase !== 'crashed' && round.phase === 'crashed') crashTime = Date.now();
@@ -24,6 +25,15 @@ function change(state: RoomState) {
   view.currentX100 = round.crashX100 ?? round.multiplierX100;
   runningSince = round.runningSince;
   clockOffset = state.clockOffsetMs;
+  // The server settles and clears a bet before it announces the crash, so a live round keeps the last bet it saw.
+  const yourBet = state.you?.bet ?? null;
+  if (yourBet) {
+    view.stake = yourBet.stake;
+    view.cashoutX100 = yourBet.cashoutX100;
+  } else if (round.phase === 'betting' || round.phase === 'waiting') {
+    view.stake = view.cashoutX100 = view.payout = null;
+  }
+  if (message?.type === 'cashout' && message.mine) view.payout = message.payout;
   status.textContent = state.integrity.length ? `Round verification failed: ${state.integrity.join(', ')}` : `${round.phase} · ${state.you ? `${state.you.creditsLeft} credits` : 'spectating'}`;
 }
 
@@ -45,13 +55,16 @@ if (mode === 'replay') {
   close = () => player.pause();
 } else {
   const client = window.parent !== window ? connectEmbedded() : new GameClient({ baseUrl: 'ws://127.0.0.1:4500' });
-  const onChange = (state: RoomState) => {
-    change(state);
+  const onChange = (state: RoomState, message: ServerMessage | null) => {
+    change(state, message);
     bet.disabled = !client.canBet || !state.you || !!state.you.bet || state.integrity.length > 0;
     cashout.disabled = state.round?.phase !== 'running' || state.you?.bet?.status !== 'active' || state.you.bet.cashoutX100 !== null || state.integrity.length > 0;
   };
   if (client instanceof GameClient) client.on('change', onChange);
-  else client.on('change', onChange);
+  else {
+    client.on('change', onChange);
+    client.on('refused', (_intent, reason) => { status.textContent = `Refused: ${reason}`; });
+  }
   bet.onclick = () => client.bet(50, null);
   cashout.onclick = () => client.cashout();
   if (client instanceof GameClient) {
@@ -66,20 +79,19 @@ if (mode === 'replay') {
   } else close = () => client.close();
 }
 
-function draw() {
+function draw(now: number) {
   const width = canvas.clientWidth;
   const height = width * 540 / 960;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (canvas.width !== Math.round(width * dpr)) { canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr); }
   ctx.setTransform(canvas.width / 960, 0, 0, canvas.height / 540, 0, 0);
-  ctx.fillStyle = '#e5f7f4'; ctx.fillRect(0, 0, 960, 540);
   if (view.phase === 'running' && runningSince !== null) {
     view.elapsed = Math.max(0, Date.now() + clockOffset - runningSince);
     view.currentX100 = Math.max(view.currentX100, free.multiplierAtContinuousX100(view.elapsed));
   }
   view.crashAge = Math.max(0, Date.now() - crashTime);
-  drawScene(ctx, view);
+  scene.draw(ctx, view, now);
   frame = requestAnimationFrame(draw);
 }
-draw();
+frame = requestAnimationFrame(draw);
 window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); close(); });
