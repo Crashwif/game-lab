@@ -179,11 +179,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawBed(ctx, room);
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(450, 330);
-      ctx.rotate(-0.12);
+      ctx.translate(514, 350);
+      ctx.rotate(-0.06);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      memeText(ctx, outcome === 'rekt' ? 'REKT' : legendary ? 'LEGENDARY' : 'GG', 0, 0, outcome === 'rekt' ? 92 : legendary ? 72 : 92, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      memeText(ctx, outcome === 'rekt' ? 'REKT' : legendary ? 'LEGENDARY' : 'GG', 0, 0, legendary && outcome !== 'rekt' ? 42 : 58, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 235);
       ctx.restore();
     }
     ctx.restore();
