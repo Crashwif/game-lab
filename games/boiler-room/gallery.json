@@ -8,6 +8,8 @@
     "Optional sound"
   ],
   "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
   "poster": {
     "seconds": 22
   }
