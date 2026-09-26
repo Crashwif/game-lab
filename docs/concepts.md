@@ -4,6 +4,8 @@ These are design concepts, not playable releases. Each can use the same round st
 
 ## Tower Tension
 
+Now a playable reference: [games/tower-tension](../games/tower-tension). The concept as shelved:
+
 A crane drops successive floors onto a growing tower. Camera movement keeps the top visible. Small springs between floors produce increasing sway. The exit action sends a cashout intent; on an accepted exit, a worker rides an elevator to safety. At the crash event, joints release and the tower collapses. Explore transforms, camera tracking and a deterministic presentation-only debris animation.
 
 ## Boiler Room
