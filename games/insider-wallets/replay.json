@@ -1,0 +1,12 @@
+{
+  "gameId": "insider-wallets",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000210",
+  "serverSeedHash": "599b430b465cd8614caa5a5cc86913b1d77cfd04fc3511de7156a77b115c266a",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 510,
+  "rallyN": 0,
+  "bets": []
+}
