@@ -21,7 +21,7 @@ npm ci
 npm run build
 npm run pack:sdk
 # In your own project (adjust the paths)
-npm install /path/to/crashwif-games/crashwif-crash-math-0.1.0.tgz /path/to/crashwif-games/crashwif-game-sdk-0.1.0.tgz
+npm install /path/to/game-lab/crashwif-crash-math-0.1.0.tgz /path/to/game-lab/crashwif-game-sdk-0.1.0.tgz
 ```
 
 Bundle the SDK with your game. It is not published on npm under these names.
