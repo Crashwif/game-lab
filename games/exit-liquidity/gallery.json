@@ -1,0 +1,14 @@
+{
+  "name": "Exit Liquidity",
+  "hook": "Float in the liquidity pool",
+  "tagline": "The liquidity pool is an actual pool. Holders cannonball in as the water rises, a whale surfaces at 5×, and the dev pulls the plug: the water funnels down the drain with everyone still floating.",
+  "tags": [
+    "Rising water",
+    "Crowd of holders",
+    "Drain-plug rug"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 29.5
+  }
+}

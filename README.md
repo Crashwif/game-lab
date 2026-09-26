@@ -32,6 +32,14 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 `npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
 
+## Game Lab deploy
+
+Every playable reference carries a `games/<slug>/gallery.json` with the copy the gallery shows: `name`, a one-line `hook` for the page intro, a `tagline`, three `tags`, the `renderer`, and `poster.seconds`, the moment after page load at which its poster is captured from replay mode. The list and order come from `scripts/games.mjs`, which the build, the dev server and the export share.
+
+`npm run gallery:export` builds the export the platform serves: `gallery-out/<short-commit>/<slug>/` with the three bundle files and `poster.png`, `manifest.json` for the Game Lab page, and `SOURCE.json` with the source commit and a SHA-256 per file. Posters need Playwright's Chromium (`npm install --no-save playwright && npx playwright install chromium`); pass `--skip-posters` to leave them out. `node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform checkout>` applies an export to the platform repository.
+
+The **Deploy Game Lab** workflow (`.github/workflows/game-lab-deploy.yml`) runs those two steps after CI passes on `main`, or on demand. It opens a pull request on the platform repository with the new bundles, posters, `SOURCE.json` and manifest, waits for the platform's checks, merges it, and the platform's Railway workflow deploys `main`. It needs the repository secret `GAME_LAB_PLATFORM_TOKEN` (a token with contents and pull-request write access to the platform repository) and optionally the variable `GAME_LAB_PLATFORM_REPOSITORY` (default `Crashwif/crashwif`); without the secret it skips with a notice.
+
 ## Repository boundaries
 
 - `games/`: game presentation and interactions. Games never select crash points.
@@ -40,6 +48,6 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 - `apps/emulator/`: the local development server. Its development controls are not production endpoints.
 - `docs/`: integration and design references.
 
-The SDK, maths and emulator are pinned source snapshots from the platform. [UPSTREAM.json](UPSTREAM.json) records the commit and paths. Changes to those packages belong in the platform repository, then are synchronized here. Games develop here independently. The gallery serves a checked-in build of a recorded example and links to its source.
+The SDK, maths and emulator are pinned source snapshots from the platform. [UPSTREAM.json](UPSTREAM.json) records the commit and paths. Changes to those packages belong in the platform repository, then are synchronized here. Games develop here independently. The gallery serves a checked-in build of each recorded example, refreshed by the Deploy Game Lab workflow, and links to its source.
 
 Credits have no monetary value. The real backend supplies the committed round; game code controls only its presentation and sends player intents.
