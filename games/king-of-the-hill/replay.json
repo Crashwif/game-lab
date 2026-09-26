@@ -1,0 +1,12 @@
+{
+  "gameId": "king-of-the-hill",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000017",
+  "serverSeedHash": "4303ef0796bae63d9f52f7bf61ae2d37b57889452f2ad07bba769d90d354fe37",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 509,
+  "rallyN": 0,
+  "bets": []
+}
