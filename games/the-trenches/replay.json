@@ -2,11 +2,11 @@
   "gameId": "the-trenches",
   "chainId": 0,
   "roundIndex": 0,
-  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000053",
-  "serverSeedHash": "afbe800454326b2a9f58890a0313a5a98e98469fe0f56c87c6065eb50b276ea6",
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000001a6",
+  "serverSeedHash": "8f41d547ca7488ce2b0a765d99d2aa8279bdd6d24a143dced0fdc9360a3e9140",
   "salt": "game-lab",
   "houseEdgeBps": 300,
-  "crashX100": 1012,
+  "crashX100": 777,
   "rallyN": 0,
   "bets": []
 }

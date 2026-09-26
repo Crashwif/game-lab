@@ -2,11 +2,11 @@
   "gameId": "wen-binance",
   "chainId": 0,
   "roundIndex": 0,
-  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000053",
-  "serverSeedHash": "afbe800454326b2a9f58890a0313a5a98e98469fe0f56c87c6065eb50b276ea6",
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000184",
+  "serverSeedHash": "3ce66aba297911ae9a74916674a2e7b0a9d7513972cc9c1b846b522affa2d4d6",
   "salt": "game-lab",
   "houseEdgeBps": 300,
-  "crashX100": 1012,
+  "crashX100": 995,
   "rallyN": 0,
   "bets": []
 }
