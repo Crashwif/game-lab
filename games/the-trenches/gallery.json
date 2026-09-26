@@ -1,0 +1,16 @@
+{
+  "name": "The Trenches",
+  "hook": "Over the top, soldier",
+  "tagline": "A launch seen from a trench. The frog squad goes over the top and advances on the loot as the multiplier climbs while the whistles get closer; cashing out dives your frog back into the trench with a bag before the nuke lands on the ridge.",
+  "tags": [
+    "Marching rig",
+    "Parallax ridge",
+    "Seeded shockwave"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 24
+  }
+}

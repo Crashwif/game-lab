@@ -1,0 +1,16 @@
+{
+  "name": "Hopium Drip",
+  "hook": "One more dose",
+  "tagline": "A ward at Degen General. The hopium bag drains and the heartbeat monitor draws the multiplier while the doctor's notes get worse and the roommate flatlines first; cashing out discharges you in a suit before the long beep.",
+  "tags": [
+    "EKG trace on the multiplier",
+    "Draining bag volume",
+    "Curtain reveal"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 18
+  }
+}

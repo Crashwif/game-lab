@@ -1,0 +1,12 @@
+{
+  "gameId": "hopium-drip",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000053",
+  "serverSeedHash": "afbe800454326b2a9f58890a0313a5a98e98469fe0f56c87c6065eb50b276ea6",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 1012,
+  "rallyN": 0,
+  "bets": []
+}
