@@ -1,0 +1,16 @@
+{
+  "name": "Wen Binance",
+  "hook": "Sell the news",
+  "tagline": "A coin queues outside a nightclub called The Exchange. The line and the marquee climb with the multiplier while suits get waved past the bouncer; cashing out leaves the queue in a taxi before the doors open, the suits pour out with bags and the sign flips to DELISTED.",
+  "tags": [
+    "Queue on the curve",
+    "Flickering marquee",
+    "Doors on a spring"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 26
+  }
+}

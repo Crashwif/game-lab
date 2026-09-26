@@ -1,0 +1,16 @@
+{
+  "name": "I Got Hacked",
+  "hook": "The post was totally not him",
+  "tagline": "A washed celebrity launches a coin from a mansion balcony. The pool party, the follower ticker and the yacht grow with the multiplier while the manager whispers; cashing out walks your fan out before the I GOT HACKED post goes out and the pool drains. The star is fictional.",
+  "tags": [
+    "Balcony rig with a phone",
+    "Party crowd on a curve",
+    "Drainable pool"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}
