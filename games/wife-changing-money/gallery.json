@@ -1,0 +1,16 @@
+{
+  "name": "Wife Changing Money",
+  "hook": "Close the laptop before she comes downstairs",
+  "tagline": "A 3:07 am kitchen where the suitcase fills toward wife-changing money. Cash out and he tiptoes upstairs. Crash and she sees the chart.",
+  "tags": [
+    "3am kitchen",
+    "Text stack",
+    "Suitcase meter"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

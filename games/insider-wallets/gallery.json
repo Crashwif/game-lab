@@ -1,0 +1,16 @@
+{
+  "name": "Insider Wallets",
+  "hook": "Leave the rally before the insiders sell",
+  "tagline": "A fictional candidate launches a coin while eight insider wallets bloat on the same curve. Cash out and your seat empties. Crash and they all sell in one frame.",
+  "tags": [
+    "Wallet tracker",
+    "Confetti cannons",
+    "Helicopter exit"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

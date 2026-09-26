@@ -1,0 +1,16 @@
+{
+  "name": "Honeypot",
+  "hook": "Pull your paw out before the lid screws shut",
+  "tagline": "A picnic jar labelled $POT. The honey rises, the sell tax climbs to 99%, and the lid turns by itself. Cash out and the paw comes free.",
+  "tags": [
+    "Sell tax ladder",
+    "Lid that screws shut",
+    "Bee swarm"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

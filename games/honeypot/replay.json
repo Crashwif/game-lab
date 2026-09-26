@@ -1,0 +1,12 @@
+{
+  "gameId": "honeypot",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000001d2",
+  "serverSeedHash": "78af7591a7dac7c503fa30c2b141a119d589c9969998b77fadedc649a399d4e3",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 876,
+  "rallyN": 0,
+  "bets": []
+}

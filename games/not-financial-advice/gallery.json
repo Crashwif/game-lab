@@ -1,0 +1,16 @@
+{
+  "name": "Not Financial Advice",
+  "hook": "Unfollow before the green screen falls",
+  "tagline": "A shill stream where the paid-promotion line shrinks to a pixel and the Lambo is a rental. Cash out and the video minimises. Crash and the wallet prints SOLD.",
+  "tags": [
+    "Green screen tear",
+    "Shrinking disclosure",
+    "Rented Lambo"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

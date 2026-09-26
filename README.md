@@ -28,6 +28,10 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension
 | [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a goal that keeps moving, a boyfriend reveal | Playable |
 | [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates that roll, a spotter on his phone | Playable |
 | [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a sleeve that tears, a seeded burst | Playable |
+| [Wife Changing Money](games/wife-changing-money) | A 3 am kitchen lit by a laptop, a hunched seated rig, a text stack, a stair light and a ceiling thump, a suitcase meter | Playable |
+| [Not Financial Advice](games/not-financial-advice) | A green screen that tears, a rental sticker that peels, a wallet feed, a disclosure that shrinks with the odds | Playable |
+| [Honeypot](games/honeypot) | A filling jar with meniscus and drips, honey strings, a bee swarm on the tension, a lid that screws shut | Playable |
+| [Insider Wallets](games/insider-wallets) | A wallet tracker on the multiplier curve, a crowd of layered heads, confetti cannons, a helicopter exit | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own
