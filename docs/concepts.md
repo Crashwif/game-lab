@@ -16,6 +16,8 @@ A mechanic works a locomotive's furnace. Pistons reciprocate, belts accelerate a
 
 ## Thin Ice
 
+Now a playable reference: [games/thin-ice](../games/thin-ice). The concept as shelved:
+
 A skater crosses a frozen lake. Reflections glide below the character and fractures spread outward as tension rises. A successful exit takes the skater toward shore. At the crash event the surface breaks into floating pieces. Explore skeletal motion, surface shaders and transitions between intact and fractured geometry.
 
 ## Designing another game
