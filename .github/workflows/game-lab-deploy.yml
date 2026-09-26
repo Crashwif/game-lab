@@ -93,15 +93,15 @@ jobs:
         run: |
           set -euo pipefail
           sha="$(git -C .. rev-parse HEAD)"; short="${sha:0:7}"
-          git add -A apps/web/public/assets/game-lab apps/web/src/pages/unlock/game-lab.json
+          git add -A apps/web/public/assets/game-lab apps/web/src/pages/unlock/game-lab.json packages/game-lab/catalog.json packages/game-lab/origins
           if git diff --cached --quiet; then echo "::notice::Game Lab already matches $SOURCE_REPOSITORY@$short"; exit 0; fi
           git config user.name "game-lab deploy"
           git config user.email "game-lab-deploy@users.noreply.github.com"
           branch="game-lab/$short"
           git checkout -B "$branch"
-          git commit -q -m "Refresh Game Lab from $SOURCE_REPOSITORY@$short" -m "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha: bundles, posters, SOURCE.json and the page manifest."
+          git commit -q -m "Refresh Game Lab from $SOURCE_REPOSITORY@$short" -m "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha: bundles, posters, SOURCE.json, the page manifest and the remix origins (packages/game-lab)."
           git push -f -u origin "$branch"
-          pr="$(gh pr create --base main --head "$branch" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json and the Game Lab page manifest. Merges itself once the checks pass; Railway deploys main.")"
+          pr="$(gh pr create --base main --head "$branch" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json, the Game Lab page manifest and the remix origins in packages/game-lab. Merges itself once the checks pass; Railway deploys main.")"
           echo "pull request: $pr"
           for _ in $(seq 1 40); do
             count="$(gh pr view "$pr" --json statusCheckRollup --jq '.statusCheckRollup | length')"
