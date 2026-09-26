@@ -1,0 +1,12 @@
+{
+  "gameId": "tower-tension",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000003",
+  "serverSeedHash": "d9147961436944f43cd99d28b2bbddbf452ef872b30c8279e255e7daafc7f946",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 727,
+  "rallyN": 0,
+  "bets": []
+}

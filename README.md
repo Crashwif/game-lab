@@ -13,12 +13,12 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts. Add `?mode=replay` to watch the included recorded example without betting.
+Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension` in place of `balloon-pump`). The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts. Add `?mode=replay` to watch the included recorded example without betting.
 
 | Reference | What to study | Status |
 | --- | --- | --- |
 | [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a seeded burst, meme captions | Playable |
-| [Tower Tension](docs/concepts.md#tower-tension) | Stacking, sway and collapse | Concept |
+| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook, camera tracking, a seeded collapse | Playable |
 | [Boiler Room](docs/concepts.md#boiler-room) | Pistons, pressure and steam | Concept |
 | [Thin Ice](docs/concepts.md#thin-ice) | Character movement and spreading fractures | Concept |
 
@@ -26,7 +26,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**. The local emulato
 
 Read the [integration guide](docs/integration.md) for embedded games, direct SDK clients, emulator setup, and publishing. [Contributing](CONTRIBUTING.md) describes the example layout and how to add a game.
 
-`npm run build` creates a self-contained `dist/balloon-pump/` bundle. Upload its three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
+`npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
 
 ## Repository boundaries
 
