@@ -1,0 +1,58 @@
+{
+  "name": "@crashwif/game-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client SDK for creator-built crash games: the room wire protocol, the shared room reducer with its integrity checks, a socket client, the sandboxed embed bridge, and the deterministic replay player",
+  "type": "module",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "default": "./dist/protocol.js"
+    },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "default": "./dist/state.js"
+    },
+    "./embed": {
+      "types": "./dist/embed.d.ts",
+      "default": "./dist/embed.js"
+    },
+    "./replay": {
+      "types": "./dist/replay.d.ts",
+      "default": "./dist/replay.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./progression": {
+      "types": "./dist/progression.d.ts",
+      "default": "./dist/progression.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@crashwif/crash-math": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}
