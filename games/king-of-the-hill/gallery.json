@@ -8,6 +8,8 @@
     "Lambo exit"
   ],
   "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
   "poster": {
     "seconds": 20
   }
