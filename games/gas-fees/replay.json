@@ -1,0 +1,12 @@
+{
+  "gameId": "gas-fees",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000039",
+  "serverSeedHash": "d6b08ea633e37f827ce117788ca2a7158319f6914311a06eaa6b78b00e451960",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 1162,
+  "rallyN": 0,
+  "bets": []
+}

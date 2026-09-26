@@ -1,0 +1,16 @@
+{
+  "name": "Bonding Curl",
+  "hook": "Sell the peak before it pops",
+  "tagline": "Balloon Pump, but the balloon is his arm. A grayscale gigachad curls until the bicep goes veiny, then shiny, then bursts into protein powder; cashing out drops the weight and kisses the peak first.",
+  "tags": [
+    "Bicep as pressure volume",
+    "Vein splines",
+    "Seeded burst"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

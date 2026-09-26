@@ -1,0 +1,16 @@
+{
+  "name": "Pump & Dump",
+  "hook": "Re-rack before it drops",
+  "tagline": "A bench press seen from the feet. Plates slide onto the bar at every milestone, the bar bends and shakes, and cashing out racks it and sits the lifter up to flex before the bar comes down on whoever is under it.",
+  "tags": [
+    "Bar bent by its load",
+    "Plates as bouncing bodies",
+    "Foreshortened rig"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 18
+  }
+}
