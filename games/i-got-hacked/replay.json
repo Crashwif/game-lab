@@ -2,11 +2,11 @@
   "gameId": "i-got-hacked",
   "chainId": 0,
   "roundIndex": 0,
-  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000053",
-  "serverSeedHash": "afbe800454326b2a9f58890a0313a5a98e98469fe0f56c87c6065eb50b276ea6",
+  "serverSeed": "000000000000000000000000000000000000000000000000000000000000018c",
+  "serverSeedHash": "17562d76c8bfeac18febca1b76cca610abc4631f91e839572b1d67e0ad2050c9",
   "salt": "game-lab",
   "houseEdgeBps": 300,
-  "crashX100": 1012,
+  "crashX100": 553,
   "rallyN": 0,
   "bets": []
 }

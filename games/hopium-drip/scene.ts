@@ -1,61 +1,73 @@
 /**
- * Composes Hopium Drip. The bag, the trace and the notes follow the
- * displayed multiplier. Nothing here chooses the crash.
+ * Composes Hopium Drip from the room state: the ward, the monitor, then
+ * the HUD over the ward. All motion is stepped here with the real frame
+ * time, and nothing drawn here changes the committed outcome.
  */
-import { doseCount, drawMonitor } from './monitor';
 import { clamp, spring, stepSpring } from './motion';
-import { createWard, discharge, drawWard, flatlineWard, resetWard, stepWard, type Ward } from './ward';
+import { type Monitor, createMonitor, dischargeMonitor, drawMonitor, flatlineMonitor, resetMonitor, settleMonitor, stepMonitor } from './monitor';
+import { INK, WARD, type Ward, createWard, discharge, dose, drawWard, flatline, resetWard, settleWard, stepWard } from './ward';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
+  /** Displayed multiplier in hundredths; the crash point once crashed. */
   currentX100: number;
+  /** Milliseconds since the round started running. */
   elapsed: number;
+  /** Milliseconds since the crash, so a flatline missed while the tab was hidden is not replayed late. */
   crashAge: number;
+  /** The player's stake this round, kept through the crash. */
   stake: number | null;
+  /** The accepted exit multiplier in hundredths once the player has cashed out. */
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean; }
-export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; }
 
-const FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
-type Outcome = 'rekt' | 'called' | 'spectator';
+export interface SceneOptions {
+  /** Drops the screen shake, the monitor flicker and the pulse flashes. */
+  reducedMotion?: boolean;
+}
+
+export interface Scene {
+  draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
+}
+
+const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
-function meme(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
-  ctx.font = `900 ${size}px ${FONT}`;
+function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
+  ctx.font = `900 ${size}px ${MEME_FONT}`;
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(3, size * 0.13);
-  ctx.strokeStyle = '#1c1f26';
+  ctx.strokeStyle = INK;
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome === 'rekt') return 'FLATLINE';
-  if (outcome === 'called') return 'DISCHARGED';
-  if (outcome === 'spectator') return 'TIME OF DEATH';
+  if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'DISCHARGED' : 'TIME OF DEATH';
   if (view.phase !== 'running') return 'GM PATIENT';
   if (secured) return 'DISCHARGED';
   if (multiplier < 1.4) return 'TAKE YOUR MEDS';
-  if (multiplier < 2) return 'NUMBER GO UP';
-  if (multiplier < 3.2) return 'ONE MORE DOSE';
-  if (multiplier < 5) return 'HODL';
-  if (multiplier < 8) return 'DIAMOND HANDS';
-  if (multiplier < 12) return 'VITALS UNSTABLE';
-  if (multiplier < 18) return 'NURSE THE COPIUM';
+  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 2.6) return 'ONE MORE DOSE';
+  if (multiplier < 3.6) return 'HODL';
+  if (multiplier < 5) return 'DIAMOND HANDS';
+  if (multiplier < 7.5) return 'VITALS UNSTABLE';
+  if (multiplier < 12) return 'NURSE THE COPIUM';
   return 'THIS IS FINE';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
   const ward: Ward = createWard();
+  const monitor: Monitor = createMonitor();
   const pop = spring(0);
   const badge = spring(0);
-  const capPop = spring(0);
+  const captionPop = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -64,77 +76,101 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
-  function beginCrash(view: SceneView, quiet: boolean): void {
-    const safe = secured !== null || ward.mode === 'walk' || ward.mode === 'gone' || ward.mode === 'up';
-    outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
-    flatlineWard(ward, quiet, safe);
-    if (quiet) pop.x = 1;
-    else { shake = 1; pop.v = 14; }
-  }
-
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
-    time += reduced ? dt * 0.2 : dt;
+    time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const fear = clamp(Math.log2(multiplier) / 3.4, 0, 1);
+    const growth = Math.log2(multiplier);
+    const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+
     if (previous === null) {
       previous = view.phase;
-      if (crashed) beginCrash(view, true);
+      resetWard(ward);
+      resetMonitor(monitor);
+      if (running || crashed) { settleMonitor(monitor, multiplier); settleWard(ward, tension, monitor.doseIndex); }
+      if (crashed) {
+        outcome = 'ended';
+        flatline(ward, view.currentX100, true);
+        flatlineMonitor(monitor, view.currentX100, true);
+        pop.x = 1;
+      }
     } else if (view.phase !== previous) {
-      if (crashed && !ward.crashed) beginCrash(view, view.crashAge > 1500);
+      if (crashed && !ward.dead) {
+        const quiet = view.crashAge > 1500;
+        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        flatline(ward, view.currentX100, quiet);
+        flatlineMonitor(monitor, view.currentX100, quiet);
+        if (quiet) pop.x = 1;
+        else { shake = 1; pop.v = 16; }
+      }
       if (view.phase === 'betting') {
         resetWard(ward);
+        resetMonitor(monitor);
         outcome = null;
         secured = null;
-        shake = 0;
       }
       previous = view.phase;
     }
-    if (secured && running && !ward.crashed) discharge(ward);
-    stepWard(ward, { running, multiplier, fear }, dt);
+    if (secured && running) { discharge(ward); dischargeMonitor(monitor); }
+
+    const reached = stepMonitor(monitor, { running, multiplier, tension }, dt);
+    if (reached) { dose(ward, monitor.doseIndex); if (!reduced) shake = Math.max(shake, 0.15); }
+    stepWard(ward, { running, tension, multiplier, reduced }, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    const next = captionFor(view, multiplier, outcome, secured);
-    if (next !== caption) { caption = next; capPop.v = 6; }
-    stepSpring(capPop, 0, 12, 0.35, dt);
-    if (shake > 0) shake = Math.max(0, shake - dt / 0.4);
+    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    if (nextCaption !== caption) {
+      caption = nextCaption;
+      captionPop.v = 6;
+    }
+    stepSpring(captionPop, 0, 12, 0.35, dt);
+    if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 70) * 6 * shake, 0);
-    drawWard(ctx, ward, multiplier, time);
-    drawMonitor(ctx, 70, 180, multiplier, ward.crashed && !ward.safe, ward.crashT, time, reduced);
-    if (outcome && pop.x > 0.02) {
+    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    drawWard(ctx, ward, tension, reduced);
+    if (outcome && pop.x > 0.02 && ward.deadAge > 0.5) {
       ctx.save();
-      ctx.translate(480, 230);
-      ctx.rotate(-0.06);
-      const k = clamp(pop.x, 0, 1.2);
+      ctx.translate(WARD.w / 2, 300);
+      ctx.rotate(-0.1);
+      const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      const word = outcome === 'called' ? 'DISCHARGED' : outcome === 'rekt' ? 'FLATLINE' : 'TIME OF DEATH';
-      meme(ctx, word, 0, 0, outcome === 'spectator' ? 54 : 72, outcome === 'called' ? '#7cf67c' : '#ff4d6d', 'center', 640);
+      const text = outcome === 'rekt' ? 'FLATLINE' : outcome === 'called' ? 'CALLED IT' : 'FLATLINE';
+      memeText(ctx, text, 0, 0, 84, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center');
       ctx.restore();
     }
     ctx.restore();
+    drawMonitor(ctx, monitor, multiplier, tension, reduced);
+
     if (caption) {
       ctx.save();
-      ctx.translate(470, 52);
-      ctx.scale(1 + 0.07 * capPop.x, 1 + 0.07 * capPop.x);
-      meme(ctx, caption, 0, 0, 34, '#1c1f26', 'center', 560);
+      ctx.translate(WARD.w / 2, 56);
+      const k = 1 + 0.1 * captionPop.x;
+      ctx.scale(k, k);
+      memeText(ctx, caption, 0, 0, 42, '#ffffff', 'center', 580);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
-      const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
+      const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× DISCHARGED`;
       ctx.save();
-      ctx.translate(470, 92);
-      ctx.scale(clamp(badge.x, 0, 1.15), clamp(badge.x, 0, 1.15));
-      meme(ctx, text, 0, 0, 22, '#2f7a3a', 'center');
+      ctx.translate(WARD.w / 2, 100 + Math.sin(time * 2) * 3);
+      ctx.rotate(-0.02);
+      const k = clamp(badge.x, 0, 1.3);
+      ctx.scale(k, k);
+      memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    meme(ctx, `${multiplier.toFixed(2)}×`, 936, 56, 52, outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : '#1c1f26', 'right');
-    meme(ctx, `DOSE ${doseCount(multiplier)}`, 24, 518, 22, '#f7f4ea', 'left');
+    const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
+    ctx.save();
+    if (!running && !outcome) ctx.globalAlpha = 0.85;
+    memeText(ctx, `${multiplier.toFixed(2)}×`, WARD.w - 18, WARD.h - 18, 52, colour, 'right');
+    ctx.restore();
+    memeText(ctx, `${monitor.doseIndex} DOSES`, 18, WARD.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }
+
   return { draw };
 }

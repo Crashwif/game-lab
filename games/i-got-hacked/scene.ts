@@ -1,52 +1,64 @@
 /**
- * Composes I Got Hacked. The party, the yacht and the draft follow the
- * displayed multiplier. The post is the committed crash.
+ * Composes I Got Hacked from the room state: the mansion and the bay, the
+ * pool party, the phone close-up and the ticker, then the HUD. All motion
+ * is stepped here with the real frame time, and nothing drawn here changes
+ * the committed outcome.
  */
+import { INK, type Mansion, STAGE, celebrate, createMansion, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
 import { clamp, spring, stepSpring } from './motion';
-import { createMansion, drawMansion, hackPost, resetMansion, stepMansion, type Mansion } from './mansion';
-import { createParty, drainParty, drawParty, fanCount, leaveParty, resetParty, stepParty, type Party } from './party';
+import { type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
+  /** Displayed multiplier in hundredths; the crash point once crashed. */
   currentX100: number;
+  /** Milliseconds since the round started running. */
   elapsed: number;
+  /** Milliseconds since the crash, so a post missed while the tab was hidden is not replayed late. */
   crashAge: number;
+  /** The player's stake this round, kept through the crash. */
   stake: number | null;
+  /** The accepted exit multiplier in hundredths once the player has cashed out. */
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean; }
-export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; }
 
-const FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
-type Outcome = 'rekt' | 'called' | 'spectator';
+export interface SceneOptions {
+  /** Drops the screen shake, the party bounce and the champagne particles. */
+  reducedMotion?: boolean;
+}
+
+export interface Scene {
+  draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
+}
+
+const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
-function meme(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
-  ctx.font = `900 ${size}px ${FONT}`;
+function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
+  ctx.font = `900 ${size}px ${MEME_FONT}`;
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(3, size * 0.13);
-  ctx.strokeStyle = '#1c1f26';
+  ctx.strokeStyle = INK;
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome === 'rekt') return 'I GOT HACKED';
-  if (outcome === 'called') return 'NOT HACKED';
-  if (outcome === 'spectator') return 'RUGGED';
+  if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'NOT HACKED' : 'I GOT HACKED';
   if (view.phase !== 'running') return 'GM FAM';
   if (secured) return 'NOT HACKED';
   if (multiplier < 1.4) return 'MY NEW COIN';
-  if (multiplier < 2.2) return 'NUMBER GO UP';
-  if (multiplier < 3.5) return 'LOVE MY FANS';
-  if (multiplier < 6) return 'HODL';
-  if (multiplier < 9) return 'DIAMOND HANDS';
-  if (multiplier < 14) return 'THE MANAGER IS WHISPERING';
-  if (multiplier < 20) return 'WHY IS THE YACHT MOVING';
+  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 2.6) return 'LOVE MY FANS';
+  if (multiplier < 3.6) return 'HODL';
+  if (multiplier < 5) return 'DIAMOND HANDS';
+  if (multiplier < 7.5) return 'THE MANAGER IS WHISPERING';
+  if (multiplier < 12) return 'WHY IS THE YACHT MOVING';
   return 'THIS IS FINE';
 }
 
@@ -56,7 +68,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const party: Party = createParty();
   const pop = spring(0);
   const badge = spring(0);
-  const capPop = spring(0);
+  const captionPop = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -65,77 +77,103 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
-  function beginCrash(view: SceneView, quiet: boolean): void {
-    outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
-    hackPost(mansion, quiet);
-    drainParty(party, quiet);
-    if (quiet) pop.x = 1;
-    else { shake = 1; pop.v = 14; }
-  }
-
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const growth = Math.log2(multiplier);
+    const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+
     if (previous === null) {
       previous = view.phase;
-      if (crashed) beginCrash(view, true);
+      resetMansion(mansion);
+      resetParty(party);
+      if (running || crashed) { settleParty(party, multiplier); settleMansion(mansion, tension, multiplier); }
+      if (crashed) {
+        outcome = 'ended';
+        endMansion(mansion, view.currentX100, true);
+        drainParty(party, view.currentX100, false, true);
+        pop.x = 1;
+      }
     } else if (view.phase !== previous) {
-      if (crashed && !mansion.crashed) beginCrash(view, view.crashAge > 1500);
+      if (crashed && !mansion.ended) {
+        const quiet = view.crashAge > 1500;
+        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        endMansion(mansion, view.currentX100, quiet);
+        drainParty(party, view.currentX100, outcome === 'called', quiet);
+        if (quiet) pop.x = 1;
+        else { shake = 1; pop.v = 16; }
+      }
       if (view.phase === 'betting') {
         resetMansion(mansion);
         resetParty(party);
         outcome = null;
         secured = null;
-        shake = 0;
       }
       previous = view.phase;
     }
-    if (secured && running && !mansion.crashed) leaveParty(party);
-    stepMansion(mansion, multiplier, dt);
-    stepParty(party, multiplier, dt);
+    if (secured && running) leaveParty(party);
+
+    const reached = stepParty(party, { running, multiplier, tension, reduced }, dt);
+    if (reached) { celebrate(mansion, party.popIndex); if (!reduced) shake = Math.max(shake, 0.15); }
+    stepMansion(mansion, { running, tension, multiplier, reduced }, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    const next = captionFor(view, multiplier, outcome, secured);
-    if (next !== caption) { caption = next; capPop.v = 6; }
-    stepSpring(capPop, 0, 12, 0.35, dt);
-    if (shake > 0) shake = Math.max(0, shake - dt / 0.4);
+    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    if (nextCaption !== caption) {
+      caption = nextCaption;
+      captionPop.v = 6;
+    }
+    stepSpring(captionPop, 0, 12, 0.35, dt);
+    if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(0, Math.sin(time * 50) * 4 * shake);
-    drawMansion(ctx, mansion, multiplier, time);
-    drawParty(ctx, party, multiplier, reduced ? 0 : time);
-    if (outcome && pop.x > 0.02) {
+    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    drawMansion(ctx, mansion, tension, reduced);
+    drawParty(ctx, party, tension, outcome !== null, outcome === 'called', reduced);
+    drawPhone(ctx, mansion, multiplier);
+    drawTicker(ctx, party, multiplier);
+    if (outcome && pop.x > 0.02 && mansion.endAge > 0.4) {
       ctx.save();
-      ctx.translate(420, 180);
-      ctx.rotate(-0.06);
-      ctx.scale(clamp(pop.x, 0, 1.15), clamp(pop.x, 0, 1.15));
-      const word = outcome === 'called' ? 'NOT HACKED' : outcome === 'rekt' ? 'I GOT HACKED' : 'RUGGED';
-      meme(ctx, word, 0, 0, outcome === 'rekt' ? 64 : 72, outcome === 'called' ? '#7cf67c' : '#ff4d6d', 'center', 620);
+      ctx.translate(STAGE.w / 2, 330);
+      ctx.rotate(-0.1);
+      const k = clamp(pop.x, 0, 1.3);
+      ctx.scale(k, k);
+      const text = outcome === 'rekt' ? 'RUGGED' : outcome === 'called' ? 'CALLED IT' : 'I GOT HACKED';
+      memeText(ctx, text, 0, 0, 84, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
       ctx.restore();
     }
     ctx.restore();
+
     if (caption) {
       ctx.save();
-      ctx.translate(400, 44);
-      ctx.scale(1 + 0.06 * capPop.x, 1 + 0.06 * capPop.x);
-      meme(ctx, caption, 0, 0, 28, '#ffffff', 'center', 520);
+      ctx.translate(STAGE.w / 2 + 80, 56);
+      const k = 1 + 0.1 * captionPop.x;
+      ctx.scale(k, k);
+      memeText(ctx, caption, 0, 0, 42, '#ffffff', 'center', 560);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
-      const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
+      const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× NOT HACKED`;
       ctx.save();
-      ctx.translate(480, 512);
-      ctx.scale(clamp(badge.x, 0, 1.15), clamp(badge.x, 0, 1.15));
-      meme(ctx, text, 0, 0, 22, '#7cf67c', 'center');
+      ctx.translate(STAGE.w / 2 + 80, 100 + Math.sin(time * 2) * 3);
+      ctx.rotate(-0.02);
+      const k = clamp(badge.x, 0, 1.3);
+      ctx.scale(k, k);
+      memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    meme(ctx, `${multiplier.toFixed(2)}×`, 936, 44, 42, outcome === 'rekt' ? '#ff4d6d' : '#ffffff', 'right');
-    meme(ctx, `POPS ${fanCount(multiplier)}`, 24, 520, 20, '#f0e6c8', 'left');
+    const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
+    ctx.save();
+    if (!running && !outcome) ctx.globalAlpha = 0.85;
+    memeText(ctx, `${multiplier.toFixed(2)}×`, STAGE.w - 18, STAGE.h - 18, 52, colour, 'right');
+    ctx.restore();
+    memeText(ctx, `${party.popIndex} POPS`, 190, STAGE.h - 18, 24, outcome ? '#ff9db0' : '#ffffff', 'left');
   }
+
   return { draw };
 }
