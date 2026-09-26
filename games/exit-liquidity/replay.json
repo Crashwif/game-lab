@@ -1,0 +1,12 @@
+{
+  "gameId": "exit-liquidity",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000072",
+  "serverSeedHash": "1e2b57158abc313b8b445c15dcb766cc1e996ddc7aa632337b1e037b236c8010",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 568,
+  "rallyN": 0,
+  "bets": []
+}
