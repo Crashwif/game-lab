@@ -17,7 +17,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**. The local emulato
 
 | Reference | What to study | Status |
 | --- | --- | --- |
-| [Balloon Pump](games/balloon-pump) | Two-bone joints, a moving piston, continuous balloon growth, crash animation | Playable |
+| [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a seeded burst, meme captions | Playable |
 | [Tower Tension](docs/concepts.md#tower-tension) | Stacking, sway and collapse | Concept |
 | [Boiler Room](docs/concepts.md#boiler-room) | Pistons, pressure and steam | Concept |
 | [Thin Ice](docs/concepts.md#thin-ice) | Character movement and spreading fractures | Concept |
