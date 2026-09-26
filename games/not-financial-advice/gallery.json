@@ -1,0 +1,16 @@
+{
+  "name": "Not Financial Advice",
+  "hook": "Use code REKT",
+  "tagline": "An influencer shills a 1000x gem beside a rented Lambo in front of a green screen that tears. The disclosure shrinks with every milestone; cashing out unfollows before his wallet posts SOLD and the tow truck arrives.",
+  "tags": [
+    "Torn green screen",
+    "Wallet feed",
+    "Shrinking disclosure"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 16
+  }
+}

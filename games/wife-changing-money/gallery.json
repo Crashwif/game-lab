@@ -1,0 +1,16 @@
+{
+  "name": "Wife Changing Money",
+  "hook": "Just one more trade before bed",
+  "tagline": "A degen at the kitchen laptop at 3 am. The mugs, the unread texts and the stair light climb with the multiplier; cashing out closes the lid before she comes down and the suitcase rolls out with the cat in it.",
+  "tags": [
+    "Seated rig lit by a screen",
+    "Text-message stack",
+    "Milestone meter"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 22
+  }
+}

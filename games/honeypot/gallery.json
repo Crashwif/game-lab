@@ -1,0 +1,16 @@
+{
+  "name": "Honeypot",
+  "hook": "The lid is moving",
+  "tagline": "A bear with his paw in a jar of honey that fills with the multiplier while the sell tax on the label climbs and the lid turns by itself. Cashing out pulls the paw free; the crash screws it shut and stamps CAN'T SELL.",
+  "tags": [
+    "Filling glass volume",
+    "Honey strings",
+    "Bee swarm on the tension"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 28
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Insider Wallets",
+  "hook": "The people's coin, paid for by nobody in particular",
+  "tagline": "A fictional candidate launches a coin at a podium while a tracker of eight insider wallets bloats on the same curve and blinks PENDING. Cashing out leaves the rally early; the crash flashes every row SOLD and the helicopter takes him mid-sentence.",
+  "tags": [
+    "Wallet tracker",
+    "Layered crowd",
+    "Confetti cannons"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}
