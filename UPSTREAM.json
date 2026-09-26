@@ -1,5 +1,5 @@
 {
-  "repository": "przmyst/crashwif_new",
+  "repository": "Crashwif/crashwif",
   "commit": "9916a4fa2b34863267aeb8277ab395e91c31b7d6",
   "paths": ["packages/game-sdk", "packages/crash-math", "apps/emulator"],
   "policy": "These packages are source snapshots. Protocol and outcome changes originate upstream."

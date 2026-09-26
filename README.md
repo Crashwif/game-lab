@@ -7,8 +7,8 @@ Working game references and ideas for creators building beyond the graph. [**Gam
 Use Node 24 and npm 11:
 
 ```sh
-git clone https://github.com/przmyst/crashwif-games.git
-cd crashwif-games
+git clone https://github.com/Crashwif/game-lab.git
+cd game-lab
 npm ci
 npm run dev
 ```
