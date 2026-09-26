@@ -10,9 +10,13 @@ A crane drops successive floors onto a growing tower. Camera movement keeps the 
 
 ## Boiler Room
 
+Now a playable reference: [games/boiler-room](../games/boiler-room). The concept as shelved:
+
 A mechanic works a locomotive's furnace. Pistons reciprocate, belts accelerate and a pressure needle climbs. Exiting asks the server to cash out and, once accepted, the mechanic ducks behind a shield. At the crash event a valve blows and steam fills the scene. Explore linked mechanisms, layered particles and sound driven by the displayed multiplier.
 
 ## Thin Ice
+
+Now a playable reference: [games/thin-ice](../games/thin-ice). The concept as shelved:
 
 A skater crosses a frozen lake. Reflections glide below the character and fractures spread outward as tension rises. A successful exit takes the skater toward shore. At the crash event the surface breaks into floating pieces. Explore skeletal motion, surface shaders and transitions between intact and fractured geometry.
 
