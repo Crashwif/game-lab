@@ -19,7 +19,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension
 | --- | --- | --- |
 | [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a seeded burst, meme captions | Playable |
 | [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook, camera tracking, a seeded collapse | Playable |
-| [Boiler Room](docs/concepts.md#boiler-room) | Pistons, pressure and steam | Concept |
+| [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, opt-in procedural sound | Playable |
 | [Thin Ice](docs/concepts.md#thin-ice) | Character movement and spreading fractures | Concept |
 
 ## Build your own

@@ -10,6 +10,8 @@ A crane drops successive floors onto a growing tower. Camera movement keeps the 
 
 ## Boiler Room
 
+Now a playable reference: [games/boiler-room](../games/boiler-room). The concept as shelved:
+
 A mechanic works a locomotive's furnace. Pistons reciprocate, belts accelerate and a pressure needle climbs. Exiting asks the server to cash out and, once accepted, the mechanic ducks behind a shield. At the crash event a valve blows and steam fills the scene. Explore linked mechanisms, layered particles and sound driven by the displayed multiplier.
 
 ## Thin Ice
