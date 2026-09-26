@@ -1,0 +1,113 @@
+# Deploys the playable references to the platform's Game Lab page.
+#
+# After CI passes on main (or on a manual run), this builds every game, captures
+# a poster from each recorded round, and writes the versioned export that the
+# platform serves from apps/web/public/assets/game-lab. It then opens a pull
+# request on the platform repository with the new bundles, posters, SOURCE.json
+# and page manifest, waits for the platform's checks, and merges it. The
+# platform's own Railway workflow deploys main from there.
+#
+# Configuration on this repository:
+#   secret GAME_LAB_PLATFORM_TOKEN   a token with contents and pull-request write
+#                                     access to the platform repository (a
+#                                     fine-grained PAT or a GitHub App token)
+#   variable GAME_LAB_PLATFORM_REPOSITORY   owner/name, default Crashwif/crashwif
+# Without the secret the workflow skips with a notice.
+name: Deploy Game Lab
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or ref to deploy (default: main)"
+        required: false
+        type: string
+
+concurrency:
+  group: game-lab-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Export and publish
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PLATFORM_REPOSITORY: ${{ vars.GAME_LAB_PLATFORM_REPOSITORY || 'Crashwif/crashwif' }}
+    steps:
+      - name: Check the platform token
+        id: config
+        env:
+          TOKEN: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then echo "configured=true" >> "$GITHUB_OUTPUT"; else echo "configured=false" >> "$GITHUB_OUTPUT"; echo "::notice::GAME_LAB_PLATFORM_TOKEN is not set: skipping the Game Lab deploy"; fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - name: Build every game
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          npm ci
+          npm run build
+      - name: Fonts and a browser for the posters
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
+          (sudo apt-get update -qq && sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1) || echo "::warning::Microsoft core fonts are unavailable; posters use fallback fonts"
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Export the gallery
+        if: steps.config.outputs.configured == 'true'
+        run: node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$(git rev-parse HEAD)" --repository "https://github.com/${{ github.repository }}"
+      - name: Check out the platform
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PLATFORM_REPOSITORY }}
+          token: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
+          path: platform
+          fetch-depth: 0
+      - name: Apply the export to the platform
+        if: steps.config.outputs.configured == 'true'
+        run: node scripts/gallery/sync-platform.mjs --export gallery-out --platform platform
+      - name: Open, verify and merge the platform pull request
+        if: steps.config.outputs.configured == 'true'
+        working-directory: platform
+        env:
+          GH_TOKEN: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sha="$(git -C .. rev-parse HEAD)"; short="${sha:0:7}"
+          git add -A apps/web/public/assets/game-lab apps/web/src/pages/unlock/game-lab.json
+          if git diff --cached --quiet; then echo "::notice::Game Lab already matches $SOURCE_REPOSITORY@$short"; exit 0; fi
+          git config user.name "game-lab deploy"
+          git config user.email "game-lab-deploy@users.noreply.github.com"
+          branch="game-lab/$short"
+          git checkout -B "$branch"
+          git commit -q -m "Refresh Game Lab from $SOURCE_REPOSITORY@$short" -m "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha: bundles, posters, SOURCE.json and the page manifest."
+          git push -f -u origin "$branch"
+          pr="$(gh pr create --base main --head "$branch" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json and the Game Lab page manifest. Merges itself once the checks pass; Railway deploys main.")"
+          echo "pull request: $pr"
+          for _ in $(seq 1 40); do
+            count="$(gh pr view "$pr" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+            [ "${count:-0}" -gt 0 ] && break
+            sleep 15
+          done
+          gh pr checks "$pr" --watch --fail-fast --interval 30
+          gh pr merge "$pr" --merge --delete-branch --match-head-commit "$(git rev-parse HEAD)"
+          echo "merged: $pr"

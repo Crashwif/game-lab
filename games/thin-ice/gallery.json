@@ -1,0 +1,14 @@
+{
+  "name": "Thin Ice",
+  "hook": "Skate on thin ice",
+  "tagline": "A skater glides beneath the aurora as cracks spread around her. Each stroke carries her farther across the lake, until the ice gives way beneath her skates.",
+  "tags": [
+    "Skating motion",
+    "Spreading cracks",
+    "Shattering ice"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 18
+  }
+}

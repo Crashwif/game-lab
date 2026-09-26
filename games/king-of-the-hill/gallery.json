@@ -1,0 +1,14 @@
+{
+  "name": "King of the Hill",
+  "hook": "Push a coin up the curve",
+  "tagline": "A degen ape pushes a coin up the bonding curve while holders cling to its rim. The slope steepens with the market cap, a Lambo waits for the exit, and the dev's sell sends the coin rolling back over everyone.",
+  "tags": [
+    "Bonding-curve hill",
+    "Rolling coin",
+    "Lambo exit"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 20
+  }
+}

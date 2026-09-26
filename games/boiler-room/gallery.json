@@ -1,0 +1,14 @@
+{
+  "name": "Boiler Room",
+  "hook": "Fire up a boiler",
+  "tagline": "A stoker shovels coal as the engine races and the pressure needle climbs. Rivets hiss, the safety valve lifts, and the boiler blows in a cloud of steam.",
+  "tags": [
+    "Piston mechanics",
+    "Rising pressure",
+    "Optional sound"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 22
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Blanket Champ",
+  "hook": "Cheer a champ from the bleachers",
+  "tagline": "A stamina crash game played under a duvet. The tempo climbs with the multiplier while the room reacts: the headboard knocks, the lamp wobbles, the cat leaves and the fans do the wave. Nothing under the blanket is ever shown.",
+  "tags": [
+    "Room props on springs",
+    "Cheering crowd",
+    "Commentary booth"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 30
+  }
+}

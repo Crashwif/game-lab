@@ -1,0 +1,2 @@
+/** The playable references, in gallery order. Build, dev and the Game Lab export all read this list. */
+export const GAMES = ['balloon-pump', 'tower-tension', 'boiler-room', 'thin-ice', 'king-of-the-hill', 'exit-liquidity', 'blanket-champ'];

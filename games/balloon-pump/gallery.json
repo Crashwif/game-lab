@@ -1,0 +1,14 @@
+{
+  "name": "Balloon Pump",
+  "hook": "Inflate a balloon",
+  "tagline": "A wide-eyed man in a pink beanie works a floor pump. The balloon bobs, his nerves build, and every stroke brings it closer to bursting.",
+  "tags": [
+    "Expressive characters",
+    "Spring motion",
+    "Balloon physics"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 14
+  }
+}

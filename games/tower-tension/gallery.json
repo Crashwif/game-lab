@@ -1,0 +1,14 @@
+{
+  "name": "Tower Tension",
+  "hook": "Stack a tower",
+  "tagline": "A crane stacks floor after floor while a worker rides the swaying tower. The higher it climbs, the harder it leans, until the whole stack comes tumbling down.",
+  "tags": [
+    "Swaying tower",
+    "Pendulum crane",
+    "Cinematic collapse"
+  ],
+  "renderer": "Canvas 2D",
+  "poster": {
+    "seconds": 24
+  }
+}
