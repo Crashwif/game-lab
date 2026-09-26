@@ -24,6 +24,10 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension
 | [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a Lambo pick-up | Playable |
 | [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a whale, a drain-plug rug pull | Playable |
 | [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a cheering crowd | Playable |
+| [Gas Fees](games/gas-fees) | A packed lift in depth order, a roster of arrivals, a seeded gas cloud, a face that changes colour | Playable |
+| [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a goal that keeps moving, a boyfriend reveal | Playable |
+| [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates that roll, a spotter on his phone | Playable |
+| [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a sleeve that tears, a seeded burst | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own

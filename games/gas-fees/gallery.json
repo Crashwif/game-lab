@@ -1,0 +1,16 @@
+{
+  "name": "Gas Fees",
+  "hook": "Hold it in until your floor",
+  "tagline": "A man in a suit holds one in inside a packed glass lift. Passengers squeeze in as the multiplier climbs, the haze gathers at the ankles, and cashing out gets him off at his floor before the cabin fills with green.",
+  "tags": [
+    "Crowd in depth order",
+    "Seeded gas cloud",
+    "Face state machine"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 28
+  }
+}

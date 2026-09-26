@@ -1,0 +1,12 @@
+{
+  "gameId": "bonding-curl",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "000000000000000000000000000000000000000000000000000000000000002d",
+  "serverSeedHash": "f66e7487deb9b520bba6729c749b7f6931656ccd58e0e756768e190874d32709",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 470,
+  "rallyN": 0,
+  "bets": []
+}
