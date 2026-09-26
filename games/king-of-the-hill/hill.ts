@@ -13,7 +13,7 @@ const SLOPE_GAIN = 1.6;
 const SLOPE_SCALE = 1800;
 
 /** dy/dx of the ground at world x. */
-export const slopeAt = (x: number): number => SLOPE_MIN + SLOPE_GAIN * (1 - Math.exp(-Math.max(0, x) / SLOPE_SCALE));
+export const slopeAt = (x: number): number => x < 0 ? 0 : SLOPE_MIN + SLOPE_GAIN * (1 - Math.exp(-x / SLOPE_SCALE));
 /** Ground height at world x (integral of the slope). */
 export const heightAt = (x: number): number => {
   const t = Math.max(0, x);

@@ -6,7 +6,7 @@
  * drawn here changes the committed outcome.
  */
 import { type ApeState, createApe, drawApe, resetApe, stepApe } from './ape';
-import { type CoinDrive, type CoinState, coinPose, crashCoin, createCoin, drawCoin, resetCoin, settleCoin, stepCoin } from './coin';
+import { type CoinDrive, type CoinState, coinPose, crashCoin, createCoin, drawCoin, settleCoin, stepCoin } from './coin';
 import { type Camera, type Point, drawHill, drawSky, heightAt, slopeAngle, toScreen } from './hill';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 
@@ -197,7 +197,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         else { shake = 1; pop.v = 16; }
       }
       if (view.phase === 'betting') {
-        resetCoin(coin);
+        settleCoin(coin, drive);
         resetApe(ape);
         lambo = { mode: 'none', x: 0, wheel: 0 };
         outcome = null;
@@ -211,11 +211,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     // Step the coin, the ape and the Lambo choreography.
-    const before = coinPose(coin).contact.x;
     stepCoin(coin, drive, dt);
     const pose = coinPose(coin);
-    const speed = dt > 0 ? (pose.contact.x - before) / dt : 0;
-    stepApe(ape, { speed: running ? Math.max(0, speed) + 30 : 0, fear, bump: coin.events.bump }, dt);
+    stepApe(ape, { anchor: { contactX: pose.contact.x, centre: pose.centre, r: pose.r }, walking: running, fear, bump: coin.events.bump }, dt);
     if (coin.events.jeet) jeetFlash = 1;
     jeetFlash = Math.max(0, jeetFlash - dt / 1.2);
     if (coin.events.bump && !reduced) shake = Math.max(shake, 0.18);
