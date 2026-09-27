@@ -213,8 +213,9 @@ export function drawSuit(ctx: CanvasRenderingContext2D, x: number, footY: number
   for (const side of [-1, 1]) {
     const phase = stride + (side > 0 ? Math.PI : 0);
     const lift = Math.max(0, Math.sin(phase)) * 14;
-    const reach = Math.cos(phase) * 11;
-    limb(ctx, { x: side * 8, y: -66 }, { x: side * 10 + reach, y: -lift }, 38, 34, 1, 12, '#23232b');
+    // Airborne foot travels from behind the hip to in front. Local +x is the way he faces.
+    const reach = -Math.cos(phase) * 11;
+    limb(ctx, { x: side * 8, y: -66 }, { x: side * 10 + reach, y: -lift }, 38, 34, -1, 12, '#23232b');
     ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(side * 10 + reach, 3 - lift, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
@@ -229,8 +230,9 @@ export function drawSuit(ctx: CanvasRenderingContext2D, x: number, footY: number
   ctx.fillStyle = tie;
   ctx.beginPath(); ctx.moveTo(-3, -118); ctx.lineTo(3, -118); ctx.lineTo(2, -92); ctx.lineTo(0, -86); ctx.lineTo(-2, -92); ctx.closePath(); ctx.fill();
   const swing = Math.sin(stride);
-  const leftHand = { x: -34 + swing * 12, y: -66 };
-  const rightHand = { x: 34 - swing * 12, y: -64 };
+  // The arm opposite the forward foot leads.
+  const leftHand = { x: -34 - swing * 12, y: -66 };
+  const rightHand = { x: 34 + swing * 12, y: -64 };
   limb(ctx, { x: -22, y: -112 }, leftHand, 30, 28, 1, 11, '#2b2b33');
   limb(ctx, { x: 22, y: -112 }, rightHand, 30, 28, 1, 11, '#2b2b33');
   if (bag) {
