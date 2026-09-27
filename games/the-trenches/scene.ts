@@ -105,7 +105,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         const quiet = view.crashAge > 1500;
         outcome = view.stake === null ? 'nuked' : secured ? 'survived' : 'kia';
         nuke(field, view.currentX100, quiet, frogXs(squad, progress));
-        killSquad(squad, quiet);
+        killSquad(squad, quiet, progress);
         if (quiet) pop.x = 1;
         else { shake = 1; pop.v = 16; }
       }

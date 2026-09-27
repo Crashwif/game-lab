@@ -13,7 +13,7 @@ const TRENCH_FLOOR = TRENCH_Y + 78;
 const SKIN = '#5cab4a';
 const HELMET = '#5e6b3a';
 
-export type FrogMode = 'trench' | 'marching' | 'diving' | 'safe' | 'dead';
+export type FrogMode = 'trench' | 'marching' | 'diving' | 'safe' | 'dead' | 'flung';
 
 export interface Frog {
   mode: FrogMode;
@@ -88,16 +88,24 @@ export function diveBack(s: Squad, progress: number): void {
   f.diveFrom = { x: at.x, y: at.y };
 }
 
-/** The nuke landed. `quiet` skips the effects for a crash that already happened. */
-export function killSquad(s: Squad, quiet: boolean): void {
+/** The nuke landed. `quiet` skips the effects for a crash that already happened. Marching frogs arc back into the trench. */
+export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
   if (s.dead) return;
   s.dead = true;
   s.deadAge = quiet ? 10 : 0;
   s.bubble = 'DEV SOLD';
   s.bubbleAge = 0;
   settleSpring(s.ring, 1);
-  for (const f of s.frogs) if (f.mode === 'marching' || f.mode === 'trench') f.mode = 'dead';
-  if (quiet) for (const f of s.frogs) if (f.mode === 'diving') { f.mode = 'safe'; }
+  for (const f of s.frogs) {
+    if (f.mode === 'diving') { if (quiet) f.mode = 'safe'; continue; }
+    if (f.mode !== 'marching' && f.mode !== 'trench') continue;
+    if (!quiet && f.mode === 'marching') {
+      const at = marchPosition(f, progress, s.over.x);
+      f.diveFrom = { x: at.x, y: at.y };
+      f.diveAge = 0;
+      f.mode = 'flung';
+    } else f.mode = 'dead';
+  }
 }
 
 export interface SquadDrive { running: boolean; tension: number; multiplier: number; progress: number; reduced: boolean }
@@ -122,6 +130,10 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
       f.diveAge += dt;
       if (f.diveAge >= 0.75) { f.mode = 'safe'; f.clang.v += 14; }
     }
+    if (f.mode === 'flung') {
+      f.diveAge += dt;
+      if (f.diveAge >= 1.05) f.mode = 'dead';
+    }
   }
   if (!s.dead) {
     const ringing = drive.running && drive.tension > 0.45 && Math.floor(s.time * 1.5) % 4 !== 3;
@@ -142,27 +154,71 @@ function sandbag(ctx: CanvasRenderingContext2D, x: number, y: number, w: number)
   ctx.beginPath(); ctx.moveTo(x + 8, y + 9); ctx.lineTo(x + w - 8, y + 9); ctx.stroke();
 }
 
-interface Pose { stride: number; squash: number; expression: 'grit' | 'hype' | 'shock' | 'chill' | 'dead'; shades: boolean; cigar: boolean; bag: boolean; helmetLift: number; lying: boolean }
+interface Pose {
+  stride: number;
+  squash: number;
+  expression: 'grit' | 'hype' | 'shock' | 'chill' | 'dead';
+  shades: boolean;
+  cigar: boolean;
+  bag: boolean;
+  helmetLift: number;
+  lying: boolean;
+  /** 0 dry, 1 stuck: the plant shortens and the knee bends harder. */
+  mud?: number;
+  phone?: boolean;
+  whistle?: boolean;
+  time?: number;
+}
 
-/** The frog rig: legs from the stride, a body squashed on each step, a helmet, big eyes. */
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return { x: root.x + (dx / distance) * along - (dy / distance) * bend, y: root.y + (dy / distance) * along + (dx / distance) * bend };
+}
+
+function bone(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): void {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+}
+
+/** The frog rig: two-bone legs and arms, a helmet that lags the step, a body squashed on each plant. */
 export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, pose: Pose): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale);
   if (pose.lying) { ctx.rotate(Math.PI / 2); ctx.translate(-10, 20); }
+  else ctx.rotate(Math.sin(pose.stride * Math.PI * 2) * 0.05);
   const sq = 1 + 0.18 * pose.squash;
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  // Legs.
-  ctx.strokeStyle = INK; ctx.lineWidth = 9;
-  const lift = Math.sin(pose.stride * Math.PI * 2);
+  const mud = pose.mud ?? 0;
+  const t = pose.time ?? 0;
+  // Knees point out. Mud pulls the foot in so the joint folds, and a plant leaves a puddle.
   for (const side of [-1, 1]) {
-    const l = Math.max(0, lift * side) * 12;
-    ctx.beginPath(); ctx.moveTo(side * 10, -12); ctx.lineTo(side * 18, -2 - l); ctx.lineTo(side * 24, -l); ctx.stroke();
-  }
-  ctx.strokeStyle = '#4a9440'; ctx.lineWidth = 5.5;
-  for (const side of [-1, 1]) {
-    const l = Math.max(0, lift * side) * 12;
-    ctx.beginPath(); ctx.moveTo(side * 10, -12); ctx.lineTo(side * 18, -2 - l); ctx.lineTo(side * 24, -l); ctx.stroke();
+    const phase = pose.stride * Math.PI * 2 + (side > 0 ? 0 : Math.PI);
+    const lift = Math.max(0, Math.sin(phase)) * (7 + 8 * (1 - mud * 0.45));
+    const reach = Math.cos(phase) * (4 + 5 * (1 - mud));
+    const hip = { x: side * 8, y: -18 };
+    const foot = { x: side * (13 + 4 * (1 - mud)) + reach, y: -lift + mud * 3 };
+    bone(ctx, hip, foot, 16, 15, foot.y >= hip.y ? -side : side, 6.5, '#4a9440');
+    ctx.fillStyle = '#3d7a34'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 1, 7, 3.2, side * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (!pose.lying && lift < 2.2 && mud > 0.25) {
+      ctx.fillStyle = 'rgba(74, 58, 32, 0.5)';
+      ctx.beginPath(); ctx.ellipse(foot.x, 5, 8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
   // Body: a squat blob in a tunic.
   ctx.save();
@@ -190,21 +246,69 @@ export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, sc
   else if (pose.expression === 'dead') { ctx.moveTo(-8, -46); ctx.quadraticCurveTo(0, -52, 8, -46); }
   else { ctx.moveTo(-9, -46); ctx.lineTo(9, -46); }
   ctx.stroke();
-  if (pose.cigar) { ctx.fillStyle = '#7a4a2a'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(6, -50, 22, 6, 3); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#ff7a3a'; ctx.beginPath(); ctx.arc(28, -47, 3, 0, Math.PI * 2); ctx.fill(); }
-  // Helmet.
+  if (pose.cigar) {
+    ctx.fillStyle = '#7a4a2a'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(6, -50, 22, 6, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff7a3a'; ctx.beginPath(); ctx.arc(28, -47, 3, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 3; i += 1) {
+      const u = (t * 0.45 + i * 0.33) % 1;
+      ctx.globalAlpha = 0.5 * (1 - u);
+      ctx.fillStyle = '#e4e4ea';
+      ctx.beginPath(); ctx.arc(30 + u * 8, -50 - u * 18, 1.6 + u * 3.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Helmet lags the squash, so it lifts a beat after the foot lands.
   ctx.save();
-  ctx.translate(0, -pose.helmetLift * 14);
+  const lag = pose.helmetLift + pose.squash * 0.55 + Math.sin(pose.stride * Math.PI * 2 - 0.7) * 0.16;
+  ctx.translate(Math.sin(pose.stride * Math.PI * 2) * 3 * pose.squash, -lag * 14);
   ctx.fillStyle = HELMET; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.ellipse(0, -72, 26, 16, 0, Math.PI, Math.PI * 2); ctx.lineTo(30, -72); ctx.lineTo(-30, -72); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#7cf67c'; ctx.font = '900 11px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('$', 0, -76);
   ctx.restore();
   ctx.restore();
-  // Bag in hand.
+  // Arms swing opposite the legs. A phone, a whistle or the bag hangs off the hand.
+  if (!pose.lying) {
+    for (const side of [-1, 1]) {
+      const phase = pose.stride * Math.PI * 2 + (side > 0 ? Math.PI : 0);
+      const swing = Math.sin(phase) * (7 + 3 * mud);
+      const shoulder = { x: side * 16, y: -40 };
+      const holdWhistle = Boolean(pose.whistle) && side > 0;
+      const holdBag = pose.bag && side > 0;
+      const hand = holdWhistle
+        ? { x: 14, y: -50 }
+        : holdBag
+          ? { x: 28, y: -34 + Math.sin(t * 3) * 3 }
+          : { x: side * 30 + swing * 0.45, y: -28 + swing * 0.65 };
+      bone(ctx, shoulder, hand, 14, 13, hand.y >= shoulder.y ? -side : side, 5.5, SKIN);
+      ctx.fillStyle = SKIN; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (pose.phone && side < 0 && !holdWhistle) {
+        ctx.save(); ctx.translate(hand.x, hand.y); ctx.rotate(-0.7);
+        ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(-4, -8, 8, 13, 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = pose.expression === 'shock' ? '#ff4d6d' : '#7cf67c';
+        ctx.fillRect(-2.4, -5, 4.8, 7);
+        ctx.restore();
+      }
+      if (holdWhistle) {
+        ctx.fillStyle = '#d7d7de'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.ellipse(hand.x + 7, hand.y, 7, 3.2, -0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    }
+  } else {
+    for (const side of [-1, 1]) bone(ctx, { x: side * 12, y: -32 }, { x: side * 28, y: -6 }, 16, 14, -side, 5.5, SKIN);
+  }
   if (pose.bag) {
+    const swing = Math.sin(pose.stride * Math.PI * 2 - 0.5) * 8 + Math.sin(t * 2) * 2;
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(22, -40); ctx.quadraticCurveTo(14, -14, 32, -14); ctx.quadraticCurveTo(50, -14, 42, -40); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#7cf67c'; ctx.font = '900 12px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('$', 32, -22);
+    ctx.beginPath();
+    ctx.moveTo(24, -34);
+    ctx.quadraticCurveTo(10 + swing, -14, 30 + swing, -6);
+    ctx.quadraticCurveTo(50 + swing * 0.45, -6, 40 + swing * 0.2, -34);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7cf67c'; ctx.font = '900 12px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('$', 32 + swing * 0.35, -16);
   }
   ctx.restore();
 }
@@ -228,7 +332,7 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       if (s.over.x < 0.02) continue;
       const stride = f.phase % 1;
       const expression = tension > 0.75 ? 'shock' : tension > 0.35 ? 'grit' : 'hype';
-      drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false });
+      drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false, mud: tension, phone: f !== s.frogs[YOURS], time: s.time });
       if (f === s.frogs[YOURS]) {
         ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
         const ty = at.y - 100 * at.scale - 6 + Math.sin(s.time * 4) * 3;
@@ -240,7 +344,18 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       const y = mix(f.diveFrom.y, TRENCH_FLOOR, k) - Math.sin(k * Math.PI) * 90;
       const scale = mix(0.75, 1, k);
       ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI * 0.35 * Math.sin(k * Math.PI)); ctx.translate(-x, -y);
-      drawFrog(ctx, x, y, scale, { stride: 0.25, squash: 0, expression: 'shock', shades: false, cigar: false, bag: true, helmetLift: 0.6, lying: false });
+      drawFrog(ctx, x, y, scale, { stride: f.diveAge * 6, squash: 0, expression: 'shock', shades: false, cigar: false, bag: true, helmetLift: 0.6, lying: false, time: s.time });
+      ctx.restore();
+    } else if (f.mode === 'flung') {
+      const k = smoothstep(0, 1.05, f.diveAge);
+      const x = mix(f.diveFrom.x, f.x - 8, k);
+      const y = mix(f.diveFrom.y, TRENCH_Y + 10, k) - Math.sin(k * Math.PI) * (70 + f.seed * 6);
+      const spin = (f.seed % 2 > 1 ? -1 : 1) * k * 2.2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(spin);
+      ctx.translate(-x, -y);
+      drawFrog(ctx, x, y, mix(0.7, 0.95, k), { stride: 0.2, squash: Math.sin(k * Math.PI), expression: k > 0.62 ? 'dead' : 'shock', shades: false, cigar: false, bag: false, helmetLift: 0.15 + k * 1.35, lying: false, time: s.time });
       ctx.restore();
     }
   }
@@ -266,9 +381,9 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
     if (f.mode === 'trench') {
       const peek = 1 - s.over.x;
       if (peek < 0.02) continue;
-      drawFrog(ctx, f.x, TRENCH_FLOOR + 8 + 40 * (1 - peek), 1, { stride: 0, squash: 0, expression: 'grit', shades: false, cigar: false, bag: false, helmetLift: 0, lying: false });
+      drawFrog(ctx, f.x, TRENCH_FLOOR + 8 + 40 * (1 - peek), 1, { stride: s.time * 1.1 + f.seed, squash: 0, expression: 'grit', shades: false, cigar: false, bag: false, helmetLift: 0, lying: false, mud: 0.5, phone: f.seed > 8, time: s.time });
     } else if (f.mode === 'safe') {
-      drawFrog(ctx, f.x, TRENCH_FLOOR + 8, 1, { stride: 0, squash: 0, expression: 'chill', shades: true, cigar: true, bag: true, helmetLift: clamp(f.clang.x, 0, 1.5), lying: false });
+      drawFrog(ctx, f.x, TRENCH_FLOOR + 8, 1, { stride: s.time * 0.7, squash: 0, expression: 'chill', shades: true, cigar: true, bag: true, helmetLift: clamp(f.clang.x, 0, 1.5), lying: false, time: s.time, mud: 0.15 });
       ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.roundRect(f.x - 58, TRENCH_FLOOR + 20, 116, 24, 5); ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK; ctx.font = '900 12px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
@@ -281,7 +396,7 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
   }
   // The sergeant and the field phone on the right.
   const sx = 880;
-  drawFrog(ctx, sx, TRENCH_FLOOR + 8, 1.05, { stride: 0, squash: 0, expression: s.dead ? (s.deadAge > 1.05 ? 'dead' : 'shock') : tension > 0.6 ? 'shock' : 'grit', shades: false, cigar: !s.dead, bag: false, helmetLift: 0, lying: s.dead && s.deadAge > 1.05 });
+  drawFrog(ctx, sx, TRENCH_FLOOR + 8, 1.05, { stride: s.dead ? 0 : s.time * 1.3, squash: 0, expression: s.dead ? (s.deadAge > 1.05 ? 'dead' : 'shock') : tension > 0.6 ? 'shock' : 'grit', shades: false, cigar: !s.dead, bag: false, helmetLift: 0, lying: s.dead && s.deadAge > 1.05, whistle: s.whistle.x > 0.15 && !s.dead, time: s.time });
   ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sx - 34, TRENCH_FLOOR - 40); ctx.lineTo(sx - 20, TRENCH_FLOOR - 44); ctx.lineTo(sx - 20, TRENCH_FLOOR - 34); ctx.lineTo(sx - 34, TRENCH_FLOOR - 32); ctx.closePath(); ctx.fill(); ctx.stroke();
   const px = 800;

@@ -142,6 +142,26 @@ function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
 }
 
 type Mood = 'calm' | 'hype' | 'sulk' | 'shock';
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return { x: root.x + (dx / distance) * along - (dy / distance) * bend, y: root.y + (dy / distance) * along + (dx / distance) * bend };
+}
+
+function bone(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): void {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = width + 5;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = colour; ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+}
 
 function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, seed: number, scale: number, bob: number, lean: number, mood: Mood, inWater: number, special: boolean, towel: number, stride: number): void {
   ctx.save();
@@ -152,26 +172,54 @@ function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, seed: numb
   const tone = noise(seed * 3.3);
   const skin = tone > 0.66 ? '#f3dccb' : tone > 0.33 ? '#e0bda7' : '#c68e6a';
   const swim = special ? '#ffe27a' : ['#e63946', '#3b82f6', '#2e8b57', '#7c3aed', '#ff7ab8'][Math.floor(noise(seed * 7.1) * 5)]!;
-  const hidden = inWater > 0.5 ? 30 : 0;
-  if (hidden === 0 && stride !== 0) for (const side of [-1, 1]) { const lift = Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 10; ctx.strokeStyle = INK; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(side * 10, -30); ctx.lineTo(side * 12, 20 - lift); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 11; ctx.stroke(); }
-  else if (hidden === 0) for (const side of [-1, 1]) { ctx.strokeStyle = INK; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(side * 10, -30); ctx.lineTo(side * 12, 20); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 11; ctx.stroke(); }
-  // Arms up when hyped, on the head when sulking, holding a drink otherwise.
-  const hand = mood === 'sulk' ? { x: 0, y: -74 } : mood === 'hype' ? { x: 30, y: -96 } : { x: 26, y: -70 };
-  ctx.strokeStyle = INK; ctx.lineWidth = 15;
-  ctx.beginPath(); ctx.moveTo(18, -34); ctx.lineTo(hand.x, hand.y); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 10; ctx.stroke();
-  if (mood === 'hype') { ctx.strokeStyle = INK; ctx.lineWidth = 15; ctx.beginPath(); ctx.moveTo(-18, -34); ctx.lineTo(-30, -96); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 10; ctx.stroke(); }
-  if (mood === 'calm' || mood === 'shock') { ctx.fillStyle = '#ffb36b'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hand.x - 8, hand.y - 6); ctx.lineTo(hand.x + 8, hand.y - 6); ctx.lineTo(hand.x + 5, hand.y - 30); ctx.lineTo(hand.x - 5, hand.y - 30); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hand.x + 2, hand.y - 30); ctx.lineTo(hand.x + 8, hand.y - 44); ctx.stroke(); }
+  const swimming = inWater > 0.5;
+  if (!swimming) {
+    for (const side of [-1, 1]) {
+      const phase = stride + (side > 0 ? Math.PI : 0);
+      const stepping = stride !== 0;
+      const lift = stepping ? Math.max(0, Math.sin(phase)) * 14 : 0;
+      const reach = stepping ? Math.cos(phase) * 10 : 0;
+      const foot = { x: side * 10 + reach, y: 16 - lift };
+      bone(ctx, { x: side * 8, y: -34 }, foot, 30, 28, foot.y >= -34 ? -side : side, 11, skin);
+      ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 2, 7, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+  }
+  // Arms up when hyped, folded on the head when sulking, a crawl in the pool, a drink otherwise.
+  const crawl = swimming ? Math.sin(stride) : 0;
+  const hand = mood === 'sulk' ? { x: 4, y: -78 }
+    : mood === 'hype' ? { x: 36, y: -102 }
+    : swimming ? { x: 40, y: -18 - 36 * Math.max(0, crawl) }
+    : { x: 28, y: -66 };
+  bone(ctx, { x: 16, y: -46 }, hand, 30, 28, hand.y >= -46 ? -1 : 1, 10, skin);
+  const other = mood === 'hype' ? { x: -34, y: -102 } : swimming ? { x: -40, y: -18 - 36 * Math.max(0, -crawl) } : mood === 'sulk' ? { x: -4, y: -78 } : null;
+  if (other) bone(ctx, { x: -16, y: -46 }, other, 30, 28, other.y >= -46 ? 1 : -1, 10, skin);
+  if (mood === 'hype') {
+    ctx.save(); ctx.translate(hand.x, hand.y - 8); ctx.rotate(-0.3);
+    ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(-6, -14, 12, 20, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7cf67c'; ctx.fillRect(-4, -11, 8, 12);
+    ctx.restore();
+  } else if ((mood === 'calm' || mood === 'shock') && !swimming) {
+    ctx.fillStyle = '#ffb36b'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hand.x - 8, hand.y - 6); ctx.lineTo(hand.x + 8, hand.y - 6); ctx.lineTo(hand.x + 5, hand.y - 30); ctx.lineTo(hand.x - 5, hand.y - 30); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hand.x + 2, hand.y - 30); ctx.lineTo(hand.x + 8, hand.y - 44); ctx.stroke();
+  }
+  const hidden = swimming ? 30 : 0;
   ctx.fillStyle = swim; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.roundRect(-20, -40 + hidden * 0, 40, 44 - hidden, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-20, -40, 40, 44 - hidden, 8); ctx.fill(); ctx.stroke();
   if (towel > 0.02) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-26, -44, 52 * towel, 30, 6); ctx.fill(); ctx.stroke(); }
   const sulk = mood === 'sulk' ? 1 : 0;
   ctx.fillStyle = skin;
   ctx.beginPath(); ctx.ellipse(0, -58 + sulk * 10, 16, 18, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // Hair.
+  // Hair lags the step.
   ctx.fillStyle = ['#3a2a1e', '#fff1b8', '#1b1b1f', '#c94b6c'][Math.floor(noise(seed * 4.4) * 4)]!;
+  ctx.save();
+  ctx.translate(Math.sin(stride || seed) * 2, 0);
   ctx.beginPath(); ctx.ellipse(0, -70 + sulk * 10, 16, 8, 0, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
-  if (sulk) { ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-18, -34); ctx.lineTo(-8, -54); ctx.moveTo(18, -34); ctx.lineTo(8, -54); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 4.5; ctx.stroke(); }
-  else {
+  ctx.restore();
+  if (!sulk) {
     ctx.fillStyle = INK;
     for (const ex of [-6, 6]) { ctx.beginPath(); ctx.ellipse(ex, -62, 2.2, mood === 'shock' ? 4 : 2.2, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.strokeStyle = INK; ctx.lineWidth = 1.8;
@@ -233,9 +281,10 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
     const mood: Mood = finished ? (cheerful ? 'hype' : p.sulk.x > 0.5 ? 'sulk' : 'shock') : cheer > 0.7 ? 'hype' : 'calm';
     const inWater = f.inPool ? water : 0;
     const y = f.inPool ? f.y + (1 - water) * 18 : f.y;
+    const paddle = f.inPool && !finished && !reduced ? p.time * (5 + 4 * cheer) + f.seed : 0;
     ctx.save();
     ctx.globalAlpha = k;
-    drawFan(ctx, f.x, y, f.seed, f.scale * (0.6 + 0.4 * k), bob, lean, mood, inWater, false, 0, 0);
+    drawFan(ctx, f.x, y, f.seed, f.scale * (0.6 + 0.4 * k), bob, lean, mood, inWater, false, 0, paddle);
     ctx.restore();
   }
   // Your fan, front row centre.
