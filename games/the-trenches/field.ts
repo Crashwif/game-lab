@@ -191,13 +191,34 @@ function bag(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): vo
   ctx.restore();
 }
 
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return { x: root.x + (dx / distance) * along - (dy / distance) * bend, y: root.y + (dy / distance) * along + (dx / distance) * bend };
+}
+
 function frogSilhouette(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number, s: number): void {
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
   ctx.fillStyle = INK;
   ctx.beginPath(); ctx.ellipse(0, 0, 14, 12, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(0, -16, 12, 9, 0, 0, Math.PI * 2); ctx.fill();
   ctx.lineCap = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(-10, 6); ctx.lineTo(-24, 16); ctx.moveTo(10, 6); ctx.lineTo(24, 18); ctx.moveTo(-10, -6); ctx.lineTo(-26, -16); ctx.moveTo(10, -6); ctx.lineTo(24, -18); ctx.stroke();
+  const limbs: ReadonlyArray<readonly [Point, Point, number]> = [
+    [{ x: -8, y: 4 }, { x: -22, y: 18 }, -1],
+    [{ x: 8, y: 4 }, { x: 24, y: 16 }, 1],
+    [{ x: -8, y: -6 }, { x: -22, y: -20 }, -1],
+    [{ x: 8, y: -6 }, { x: 24, y: -18 }, 1],
+  ];
+  for (const [a, b, side] of limbs) {
+    const joint = bendJoint(a, b, 14, 13, side);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -264,6 +285,11 @@ export function drawGround(ctx: CanvasRenderingContext2D, f: Field, tension: num
       ctx.fillStyle = '#6b6b70'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-10, 0); ctx.quadraticCurveTo(-24, -6 + Math.sin(r.age * 20) * 6, -30, 2); ctx.stroke();
+      ctx.lineWidth = 1.6;
+      for (const side of [-1, 1]) {
+        const phase = r.age * 22 + side;
+        ctx.beginPath(); ctx.moveTo(side * 3, 4); ctx.lineTo(side * 7 + Math.cos(phase) * 3, 7 + Math.max(0, Math.sin(phase)) * 2); ctx.stroke();
+      }
       ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(9, -2, 1.5, 0, Math.PI * 2); ctx.fill();
     } else {
       const bob = Math.abs(Math.sin(r.age * 14)) * 4;
@@ -271,8 +297,20 @@ export function drawGround(ctx: CanvasRenderingContext2D, f: Field, tension: num
       ctx.beginPath(); ctx.ellipse(0, -10 - bob, 11, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#ffffff'; for (const ex of [-4, 4]) { ctx.beginPath(); ctx.arc(ex, -16 - bob, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
       ctx.fillStyle = INK; for (const ex of [-4, 4]) { ctx.beginPath(); ctx.arc(ex, -16 - bob, 1.5, 0, Math.PI * 2); ctx.fill(); }
-      ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = INK;
-      ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(-12 + Math.sin(r.age * 14) * 8, 8); ctx.moveTo(6, -2); ctx.lineTo(12 - Math.sin(r.age * 14) * 8, 8); ctx.stroke();
+      ctx.lineCap = 'round';
+      const step = r.age * 14;
+      for (const side of [-1, 1]) {
+        const phase = step + (side > 0 ? Math.PI : 0);
+        const lift = Math.max(0, Math.sin(phase)) * 6;
+        const reach = Math.cos(phase) * 4;
+        const hip = { x: side * 5, y: -4 - bob * 0.2 };
+        const foot = { x: side * 7 + reach, y: 8 - lift };
+        const knee = bendJoint(hip, foot, 10, 9, -side);
+        ctx.strokeStyle = INK; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+        ctx.strokeStyle = '#4a9440'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+      }
       ctx.fillStyle = '#ffffff'; ctx.font = '900 9px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
       ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeText('JEET', 0, -30 - bob); ctx.fillText('JEET', 0, -30 - bob);
     }

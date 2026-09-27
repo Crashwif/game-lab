@@ -141,11 +141,38 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   for (const g of m.gulls) { g.x -= g.speed * dt; if (g.x < 470) g.x = 980; }
 }
 
-function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, colour: string): void {
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
   ctx.lineCap = 'round';
-  ctx.strokeStyle = INK; ctx.lineWidth = width + 5;
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 5;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
 }
 
 function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'left', maxWidth?: number): void {
@@ -203,7 +230,8 @@ function drawYacht(ctx: CanvasRenderingContext2D, m: Mansion, tension: number): 
     ctx.fillStyle = '#e0bda7';
     ctx.beginPath(); ctx.arc(0, -40, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = INK; ctx.fillRect(-8, -44, 6, 4); ctx.fillRect(2, -44, 6, 4);
-    limb(ctx, { x: 10, y: -24 }, { x: 30, y: -50 + Math.sin(m.time * 6) * 4 }, 7, '#2b2b30');
+    limb(ctx, { x: -8, y: -24 }, { x: -24, y: -6 }, 16, 14, -1, 7, '#2b2b30');
+    limb(ctx, { x: 10, y: -24 }, { x: 32, y: -52 + Math.sin(m.time * 6) * 6 }, 20, 18, 1, 7, '#2b2b30');
     ctx.restore();
   }
   ctx.restore();
@@ -218,17 +246,27 @@ function drawManager(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY
   ctx.rotate(-0.25 * lean);
   ctx.lineJoin = 'round';
   const suit = '#2b2b30';
-  for (const side of [-1, 1]) limb(ctx, { x: side * 9, y: -70 }, { x: side * 12, y: 0 }, 13, suit);
+  for (const side of [-1, 1]) {
+    const plant = side > 0 ? lean * 16 : -lean * 6;
+    limb(ctx, { x: side * 9, y: -74 }, { x: side * 12 + plant, y: 0 }, 42, 38, -side, 13, suit);
+    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(side * 12 + plant, 3, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
   ctx.fillStyle = suit; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-28, -130, 56, 64, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.moveTo(-8, -130); ctx.lineTo(8, -130); ctx.lineTo(0, -96); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.moveTo(-3, -128); ctx.lineTo(3, -128); ctx.lineTo(1, -100); ctx.lineTo(-1, -100); ctx.closePath(); ctx.fill();
-  limb(ctx, { x: 26, y: -120 }, { x: mix(34, -6, lean), y: mix(-70, -150, lean) }, 12, suit);
-  limb(ctx, { x: -26, y: -120 }, { x: -34, y: -70 }, 12, suit);
-  // A phone in the free hand.
+  const whisperHand = { x: mix(36, -8, lean), y: mix(-68, -152, lean) };
+  limb(ctx, { x: 26, y: -120 }, whisperHand, 36, 34, whisperHand.y >= -120 ? -1 : 1, 12, suit);
+  const phoneHand = { x: -42 + Math.sin(m.time * 1.6) * 3, y: -66 };
+  limb(ctx, { x: -26, y: -120 }, phoneHand, 34, 32, phoneHand.y >= -120 ? 1 : -1, 12, suit);
+  ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(whisperHand.x, whisperHand.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // A phone in the free hand, bobbing with the arm.
   ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(-42, -84, 14, 22, 3); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(phoneHand.x - 6, phoneHand.y - 16, 14, 22, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#7cf67c'; ctx.fillRect(phoneHand.x - 3, phoneHand.y - 12, 8, 12);
   const hy = -156;
   ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.ellipse(0, hy, 24, 27, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -268,27 +306,37 @@ function drawStar(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: n
   ctx.translate(x + sway, footY);
   ctx.lineJoin = 'round';
   const robe = '#ffffff';
-  // Legs in slippers, hidden below the balcony rail: only the robe hem shows.
+  // The hem lags the sway. Slippers stay behind the balcony rail.
+  const hem = Math.sin(m.time * 1.8) * 7 + sway * 0.6;
   ctx.fillStyle = robe; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-58, 0); ctx.quadraticCurveTo(-64, -120, -30, -140); ctx.lineTo(30, -140); ctx.quadraticCurveTo(64, -120, 58, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // Robe lapels and a gold chain.
+  ctx.beginPath();
+  ctx.moveTo(-58, hem * 0.25);
+  ctx.quadraticCurveTo(-68, -40, -62, -118);
+  ctx.quadraticCurveTo(-58, -144, -30, -140);
+  ctx.lineTo(30, -140);
+  ctx.quadraticCurveTo(58, -144, 62, -118);
+  ctx.quadraticCurveTo(68, -40, 58, -hem * 0.25);
+  ctx.quadraticCurveTo(0, 18 + hem, -58, hem * 0.25);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Robe lapels and a gold chain that swings with the multiplier.
   ctx.fillStyle = '#efe6ff';
   ctx.beginPath(); ctx.moveTo(-30, -140); ctx.lineTo(0, -70); ctx.lineTo(30, -140); ctx.lineTo(18, -140); ctx.lineTo(0, -96); ctx.lineTo(-18, -140); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#e0bda7';
   ctx.beginPath(); ctx.moveTo(-18, -140); ctx.lineTo(0, -96); ctx.lineTo(18, -140); ctx.closePath(); ctx.fill();
+  const chain = Math.sin(m.time * 2.4) * (4 + 10 * tension) + sway * 0.2;
   ctx.strokeStyle = '#ffd35c'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-14, -132); ctx.quadraticCurveTo(0, -104, 14, -132); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, -132); ctx.quadraticCurveTo(chain, -100, 14, -132); ctx.stroke();
   ctx.fillStyle = '#ffd35c'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, -114, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(chain * 0.7, -112, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = INK; ctx.font = `900 8px ${MEME_FONT}`; ctx.textAlign = 'center'; ctx.fillText('$', 0, -111);
   // Belt.
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-54, -60); ctx.lineTo(54, -60); ctx.stroke();
   // Arms: the phone hand, and a free hand that waves or shrugs.
   const phoneHand = { x: -34 + 6 * typing, y: -96 - shrug * 30 };
-  limb(ctx, { x: -50, y: -126 }, phoneHand, 15, robe);
-  const freeHand = shrug > 0.3 ? { x: 62, y: -128 - shrug * 10 } : wave > 0.2 ? { x: 74, y: -170 - Math.sin(m.time * 11) * 10 * wave } : { x: 60, y: -80 };
-  limb(ctx, { x: 50, y: -126 }, freeHand, 15, robe);
+  limb(ctx, { x: -50, y: -126 }, phoneHand, 34, 30, phoneHand.y >= -126 ? 1 : -1, 15, robe);
+  const freeHand = shrug > 0.3 ? { x: 62, y: -128 - shrug * 10 } : wave > 0.2 ? { x: 74, y: -176 - Math.sin(m.time * 11) * 12 * wave } : { x: 64, y: -78 };
+  limb(ctx, { x: 50, y: -126 }, freeHand, 36, 32, freeHand.y >= -126 ? -1 : 1, 15, robe);
   ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(freeHand.x, freeHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(phoneHand.x, phoneHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -397,9 +445,11 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
     ctx.fillStyle = '#c68e6a';
     ctx.beginPath(); ctx.arc(ax, ay - 86, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#7a5230';
-    const lift = Math.abs(Math.sin(m.time * 6)) * 20 * packing;
-    ctx.beginPath(); ctx.roundRect(ax + 14, ay - 50 - lift, 26, 26, 4); ctx.fill(); ctx.stroke();
-    limb(ctx, { x: ax + 12, y: ay - 64 }, { x: ax + 26, y: ay - 44 - lift }, 8, '#2b2b30');
+    const lift = Math.abs(Math.sin(m.time * 6)) * 22 * packing;
+    const bagX = ax + 18 + Math.sin(m.time * 6) * 6 * packing;
+    ctx.beginPath(); ctx.roundRect(bagX, ay - 52 - lift, 26, 26, 4); ctx.fill(); ctx.stroke();
+    limb(ctx, { x: ax - 10, y: ay - 66 }, { x: ax - 26, y: ay - 40 + Math.sin(m.time * 3) * 4 }, 16, 14, -1, 8, '#2b2b30');
+    limb(ctx, { x: ax + 12, y: ay - 66 }, { x: bagX + 10, y: ay - 40 - lift }, 18, 16, 1, 8, '#2b2b30');
     ctx.restore();
   }
   // Curtains, pulled a little wider as the packing goes on.
@@ -434,17 +484,27 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
   if (pr > 0.02) {
     for (let i = 0; i < 3; i += 1) {
       const px = mix(640 + i * 40, 590 + i * 22, pr);
-      const stride = pr < 0.98 && !reduced ? Math.sin(m.time * 10 + i) * 3 : 0;
+      const step = pr < 0.98 && !reduced ? m.time * 9 + i * 1.3 : i;
       ctx.save();
-      ctx.translate(px, 290 + stride);
+      ctx.translate(px, 290);
       ctx.scale(0.55, 0.55);
       ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-      for (const side of [-1, 1]) limb(ctx, { x: side * 9, y: -60 }, { x: side * 12, y: 0 }, 12, '#2b2b30');
+      for (const side of [-1, 1]) {
+        const phase = step + (side > 0 ? Math.PI : 0);
+        const lift = pr < 0.98 && !reduced ? Math.max(0, Math.sin(phase)) * 14 : 0;
+        const reach = pr < 0.98 && !reduced ? Math.cos(phase) * 10 : 0;
+        limb(ctx, { x: side * 8, y: -64 }, { x: side * 10 + reach, y: -lift }, 36, 34, -side, 12, '#2b2b30');
+      }
       ctx.beginPath(); ctx.roundRect(-24, -120, 48, 62, 8); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-6, -120); ctx.lineTo(6, -120); ctx.lineTo(0, -92); ctx.closePath(); ctx.fill();
+      const swing = Math.sin(step) * 12;
+      limb(ctx, { x: -20, y: -108 }, { x: -30 - swing, y: -68 }, 28, 26, 1, 10, '#2b2b30');
+      const briefcase = { x: 34 + Math.sin(step - 0.5) * 10, y: -72 };
+      limb(ctx, { x: 20, y: -108 }, briefcase, 28, 26, -1, 10, '#2b2b30');
       ctx.fillStyle = '#e0bda7'; ctx.beginPath(); ctx.arc(0, -142, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK; ctx.fillRect(-14, -148, 11, 6); ctx.fillRect(3, -148, 11, 6);
-      ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.roundRect(24, -80, 26, 34, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(briefcase.x - 6, briefcase.y, 26, 34, 3); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
     ctx.save();

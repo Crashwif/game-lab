@@ -155,11 +155,40 @@ export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   }
 }
 
-function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, colour: string): void {
+/** Two-bone joint. Longer bones than the reach make the knee or elbow stick out; `side` picks the direction. */
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+/** Strokes a two-bone limb and returns the joint so a tube or a string can meet it. */
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
   ctx.lineCap = 'round';
-  ctx.strokeStyle = INK; ctx.lineWidth = width + 5;
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 5;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
 }
 
 function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'center'): void {
@@ -215,14 +244,46 @@ function drawDrip(ctx: CanvasRenderingContext2D, w: Ward, tension: number): void
   ctx.fillStyle = 'rgba(230, 240, 245, 0.8)';
   ctx.beginPath(); ctx.roundRect(-9, 12 + bh + 4, 18, 30, 5); ctx.fill(); ctx.stroke();
   ctx.fillStyle = colour;
-  for (const d of w.drops) if (d.y < 28) { ctx.beginPath(); ctx.arc(0, 12 + bh + 8 + d.y, 3, 0, Math.PI * 2); ctx.fill(); }
+  for (const d of w.drops) if (d.y < 28) {
+    ctx.save();
+    ctx.translate(0, 12 + bh + 8 + d.y);
+    ctx.scale(0.65, 1.45);
+    ctx.beginPath(); ctx.moveTo(0, -4); ctx.quadraticCurveTo(3.4, 0, 0, 4); ctx.quadraticCurveTo(-3.4, 0, 0, -4); ctx.fill();
+    ctx.restore();
+  }
   ctx.restore();
-  // Line to the arm.
-  ctx.strokeStyle = INK; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(x, 280); ctx.quadraticCurveTo(x + 10, 360, 236, 356); ctx.stroke();
+  // Line follows the cannula elbow, and sags between drips.
+  const arm = cannula(w, tension);
+  const elbow = arm?.elbow ?? { x: 210, y: 330 };
+  const hand = arm?.hand ?? { x: 236, y: 356 };
+  const sag = Math.sin(w.time * 2.4) * 7;
+  ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, 280); ctx.quadraticCurveTo((x + elbow.x) / 2, (280 + elbow.y) / 2 + 26 + sag, elbow.x, elbow.y); ctx.lineTo(hand.x, hand.y); ctx.stroke();
   ctx.strokeStyle = colour; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.restore();
-  void tension;
+}
+
+/** The cannula arm in ward space, matching the bed pose so the drip can meet the elbow. */
+function cannula(w: Ward, tension: number): { elbow: Point; hand: Point } | null {
+  const p = w.patient;
+  if (p.mode !== 'bed' && p.mode !== 'unplugging') return null;
+  const lean = clamp(w.lean.x, 0, 1.2);
+  const twitch = clamp(w.twitch.x, -1, 1.5);
+  const heave = w.dead ? 0 : Math.sin(w.time * (3.2 + 9 * tension));
+  const ox = 300;
+  const oy = 380 - lean * 8 + twitch * 3;
+  const rot = 0.18 * lean;
+  const sx = 1 + 0.015 * heave;
+  const sy = 1 + 0.04 * heave;
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const map = (pt: Point): Point => {
+    const x = pt.x * sx;
+    const y = pt.y * sy;
+    return { x: ox + x * c - y * s, y: oy + x * s + y * c };
+  };
+  const hand = { x: -64, y: -24 };
+  return { elbow: map(bendJoint({ x: -22, y: -96 }, hand, 50, 46, 1)), hand: map(hand) };
 }
 
 /** The doctor at the foot of the bed with the clipboard. */
@@ -232,21 +293,33 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
   ctx.save();
   ctx.translate(520, 470);
   ctx.rotate(-0.12 * lean);
+  ctx.translate(Math.sin(w.time * 1.3) * 2, 0);
   ctx.lineJoin = 'round';
-  // Legs and coat.
-  for (const side of [-1, 1]) limb(ctx, { x: side * 12, y: -90 }, { x: side * 14, y: 0 }, 14, '#3d5f8f');
+  // Legs, shoes, and a coat hem that shifts as he leans in to write.
+  for (const side of [-1, 1]) {
+    const plant = Math.sin(w.time * 1.3) * side * 2;
+    limb(ctx, { x: side * 12, y: -90 }, { x: side * 16 + plant, y: 0 }, 52, 48, -side, 14, '#3d5f8f');
+    ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(side * 16 + plant, 3, 11, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  const hem = Math.sin(w.time * 1.7) * (3 + 4 * lean);
   ctx.fillStyle = '#f4f7fb'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-40, -100); ctx.lineTo(-44, -220); ctx.lineTo(44, -220); ctx.lineTo(40, -100); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-44, -220); ctx.lineTo(44, -220); ctx.lineTo(42, -108);
+  ctx.quadraticCurveTo(18, -90 + hem, 0, -102 - hem);
+  ctx.quadraticCurveTo(-18, -90 - hem, -42, -108);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = 'rgba(28,31,38,0.25)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, -215); ctx.lineTo(0, -110); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -215); ctx.lineTo(0, -118); ctx.stroke();
   ctx.fillStyle = '#7cf67c'; ctx.beginPath(); ctx.roundRect(-34, -200, 24, 10, 2); ctx.fill();
-  // Stethoscope.
+  // Stethoscope, swinging off the lean.
+  const sway = Math.sin(w.time * 2.1) * 5 * (0.35 + lean);
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-16, -216); ctx.quadraticCurveTo(-20, -170, 6, -160); ctx.stroke();
-  ctx.fillStyle = '#9aa7b5'; ctx.beginPath(); ctx.arc(8, -158, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16, -216); ctx.quadraticCurveTo(-20 + sway, -170, 6 + sway * 0.45, -160); ctx.stroke();
+  ctx.fillStyle = '#9aa7b5'; ctx.beginPath(); ctx.arc(8 + sway * 0.45, -158, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // Arms and the clipboard.
-  limb(ctx, { x: -40, y: -205 }, { x: -46, y: -150 }, 14, '#f4f7fb');
-  limb(ctx, { x: 40, y: -205 }, { x: 20 + pen * 3, y: -150 }, 14, '#f4f7fb');
+  limb(ctx, { x: -40, y: -205 }, { x: -46, y: -150 }, 36, 34, 1, 14, '#f4f7fb');
+  limb(ctx, { x: 40, y: -205 }, { x: 20 + pen * 3, y: -150 }, 36, 34, -1, 14, '#f4f7fb');
   ctx.save();
   ctx.translate(-14, -150); ctx.rotate(-0.25);
   ctx.fillStyle = '#c9a26b'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
@@ -366,6 +439,8 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
     // Torso, leaning toward the laptop.
     ctx.save();
     ctx.rotate(0.18 * lean);
+    const heave = dead ? 0 : Math.sin(w.time * (3.2 + 9 * tension));
+    ctx.scale(1 + 0.015 * heave, 1 + 0.04 * heave);
     ctx.fillStyle = gown;
     ctx.beginPath(); ctx.moveTo(-46, 0); ctx.quadraticCurveTo(-50, -100, -20, -118); ctx.lineTo(24, -118); ctx.quadraticCurveTo(52, -100, 48, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = 'rgba(28,31,38,0.15)';
@@ -375,6 +450,12 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
     ctx.translate(70, -12);
     ctx.fillStyle = '#3a3f4a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.roundRect(-40, -4, 80, 10, 3); ctx.fill(); ctx.stroke();
+    const typingNow = clamp(w.typing.x, 0, 1) * (dead ? 0 : 1);
+    ctx.fillStyle = '#23272e';
+    for (let i = 0; i < 7; i += 1) {
+      const down = typingNow > 0.2 && Math.sin(w.time * (12 + 10 * tension) + i * 1.7) > 0.55 ? 1.6 : 0;
+      ctx.fillRect(-32 + i * 9, -2 + down, 6, 2);
+    }
     ctx.save(); ctx.rotate(-0.2);
     ctx.beginPath(); ctx.roundRect(-38, -66, 76, 62, 3); ctx.fill(); ctx.stroke();
     if (!(dead && w.sheet.x > 0.5)) {
@@ -393,32 +474,55 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
     // Arms: one typing on the laptop, one with the line in it.
     const type = clamp(w.typing.x, 0, 1) * (dead ? 0 : 1);
     const tap = Math.sin(w.time * (10 + 14 * tension)) * 4 * type;
-    limb(ctx, { x: 40, y: -90 }, { x: 74, y: -30 + tap }, 15, gown);
-    limb(ctx, { x: -40, y: -90 }, { x: -64, y: -24 }, 15, gown);
+    const tapHand = { x: 74, y: -30 + tap };
+    limb(ctx, { x: 22, y: -96 }, tapHand, 50, 46, tapHand.y >= -96 ? -1 : 1, 15, gown);
+    const ivHand = { x: -64, y: -24 };
+    const ivElbow = limb(ctx, { x: -22, y: -96 }, ivHand, 50, 46, ivHand.y >= -96 ? 1 : -1, 15, gown);
+    const line = w.label === 'HOPIUM' ? '#7cf67c' : w.label === 'COPIUM' ? '#8fd3ff' : '#ff4d6d';
+    ctx.strokeStyle = line; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(ivElbow.x, ivElbow.y); ctx.lineTo(ivHand.x, ivHand.y); ctx.stroke();
     ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(-64, -24, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(74, -30 + tap, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ivHand.x, ivHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(tapHand.x, tapHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     // Cannula tape.
-    ctx.fillStyle = '#ffe9b0'; ctx.beginPath(); ctx.roundRect(-72, -34, 16, 8, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffe9b0'; ctx.beginPath(); ctx.roundRect(-74, -32, 18, 9, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; ctx.font = '900 6px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('HODL', -65, -25);
     if (p.mode === 'unplugging') { const k = smoothstep(0, 0.6, p.modeAge); ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(-140 * k - 30, -70 - 20 * k, 72, 22, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = INK; ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('UNPLUGGED', -140 * k + 6, -55 - 20 * k); }
     ctx.restore();
   } else {
-    // Standing: legs, the suit, the balloon.
-    const stride = p.mode === 'walking' ? w.time * 10 : 0;
-    for (const side of [-1, 1]) { const lift = Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 14; limb(ctx, { x: side * 12, y: -90 }, { x: side * 16, y: -lift }, 15, suit > 0.5 ? '#2b2b30' : '#bfe0ec'); }
+    // Standing: knees that lift, a hem that lags the step, the balloon string in the hand.
+    const stride = p.mode === 'walking' ? w.time * 10 : w.time * 1.4;
+    const walking = p.mode === 'walking' ? 1 : 0.18;
+    const trouser = suit > 0.5 ? '#2b2b30' : '#bfe0ec';
+    for (const side of [-1, 1]) {
+      const phase = stride + (side > 0 ? Math.PI : 0);
+      const lift = Math.max(0, Math.sin(phase)) * 16 * walking;
+      const reach = Math.cos(phase) * 12 * walking;
+      limb(ctx, { x: side * 10, y: -96 }, { x: side * 12 + reach, y: -lift }, 54, 50, -side, 15, trouser);
+      ctx.fillStyle = suit > 0.5 ? '#111114' : skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(side * 12 + reach, 3 - lift, 10, 4.5, reach * 0.02, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    const hem = Math.sin(w.time * (p.mode === 'walking' ? 8 : 2.2)) * (p.mode === 'walking' ? 8 : 2);
     ctx.fillStyle = gown; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(-44, -90); ctx.quadraticCurveTo(-48, -190, -18, -208); ctx.lineTo(18, -208); ctx.quadraticCurveTo(48, -190, 44, -90); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-44, -100); ctx.quadraticCurveTo(-48, -190, -18, -208); ctx.lineTo(18, -208); ctx.quadraticCurveTo(48, -190, 44, -100);
+    ctx.quadraticCurveTo(16, -78 + hem, 0, -88 - hem); ctx.quadraticCurveTo(-16, -78 - hem, -44, -100);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
     if (suit > 0.5) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-14, -206); ctx.lineTo(0, -150); ctx.lineTo(14, -206); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.moveTo(-5, -204); ctx.lineTo(5, -204); ctx.lineTo(3, -150); ctx.lineTo(-3, -150); ctx.closePath(); ctx.fill(); }
-    limb(ctx, { x: -40, y: -190 }, { x: -52, y: -110 }, 15, gown);
+    const offHand = { x: -52 + Math.sin(w.time * 2) * 4, y: -108 };
+    limb(ctx, { x: -28, y: -176 }, offHand, 46, 42, offHand.y >= -176 ? 1 : -1, 15, gown);
     const balloon = clamp(p.balloon.x, 0, 1);
-    limb(ctx, { x: 40, y: -190 }, { x: 60, y: -230 * balloon - 110 * (1 - balloon) }, 15, gown);
+    const stringY = -230 * balloon - 110 * (1 - balloon) + Math.sin(w.time * 3) * 8 * balloon;
+    limb(ctx, { x: 28, y: -176 }, { x: 60, y: stringY }, 46, 42, stringY >= -176 ? -1 : 1, 15, gown);
     ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(-52, -110, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(60, -230 * balloon - 110 * (1 - balloon), 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(offHand.x, offHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(60, stringY, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     if (balloon > 0.05) {
       const by = -230 - 120 * balloon + Math.sin(w.time * 2) * 6;
+      const lag = Math.sin(w.time * 3) * 10 * balloon;
       ctx.strokeStyle = INK; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(60, -230 * balloon - 110 * (1 - balloon)); ctx.quadraticCurveTo(70, by + 60, 66, by + 40); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(60, stringY); ctx.quadraticCurveTo(78 + lag, (stringY + by) / 2, 66, by + 40); ctx.stroke();
       ctx.fillStyle = '#7cf67c'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(66, by, 34 * balloon, 42 * balloon, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       if (balloon > 0.7) memeSmall(ctx, 'GAINS', 66, by + 7, 18, '#ffffff');

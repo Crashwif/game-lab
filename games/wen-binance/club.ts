@@ -162,11 +162,38 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
   else settleSpring(c.taxiX, W + 260);
 }
 
-function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, colour: string): void {
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
   ctx.lineCap = 'round';
-  ctx.strokeStyle = INK; ctx.lineWidth = width + 5;
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 5;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
 }
 
 function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'center'): void {
@@ -176,27 +203,46 @@ function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   ctx.fillStyle = fill; ctx.fillText(text, x, y);
 }
 
-/** A man in a suit, walking. `stride` in radians drives the legs; `scale` for depth. */
+/** A man in a suit, walking. `stride` in radians drives the knees; the bag lags a step behind. */
 export function drawSuit(ctx: CanvasRenderingContext2D, x: number, footY: number, stride: number, bag: boolean, seed: number, scale = 1, facing = 1): void {
   ctx.save();
   ctx.translate(x, footY);
   ctx.scale(scale * facing, scale);
   ctx.lineJoin = 'round';
   const tie = ['#c1121f', '#1d4ed8', '#f4c20d', '#0f766e'][Math.floor(noise(seed * 1.3) * 4)]!;
-  for (const side of [-1, 1]) { const lift = Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 12; limb(ctx, { x: side * 8, y: -62 }, { x: side * 10 + Math.sin(stride + (side > 0 ? Math.PI : 0)) * 10, y: -lift }, 12, '#23232b'); }
+  for (const side of [-1, 1]) {
+    const phase = stride + (side > 0 ? Math.PI : 0);
+    const lift = Math.max(0, Math.sin(phase)) * 14;
+    const reach = Math.cos(phase) * 11;
+    limb(ctx, { x: side * 8, y: -66 }, { x: side * 10 + reach, y: -lift }, 38, 34, 1, 12, '#23232b');
+    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(side * 10 + reach, 3 - lift, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  const tail = Math.sin(stride) * 8;
+  ctx.fillStyle = '#1a1a20';
+  ctx.beginPath(); ctx.moveTo(-12, -68); ctx.quadraticCurveTo(-24 - tail, -28, -6 - tail, -4); ctx.lineTo(0, -8); ctx.quadraticCurveTo(-10, -30, -4, -68); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12, -68); ctx.quadraticCurveTo(24 + tail, -28, 6 + tail, -4); ctx.lineTo(0, -8); ctx.quadraticCurveTo(10, -30, 4, -68); ctx.fill();
   ctx.fillStyle = '#2b2b33'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-24, -122, 48, 64, 9); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#f2f2f2';
   ctx.beginPath(); ctx.moveTo(-8, -122); ctx.lineTo(0, -92); ctx.lineTo(8, -122); ctx.closePath(); ctx.fill();
   ctx.fillStyle = tie;
   ctx.beginPath(); ctx.moveTo(-3, -118); ctx.lineTo(3, -118); ctx.lineTo(2, -92); ctx.lineTo(0, -86); ctx.lineTo(-2, -92); ctx.closePath(); ctx.fill();
-  limb(ctx, { x: -24, y: -112 }, { x: -30 + Math.sin(stride) * 8, y: -70 }, 11, '#2b2b33');
-  limb(ctx, { x: 24, y: -112 }, { x: 30 - Math.sin(stride) * 8, y: -70 }, 11, '#2b2b33');
+  const swing = Math.sin(stride);
+  const leftHand = { x: -34 + swing * 12, y: -66 };
+  const rightHand = { x: 34 - swing * 12, y: -64 };
+  limb(ctx, { x: -22, y: -112 }, leftHand, 30, 28, 1, 11, '#2b2b33');
+  limb(ctx, { x: 22, y: -112 }, rightHand, 30, 28, 1, 11, '#2b2b33');
   if (bag) {
+    const lag = Math.sin(stride - 0.6) * 14;
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(22, -68); ctx.quadraticCurveTo(6, -30, 34, -24); ctx.quadraticCurveTo(62, -30, 46, -68); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rightHand.x - 4, rightHand.y + 2);
+    ctx.quadraticCurveTo(rightHand.x - 16 + lag, rightHand.y + 28, rightHand.x + 2 + lag, rightHand.y + 42);
+    ctx.quadraticCurveTo(rightHand.x + 30 + lag * 0.4, rightHand.y + 34, rightHand.x + 12, rightHand.y + 4);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#7cf67c'; ctx.font = '900 16px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('$', 34, -38);
+    ctx.fillText('$', rightHand.x + 6 + lag * 0.35, rightHand.y + 28);
   }
   const skin = noise(seed * 2.1) > 0.5 ? '#f3dccb' : '#c68e6a';
   ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -212,10 +258,13 @@ function drawBouncer(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.translate(BOUNCER_X, GROUND);
   ctx.lineJoin = 'round';
   const thump = c.thump.x * 3;
-  ctx.translate(0, -thump * 0.4);
-  // Legs and a wide stance.
-  limb(ctx, { x: -18, y: -80 }, { x: -24, y: 0 }, 18, '#151519');
-  limb(ctx, { x: 18, y: -80 }, { x: 24, y: 0 }, 18, '#151519');
+  ctx.translate(Math.sin(c.time * 1.4) * 2, -thump * 0.4);
+  // Legs and a wide stance, knees out.
+  limb(ctx, { x: -18, y: -84 }, { x: -32, y: 0 }, 48, 44, 1, 18, '#151519');
+  limb(ctx, { x: 18, y: -84 }, { x: 32, y: 0 }, 48, 44, -1, 18, '#151519');
+  ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(-34, 4, 14, 5, -0.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(34, 4, 14, 5, 0.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // A very wide torso.
   ctx.fillStyle = '#151519'; ctx.strokeStyle = INK; ctx.lineWidth = 3.5;
   ctx.beginPath(); ctx.roundRect(-46, -168, 92, 92, 16); ctx.fill(); ctx.stroke();
@@ -223,8 +272,8 @@ function drawBouncer(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.fillText('SECURITY', 0, -100);
   // Left arm holds the clipboard; it rises as he checks it.
   const look = clamp(c.lookDown.x, 0, 1);
-  const hand = { x: -52 + 26 * look, y: -110 - 30 * look };
-  limb(ctx, { x: -44, y: -150 }, hand, 16, '#151519');
+  const hand = { x: -56 + 28 * look, y: -108 - 34 * look };
+  limb(ctx, { x: -44, y: -150 }, hand, 32, 28, hand.y >= -150 ? 1 : -1, 16, '#151519');
   ctx.save();
   ctx.translate(hand.x, hand.y);
   ctx.rotate(-0.4 + 0.5 * look);
@@ -241,8 +290,9 @@ function drawBouncer(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.restore();
   // Right arm waves a suit through or stays folded.
   const wave = clamp(c.wave.x, 0, 1);
-  limb(ctx, { x: 44, y: -150 }, { x: 44 + 34 * wave, y: -120 - 40 * wave }, 16, '#151519');
-  if (wave > 0.3) { ctx.fillStyle = '#c68e6a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(44 + 34 * wave, -120 - 40 * wave, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  const waveHand = { x: 48 + 36 * wave, y: -118 - 46 * wave };
+  limb(ctx, { x: 44, y: -150 }, waveHand, 32, 28, waveHand.y >= -150 ? -1 : 1, 16, '#151519');
+  if (wave > 0.3) { ctx.fillStyle = '#c68e6a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(waveHand.x, waveHand.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   // Head with an earpiece, shades, a head-shake.
   ctx.save();
   ctx.translate(0, -186 + 14 * look);
@@ -282,6 +332,19 @@ function drawTaxi(ctx: CanvasRenderingContext2D, x: number, time: number, moving
   ctx.fillRect(-118, -30, 236, 6);
   ctx.fillStyle = '#ffe27a';
   ctx.beginPath(); ctx.roundRect(-124, -30, 10, 12, 3); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+  // Driver, one arm on the wheel.
+  ctx.fillStyle = '#c68e6a'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-30, -54, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK; ctx.fillRect(-36, -56, 12, 3);
+  limb(ctx, { x: -22, y: -46 }, { x: -2, y: -34 + Math.sin(time * 2.2) * 2 }, 14, 12, 1, 5, '#c68e6a');
+  if (!moving) {
+    ctx.save();
+    ctx.translate(78, -36);
+    ctx.rotate(-0.55);
+    ctx.fillStyle = '#e0ac00'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(0, 0, 34, 36, 3); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 }
 

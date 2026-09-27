@@ -126,35 +126,63 @@ function coinX(q: Queue, i: number): number {
 }
 
 type Mood = 'calm' | 'hype' | 'worried' | 'shock';
+type Point = { x: number; y: number };
 
-function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed: number, bob: number, mood: Mood, you: boolean, shades: number, stride: number, facing = 1): void {
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return { x: root.x + (dx / distance) * along - (dy / distance) * bend, y: root.y + (dy / distance) * along + (dx / distance) * bend };
+}
+
+function bone(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): void {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = width + 4;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = colour; ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(joint.x, joint.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+}
+
+function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed: number, bob: number, mood: Mood, you: boolean, shades: number, stride: number, facing = 1, time = 0): void {
   ctx.save();
   ctx.translate(x, footY - bob);
   ctx.scale(facing, 1);
+  ctx.rotate(Math.sin(time * 1.4 + seed) * (stride > 0 ? 0.02 : 0.045));
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const hue = you ? 48 : Math.floor(noise(seed * 4.1) * 360);
   const hood = you ? '#ffe27a' : `hsl(${hue}, 55%, 45%)`;
   const face = you ? '#ffd23f' : `hsl(${hue}, 80%, 65%)`;
-  // Legs.
+  const idle = time * 1.3 + seed;
   for (const side of [-1, 1]) {
-    const lift = stride > 0 ? Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 12 : 0;
-    ctx.strokeStyle = INK; ctx.lineWidth = 14;
-    ctx.beginPath(); ctx.moveTo(side * 10, -34); ctx.lineTo(side * 12 + (stride > 0 ? Math.sin(stride + (side > 0 ? Math.PI : 0)) * 8 : 0), -lift); ctx.stroke();
-    ctx.strokeStyle = '#2b2b36'; ctx.lineWidth = 9; ctx.stroke();
+    const phase = (stride > 0 ? stride : idle) + (side > 0 ? Math.PI : 0);
+    const amp = stride > 0 ? 1 : 0.28;
+    const lift = Math.max(0, Math.sin(phase)) * 13 * amp;
+    const reach = Math.cos(phase) * 9 * amp;
+    const foot = { x: side * 10 + reach, y: -lift };
+    bone(ctx, { x: side * 8, y: -36 }, foot, 24, 22, foot.y >= -36 ? -side : side, 9, '#2b2b36');
+    ctx.fillStyle = '#1b1b22'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 2, 6.5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   // Hoodie body.
   ctx.fillStyle = hood; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-24, -74, 48, 46, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath(); ctx.roundRect(-14, -50, 28, 16, 4); ctx.fill();
-  // Arms: pockets, or up in the air when hyped.
-  const up = mood === 'hype' ? 1 : 0;
+  // Arms in the pockets, up when hyped, swinging opposite the feet when they run.
+  const up = mood === 'hype' ? 1 : mood === 'shock' ? 0.45 : 0;
   for (const side of [-1, 1]) {
-    ctx.strokeStyle = INK; ctx.lineWidth = 13;
-    ctx.beginPath(); ctx.moveTo(side * 22, -66); ctx.lineTo(side * (26 + 6 * up), -46 - 50 * up); ctx.stroke();
-    ctx.strokeStyle = hood; ctx.lineWidth = 8; ctx.stroke();
+    const phase = (stride > 0 ? stride : idle) + (side > 0 ? 0 : Math.PI);
+    const swing = stride > 0 ? Math.sin(phase) * 8 : Math.sin(phase) * 2;
+    const hand = { x: side * (22 + 10 * up) + swing * 0.35, y: -40 - 54 * up + (up ? 0 : swing * 0.4) };
+    bone(ctx, { x: side * 18, y: -66 }, hand, 22, 20, hand.y >= -66 ? -side : side, 8, hood);
   }
-  // The coin head inside the hood.
+  // The coin head inside the hood, lagging the shoulders.
+  ctx.save();
+  ctx.translate(-Math.sin(stride || idle) * 3, Math.sin(time * 2 + seed) * 1);
   ctx.fillStyle = hood;
   ctx.beginPath(); ctx.arc(0, -96, 30, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = face;
@@ -174,12 +202,18 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed:
   ctx.stroke();
   if (mood === 'worried') { ctx.fillStyle = '#8fd3ff'; ctx.beginPath(); ctx.ellipse(14, -106, 3, 5, 0, 0, Math.PI * 2); ctx.fill(); }
   if (shades > 0.02) { const dy = -30 * (1 - shades); ctx.fillStyle = INK; ctx.fillRect(-15, -104 + dy, 12, 7); ctx.fillRect(3, -104 + dy, 12, 7); ctx.fillRect(-3, -103 + dy, 6, 2); }
+  ctx.restore();
   if (you) {
-    // Your marker, and the bag you are holding onto.
+    // The bag lags the step, hung off the right side.
+    const swing = Math.sin((stride > 0 ? stride : time * 2) - 0.6) * 10;
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(22, -50); ctx.quadraticCurveTo(10, -18, 34, -14); ctx.quadraticCurveTo(58, -18, 46, -50); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(20, -48);
+    ctx.quadraticCurveTo(6 + swing, -22, 32 + swing, -12);
+    ctx.quadraticCurveTo(56 + swing * 0.45, -16, 44 + swing * 0.2, -50);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#7cf67c'; ctx.font = '900 14px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('$', 34, -26);
+    ctx.fillText('$', 34 + swing * 0.35, -26);
   }
   ctx.restore();
 }
@@ -206,8 +240,9 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
     const px = 40 + (i * (HEAD_END + 40 - 40)) / (posts - 1);
     if (i > 0) {
       const prev = 40 + ((i - 1) * (HEAD_END + 40 - 40)) / (posts - 1);
+      const droop = 18 + 10 * tension + Math.sin(q.time * 2.4 + i) * (3 + 5 * tension);
       ctx.strokeStyle = INK; ctx.lineWidth = 8;
-      ctx.beginPath(); ctx.moveTo(prev, GROUND - 40); ctx.quadraticCurveTo((prev + px) / 2, GROUND - 22, px, GROUND - 40); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(prev, GROUND - 40); ctx.quadraticCurveTo((prev + px) / 2, GROUND - 40 + droop, px, GROUND - 40); ctx.stroke();
       ctx.strokeStyle = '#c1121f'; ctx.lineWidth = 5; ctx.stroke();
     }
   }
@@ -243,14 +278,14 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
       if (inward > 0.3) ctx.globalAlpha = 1 - smoothstep(0.3, 1, inward) * 0.7;
       const scale = 1 - 0.25 * inward;
       ctx.translate(x, footY); ctx.scale(scale, scale); ctx.translate(-x, -footY);
-      drawCoin(ctx, x, footY, i, 0, 'worried', false, 0, stride);
+      drawCoin(ctx, x, footY, i, 0, 'worried', false, 0, stride, 1, q.time);
       ctx.restore();
       continue;
     }
     const sway = Math.sin(q.time * 1.6 + i * 1.1) * 3 * (1 - panic);
     const bob = (q.bounce.x > 0 ? Math.max(0, q.bounce.x) * 6 * Math.max(0, Math.sin(i * 0.9 + 1)) : 0) + (finished && cheerful && you ? 0 : 0);
     const mood: Mood = q.panic ? 'shock' : finished ? (cheerful ? 'calm' : 'shock') : tension > 0.7 ? 'worried' : tension > 0.35 && noise(i * 2.2 + Math.floor(q.time * 0.5)) > 0.5 ? 'hype' : 'calm';
-    drawCoin(ctx, x + sway, footY, i, bob, mood, you, 0, stride, facing);
+    drawCoin(ctx, x + sway, footY, i, bob, mood, you, 0, stride, facing, q.time);
   }
   for (const b of q.bubbles) {
     if (b.index === YOU && q.mode !== 'queued') continue;
@@ -265,7 +300,7 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
     const x = mix(from, to, smoothstep(0, 1, k));
     const y = mix(GROUND + 6, GROUND + 42, smoothstep(0, 0.3, k));
     const stride = q.mode === 'stepping' ? q.time * 11 : 0;
-    drawCoin(ctx, x, y, YOU, q.mode === 'gone' ? Math.abs(Math.sin(q.time * 3)) * 3 : 0, 'hype', true, clamp(q.shades.x, 0, 1), stride, from > to ? -1 : 1);
+    drawCoin(ctx, x, y, YOU, q.mode === 'gone' ? Math.abs(Math.sin(q.time * 3)) * 3 : 0, 'hype', true, clamp(q.shades.x, 0, 1), stride, from > to ? -1 : 1, q.time);
     if (q.mode === 'gone') {
       ctx.save(); ctx.translate(x, y - 150);
       ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
