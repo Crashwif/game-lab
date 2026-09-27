@@ -1,0 +1,12 @@
+{
+  "gameId": "seed-round",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000002fc4",
+  "serverSeedHash": "b05b5f53cb28f75e95ae4ff5c9a04f1004526b9edd61abc88138e6934f3415f7",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 690,
+  "rallyN": 0,
+  "bets": []
+}
