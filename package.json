@@ -14,7 +14,7 @@
     "build": "npm run build -w @crashwif/crash-math && npm run build -w @crashwif/game-sdk && npm run build -w @crashwif/emulator && node scripts/build.mjs",
     "dev": "npm run build && node scripts/dev.mjs",
     "typecheck": "tsc --noEmit -p games/tsconfig.json",
-    "test": "npm test -w @crashwif/crash-math && npm test -w @crashwif/game-sdk && npm test -w @crashwif/emulator",
+    "test": "node --test scripts/gallery/*.test.mjs && npm test -w @crashwif/crash-math && npm test -w @crashwif/game-sdk && npm test -w @crashwif/emulator",
     "pack:sdk": "npm pack -w @crashwif/crash-math && npm pack -w @crashwif/game-sdk",
     "gallery:export": "node scripts/gallery/export.mjs --dist dist --out gallery-out"
   },
