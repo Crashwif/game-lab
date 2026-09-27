@@ -36,6 +36,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension
 | [Hopium Drip](games/hopium-drip) | An EKG trace driven by the multiplier, a draining IV bag, a bed rig, a curtain that pulls, a flatline | Playable |
 | [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
 | [Wen Binance](games/wen-binance) | A queue that advances on the curve, a flickering marquee, a bass shake, doors that open on a spring | Playable |
+| [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD in Canvas 2D on top | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own

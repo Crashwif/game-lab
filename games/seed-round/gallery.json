@@ -1,0 +1,16 @@
+{
+  "name": "Seed Round",
+  "hook": "Funds are SAFU",
+  "tagline": "Three hundred million degens race down a pulsing tunnel toward an egg that glows like the moon. Snipers dump, jeets turn back crying and a sperm whale crosses the moon while the multiplier climbs. Cash out to freeze your swimmer at the sperm bank before a latex wall stamped SAFU ends the run, the dev pulls out, and then the rug goes too.",
+  "tags": [
+    "Raw WebGL2 tunnel",
+    "Instanced swimmers",
+    "Latex reveal"
+  ],
+  "renderer": "WebGL2",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 23
+  }
+}
