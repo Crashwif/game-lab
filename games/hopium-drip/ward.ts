@@ -49,7 +49,8 @@ export interface Ward {
   lights: number;
 }
 
-const NOTES = ['stable, ish', 'asked for more', 'refuses to sell', 'pupils dilated', 'talking about lambos', 'vitals unstable', 'family notified', 'DNR: do not rug'];
+/** Short enough to sit inside the clipboard without the canvas squeezing them. */
+const NOTES = ['stable ish', 'wants more', "won't sell", 'pupils wide', 'said lambo', 'vitals bad', 'called home', 'do not rug'];
 
 export function createWard(): Ward {
   return {
@@ -236,10 +237,13 @@ function drawDrip(ctx: CanvasRenderingContext2D, w: Ward, tension: number): void
   ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.roundRect(-bw / 2 + 6, 50, bw - 12, 34, 3); ctx.fill(); ctx.stroke();
   ctx.fillStyle = w.label === 'RUGGED' ? '#ff4d6d' : INK;
-  ctx.font = '900 13px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(w.label, 0, 66);
+  ctx.font = '900 12px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(w.label, 0, 64);
   ctx.font = '700 8px system-ui, sans-serif'; ctx.fillStyle = INK;
-  ctx.fillText(w.label === 'RUGGED' ? '0 mg · discontinued' : `${Math.round(level * 1000)} mg · ${w.label === 'HOPIUM' ? 'as needed' : 'when it dips'}`, 0, 78);
+  const dose = w.label === 'RUGGED' ? '0 mg' : `${Math.round(level * 1000)} mg`;
+  const hint = w.label === 'RUGGED' ? 'empty' : w.label === 'HOPIUM' ? 'as needed' : 'if it dips';
+  ctx.fillText(dose, 0, 73);
+  ctx.fillText(hint, 0, 81);
   // Drip chamber and drops.
   ctx.fillStyle = 'rgba(230, 240, 245, 0.8)';
   ctx.beginPath(); ctx.roundRect(-9, 12 + bh + 4, 18, 30, 5); ctx.fill(); ctx.stroke();
@@ -332,7 +336,7 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
   for (let i = 0; i <= Math.min(w.noteIndex, 4); i += 1) {
     const idx = Math.max(0, w.noteIndex - 4) + i;
     ctx.fillStyle = idx >= 5 ? '#e63946' : INK;
-    ctx.fillText(`· ${NOTES[idx] ?? ''}`, -25, 2 + i * 9, 54);
+    ctx.fillText(`· ${NOTES[idx] ?? ''}`, -24, 2 + i * 9, 46);
   }
   if (w.dead) { ctx.fillStyle = '#e63946'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.fillText(`TOD ${(w.deathX100 / 100).toFixed(2)}×`, -25, 42); }
   ctx.restore();

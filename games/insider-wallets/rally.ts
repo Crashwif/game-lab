@@ -123,14 +123,15 @@ function spawn(r: Rally, x: number, y: number, rand: () => number): void {
   }
 }
 
-export function prompter(multiplier: number, crashed: boolean, tension: number): string {
-  if (crashed || tension > 0.82) return 'I HAVE NEVER HEARD OF THIS COIN';
-  if (multiplier < 1.4) return 'GM PATRIOTS';
-  if (multiplier < 2.1) return "THE PEOPLE'S COIN";
-  if (multiplier < 3.2) return 'NUMBER ONLY GOES UP';
-  if (multiplier < 5) return 'TREMENDOUS BAGS';
-  if (multiplier < 8) return 'BUY THE DIP';
-  return 'I LOVE THE UNBANKED';
+/** Two lines that fit the podium screen. A character slice was cutting words in half. */
+export function prompter(multiplier: number, crashed: boolean, tension: number): readonly [string, string] {
+  if (crashed || tension > 0.82) return ['NEVER HEARD', 'OF THIS COIN'];
+  if (multiplier < 1.4) return ['GM', 'PATRIOTS'];
+  if (multiplier < 2.1) return ["THE PEOPLE'S", 'COIN'];
+  if (multiplier < 3.2) return ['NUMBER ONLY', 'GOES UP'];
+  if (multiplier < 5) return ['TREMENDOUS', 'BAGS'];
+  if (multiplier < 8) return ['BUY', 'THE DIP'];
+  return ['I LOVE', 'THE UNBANKED'];
 }
 
 function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
@@ -246,6 +247,7 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
 function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: number, crashed: boolean): void {
   const growth = Math.log2(Math.max(1, multiplier));
   const shown = clamp(Math.round(10 + growth * 18), 10, 70);
+  const signs: { x: number; y: number }[] = [];
   for (let i = 0; i < shown; i += 1) {
     const col = i % 14;
     const row = Math.floor(i / 14);
@@ -258,14 +260,21 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    if (i % 7 === 0) {
-      ctx.fillStyle = crashed ? '#ff4d6d' : '#f7f4ea';
-      ctx.fillRect(x - 16, y - 28, 32, 12);
-      ctx.fillStyle = INK;
-      ctx.font = '700 8px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(crashed ? 'RUGGED' : 'SEND IT', x, y - 19);
-    }
+    const sign = { x, y: y - 28 };
+    const crowded = sign.x < 90 || sign.x > 600 || signs.some((other) => Math.hypot(other.x - sign.x, other.y - sign.y) < 48);
+    if (i % 7 === 0 && !crowded) signs.push(sign);
+  }
+  for (const sign of signs) {
+    ctx.fillStyle = crashed ? '#ff4d6d' : '#f7f4ea';
+    ink(ctx, 1.5);
+    ctx.beginPath();
+    ctx.roundRect(sign.x - 20, sign.y - 2, 40, 14, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.font = '700 8px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(crashed ? 'RUGGED' : 'SEND IT', sign.x, sign.y + 8);
   }
 }
 
@@ -377,12 +386,12 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.fillText('$', 0, 12);
   // Teleprompter.
   ctx.fillStyle = '#07140c';
-  ctx.fillRect(-64, -18, 128, 28);
+  ctx.fillRect(-64, -22, 128, 36);
   ctx.fillStyle = '#39ff8a';
-  ctx.font = '700 9px ui-monospace, monospace';
-  const line = prompter(multiplier, r.crashed, tension);
-  ctx.fillText(line.slice(0, 18), 0, -6);
-  ctx.fillText(line.slice(18, 36), 0, 6);
+  ctx.font = '700 11px ui-monospace, monospace';
+  const [topLine, bottomLine] = prompter(multiplier, r.crashed, tension);
+  ctx.fillText(topLine, 0, -4);
+  ctx.fillText(bottomLine, 0, 10);
   ctx.restore();
   drawCrowd(ctx, multiplier, r.surge, r.crashed);
   drawPress(ctx, tension, time, reduced);

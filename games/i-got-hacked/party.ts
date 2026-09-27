@@ -330,7 +330,7 @@ export function drawTicker(ctx: CanvasRenderingContext2D, p: Party, multiplier: 
   ctx.beginPath(); ctx.roundRect(box.x, box.y, box.w, box.h, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffd35c'; ctx.beginPath(); ctx.arc(box.x + 22, box.y + 22, 10, 0, Math.PI * 2); ctx.fill();
   label(ctx, 'famous_official', box.x + 40, box.y + 20, 12, '#ffffff');
-  label(ctx, p.drained ? 'account under review' : 'verified · launching $FAMOUS', box.x + 40, box.y + 34, 10, p.drained ? '#ff4d6d' : '#8fd3ff');
+  label(ctx, p.drained ? 'under review' : 'verified', box.x + 40, box.y + 34, 10, p.drained ? '#ff4d6d' : '#8fd3ff');
   const followers = Math.max(0, Math.round(p.followers.x));
   const text = followers >= 1_000_000 ? `${(followers / 1_000_000).toFixed(2)}M` : followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : `${followers}`;
   ctx.fillStyle = p.drained ? '#ff4d6d' : '#7cf67c'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';

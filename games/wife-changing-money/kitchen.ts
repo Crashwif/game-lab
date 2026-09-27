@@ -648,14 +648,14 @@ export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: n
   ctx.stroke();
   ctx.fillStyle = '#8fd0ff';
   ctx.fillRect(172, 430, 20, 28);
-  const shown = k.bubbles.slice(-5);
+  const shown = k.bubbles.slice(-4);
   shown.forEach((bubble, index) => {
     const rise = clamp(bubble.age / 0.25, 0, 1);
-    const y = 400 - index * 28 - (1 - rise) * 10;
+    const y = 292 - index * 26 - (1 - rise) * 10;
     ctx.globalAlpha = rise;
-    ctx.font = '700 13px system-ui, sans-serif';
-    const width = Math.min(130, ctx.measureText(bubble.text).width + 16);
-    const x = bubble.her ? 148 : 176;
+    ctx.font = '700 12px system-ui, sans-serif';
+    const width = Math.min(190, ctx.measureText(bubble.text).width + 16);
+    const x = bubble.her ? 188 : 204;
     ctx.fillStyle = bubble.her ? '#3b82f6' : '#3a3f4a';
     ctx.beginPath();
     ctx.roundRect(x, y, width, 22, 8);
@@ -663,7 +663,7 @@ export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: n
     ctx.fillStyle = '#f4f7fb';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(bubble.text, x + 8, y + 11);
+    ctx.fillText(bubble.text, x + 8, y + 11, width - 16);
     ctx.globalAlpha = 1;
   });
 }

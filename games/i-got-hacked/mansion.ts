@@ -561,7 +561,7 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
     label(ctx, 'draft:', p.x + 20, p.y + 152, 9, '#9a9aa8');
     label(ctx, `${shown}${Math.floor(m.time * 3) % 2 ? '|' : ''}`, p.x + 20, p.y + 166, 11, '#ff9db0');
   } else {
-    label(ctx, 'my new coin $FAMOUS', p.x + 20, p.y + 152, 10, '#ffffff');
+    label(ctx, 'new coin $FAMOUS', p.x + 20, p.y + 152, 10, '#ffffff');
     label(ctx, 'is LIVE. love u all', p.x + 20, p.y + 165, 10, '#ffffff');
   }
   // Post button.
