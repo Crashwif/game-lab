@@ -242,11 +242,12 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   ctx.fillStyle = '#4a5b68';
   ctx.beginPath(); ctx.roundRect(PUMP.x - 33, PUMP.baseY - 6, 66, 5, 3); ctx.fill();
 
-  // Legs, back arm, then the torso over them.
+  // Legs, back arm and hand, then the torso over them; the pump handle and front arm cover the far hand's grip.
   limb({ x: hip.x - 8, y: hip.y }, backFoot, 74, 74, -1, 26, JEANS_SHADE);
   shoe(backFoot);
   const backShoulder = { x: shoulder.x - 12, y: shoulder.y + 8 };
   limb(backShoulder, backHand, 62, 66, 1, 16, SKIN_SHADE);
+  hand(backHand, 9, SKIN_SHADE, release < 0.5);
   limb({ x: hip.x + 8, y: hip.y }, frontFoot, 78, 78, -1, 29, JEANS);
   shoe(frontFoot);
   disc(hip, 27, JEANS, 5);
@@ -416,12 +417,11 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   ctx.strokeStyle = '#4c5a6b'; ctx.lineWidth = 2;
   for (let x = PUMP.x - 28; x <= PUMP.x + 28; x += 7) { ctx.beginPath(); ctx.moveTo(x, handleY - 4); ctx.lineTo(x, handleY + 4); ctx.stroke(); }
 
-  // Front arm over the pump, then both hands.
+  // Front arm over the pump, then its hand.
   const frontShoulder = { x: shoulder.x + 10, y: shoulder.y + 4 };
   const elbow = limb(frontShoulder, frontHand, 62, 66, 1, 18, SKIN);
   segment(frontShoulder, lerpPoint(frontShoulder, elbow, 0.4), 27, INK);
   segment(frontShoulder, lerpPoint(frontShoulder, elbow, 0.4), 23, TEE);
-  hand(backHand, 9, SKIN_SHADE, release < 0.5);
   hand(frontHand, 10, SKIN, release < 0.5);
   ctx.restore();
   return { eyes: worldEyes, head };
