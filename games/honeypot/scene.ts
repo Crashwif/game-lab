@@ -33,15 +33,20 @@ type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
+  ctx.save();
   ctx.font = `900 ${size}px ${MEME_FONT}`;
+  // Impact's sidebearings are narrower than the stroke, so untracked letters fuse.
+  ctx.letterSpacing = `${Math.round(size * 0.16)}px`;
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(3, size * 0.13);
-  ctx.strokeStyle = '#1c1f26';
+  const ink = fill === '#1c1f26';
+  ctx.lineWidth = Math.max(2, size * (ink ? 0.07 : 0.1));
+  ctx.strokeStyle = ink ? '#f6f1df' : '#1c1f26';
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
+  ctx.restore();
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
@@ -147,7 +152,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);
       const word = outcome === 'called' ? 'PAW FREE' : outcome === 'rekt' ? "CAN'T SELL" : 'HONEYPOT';
-      memeText(ctx, word, 0, 0, 72, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center', 520);
+      memeText(ctx, word, 0, 0, 72, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center', 860);
       ctx.restore();
     }
     ctx.restore();
@@ -156,7 +161,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.save();
       ctx.translate(400, 58);
       ctx.scale(1 + 0.08 * captionPop.x, 1 + 0.08 * captionPop.x);
-      memeText(ctx, caption, 0, 0, 40, '#1c1f26', 'center', 560);
+      memeText(ctx, caption, 0, 0, 40, '#1c1f26', 'center', 880);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {

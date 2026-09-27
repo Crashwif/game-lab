@@ -103,6 +103,17 @@ function ink(ctx: CanvasRenderingContext2D, width = 3): void {
   ctx.lineCap = 'round';
 }
 
+/** Impact's sidebearings are narrower than the ink, so the label needs tracking. */
+function tracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, font = `900 ${size}px Impact, "Arial Black", sans-serif`): void {
+  ctx.save();
+  ctx.font = font;
+  ctx.letterSpacing = `${Math.max(1, Math.round(size * 0.14))}px`;
+  ctx.fillStyle = fill;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 export function honeyColor(glue: number): string {
   const r = Math.round(mix(240, 150, glue));
   const g = Math.round(mix(176, 110, glue));
@@ -179,21 +190,14 @@ export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number
   ctx.roundRect(cx - 62, top + 78, 124, 70, 6);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = INK;
-  ctx.font = '900 22px Impact, "Arial Black", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('$POT', cx, top + 104);
+  tracked(ctx, '$POT', cx, top + 104, 20, INK);
   ctx.save();
   ctx.translate(cx, top + 128);
   const pop = 1 + j.taxFlash * 0.25;
   ctx.scale(pop, pop);
-  ctx.fillStyle = j.tax >= 49 ? '#c0392b' : INK;
-  ctx.font = '900 16px Impact, "Arial Black", sans-serif';
-  ctx.fillText(`SELL TAX ${j.tax}%`, 0, 0);
+  tracked(ctx, `SELL TAX ${j.tax}%`, 0, 0, 13, j.tax >= 49 ? '#c0392b' : INK);
   ctx.restore();
-  ctx.fillStyle = '#6b7280';
-  ctx.font = '700 10px system-ui, sans-serif';
-  ctx.fillText('BUY TAX 0%', cx, top + 142);
+  tracked(ctx, 'BUY TAX 0%', cx, top + 142, 10, '#6b7280', '700 10px system-ui, sans-serif');
   drawLid(ctx, j);
   if (j.shut.x > 0.72 && j.crashed) drawStamp(ctx, j.shut.x);
   // Strings back to the surface.
@@ -240,10 +244,6 @@ function drawStamp(ctx: CanvasRenderingContext2D, alpha: number): void {
   ctx.strokeStyle = '#c0392b';
   ctx.lineWidth = 6;
   ctx.strokeRect(-78, -22, 156, 44);
-  ctx.fillStyle = '#c0392b';
-  ctx.font = '900 22px Impact, "Arial Black", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText("CAN'T SELL", 0, 0);
+  tracked(ctx, "CAN'T SELL", 0, 0, 18, '#c0392b');
   ctx.restore();
 }
