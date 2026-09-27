@@ -1,14 +1,14 @@
 /**
- * Applies a gallery export to a checkout of the platform repository: replaces
- * apps/web/public/assets/game-lab with the export's versioned directory and
- * SOURCE.json, writes the page manifest the Game Lab page renders from, and
+ * Applies a gallery export to a checkout of the platform repository: adds
+ * the export's versioned directory under apps/web/public/assets/game-lab,
+ * updates SOURCE.json and the page manifest the Game Lab page renders from, and
  * replaces packages/game-lab's catalog and origin sources (what the studio's
  * remix flow starts from) with the export's source packs.
  *
  *   node scripts/gallery/sync-platform.mjs --export gallery-out --platform ../crashwif
  */
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const argv = process.argv.slice(2);
@@ -24,7 +24,8 @@ const assets = join(platform, 'apps', 'web', 'public', 'assets', 'game-lab');
 const page = join(platform, 'apps', 'web', 'src', 'pages', 'unlock', 'game-lab.json');
 const lab = join(platform, 'packages', 'game-lab');
 await mkdir(assets, { recursive: true });
-for (const entry of await readdir(assets)) await rm(join(assets, entry), { recursive: true, force: true });
+// Open pages keep the asset root from their loaded manifest across gallery releases.
+await rm(join(assets, short), { recursive: true, force: true });
 await cp(join(exportDir, short), join(assets, short), { recursive: true });
 await cp(join(exportDir, 'SOURCE.json'), join(assets, 'SOURCE.json'));
 await writeFile(page, `${JSON.stringify(manifest, null, 2)}\n`);
