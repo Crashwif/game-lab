@@ -1,2 +1,4 @@
 # Normalise text files to LF in the repository; checkouts follow each machine's core.autocrlf.
 * text=auto
+# Recorded clips are binary: never normalised, never diffed as text.
+*.mp3 binary

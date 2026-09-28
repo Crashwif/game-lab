@@ -1,5 +1,5 @@
 {
-  "$comment": "Prompts for scripts/audio/generate.mjs. Each game may give a music loop, a crash stinger, a cash-out and named effects (the names audio.ts knows: airhorn, kaching, scream, splash, thud, ...). A clip's seconds, format (an ElevenLabs output_format), loop, prompt_influence and via ('music' or 'effects') override the defaults; 'request' merges extra fields into the API body. Keep loops at or under 12 s and effects short: clips.json must stay under 200 KB a game.",
+  "$comment": "Prompts for scripts/audio/generate.mjs. Each game may give a music loop, a crash stinger, a cash-out and named effects (the names audio.ts knows: airhorn, kaching, scream, splash, thud, ...). A clip's seconds, format (an ElevenLabs output_format), loop, prompt_influence and via ('music' or 'effects') override the defaults; 'request' merges extra fields into the API body. Keep loops at or under 12 s and effects short (at least 0.5 s, the sound effects endpoint's minimum): clips.json must stay under 200 KB a game.",
   "defaults": {
     "music": { "via": "music", "seconds": 12, "format": "mp3_44100_64" },
     "effects": { "format": "mp3_22050_32", "prompt_influence": 0.45 }
@@ -28,7 +28,7 @@
       "crash": { "prompt": "A steam boiler exploding: a massive metallic blast, pressure release roar, rivets clattering, long hiss of steam", "seconds": 3 },
       "cashout": { "prompt": "Cash register ka-ching with a short brassy fanfare and coins spilling", "seconds": 1.8 },
       "effects": {
-        "chuff": { "prompt": "A single steam piston chuff, short and puffy", "seconds": 0.4 }
+        "chuff": { "prompt": "A single steam piston chuff, short and puffy", "seconds": 0.5 }
       }
     },
     "thin-ice": {
@@ -45,7 +45,7 @@
       "crash": { "prompt": "A giant metal coin rolling downhill and slamming into the ground with a heavy clang and a cartoon splat", "seconds": 2.5 },
       "cashout": { "prompt": "A sports car engine revving and pulling away with a cash register ka-ching", "seconds": 2.2 },
       "effects": {
-        "stomp": { "prompt": "A single heavy footstep on gravel, short", "seconds": 0.4 },
+        "stomp": { "prompt": "A single heavy footstep on gravel, short", "seconds": 0.5 },
         "engine": { "prompt": "A small propeller plane flying overhead, short pass", "seconds": 2 }
       }
     },
@@ -63,7 +63,7 @@
       "crash": { "prompt": "A sad trombone wah-wah-wah-waaah, comedic failure sting", "seconds": 2.5 },
       "cashout": { "prompt": "A cash register ka-ching with a stadium crowd roar and an air horn", "seconds": 2.2 },
       "effects": {
-        "thud": { "prompt": "A wooden headboard knocking against a wall once, short", "seconds": 0.4 },
+        "thud": { "prompt": "A wooden headboard knocking against a wall once, short", "seconds": 0.5 },
         "siren": { "prompt": "A fire engine siren approaching, short", "seconds": 2 }
       }
     },
@@ -180,7 +180,7 @@
       "crash": { "prompt": "A wet rubbery impact, a huge splash and a suction whoosh, then a bin toppling and a rug yanked", "seconds": 3.5 },
       "cashout": { "prompt": "A sci-fi portal zap and a glass vial sealing, then a cash register ka-ching", "seconds": 1.8 },
       "effects": {
-        "bubble": { "prompt": "A single underwater bubble blip, short", "seconds": 0.4 },
+        "bubble": { "prompt": "A single underwater bubble blip, short", "seconds": 0.5 },
         "siren": { "prompt": "A police siren whoop, short", "seconds": 1 }
       }
     }
