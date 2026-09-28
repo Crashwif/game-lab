@@ -147,6 +147,41 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
   }
 }
 
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): void {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+}
+
 function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
   ctx.strokeStyle = INK;
   ctx.lineWidth = width;
@@ -236,24 +271,29 @@ function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time:
     ctx.fillRect(-16, -82 + dy, 12, 7);
     ctx.fillRect(2, -82 + dy, 12, 7);
   }
-  // Legs.
-  ctx.strokeStyle = FUR;
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(-16, -16);
-  ctx.lineTo(-18, 8);
-  ctx.moveTo(16, -16);
-  ctx.lineTo(20, 8);
-  ctx.stroke();
+  const walking = bear.mode === 'walking';
+  const stride = walking ? bear.age * 10 : 0;
+  for (const side of [-1, 1]) {
+    const phase = stride + (side > 0 ? Math.PI : 0);
+    const lift = walking ? Math.max(0, Math.sin(phase)) * 8 : 0;
+    const reach = walking ? -Math.cos(phase) * 6 : 0;
+    const foot = { x: side * 18 + reach, y: 8 - lift };
+    limb(ctx, { x: side * 12, y: -16 }, foot, 16, 15, foot.y >= -16 ? -side : side, 8, FUR);
+    ctx.fillStyle = FUR;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(foot.x, foot.y + 2, 8, 4, side * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
-  // Arm to the paw. The jar is drawn later, so the paw reads as inside it.
-  ctx.strokeStyle = FUR;
-  ctx.lineWidth = 10;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(bear.x + 30, 390);
-  ctx.quadraticCurveTo((bear.x + paw.x) / 2, paw.y - 30, paw.x, paw.y);
-  ctx.stroke();
+  // Two-bone reach into the jar. The jar is drawn later, so the paw reads as inside it.
+  const shoulder = { x: bear.x + 26, y: 400 + bob };
+  const span = Math.hypot(paw.x - shoulder.x, paw.y - shoulder.y);
+  const bone = Math.max(24, span * 0.54);
+  // Elbow sags under the reach instead of spearing up over the jar.
+  limb(ctx, shoulder, paw, bone, bone, paw.y < shoulder.y ? 1 : -1, 10, FUR);
   ctx.fillStyle = MUZZLE;
   ink(ctx, 2);
   ctx.beginPath();

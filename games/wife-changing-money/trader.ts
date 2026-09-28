@@ -9,6 +9,42 @@ import { clamp, noise, spring, stepSpring, type Spring } from './motion';
 export const INK = '#1c1f26';
 const SKIN = '#f3dccb';
 
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
+}
+
 export type TraderMode = 'hunch' | 'closing' | 'sneak' | 'upstairs' | 'caught';
 
 export interface Trader {
@@ -140,6 +176,23 @@ export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'gree
   ctx.lineCap = 'round';
   if (t.mode === 'sneak') ctx.rotate(-0.55);
   const lean = typing ? 16 : 0;
+  const sneaking = t.mode === 'sneak';
+  const stride = sneaking ? t.modeAge * 10 : 0;
+  // Knees under the gown. On the stairs the lifted foot leads.
+  for (const side of [-1, 1]) {
+    const phase = stride + (side > 0 ? Math.PI : 0);
+    const lift = sneaking ? Math.max(0, Math.sin(phase)) * 10 : 0;
+    const reach = sneaking ? -Math.cos(phase) * 8 : 0;
+    const foot = { x: side * 14 + reach, y: -2 - lift };
+    limb(ctx, { x: side * 8, y: -26 }, foot, 16, 15, foot.y >= -26 ? -side : side, 7, SKIN);
+    ctx.fillStyle = '#6d4a3a';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(foot.x, foot.y + 2, 10, 4, side * -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   // Gown, hunched over the keyboard. The laptop is drawn later and covers his hands.
   ctx.fillStyle = '#3d4d73';
   ctx.strokeStyle = INK;
@@ -148,43 +201,35 @@ export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'gree
   ctx.ellipse(lean * 0.3, -36, 28, 22, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  ctx.strokeStyle = SKIN;
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(lean * 0.15, -48);
-  ctx.lineTo(lean, -62);
-  ctx.stroke();
-  // Slippers.
-  ctx.fillStyle = '#6d4a3a';
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.ellipse(-14, -2, 10, 4, 0.2, 0, Math.PI * 2);
-  ctx.ellipse(14, -2, 10, 4, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.strokeStyle = '#3d4d73';
-  ctx.lineWidth = 6;
-  if (t.mode === 'sneak') {
-    ctx.strokeStyle = SKIN;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(4, -70);
-    ctx.lineTo(16, -96);
-    ctx.stroke();
+  limb(ctx, { x: lean * 0.15, y: -50 }, { x: lean, y: -64 }, 10, 9, 1, 6, SKIN);
+  if (sneaking) {
+    const shush = { x: 18, y: -86 };
+    limb(ctx, { x: 8, y: -52 }, shush, 20, 18, -1, 5, SKIN);
+    ctx.fillStyle = SKIN;
     ctx.strokeStyle = INK;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(14, -108);
-    ctx.lineTo(20, -92);
+    ctx.arc(shush.x, shush.y, 4, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
+    const swing = { x: -24 + Math.sin(t.modeAge * 8) * 6, y: -22 };
+    limb(ctx, { x: -12, y: -48 }, swing, 18, 16, 1, 5, SKIN);
   } else {
-    const hand = Math.sin(time * 16) * (t.mode === 'caught' ? 0 : 3);
+    const tap = Math.sin(time * 16) * (t.mode === 'caught' ? 0 : 3);
+    const left = { x: -36, y: -8 + tap };
+    const right = { x: 40, y: -6 - tap };
+    limb(ctx, { x: -14, y: -46 }, left, 26, 24, left.y >= -46 ? 1 : -1, 6, '#3d4d73');
+    limb(ctx, { x: 14, y: -46 }, right, 26, 24, right.y >= -46 ? -1 : 1, 6, '#3d4d73');
+    ctx.fillStyle = SKIN;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-8, -48);
-    ctx.quadraticCurveTo(-30, -30, -36, -6 + hand);
-    ctx.moveTo(10, -46);
-    ctx.quadraticCurveTo(34, -28, 40, -4 - hand);
+    ctx.arc(left.x, left.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(right.x, right.y, 5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
   }
   ctx.translate(lean, typing ? -84 : -78);
