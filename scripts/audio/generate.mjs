@@ -22,9 +22,17 @@
  *
  * Commercial use of generated audio needs a paid ElevenLabs plan; the free tier is non-commercial.
  */
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+// Node's own fetch ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY is set at start-up, so behind a proxy (a cloud
+// session, a corporate network) the script runs itself again with it set.
+if (process.env.HTTPS_PROXY && !process.env.NODE_USE_ENV_PROXY) {
+  const again = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1' } });
+  process.exit(again.status ?? 1);
+}
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const MANIFEST = `${ROOT}scripts/audio/prompts.json`;
