@@ -1,6 +1,6 @@
 # Crashwif Games
 
-Working game references and ideas for creators building beyond the graph. [**Game Lab**](https://web-production-d0ea6.up.railway.app/game-lab) in the Crashwif lobby is the companion gallery.
+Working game references and ideas for creators building beyond the graph. [**Game Lab**](https://devnet.crashwif.com/game-lab) in the Crashwif lobby is the companion gallery.
 
 ## Run Balloon Pump
 
