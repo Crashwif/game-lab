@@ -8,10 +8,11 @@
  *   node scripts/audio/generate.mjs --dry-run                             print the requests, call nothing
  *   node scripts/audio/generate.mjs --force                               regenerate clips already cached
  *
- * Raw audio is cached in scripts/audio/cache/<slug>/<clip>.<ext> (ignored by git), so a re-run only calls
- * the API for clips that are missing, changed in the manifest, or forced; clips.json is rewritten from the
- * cache every time. Sizes are checked against the platform's remix limits (256 KB a source file, 1.5 MB a
- * bundle): a clips.json over the budget fails the run rather than the deploy.
+ * Raw audio is kept in scripts/audio/cache/<slug>/<clip>.<ext> beside a stamp of the request that made it,
+ * committed with the clips.json it produced, so a re-run anywhere only calls the API for clips that are
+ * missing, changed in the manifest, or forced; clips.json is rewritten from the cache every time. Sizes are
+ * checked against the platform's remix limits (256 KB a source file, 1.5 MB a bundle): a clips.json over the
+ * budget fails the run rather than the deploy.
  *
  * Endpoints (check https://elevenlabs.io/docs/api-reference if a request is refused; both take the key in
  * the xi-api-key header and return the audio bytes):
