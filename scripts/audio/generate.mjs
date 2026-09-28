@@ -8,10 +8,11 @@
  *   node scripts/audio/generate.mjs --dry-run                             print the requests, call nothing
  *   node scripts/audio/generate.mjs --force                               regenerate clips already cached
  *
- * Raw audio is cached in scripts/audio/cache/<slug>/<clip>.<ext> (ignored by git), so a re-run only calls
- * the API for clips that are missing, changed in the manifest, or forced; clips.json is rewritten from the
- * cache every time. Sizes are checked against the platform's remix limits (256 KB a source file, 1.5 MB a
- * bundle): a clips.json over the budget fails the run rather than the deploy.
+ * Raw audio is kept in scripts/audio/cache/<slug>/<clip>.<ext> beside a stamp of the request that made it,
+ * committed with the clips.json it produced, so a re-run anywhere only calls the API for clips that are
+ * missing, changed in the manifest, or forced; clips.json is rewritten from the cache every time. Sizes are
+ * checked against the platform's remix limits (256 KB a source file, 1.5 MB a bundle): a clips.json over the
+ * budget fails the run rather than the deploy.
  *
  * Endpoints (check https://elevenlabs.io/docs/api-reference if a request is refused; both take the key in
  * the xi-api-key header and return the audio bytes):
@@ -22,9 +23,17 @@
  *
  * Commercial use of generated audio needs a paid ElevenLabs plan; the free tier is non-commercial.
  */
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+
+// Node's own fetch ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY is set at start-up, so behind a proxy (a cloud
+// session, a corporate network) the script runs itself again with it set.
+if (process.env.HTTPS_PROXY && !process.env.NODE_USE_ENV_PROXY) {
+  const again = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1' } });
+  process.exit(again.status ?? 1);
+}
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const MANIFEST = `${ROOT}scripts/audio/prompts.json`;
