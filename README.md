@@ -9,7 +9,7 @@ Use Node 24.11 or later within 24.x, and npm 11. CI uses the version in `.nvmrc`
 ```sh
 git clone https://github.com/Crashwif/game-lab.git
 cd game-lab
-npm ci
+npm ci --include=dev --bin-links=true
 npm run dev
 ```
 
@@ -105,3 +105,7 @@ It needs the repository secret `GAME_LAB_PLATFORM_TOKEN`: a fine-grained persona
 The SDK, maths and emulator are pinned source snapshots from the platform. [UPSTREAM.json](UPSTREAM.json) records the commit and paths. Changes to those packages belong in the platform repository, then are synchronized here. Games develop here independently. The gallery serves a checked-in build of each recorded example, refreshed by the Deploy Game Lab workflow, and links to its source.
 
 Credits have no monetary value. The real backend supplies the committed round; game code controls only its presentation and sends player intents.
+
+## Coding assistants
+
+[AGENTS.md](AGENTS.md) gives Codex and other coding agents the remix boundaries and validation commands. `CLAUDE.md` imports those instructions for Claude Code. Keep the clone in a local folder outside OneDrive on Windows; file locks during `npm ci` can leave local build tools unavailable. Resolve installation errors before running the build.
