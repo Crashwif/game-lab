@@ -512,7 +512,6 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.translate(DOOR.x + DOOR.w + 26, GROUND - 150);
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 150); ctx.stroke();
-  ctx.scale(Math.cos(flip * Math.PI) < 0 ? -1 : 1, 1);
   ctx.scale(Math.abs(Math.cos(flip * Math.PI)) + 0.02, 1);
   ctx.fillStyle = flip > 0.5 ? '#ff4d6d' : '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-34, -22, 68, 44, 5); ctx.fill(); ctx.stroke();

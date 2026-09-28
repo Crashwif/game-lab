@@ -238,7 +238,7 @@ function drawLid(ctx: CanvasRenderingContext2D, j: JarState): void {
 
 function drawStamp(ctx: CanvasRenderingContext2D, alpha: number): void {
   ctx.save();
-  ctx.translate(JAR.cx, JAR.top + 150);
+  ctx.translate(JAR.cx, JAR.top + 214);
   ctx.rotate(-0.18);
   ctx.globalAlpha = clamp(alpha, 0, 1);
   ctx.strokeStyle = '#c0392b';
