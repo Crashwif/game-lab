@@ -18,25 +18,25 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` pri
 | Reference | What to study | Status |
 | --- | --- | --- |
 | [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a slingshot that winds up with the multiplier, a seeded burst with hit-stop and slow motion, meme captions | Playable |
-| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook, camera tracking, a seeded collapse | Playable |
+| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook and counterweight, residents in the windows, a sales office queue, camera tracking, a seeded collapse with hit-stop | Playable |
 | [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, a game's own sounds on the shared audio bus | Playable |
-| [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, a reflection, a seeded shatter into floes | Playable |
-| [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a Lambo pick-up | Playable |
-| [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a whale, a drain-plug rug pull | Playable |
-| [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a cheering crowd | Playable |
-| [Gas Fees](games/gas-fees) | A packed lift in depth order, a roster of arrivals, a seeded gas cloud, a face that changes colour | Playable |
-| [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a goal that keeps moving, a boyfriend reveal | Playable |
-| [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates that roll, a spotter on his phone | Playable |
-| [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a sleeve that tears, a seeded burst | Playable |
-| [Wife Changing Money](games/wife-changing-money) | A 3 am kitchen lit by a laptop, a hunched seated rig, a text stack, a stair light and a ceiling thump, a suitcase meter | Playable |
-| [Not Financial Advice](games/not-financial-advice) | A green screen that tears, a rental sticker that peels, a wallet feed, a disclosure that shrinks with the odds | Playable |
-| [Honeypot](games/honeypot) | A filling jar with meniscus and drips, honey strings, a bee swarm on the tension, a lid that screws shut | Playable |
-| [Insider Wallets](games/insider-wallets) | A wallet tracker on the multiplier curve, a crowd of layered heads, confetti cannons, a helicopter exit | Playable |
-| [The Trenches](games/the-trenches) | A marching squad with squash on each step, a parallax ridge, a seeded nuke and shockwave, a field phone that rings | Playable |
-| [Hopium Drip](games/hopium-drip) | An EKG trace driven by the multiplier, a draining IV bag, a bed rig, a curtain that pulls, a flatline | Playable |
-| [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
-| [Wen Binance](games/wen-binance) | A queue that advances on the curve, a flickering marquee, a bass shake, doors that open on a spring | Playable |
-| [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD in Canvas 2D on top | Playable |
+| [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, bagholders thawing under the ice, a liquidation drone that closes in, a reflection, a seeded shatter into floes | Playable |
+| [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a dev on a cloud throne with a SELL lever, an airdrop plane, a Lambo pick-up | Playable |
+| [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a helicopter airdrop, a whale, a drain-plug rug pull and a selfie with the empty pool | Playable |
+| [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a live odds board, a news ticker, a cheering crowd | Playable |
+| [Gas Fees](games/gas-fees) | A packed lift in depth order, a roster of arrivals, a canary that reels with the multiplier, an air quality readout, a seeded gas cloud, muzak that speeds up | Playable |
+| [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a tip menu and a goal that keep moving, a second monitor shorting her own coin, a boyfriend reveal | Playable |
+| [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates named after memecoins, a NATTY? poll, a spotter on his phone, a dropped bar with hit-stop | Playable |
+| [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a cuff that reads market cap, a sleeve that tears, a paramedic at the door, a seeded burst | Playable |
+| [Wife Changing Money](games/wife-changing-money) | A 3 am kitchen lit by a laptop, a hunched seated rig, a cursor that drifts toward SELL, a wedding photo that tilts, a text stack, a stair light and a ceiling thump, a suitcase meter | Playable |
+| [Not Financial Advice](games/not-financial-advice) | A green screen that tears, a rental sticker that peels, a sponsor read at every milestone, a wallet feed with a cousin dumping, a disclosure that shrinks with the odds | Playable |
+| [Honeypot](games/honeypot) | A filling jar with meniscus and drips, honey strings, a fox auditor with a stamp, a bee swarm on the tension, a lid that screws shut | Playable |
+| [Insider Wallets](games/insider-wallets) | A wallet tracker on the multiplier curve with an allocation pie, a tie that grows into the crowd, a press pool that escalates, confetti cannons, a helicopter exit | Playable |
+| [The Trenches](games/the-trenches) | A marching squad with squash on each step, a parallax ridge, a DAYS SINCE LAST RUG sign, a white flag the sergeant glares down, a seeded nuke and shockwave, a field phone that rings | Playable |
+| [Hopium Drip](games/hopium-drip) | An EKG trace driven by the multiplier with a heartbeat to match, a draining IV bag, a bed rig, a curtain that pulls, a crash cart that shocks the laptop, a flatline | Playable |
+| [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone that cycles excuses, a paparazzi drone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
+| [Wen Binance](games/wen-binance) | A queue that advances on the curve, a marquee whose letters loosen and drop, a ticket scalper, a bass shake, doors that open on a spring | Playable |
+| [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD with a rumour feed in Canvas 2D on top | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own
