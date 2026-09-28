@@ -10,7 +10,7 @@
  */
 import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
-import { drawFeet, drawReaction, drawSleepers, type SleeperPose } from './sleepers';
+import { drawFeet, drawReaction, drawSleepers, sleeperBob, sleeperFeet, type SleeperPose } from './sleepers';
 
 export const FLOOR_Y = 470;
 export const BED = { left: 210, right: 700, top: 362, headX: 214, footX: 690 };
@@ -422,6 +422,7 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   const tilt = legs * 0.05;
   const pose: SleeperPose = {
     time: r.time, beat: r.beatPhase * Math.PI * 2, tension: r.tension,
+    lift: clamp(r.lump.x, 0, 1.3) - 0.6,
     active: r.tempo > 0, finished: r.finished, rest: r.finished ? clamp(r.finishAge * 1.8, 0, 1) : 0,
     tremble: r.motion * (r.tempo > 0 ? clamp((r.tension - 0.62) / 0.38, 0, 1) : 0),
   };
@@ -460,18 +461,33 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   ctx.beginPath(); ctx.moveTo(275, 356); ctx.quadraticCurveTo(237, 334, BED.headX + 9, 282 - knock * 0.5); ctx.stroke();
   ctx.strokeStyle = '#f3dccb'; ctx.lineWidth = 11; ctx.stroke();
   drawSleepers(ctx, pose);
-  drawFeet(ctx, pose);
+  const feet = sleeperFeet(pose);
+  drawFeet(ctx, feet);
   // A shoulder tuck, broad moving quilt and hanging hem connect heads to feet.
   const h = 33 + 66 * clamp(r.lump.x, 0, 1.3);
-  const peakX = 440 + Math.sin(r.beatPhase * Math.PI * 2) * 6;
+  const peakX = 440 + pose.lift * 8;
+  const champBob = sleeperBob(pose, false);
+  const partnerBob = sleeperBob(pose, true);
+  const firstTuck = feet[0]!.tuck;
+  const lastTuck = feet[feet.length - 1]!.tuck;
+  const hemX = Math.max(BED.right - 16, lastTuck.x + 7);
   const quilt = new Path2D();
   quilt.moveTo(BED.left + 12, BED.top + 10);
-  quilt.quadraticCurveTo(276, BED.top + 18, 305, BED.top - 17);
-  quilt.quadraticCurveTo(326, BED.top - 12, 354, BED.top - 41);
+  quilt.quadraticCurveTo(276, BED.top + 18 + champBob, 305, BED.top - 17 + champBob);
+  quilt.quadraticCurveTo(326, BED.top - 12 + partnerBob, 354, BED.top - 41 + partnerBob);
   quilt.bezierCurveTo(383, BED.top - h, peakX - 24, BED.top - h, peakX, BED.top - h);
   quilt.bezierCurveTo(peakX + 51, BED.top - h, 502, BED.top - h * 0.65, 540, BED.top - h * 0.64);
-  quilt.bezierCurveTo(584, BED.top - h * 0.82, 614, BED.top - 47, 635, BED.top - 29);
-  quilt.quadraticCurveTo(652, BED.top - 15, 670, BED.top + 25);
+  quilt.bezierCurveTo(584, BED.top - h * 0.82, firstTuck.x - 30, firstTuck.y - 16, firstTuck.x, firstTuck.y);
+  // The drape follows each ankle so a kick never leaves a detached foot or exposed leg end.
+  let previousTuck = firstTuck;
+  for (let i = 1; i < feet.length; i += 1) {
+    const tuck = feet[i]!.tuck;
+    // A farther ankle is already covered by the drape over the foot in front of it.
+    if (tuck.x <= previousTuck.x) continue;
+    quilt.bezierCurveTo(mix(previousTuck.x, tuck.x, 0.6), previousTuck.y + 4, tuck.x, tuck.y - 4, tuck.x, tuck.y);
+    previousTuck = tuck;
+  }
+  quilt.quadraticCurveTo(lastTuck.x + 10, lastTuck.y + 15, hemX, BED.top + 25);
   quilt.bezierCurveTo(594, BED.top + 43, 390, BED.top + 45, 278, BED.top + 29);
   quilt.quadraticCurveTo(244, BED.top + 28, BED.left + 12, BED.top + 10);
   quilt.closePath();
@@ -489,15 +505,15 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   }
   for (const offset of [0, 25, 50]) {
     ctx.beginPath(); ctx.moveTo(282, BED.top - 13 + offset);
-    ctx.bezierCurveTo(394, BED.top - h * 0.7 + offset, 529, BED.top - h * 0.55 + offset, 661, BED.top - 12 + offset); ctx.stroke();
+    ctx.bezierCurveTo(394, BED.top - h * 0.7 + offset, 529, BED.top - h * 0.55 + offset, hemX, BED.top - 12 + offset); ctx.stroke();
   }
   ctx.strokeStyle = '#dae4fb'; ctx.lineWidth = 10;
   ctx.beginPath(); ctx.moveTo(223, BED.top + 10);
-  ctx.quadraticCurveTo(276, BED.top + 18, 305, BED.top - 17);
-  ctx.quadraticCurveTo(326, BED.top - 12, 354, BED.top - 41); ctx.stroke();
+  ctx.quadraticCurveTo(276, BED.top + 18 + champBob, 305, BED.top - 17 + champBob);
+  ctx.quadraticCurveTo(326, BED.top - 12 + partnerBob, 354, BED.top - 41 + partnerBob); ctx.stroke();
   ctx.strokeStyle = 'rgba(231, 239, 255, 0.65)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
   ctx.beginPath(); ctx.moveTo(285, BED.top + 23);
-  ctx.bezierCurveTo(390, BED.top + 39, 595, BED.top + 37, 663, BED.top + 21); ctx.stroke();
+  ctx.bezierCurveTo(390, BED.top + 39, 595, BED.top + 37, hemX - 7, BED.top + 21); ctx.stroke();
   ctx.restore();
   // The champ's hand gripping the headboard: knuckles go white with the tension.
   const grip = mix(0.15, 1, r.tension);
