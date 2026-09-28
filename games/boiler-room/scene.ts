@@ -4,6 +4,7 @@
  * blow-out whiteout, then the HUD. All motion is stepped here with the real
  * frame time, and nothing drawn here changes the committed outcome.
  */
+import { pageAudio } from './audio';
 import { DOME, type EngineDrive, type EngineState, blowEngine, createEngine, drawBoiler, drawMachine, resetEngine, settleEngine, stepEngine } from './engine';
 import { clamp, noise, smoothstep, spring, stepSpring } from './motion';
 import { type Particles, createParticles, drawParticles, emit, sparks, stepParticles } from './particles';
@@ -46,6 +47,8 @@ const READOUT_X = 930;
 const READOUT_MAX = 300;
 /** The centre line of the caption and the secured badge. */
 const CAPTION_X = 430;
+/** The multipliers a milestone stinger plays at. */
+const RUNGS = [1.3, 1.7, 2.5, 4, 7, 12, 25];
 type Outcome = 'rekt' | 'called' | 'kaboom';
 type Secured = { x100: number; payout: number | null };
 
@@ -199,7 +202,8 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
-  const sound = options.sound ?? pageSound();
+  const audio = pageAudio({ style: 'techno', crash: 'boom', music: 0.55 });
+  const sound = options.sound ?? pageSound(audio);
   const engine: EngineState = createEngine();
   const ps: Particles = createParticles();
   const stoker: StokerState = createStoker();
@@ -225,7 +229,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
     const drive: EngineDrive = { running, crashed, pressure: running || crashed ? pressure : 0, multiplier };
     const verdict: Outcome = view.stake === null ? 'kaboom' : secured ? 'called' : 'rekt';
 
@@ -240,6 +247,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         blowEngine(engine, ps, view.currentX100, true);
         outcome = verdict;
         pop.x = 1;
+        audio.crash('boom', true);
       }
       if (secured) badge.x = 1;
     } else if (view.phase !== previous) {
@@ -257,6 +265,7 @@ export function createScene(options: SceneOptions = {}): Scene {
           whiteAge = 0;
           sound.blast();
         }
+        audio.crash('boom', quiet);
       }
       if (view.phase === 'betting') {
         resetEngine(engine);
@@ -289,6 +298,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stepParticles(ps, dt, -4 + 6 * Math.sin(time * 0.3));
     sound.update(engine.pressure, running);
+    audio.update(view.phase, pressure);
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
 
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
