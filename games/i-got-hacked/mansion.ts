@@ -314,9 +314,9 @@ function drawManager(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY
     ctx.save();
     ctx.globalAlpha = smoothstep(0.5, 0.9, lean);
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect(x - 150, footY - 232, 160, 26, 8); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 30, footY - 206); ctx.lineTo(x - 22, footY - 196); ctx.lineTo(x - 14, footY - 206); ctx.closePath(); ctx.fill(); ctx.stroke();
-    label(ctx, `psst: ${text}`, x - 70, footY - 214, 11, INK, 'center', 150);
+    ctx.beginPath(); ctx.roundRect(x + 20, footY - 156, 214, 28, 8); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 34, footY - 128); ctx.lineTo(x + 16, footY - 116); ctx.lineTo(x + 48, footY - 128); ctx.closePath(); ctx.fill(); ctx.stroke();
+    label(ctx, `psst: ${text}`, x + 127, footY - 137, 11, INK, 'center');
     ctx.restore();
   }
 }

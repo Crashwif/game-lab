@@ -186,7 +186,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     const next = SUITS.find((m) => m > multiplier);
     memeText(ctx, `${queue.suits} SUITS`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
-    if (running && next !== undefined && !outcome) memeText(ctx, `NEXT SUIT AT ${next.toFixed(1)}×`, 18, H - 46, 14, '#c9c9d4', 'left');
+    if (running && next !== undefined && !outcome) memeText(ctx, `NEXT SUIT AT ${next.toFixed(1)}×`, 18, 228, 16, '#ffffff', 'left');
   }
 
   return { draw };

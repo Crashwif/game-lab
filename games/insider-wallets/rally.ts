@@ -375,11 +375,11 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.fillRect(0, 430, 960, 110);
   // Banner. The slogan is the joke; the person under it is a wojak in a suit.
   ctx.fillStyle = '#8d1d2c';
-  ctx.fillRect(180, 78, 470, 36);
+  ctx.fillRect(16, 88, 300, 34);
   ctx.fillStyle = '#fff';
-  ctx.font = '900 20px Impact, "Arial Black", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('MAKE BAGS GREAT AGAIN', 415, 103);
+  ctx.font = '900 16px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('MAKE BAGS GREAT AGAIN', 28, 111);
   drawFlag(ctx, 250, r.droop.x, time, tension);
   drawFlag(ctx, 590, r.droop.x, time, tension);
   drawCandidate(ctx, r.lift, tension, time, r.crashed);

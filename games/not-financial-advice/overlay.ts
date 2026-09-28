@@ -180,10 +180,14 @@ export function drawBurn(ctx: CanvasRenderingContext2D, o: Overlay, multiplier: 
   ctx.fillText('PAID PROMOTION', 574, 318);
   // He says it faster than the disclosure can shrink.
   if (tension > 0.15) {
-    ctx.globalAlpha = 0.35 + 0.65 * Math.abs(Math.sin(time * (3 + tension * 14)));
-    ctx.fillStyle = '#fff';
-    ctx.font = '900 12px Impact, sans-serif';
+    ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(time * (3 + tension * 14)));
+    ctx.font = '900 13px Impact, sans-serif';
     ctx.textAlign = 'left';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1c1f26';
+    ctx.strokeText('not financial advice', 150, 300);
+    ctx.fillStyle = '#fff';
     ctx.fillText('not financial advice', 150, 300);
     ctx.globalAlpha = 1;
   }
@@ -205,6 +209,7 @@ export function drawComments(ctx: CanvasRenderingContext2D, o: Overlay): void {
   ctx.rect(0, 32, 300, 300);
   ctx.clip();
   for (const comment of o.comments) {
+    if (comment.y < 50 || comment.y > 324) continue;
     ctx.font = '700 16px system-ui, sans-serif';
     ctx.fillStyle = comment.hot ? '#ff4d6d' : '#e7eef8';
     ctx.fillText(comment.text, 12, comment.y);

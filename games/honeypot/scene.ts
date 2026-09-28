@@ -162,7 +162,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(420, 250);
+      ctx.translate(250, 236);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);
