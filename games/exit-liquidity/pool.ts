@@ -49,6 +49,14 @@ export function resetPool(p: PoolState): void {
 
 export const fillFor = (growth: number): number => 0.35 + 0.65 * (1 - Math.exp(-growth / 2));
 
+/** A round met late: the water already at the multiplier's level, tension and murk. */
+export function settlePool(p: PoolState, growth: number): void {
+  p.fill = fillFor(growth);
+  p.level = POOL.floor - p.fill * (POOL.floor - 320);
+  p.tension = clamp(growth / 3.3, 0, 1);
+  p.murk = p.tension;
+}
+
 /** Screen y of the surface at x, including the slosh and the funnel while draining. */
 export function surfaceY(p: PoolState, x: number): number {
   const amp = 2 + 9 * p.tension;

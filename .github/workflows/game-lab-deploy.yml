@@ -1,18 +1,34 @@
 # Deploys the playable references to the platform's Game Lab page.
 #
-# After CI passes on main (or on a manual run), this builds every game, captures
-# a poster from each recorded round, and writes the versioned export that the
-# platform serves from apps/web/public/assets/game-lab. It then opens a pull
-# request on the platform repository with the new bundles, posters, SOURCE.json
-# and page manifest, waits for the platform's checks, and merges it. The
-# platform's own Railway workflow deploys main from there.
+# It runs after CI passes on a push to main, or on a manual run from main, which
+# may name an earlier main commit to roll back to. Only commits on main deploy:
+# pull request runs of CI, forks included, never start either job.
+#
+# The work is split so that nothing the build runs can reach the platform token:
+#   export   builds every game, captures a poster from each recorded round and
+#            writes the versioned export that the platform serves from
+#            apps/web/public/assets/game-lab, then uploads it as an artifact.
+#            It holds no secrets and can only read this repository.
+#   publish  takes scripts/gallery/sync-platform.mjs from this workflow's own
+#            commit on main, applies the downloaded export to a fresh checkout
+#            of the platform repository and commits it. It then opens a pull
+#            request with the new bundles, posters, SOURCE.json, page manifest
+#            and remix origins (or reuses the open one for the same commit),
+#            waits for the platform's checks, merges it and closes superseded
+#            game-lab/<short commit> pull requests. It installs no packages and
+#            runs no code from the build, and only its last step sees the token.
+# The platform's own Railway workflow deploys main from there.
 #
 # Configuration on this repository:
-#   secret GAME_LAB_PLATFORM_TOKEN   a token with contents and pull-request write
-#                                     access to the platform repository (a
-#                                     fine-grained PAT or a GitHub App token)
+#   secret GAME_LAB_PLATFORM_TOKEN   a fine-grained PAT (resource owner Crashwif)
+#       or a GitHub App, limited to the platform repository, with Contents
+#       read/write, Pull requests read/write, Checks read, Commit statuses read,
+#       Actions read and Metadata read, and nothing else. Never a personal gh
+#       CLI token (`gh auth token`) or a classic PAT: those reach every
+#       repository their owner can. An App's installation token lasts an hour,
+#       so it would be minted per run rather than stored here.
 #   variable GAME_LAB_PLATFORM_REPOSITORY   owner/name, default Crashwif/crashwif
-# Without the secret the workflow skips with a notice.
+# Without the secret the publish job skips with a notice.
 name: Deploy Game Lab
 
 on:
@@ -23,23 +39,95 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Commit or ref to deploy (default: main)"
+        description: "Commit or ref on main to deploy (default: main)"
         required: false
         type: string
 
-concurrency:
-  group: game-lab-deploy
-  cancel-in-progress: false
-
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
-  deploy:
-    name: Export and publish
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+  export:
+    name: Build and export
+    # workflow_run's branch filter matches a fork's branch name too, so the event and head repository decide.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the commit is on main and passed CI
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          # The full ref, so no tag or branch named origin/main can stand in for main.
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then echo "::error::$sha is not on main: only main's commits deploy"; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            passed="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&status=success" --jq '[.workflow_runs[] | select((.event == "push" or .event == "workflow_dispatch") and .head_branch == "main")] | length')"
+            if [ "$passed" -eq 0 ]; then echo "::error::CI has not passed on $sha"; exit 1; fi
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      # From this workflow's commit, so a rollback to a commit without .nvmrc still builds.
+      - name: Read the Node version
+        id: node
+        run: |
+          set -euo pipefail
+          version="$(git show "$GITHUB_SHA:.nvmrc")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: npm
+      - name: Build every game
+        run: |
+          npm ci
+          npm run build
+      - name: Fonts and a browser for the posters
+        run: |
+          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
+          (sudo apt-get update -qq && sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1) || echo "::warning::Microsoft core fonts are unavailable; posters use fallback fonts"
+          # A commit from before Playwright was a dev dependency gets the same version, unsaved.
+          npm ls playwright >/dev/null 2>&1 || npm install --no-save playwright@1.63.0
+          npx --no playwright install --with-deps chromium
+      - name: Export the gallery
+        env:
+          COMMIT: ${{ steps.commit.outputs.sha }}
+        run: node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$COMMIT" --repository "https://github.com/$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gallery-out
+          path: gallery-out
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: true
+
+  publish:
+    name: Publish to the platform
+    needs: export
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    # Here rather than on the workflow, so the runs that skip (other CI runs) never displace a queued deploy.
+    concurrency:
+      group: game-lab-deploy
+      cancel-in-progress: false
     env:
       PLATFORM_REPOSITORY: ${{ vars.GAME_LAB_PLATFORM_REPOSITORY || 'Crashwif/crashwif' }}
     steps:
@@ -49,50 +137,60 @@ jobs:
           TOKEN: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
         run: |
           if [ -n "$TOKEN" ]; then echo "configured=true" >> "$GITHUB_OUTPUT"; else echo "configured=false" >> "$GITHUB_OUTPUT"; echo "::notice::GAME_LAB_PLATFORM_TOKEN is not set: skipping the Game Lab deploy"; fi
-      - uses: actions/checkout@v4
+      # The sync script comes from this workflow's commit on main, never from the exported commit.
+      - name: Check out the sync script
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          path: lab
+          sparse-checkout: scripts/gallery
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.config.outputs.configured == 'true'
         with:
-          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
-      - uses: actions/setup-node@v4
+          node-version-file: lab/.nvmrc
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: steps.config.outputs.configured == 'true'
         with:
-          node-version: 24.21.0
-          cache: npm
-      - name: Build every game
-        if: steps.config.outputs.configured == 'true'
-        run: |
-          npm ci
-          npm run build
-      - name: Fonts and a browser for the posters
-        if: steps.config.outputs.configured == 'true'
-        run: |
-          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
-          (sudo apt-get update -qq && sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1) || echo "::warning::Microsoft core fonts are unavailable; posters use fallback fonts"
-          npm install --no-save playwright@1
-          npx playwright install --with-deps chromium
-      - name: Export the gallery
-        if: steps.config.outputs.configured == 'true'
-        run: node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$(git rev-parse HEAD)" --repository "https://github.com/${{ github.repository }}"
+          name: gallery-out
+          path: gallery-out
       - name: Check out the platform
         if: steps.config.outputs.configured == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ${{ env.PLATFORM_REPOSITORY }}
           token: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
           path: platform
           fetch-depth: 0
-      - name: Apply the export to the platform
-        if: steps.config.outputs.configured == 'true'
-        run: node scripts/gallery/sync-platform.mjs --export gallery-out --platform platform
-      - name: Open, verify and merge the platform pull request
-        if: steps.config.outputs.configured == 'true'
-        working-directory: platform
+          persist-credentials: false
+      # A deploy that finishes after a newer one never puts older bundles back; a manual run still rolls back.
+      - name: Skip an export older than the live one
+        id: order
+        if: steps.config.outputs.configured == 'true' && github.event_name == 'workflow_run'
         env:
-          GH_TOKEN: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
-          SOURCE_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ needs.export.outputs.commit }}
         run: |
           set -euo pipefail
-          sha="$(git -C .. rev-parse HEAD)"; short="${sha:0:7}"
+          live="$(jq -r '.commit // empty' platform/apps/web/src/pages/unlock/game-lab.json 2>/dev/null || true)"
+          if ! [[ "$live" =~ ^[0-9a-f]{40}$ ]] || [ "$live" = "$SOURCE_COMMIT" ]; then exit 0; fi
+          if ! status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$live...$SOURCE_COMMIT" --jq .status)"; then echo "::warning::Could not compare $SOURCE_COMMIT with the live $live; publishing it"; exit 0; fi
+          if [ "$status" = behind ]; then echo "::notice::$SOURCE_COMMIT is older than the live $live: skipping"; echo "stale=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Apply the export to the platform
+        if: steps.config.outputs.configured == 'true' && steps.order.outputs.stale != 'true'
+        run: node lab/scripts/gallery/sync-platform.mjs --export gallery-out --platform platform
+      - name: Commit the export
+        id: commit
+        if: steps.config.outputs.configured == 'true' && steps.order.outputs.stale != 'true'
+        working-directory: platform
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ needs.export.outputs.commit }}
+        run: |
+          set -euo pipefail
+          sha="$SOURCE_COMMIT"; short="${sha:0:7}"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::The export job reported no commit"; exit 1; fi
           git add -A apps/web/public/assets/game-lab apps/web/src/pages/unlock/game-lab.json packages/game-lab/catalog.json packages/game-lab/origins
           if git diff --cached --quiet; then echo "::notice::Game Lab already matches $SOURCE_REPOSITORY@$short"; exit 0; fi
           git config user.name "game-lab deploy"
@@ -100,14 +198,42 @@ jobs:
           branch="game-lab/$short"
           git checkout -B "$branch"
           git commit -q -m "Refresh Game Lab from $SOURCE_REPOSITORY@$short" -m "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha: bundles, posters, SOURCE.json, the page manifest and the remix origins (packages/game-lab)."
-          git push -f -u origin "$branch"
-          pr="$(gh pr create --base main --head "$branch" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json, the Game Lab page manifest and the remix origins in packages/game-lab. Merges itself once the checks pass; Railway deploys main.")"
-          echo "pull request: $pr"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      # The only step that sees the token: git gets it for the push alone, through the environment rather than .git/config.
+      - name: Open, verify and merge the platform pull request
+        if: steps.commit.outputs.branch != ''
+        working-directory: platform
+        env:
+          GH_TOKEN: ${{ secrets.GAME_LAB_PLATFORM_TOKEN }}
+          BRANCH: ${{ steps.commit.outputs.branch }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ needs.export.outputs.commit }}
+        run: |
+          set -euo pipefail
+          sha="$SOURCE_COMMIT"; short="${sha:0:7}"; head="$(git rev-parse HEAD)"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" git push -f -u origin "$BRANCH"
+          # A re-run for the same commit force-pushes its branch and carries on with the pull request it already opened.
+          pr="$(gh pr list --head "$BRANCH" --state open --json url,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].url // empty')"
+          if [ -n "$pr" ]; then
+            echo "reusing pull request: $pr"
+          else
+            pr="$(gh pr create --base main --head "$BRANCH" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json, the Game Lab page manifest and the remix origins in packages/game-lab. Merges itself once the checks pass; Railway deploys main.")"
+            echo "pull request: $pr"
+          fi
+          # Wait until the pull request shows the pushed commit with checks, so an earlier head's results never count.
           for _ in $(seq 1 40); do
-            count="$(gh pr view "$pr" --json statusCheckRollup --jq '.statusCheckRollup | length')"
-            [ "${count:-0}" -gt 0 ] && break
+            state="$(gh pr view "$pr" --json headRefOid,statusCheckRollup --jq '"\(.headRefOid) \(.statusCheckRollup | length)"')"
+            [ "${state% *}" = "$head" ] && [ "${state#* }" -gt 0 ] && break
             sleep 15
           done
           gh pr checks "$pr" --watch --fail-fast --interval 30
-          gh pr merge "$pr" --merge --delete-branch --match-head-commit "$(git rev-parse HEAD)"
+          gh pr merge "$pr" --merge --delete-branch --match-head-commit "$head"
           echo "merged: $pr"
+          # Close the deploy pull requests this one supersedes; hand-named game-lab/* branches are left alone.
+          gh pr list --state open --base main --limit 100 --json number,headRefName,isCrossRepository --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^game-lab/[0-9a-f]{7}$"))) | "\(.number) \(.headRefName)"' |
+            while read -r number head_ref; do
+              [ "$head_ref" = "$BRANCH" ] && continue
+              gh pr close "$number" --delete-branch --comment "Superseded by $pr." || echo "::warning::Could not close superseded pull request #$number"
+            done || echo "::warning::Could not list superseded pull requests"

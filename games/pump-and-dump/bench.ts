@@ -75,12 +75,20 @@ function addPlates(b: Bench, index: number, quiet: boolean): void {
 
 const plateX = (side: -1 | 1, index: number): number => (side < 0 ? BAR.sleeve - 12 - index * 13 : BAR.right - (BAR.sleeve - BAR.left) + 12 + index * 13);
 
-/** Jumps straight to the state a multiplier calls for, for a first frame mid-round. */
-export function settleBench(b: Bench, multiplier: number): void {
+/**
+ * Jumps straight to the state a multiplier calls for, for a round met late: the bar loaded to the number and,
+ * once the exit is in (`racked`), already handed over, the spotter lifting and the chad flexing at the side.
+ */
+export function settleBench(b: Bench, multiplier: number, racked: boolean): void {
   b.mode = 'lifting';
   settleSpring(b.barY, BAR.top);
   while (b.nextPlate < PLATE_AT.length && multiplier >= PLATE_AT[b.nextPlate]!) addPlates(b, b.nextPlate, true);
   b.arrival = null;
+  if (racked) {
+    b.onBench = 'bro';
+    settleSpring(b.chadX, 790);
+    settleSpring(b.shades, 1);
+  }
 }
 
 /** The exit was accepted: rack it, sit up, hand the bench over. */
@@ -132,6 +140,8 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
     const rate = 0.45 + 0.65 * (1 - Math.exp(-drive.growth / 2.2));
     b.phase += rate * dt;
     if (fract(before) < 0.5 && (fract(b.phase) >= 0.5 || Math.floor(b.phase) > Math.floor(before))) { b.events.rep = true; b.grunt.v += 8; }
+    // Plates the number passed while no frame was drawn (a hidden tab) go straight on; only the latest is carried in.
+    while (b.nextPlate + 1 < PLATE_AT.length && drive.multiplier >= PLATE_AT[b.nextPlate + 1]!) { addPlates(b, b.nextPlate, true); b.arrival = null; }
     if (b.nextPlate < PLATE_AT.length && drive.multiplier >= PLATE_AT[b.nextPlate]! && !b.arrival) { addPlates(b, b.nextPlate, false); b.events.plate = true; }
   }
   if (b.arrival) { b.arrival.age += dt; if (b.arrival.age > 1) b.arrival = null; }

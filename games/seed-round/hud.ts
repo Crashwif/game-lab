@@ -28,6 +28,15 @@ export function memeText(ctx: CanvasRenderingContext2D, text: string, x: number,
 
 export const grouped = (n: number): string => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
+/** 708, 15.7K, 317K, 1.0M: short enough for the coin card however high the round goes. */
+export function compact(n: number): string {
+  for (const [size, unit] of [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as const) {
+    const v = n / size;
+    if (v >= 1) return `${v < 100 ? v.toFixed(1) : Math.floor(v)}${unit}`;
+  }
+  return String(Math.floor(n));
+}
+
 /** Darkened corners, flushed red as the tension builds. */
 export function drawVignette(ctx: CanvasRenderingContext2D, tension: number, beat: number): void {
   const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.95);
@@ -112,8 +121,8 @@ export function drawCard(ctx: CanvasRenderingContext2D, card: CardState): void {
   ctx.fillText('Seed Round', x + 50, y + 25);
   ctx.fillStyle = '#86efac';
   ctx.font = '700 12px system-ui, sans-serif';
-  const cap = card.crashed ? 0 : 10 * card.multiplier;
-  ctx.fillText(`$SEED · MC $${cap.toFixed(1)}K · ${card.replies} replies`, x + 50, y + 42);
+  const cap = card.crashed ? 0 : 10_000 * card.multiplier;
+  ctx.fillText(`MC $${compact(cap)} · ${compact(card.replies)} replies`, x + 50, y + 42, w - 62);
   const progress = card.crashed ? 0 : clamp(Math.log(card.multiplier) / Math.log(GRADUATION), 0, 1);
   const graduated = progress >= 1;
   ctx.fillStyle = 'rgba(255,255,255,0.12)';

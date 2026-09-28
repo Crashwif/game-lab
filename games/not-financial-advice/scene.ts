@@ -2,7 +2,7 @@
  * Composes Not Financial Advice: the video, the chrome, the desktop it
  * minimises onto, and the HUD. Nothing drawn here changes the outcome.
  */
-import { clamp, mix, spring, stepSpring } from './motion';
+import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
 import {
   createOverlay,
   drawBurn,
@@ -10,11 +10,12 @@ import {
   drawSubscriber,
   floodOverlay,
   resetOverlay,
+  settleOverlay,
   stepOverlay,
   unfollow,
   type Overlay,
 } from './overlay';
-import { VIDEO_H, VIDEO_W, createStudio, drawStudio, endStudio, resetStudio, stepStudio, type Studio } from './studio';
+import { VIDEO_H, VIDEO_W, createStudio, drawStudio, endStudio, resetStudio, settleStudio, stepStudio, type Studio } from './studio';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -102,6 +103,12 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
+  /** Jumps the props to the multiplier, for a stretch of the round this scene did not draw. */
+  function settle(multiplier: number, tension: number): void {
+    settleStudio(studio, tension);
+    settleOverlay(overlay, multiplier);
+  }
+
   function beginCrash(view: SceneView, quiet: boolean): void {
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
     endStudio(studio, quiet);
@@ -121,13 +128,29 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = clamp(Math.log2(multiplier) / 3.4, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
+    // A cash-out this scene did not watch land (it opened after it, or the tab was hidden through the rest of
+    // the run) is shown as done: the video already minimised, the badge up and your subscriber gone.
+    const cashedOffScreen = secured === null && view.cashoutX100 !== null && (previous === null || !running);
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (cashedOffScreen) {
+      settleSpring(win, 1);
+      settleSpring(badge, 1);
+      unfollow(overlay, true);
+    }
 
     if (previous === null) {
+      // A fresh scene can open on any phase (the shell makes one for a round it first meets after betting), so
+      // the props start where the multiplier has them and a crash opens on its aftermath.
       previous = view.phase;
+      settle(multiplier, tension);
       if (crashed) beginCrash(view, true);
     } else if (view.phase !== previous) {
-      if (crashed && !studio.crashed) beginCrash(view, view.crashAge > 1500);
+      if (crashed && !studio.crashed) {
+        // A crash first drawn well after it happened (the tab was hidden) opens on its aftermath, props caught up.
+        const quiet = view.crashAge > 1500;
+        if (quiet) settle(multiplier, tension);
+        beginCrash(view, quiet);
+      }
       if (view.phase === 'betting') {
         resetStudio(studio);
         resetOverlay(overlay);

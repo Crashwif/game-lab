@@ -14,6 +14,8 @@ export const H = 540;
 export const GROUND = 470;
 export const DOOR = { x: 640, y: 236, w: 130, h: GROUND - 236 } as const;
 export const BOUNCER_X = 600;
+/** Where the taxi pulls up for your coin. */
+const KERB = 330;
 export type Point = { x: number; y: number };
 
 export interface Suit {
@@ -85,9 +87,10 @@ export function waveSuit(c: Club, index: number): void {
   c.suits.push({ x: -60, vx: 190 + 20 * noise(index * 3.7), bag: false, seed: index * 17 + 5, depth: 0, entering: true, gone: false });
 }
 
-/** The taxi pulls up for your coin. */
-export function callTaxi(c: Club): void {
+/** The taxi pulls up for your coin. `quiet` parks it at the kerb already, for an exit that already happened. */
+export function callTaxi(c: Club, quiet = false): void {
   c.taxi = true;
+  if (quiet) settleSpring(c.taxiX, KERB);
 }
 
 /** Sell the news. `quiet` skips the effects for a crash that already happened. */
@@ -158,7 +161,7 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
     }
   }
   c.suits = c.suits.filter((s) => !s.gone);
-  if (c.taxi) stepSpring(c.taxiX, 330, 3.2, 0.85, dt);
+  if (c.taxi) stepSpring(c.taxiX, KERB, 3.2, 0.85, dt);
   else settleSpring(c.taxiX, W + 260);
 }
 

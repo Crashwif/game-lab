@@ -6,8 +6,8 @@
  */
 import { type CraneState, createCrane, drawCrane, drawPile, loadPose, resetCrane, settleCrane, stepCrane } from './crane';
 import { clamp, fract, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
-import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, createTower, drawDebris, drawDust, drawTower, floorCount, landFloor, resetTower, stepTower, towerHeight, towerTopY } from './tower';
-import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, stepWorker, towerFell } from './worker';
+import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, createTower, drawDebris, drawDust, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, towerHeight, towerTopY } from './tower';
+import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, settleSafe, stepWorker, towerFell } from './worker';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -37,6 +37,8 @@ const W = 960;
 const H = 540;
 const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The widest the multiplier readout draws; a longer number condenses to fit. */
+const READOUT_MAX_W = 300;
 /** Floors placed per doubling of the multiplier: one every 1.9 s of a running round. */
 const FLOORS_PER_DOUBLING = 6;
 /** Camera centre that puts the ground at screen y 500 at scale 1. */
@@ -181,11 +183,11 @@ function drawGround(ctx: CanvasRenderingContext2D): void {
   ctx.beginPath(); ctx.moveTo(796, GROUND_Y - 8); ctx.lineTo(792, GROUND_Y); ctx.moveTo(854, GROUND_Y - 8); ctx.lineTo(858, GROUND_Y); ctx.stroke();
 }
 
-function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, multiplier: number, dead: boolean): void {
+function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: string, dead: boolean): void {
   const colour = dead ? '#ff4d6d' : view.phase === 'running' ? '#ffffff' : '#ffe08a';
   ctx.save();
   if (view.phase !== 'running' && !dead) ctx.globalAlpha = 0.85;
-  memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+  memeText(ctx, text, 930, 80, 66, colour, 'right', READOUT_MAX_W);
   ctx.restore();
 }
 
@@ -229,6 +231,41 @@ export function createScene(options: SceneOptions = {}): Scene {
     return { y: Math.min(y, GROUND_Y - 230 / s), s };
   }
 
+  function settleCamera(): void {
+    const target = cameraTarget();
+    settleSpring(cam.y, target.y);
+    settleSpring(cam.scale, target.s);
+  }
+
+  /**
+   * The crash: the joints let go, the block on the hook falls with them, and the worker falls or rides clear.
+   * `quiet` lays it all out as it ended, for a collapse the scene did not see happen.
+   */
+  function collapse(view: SceneView, quiet: boolean): void {
+    collapseTower(tower, view.currentX100, quiet);
+    if (crane.holding) {
+      dropLoad(tower, loadPose(crane), crane.trolley.v, Math.floor(crane.phase) % 4, quiet);
+      crane.holding = false;
+    }
+    outcome = view.stake === null ? 'timber' : secured ? 'called' : 'rekt';
+    // An exit accepted since the last frame still counts: the cage has just reached him.
+    if (secured && worker.mode === 'top') {
+      callHoist(worker);
+      worker.cage.y = worker.y;
+    }
+    towerFell(worker, tower, tower.rod.dir, quiet);
+    if (!quiet) {
+      shake = 1;
+      pop.v = 16;
+      return;
+    }
+    // The crane has long since climbed back down to the empty site, and the camera with it.
+    settleCrane(crane, crane.phase, towerTopY(tower));
+    crane.holding = false;
+    settleCamera();
+    pop.x = 1;
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
@@ -243,35 +280,22 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // Phase edges: joining late, the collapse, and a fresh site for the next round.
     if (previous === null) {
+      // A page that joins mid-round, or a fresh scene for a round first seen after its betting, settles
+      // straight into what the view says rather than replaying what it missed.
       previous = view.phase;
       for (let i = 0; i < Math.floor(progress); i += 1) landFloor(tower, 0, 0, true);
       settleCrane(crane, progress, towerTopY(tower));
       resetWorker(worker);
       worker.y = worker.lastSurface = towerTopY(tower);
-      if (crashed) {
-        collapseTower(tower, view.currentX100, true);
-        outcome = 'timber';
-        pop.x = 1;
-        worker.mode = 'down';
-        worker.x = TOWER_X - 40;
-        worker.y = GROUND_Y;
-      }
-      const target = cameraTarget();
-      settleSpring(cam.y, target.y);
-      settleSpring(cam.scale, target.s);
+      if (secured) settleSafe(worker);
+      if (crashed) collapse(view, true);
+      settleCamera();
+      settleSpring(badge, secured ? 1 : 0);
     } else if (view.phase !== previous) {
       if (crashed && !tower.collapsed) {
-        const quiet = view.crashAge > 1500;
-        collapseTower(tower, view.currentX100, quiet);
-        if (crane.holding) {
-          const load = loadPose(crane);
-          tower.debris.push({ x: load.x, y: load.y, angle: load.angle, vx: crane.trolley.v, vy: 0, spin: (tower.rng() - 0.5) * 4, tone: Math.floor(crane.phase) % 4, index: tower.debris.length, released: true, releaseAt: 0, resting: quiet, hits: 0 });
-          crane.holding = false;
-        }
-        outcome = view.stake === null ? 'timber' : secured ? 'called' : 'rekt';
-        towerFell(worker, tower, tower.rod.dir);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        // Floors a hidden tab missed go up first, so the rubble matches the crash point.
+        while (floorCount(tower) < Math.floor(progress)) landFloor(tower, 0, 0, true);
+        collapse(view, view.crashAge > 1500);
       }
       if (view.phase === 'betting') {
         resetTower(tower);
@@ -350,13 +374,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
-    // HUD in screen space.
+    // HUD in screen space. The readout grows leftward from x 930, so the caption centred on 430 narrows to
+    // keep 24 px clear of it however long the number gets.
+    const readout = `${multiplier.toFixed(2)}×`;
+    ctx.font = `900 66px ${MEME_FONT}`;
+    const readoutW = Math.min(READOUT_MAX_W, ctx.measureText(readout).width);
     if (caption) {
       ctx.save();
       ctx.translate(430, 68);
       const k = 1 + 0.1 * captionPop.x;
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
+      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', Math.min(560, (2 * (930 - readoutW - 24 - 430)) / k));
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
@@ -369,7 +397,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    drawReadout(ctx, view, multiplier, outcome !== null);
+    drawReadout(ctx, view, readout, outcome !== null);
     const floors = tower.collapsed ? tower.debris.length : floorCount(tower);
     memeText(ctx, `${floors} ${floors === 1 ? 'FLOOR' : 'FLOORS'}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }

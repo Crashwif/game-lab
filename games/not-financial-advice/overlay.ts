@@ -3,7 +3,7 @@
  * the disclosure that shrinks to a pixel, the comment column and the
  * subscriber who can still walk away.
  */
-import { clamp, mulberry32, spring, stepSpring, type Spring } from './motion';
+import { clamp, mulberry32, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 
@@ -72,8 +72,18 @@ export function resetOverlay(o: Overlay): void {
   o.discSize = 16;
 }
 
-export function unfollow(o: Overlay): void {
+/** Puts the follower counter on the multiplier, for a stretch of the round the scene did not draw. */
+export function settleOverlay(o: Overlay, multiplier: number): void {
+  settleSpring(o.follower, followerCount(multiplier));
+}
+
+/** Your subscriber walks out; `gone` puts them straight through the door, for a cash-out that landed off screen. */
+export function unfollow(o: Overlay, gone = false): void {
   o.leaving = true;
+  if (gone) {
+    o.youX = 280;
+    o.gone = true;
+  }
 }
 
 export function floodOverlay(o: Overlay, quiet: boolean): void {

@@ -4,9 +4,10 @@
  * here with the real frame time, and nothing drawn here changes the
  * committed outcome.
  */
+import { free } from '@crashwif/crash-math';
 import { type Curler, SLEEVE_AT, burstBicep, createCurler, drawCurler, poseCurler, resetCurler, settleCurler, stepCurler } from './curler';
-import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, stepGym, swoon, walkOut } from './gym';
-import { clamp, spring, stepSpring } from './motion';
+import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym, swoon, walkOut } from './gym';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -82,6 +83,17 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let milestone = 0;
 
+  /** Jumps to where a round met late stands: the arm and the pose, the milestones passed, the mirror's chart and cracks, and the badge. */
+  function settleRound(view: SceneView, multiplier: number, growth: number): void {
+    settleCurler(curler, multiplier, growth, secured !== null);
+    while (milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) milestone += 1;
+    // A crashed round no longer keeps its running time, so the crash point's time comes from the curve.
+    settleTrail(gym, view.phase === 'running' ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS, growth);
+    settleSpring(badge, secured ? 1 : 0);
+    // The mirror's cracks, which hold through the crash once finishGym has run.
+    gym.cracks = clamp((growth - 1) / 3, 0, 1);
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
@@ -92,26 +104,31 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const ending: Outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
 
+    // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
+    // round whose betting was missed), and a crash can be met well after it happened (the tab was hidden
+    // through it): both settle into place instead of replaying the heckles, the exit and the burst they missed.
     if (previous === null) {
       previous = view.phase;
       resetGym(gym);
       resetCurler(curler);
-      if (running || crashed) { settleCurler(curler, multiplier, growth); while (milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) milestone += 1; }
+      if (running || crashed) settleRound(view, multiplier, growth);
       if (crashed) {
-        outcome = 'pop';
+        outcome = ending;
         burstBicep(curler, view.currentX100, true);
-        finishGym(gym, false, true);
-        walkOut(gym);
+        finishGym(gym, outcome === 'called', true);
+        if (outcome !== 'called') walkOut(gym, view.crashAge / 1000);
         pop.x = 1;
       }
     } else if (view.phase !== previous) {
       if (crashed && !curler.burst) {
         const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
+        if (quiet) settleRound(view, multiplier, growth);
+        outcome = ending;
         burstBicep(curler, view.currentX100, quiet);
         finishGym(gym, outcome === 'called', quiet);
-        if (outcome !== 'called') walkOut(gym);
+        if (outcome !== 'called') walkOut(gym, quiet ? view.crashAge / 1000 : 0);
         if (quiet) pop.x = 1;
         else { shake = 1; pop.v = 16; }
       }
@@ -124,9 +141,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
-    if (secured && running) poseCurler(curler);
 
     stepCurler(curler, { running, multiplier, growth, tension }, dt);
+    // After the step, which clears the last frame's events, so the drop's reaction below sees this one.
+    if (secured && running) poseCurler(curler);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: clamp((growth - 1) / 3, 0, 1) }, dt);
     if (running && milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) {
       heckle(gym, HECKLES[milestone % HECKLES.length]!, milestone % 2 === 0);

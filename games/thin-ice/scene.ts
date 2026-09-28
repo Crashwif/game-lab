@@ -37,10 +37,17 @@ const H = 540;
 const SKATER_SCREEN_X = 330;
 const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The widest the multiplier readout grows: a huge number narrows rather than running into the caption. */
+const READOUT_MAX_WIDTH = 300;
+/** Clear space the caption keeps from the readout on its right and from the edge on its left. */
+const HUD_GAP = 24;
 type Outcome = 'rekt' | 'called' | 'crack';
 type Secured = { x100: number; payout: number | null };
 type Flake = { x: number; y: number; r: number; k: number };
 interface Particle { kind: 'spray' | 'breath' | 'splash' | 'bubble'; x: number; y: number; vx: number; vy: number; r: number; age: number; life: number }
+
+/** The width of the black border memeText strokes round lettering of this size; half of it shows outside the glyphs. */
+const border = (size: number): number => Math.max(3, size * 0.13);
 
 /** Meme caption lettering: heavy, white, black-bordered. */
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
@@ -48,7 +55,7 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(3, size * 0.13);
+  ctx.lineWidth = border(size);
   ctx.strokeStyle = INK;
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
@@ -163,11 +170,33 @@ function drawShore(ctx: CanvasRenderingContext2D, cameraX: number): void {
   ctx.beginPath(); ctx.moveTo(0, ICE_FAR_Y + 1); ctx.lineTo(W, ICE_FAR_Y + 1); ctx.stroke();
 }
 
-function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, multiplier: number, dead: boolean): void {
+/** Where the multiplier readout's lettering starts on the left: it grows leftward from x 930 as the number gets longer. */
+function readoutLeft(ctx: CanvasRenderingContext2D, text: string): number {
+  ctx.font = `900 66px ${MEME_FONT}`;
+  return 930 - Math.min(READOUT_MAX_WIDTH, ctx.measureText(text).width) - border(66) / 2;
+}
+
+function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: string, dead: boolean): void {
   const colour = dead ? '#ff4d6d' : view.phase === 'running' ? '#ffffff' : '#ffe08a';
   ctx.save();
   if (view.phase !== 'running' && !dead) ctx.globalAlpha = 0.85;
-  memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+  memeText(ctx, text, 930, 80, 66, colour, 'right', READOUT_MAX_WIDTH);
+  ctx.restore();
+}
+
+/**
+ * The caption, centred on x 430 while it fits there. A long multiplier pushes it left to stay clear of the
+ * readout, and only once it reaches the left edge does it narrow; `scale` is its pop.
+ */
+function drawCaption(ctx: CanvasRenderingContext2D, caption: string, scale: number, readoutAt: number): void {
+  ctx.font = `900 46px ${MEME_FONT}`;
+  const edge = border(46) / 2;
+  const right = readoutAt - HUD_GAP;
+  const width = Math.min(560, ctx.measureText(caption).width, (right - HUD_GAP) / scale - 2 * edge);
+  ctx.save();
+  ctx.translate(Math.min(430, right - scale * (width / 2 + edge)), 68);
+  ctx.scale(scale, scale);
+  memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', width);
   ctx.restore();
 }
 
@@ -211,17 +240,22 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // Phase edges: joining late, the break, and a fresh lake for the next round.
     if (previous === null) {
-      previous = view.phase;
-      settleSkater(skater, running, crashed, drive);
-      settleSpring(camera, skater.x - SKATER_SCREEN_X);
-      if (crashed) {
-        shatterIce(ice, skater.x, iceY(skater.depth.x), view.currentX100, true);
-        outcome = 'crack';
-        pop.x = 1;
-      }
-    } else if (view.phase !== previous) {
+      // A round met part-way through settles into place: out on the ice, or already on the bank once her exit
+      // was accepted. One met after the crash then breaks through the same edge as a watched one, which keeps
+      // an old crash quiet and takes the outcome from the player's bet.
+      const live = running || crashed;
+      settleSkater(skater, live, live && secured !== null, drive);
+      // The camera is a critically damped spring at ω 3, so it trails a skater at speed v by 2v/3: start it there.
+      camera.x = skater.x - SKATER_SCREEN_X - (skater.speed * 2) / 3;
+      camera.v = skater.speed;
+      if (secured) settleSpring(badge, 1);
+      previous = crashed ? 'running' : view.phase;
+    }
+    if (view.phase !== previous) {
       if (crashed && !ice.shattered) {
         const quiet = view.crashAge > 1500;
+        // An exit accepted while no running frame was drawn (a hidden tab) still gets her off the ice.
+        if (secured) headForShore(skater);
         const onIce = skater.mode === 'skating' || skater.mode === 'idle' || (skater.mode === 'toShore' && skater.depth.x < 0.95);
         const at: Point = onIce ? { x: skater.x, y: iceY(skater.depth.x) } : skater.lastIce;
         shatterIce(ice, at.x, at.y, view.currentX100, quiet);
@@ -387,15 +421,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
-    // HUD in screen space.
-    if (caption) {
-      ctx.save();
-      ctx.translate(430, 68);
-      const k = 1 + 0.1 * captionPop.x;
-      ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
-      ctx.restore();
-    }
+    // HUD in screen space. The readout is measured first so the caption can keep clear of it.
+    const readout = `${multiplier.toFixed(2)}×`;
+    if (caption) drawCaption(ctx, caption, 1 + 0.1 * captionPop.x, readoutLeft(ctx, readout));
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
@@ -406,7 +434,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    drawReadout(ctx, view, multiplier, outcome !== null);
+    drawReadout(ctx, view, readout, outcome !== null);
     memeText(ctx, `${Math.round(skater.x / 10)} M`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     void FORESHORTEN;
   }

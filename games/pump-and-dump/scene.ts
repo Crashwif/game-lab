@@ -4,9 +4,10 @@
  * stepped here with the real frame time, and nothing drawn here changes
  * the committed outcome.
  */
+import { free } from '@crashwif/crash-math';
 import { type Bench, PLATE_AT, benchHead, createBench, drawBench, dumpBar, rackBar, resetBench, settleBench, stepBench } from './bench';
-import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, stepGym } from './gym';
-import { clamp, spring, stepSpring } from './motion';
+import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym } from './gym';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -80,6 +81,16 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let heckleAt = 0;
 
+  /** The crash: the bar comes down on whoever is under it. `quiet` settles into a drop that already happened. */
+  function drop(view: SceneView, multiplier: number, quiet: boolean): void {
+    outcome = view.stake === null ? 'dumped' : secured ? 'called' : 'rekt';
+    if (quiet) settleBench(bench, multiplier, secured !== null);
+    dumpBar(bench, view.currentX100, quiet);
+    finishGym(gym, outcome === 'called', quiet);
+    if (quiet) pop.x = 1;
+    else { shake = 1; pop.v = 16; puff(gym, { x: 480, y: 420 }, 14, '#ffffff', 3); }
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
@@ -91,25 +102,20 @@ export function createScene(options: SceneOptions = {}): Scene {
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
+    // A round met late (a first frame, which may land mid-round or after the crash, or a drop missed while the
+    // tab was hidden) settles into place instead of playing out what it missed.
+    let settle = false;
     if (previous === null) {
       previous = view.phase;
+      settle = running || crashed;
       resetGym(gym);
       resetBench(bench);
-      if (running || crashed) settleBench(bench, multiplier);
-      if (crashed) {
-        outcome = 'dumped';
-        dumpBar(bench, view.currentX100, true);
-        finishGym(gym, false, true);
-        pop.x = 1;
-      }
+      if (running) settleBench(bench, multiplier, secured !== null);
+      if (crashed) drop(view, multiplier, true);
     } else if (view.phase !== previous) {
       if (crashed && !bench.dumped) {
-        const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'dumped' : secured ? 'called' : 'rekt';
-        dumpBar(bench, view.currentX100, quiet);
-        finishGym(gym, outcome === 'called', quiet);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; puff(gym, { x: 480, y: 420 }, 14, '#ffffff', 3); }
+        settle = view.crashAge > 1500;
+        drop(view, multiplier, settle);
       }
       if (view.phase === 'betting') {
         resetGym(gym);
@@ -119,6 +125,11 @@ export function createScene(options: SceneOptions = {}): Scene {
         heckleAt = 0;
       }
       previous = view.phase;
+    }
+    if (settle) {
+      // The mirror's chart as far as the number has come: the crash point's time comes from the curve.
+      settleTrail(gym, running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS, growth);
+      settleSpring(badge, secured ? 1 : 0);
     }
     if (secured && running) rackBar(bench);
 

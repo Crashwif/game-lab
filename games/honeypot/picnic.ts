@@ -3,7 +3,7 @@
  * and stick, the hive, the swarm and the beekeeper who leaves with it.
  */
 import { JAR, surfaceY } from './jar';
-import { clamp, spring, stepSpring, type Spring } from './motion';
+import { clamp, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 const FUR = '#8d5a32';
@@ -71,6 +71,14 @@ export function resetPicnic(p: Picnic): void {
   p.puddle = 0.2;
 }
 
+/** The bear who got out: paw free, shades on, off the blanket. */
+function leaveBear(bear: Bear): void {
+  bear.mode = 'gone';
+  bear.x = -80;
+  bear.paw = 1;
+  bear.shades.x = 1;
+}
+
 export function pullPaw(p: Picnic): void {
   if (p.bear.mode === 'stuck') {
     p.bear.mode = 'pulling';
@@ -86,16 +94,23 @@ export function trapPicnic(p: Picnic, quiet: boolean, escaped: boolean): void {
     p.keeperX = 1040;
     p.hiveX = 1000;
     p.puddle = 1;
-    if (escaped) {
-      p.bear.mode = 'gone';
-      p.bear.x = -80;
-      p.bear.paw = 1;
-      p.bear.shades.x = 1;
-    }
+    if (escaped) leaveBear(p.bear);
   }
 }
 
-export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; }
+/**
+ * Jumps the picnic to where a round that has run `seconds` to this multiplier has it: the guests leaning in, the
+ * puddle spread, and a bear who has already cashed out gone. For a round met late rather than watched.
+ */
+export function settlePicnic(p: Picnic, multiplier: number, tension: number, seconds: number, escaped: boolean): void {
+  for (const guest of p.guests) settleSpring(guest.lean, multiplier >= guest.at ? 1 : 0.05);
+  // The tension climbs in step with time, so on average the puddle has spread at the rate for half the tension it has now.
+  p.puddle = clamp(0.2 + seconds * (0.04 + tension * 0.04), 0.2, 1);
+  if (escaped) leaveBear(p.bear);
+}
+
+/** `reduced` (prefers-reduced-motion) slows the swarm. */
+export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; reduced: boolean; }
 
 export function pawPoint(p: Picnic, level: number): { x: number; y: number } {
   const inside = { x: JAR.cx - 10, y: surfaceY(level) + 16 };
@@ -125,7 +140,7 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
     stepSpring(guest.lean, guest.stuck ? 1 : want, 4, 0.8, dt);
   }
   p.puddle = clamp(p.puddle + dt * (drive.running ? 0.04 + drive.tension * 0.08 : 0), 0.2, 1);
-  for (const bee of p.bees) bee.angle += dt * bee.speed * (p.leaving ? 3 : 1 + drive.tension * 2);
+  for (const bee of p.bees) bee.angle += dt * bee.speed * (p.leaving ? 3 : 1 + drive.tension * 2) * (drive.reduced ? 0.2 : 1);
   if (p.leaving) {
     p.keeperX += 70 * dt;
     p.hiveX += (p.keeperX + 30 - p.hiveX) * clamp(dt * 3, 0, 1);

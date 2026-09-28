@@ -3,9 +3,9 @@
  * the HUD over the ward. All motion is stepped here with the real frame
  * time, and nothing drawn here changes the committed outcome.
  */
-import { clamp, spring, stepSpring } from './motion';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { type Monitor, createMonitor, dischargeMonitor, drawMonitor, flatlineMonitor, resetMonitor, settleMonitor, stepMonitor } from './monitor';
-import { INK, WARD, type Ward, createWard, discharge, dose, drawWard, flatline, resetWard, settleWard, stepWard } from './ward';
+import { INK, WARD, type Ward, createWard, discharge, dose, drawWard, flatline, resetWard, settleDischarge, settleWard, stepWard } from './ward';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -76,6 +76,13 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
+  /** Jumps the ward and the monitor to where the round already is, for a round met late. */
+  function settle(multiplier: number, tension: number): void {
+    settleMonitor(monitor, multiplier);
+    settleWard(ward, tension, monitor.doseIndex);
+    if (secured) { settleDischarge(ward); dischargeMonitor(monitor); settleSpring(badge, 1); }
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
@@ -86,14 +93,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const ending: Outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
 
+    // Phase edges. A round met late (the first frame, which may land mid-round or after the crash, or a crash
+    // missed while the tab was hidden) settles into place instead of playing out what it missed.
     if (previous === null) {
       previous = view.phase;
       resetWard(ward);
       resetMonitor(monitor);
-      if (running || crashed) { settleMonitor(monitor, multiplier); settleWard(ward, tension, monitor.doseIndex); }
+      if (running || crashed) settle(multiplier, tension);
       if (crashed) {
-        outcome = 'ended';
+        outcome = ending;
         flatline(ward, view.currentX100, true);
         flatlineMonitor(monitor, view.currentX100, true);
         pop.x = 1;
@@ -101,7 +111,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     } else if (view.phase !== previous) {
       if (crashed && !ward.dead) {
         const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        outcome = ending;
+        if (quiet) settle(multiplier, tension);
+        else if (secured) discharge(ward); // a cash-out first seen with the crash still walks him out
         flatline(ward, view.currentX100, quiet);
         flatlineMonitor(monitor, view.currentX100, quiet);
         if (quiet) pop.x = 1;
@@ -169,7 +181,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!running && !outcome) ctx.globalAlpha = 0.85;
     memeText(ctx, `${multiplier.toFixed(2)}×`, WARD.w - 18, WARD.h - 18, 52, colour, 'right');
     ctx.restore();
-    memeText(ctx, `${monitor.doseIndex} DOSES`, 18, WARD.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    memeText(ctx, `${monitor.doseIndex} ${monitor.doseIndex === 1 ? 'DOSE' : 'DOSES'}`, 18, WARD.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }
 
   return { draw };

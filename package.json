@@ -14,12 +14,15 @@
     "build": "npm run build -w @crashwif/crash-math && npm run build -w @crashwif/game-sdk && npm run build -w @crashwif/emulator && node scripts/build.mjs",
     "dev": "npm run build && node scripts/dev.mjs",
     "typecheck": "tsc --noEmit -p games/tsconfig.json",
-    "test": "node --test scripts/gallery/*.test.mjs && npm test -w @crashwif/crash-math && npm test -w @crashwif/game-sdk && npm test -w @crashwif/emulator",
+    "shell": "node scripts/shell.mjs",
+    "check": "node scripts/gallery/check.mjs",
+    "test": "node scripts/shell.mjs && node --test scripts/gallery/*.test.mjs && npm test -w @crashwif/crash-math && npm test -w @crashwif/game-sdk && npm test -w @crashwif/emulator",
     "pack:sdk": "npm pack -w @crashwif/crash-math && npm pack -w @crashwif/game-sdk",
     "gallery:export": "node scripts/gallery/export.mjs --dist dist --out gallery-out"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
+    "playwright": "1.63.0",
     "typescript": "^6.0.3"
   }
 }

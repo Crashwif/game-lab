@@ -13,7 +13,51 @@ export interface Sound {
   chuff(strength: number): void;
   ping(): void;
   blast(): void;
+  /** Suspends the audio while the page can't be seen and resumes it after, keeping the player's choice. Nothing is scheduled meanwhile. */
+  setHidden(hidden: boolean): void;
   close(): void;
+}
+
+let shared: Sound | null = null;
+
+/**
+ * The page's one Sound, wired up the first time a scene asks for it: the #sound
+ * button turns it on and off, it goes quiet while the page is hidden or the
+ * picture is scrolled out of view, and it closes on pagehide. A scene the shell
+ * recreates mid-round gets the same one back, so the player's choice carries over.
+ */
+export function pageSound(): Sound {
+  if (shared) return shared;
+  const sound = createSound();
+  shared = sound;
+  // Sound stays off until the player asks for it; the click is the user gesture autoplay rules want.
+  const button = document.querySelector<HTMLButtonElement>('#sound');
+  if (button) {
+    button.onclick = async () => {
+      try {
+        await sound.toggle();
+      } catch (error) {
+        console.warn('Sound could not start:', error);
+      }
+      button.textContent = sound.enabled ? 'Sound: on' : 'Sound: off';
+    };
+  }
+  // Only the draw loop moves the levels. It stops while the tab is hidden, so the hiss and the whistle would hold
+  // where they were; for a canvas scrolled out of view it may keep running (a same-origin frame, say), and every
+  // sound it asked for would stack up and play at once on the return. Either way, suspend until the picture can be
+  // seen again: the sounds are not scheduled meanwhile.
+  let offScreen = false;
+  const hide = () => sound.setHidden(document.hidden || offScreen);
+  document.addEventListener('visibilitychange', hide);
+  const canvas = document.querySelector('canvas');
+  if (canvas && typeof IntersectionObserver !== 'undefined') {
+    new IntersectionObserver((entries) => {
+      offScreen = !entries[entries.length - 1]!.isIntersecting;
+      hide();
+    }).observe(canvas);
+  }
+  window.addEventListener('pagehide', () => sound.close());
+  return sound;
 }
 
 export function createSound(): Sound {
@@ -23,6 +67,7 @@ export function createSound(): Sound {
   let hiss: GainNode | null = null;
   let whistle: { osc: OscillatorNode; gain: GainNode } | null = null;
   let enabled = false;
+  let hidden = false;
 
   function makeNoise(ctx: AudioContext): AudioBuffer {
     const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -93,13 +138,15 @@ export function createSound(): Sound {
         return false;
       }
       const ctx = ensure();
-      await ctx.resume();
+      if (!hidden) await ctx.resume();
       master!.gain.setTargetAtTime(0.6, ctx.currentTime, 0.05);
       enabled = true;
+      // The page may have been hidden while the context started.
+      if (hidden) void ctx.suspend();
       return true;
     },
     update(pressure, running) {
-      if (!enabled || !context || !hiss || !whistle) return;
+      if (!enabled || hidden || !context || !hiss || !whistle) return;
       const t = context.currentTime;
       hiss.gain.setTargetAtTime(running ? 0.01 + 0.16 * pressure * pressure : 0.004, t, 0.15);
       const red = pressure > 0.7 ? (pressure - 0.7) / 0.3 : 0;
@@ -107,11 +154,11 @@ export function createSound(): Sound {
       whistle.osc.frequency.setTargetAtTime(900 + 700 * pressure, t, 0.2);
     },
     chuff(strength) {
-      if (!enabled) return;
+      if (!enabled || hidden) return;
       burst(420 + 300 * strength, 0.9, 0.2 * strength, 0.14, 'bandpass');
     },
     ping() {
-      if (!enabled || !context || !master) return;
+      if (!enabled || hidden || !context || !master) return;
       const t = context.currentTime;
       const osc = context.createOscillator();
       osc.type = 'sine';
@@ -125,7 +172,7 @@ export function createSound(): Sound {
       osc.stop(t + 0.4);
     },
     blast() {
-      if (!enabled || !context || !master || !hiss) return;
+      if (!enabled || hidden || !context || !master || !hiss) return;
       const t = context.currentTime;
       burst(6000, 0.5, 0.9, 1.6, 'lowpass', 120);
       const thump = context.createOscillator();
@@ -140,6 +187,12 @@ export function createSound(): Sound {
       thump.stop(t + 0.75);
       hiss.gain.setValueAtTime(0.25, t + 0.2);
       hiss.gain.setTargetAtTime(0.004, t + 0.5, 1.5);
+    },
+    setHidden(value) {
+      hidden = value;
+      if (!context) return;
+      if (hidden) void context.suspend();
+      else if (enabled) void context.resume();
     },
     close() {
       void context?.close();

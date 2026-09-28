@@ -35,6 +35,9 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
+/** How the round ended for this viewer: watched from the pavement, left in time, or still in the line. */
+const outcomeFor = (view: SceneView, secured: Secured | null): Outcome => (view.stake === null ? 'ended' : secured ? 'called' : 'rekt');
+
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
   ctx.textAlign = align;
@@ -87,12 +90,18 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
     if (previous === null) {
+      // A fresh scene (page load, or a round first met after its betting phase) settles straight into what
+      // the view shows: the line where the multiplier put it, an exit already taken, a crash already over.
       previous = view.phase;
       resetClub(club);
       resetQueue(queue);
-      if (running || crashed) { settleQueue(queue, multiplier); settleClub(club, queue.suits); }
+      if (running || crashed) {
+        settleQueue(queue, multiplier);
+        settleClub(club, queue.suits);
+        if (secured) { leaveQueue(queue, true); callTaxi(club, true); badge.x = 1; }
+      }
       if (crashed) {
-        outcome = 'ended';
+        outcome = outcomeFor(view, secured);
         crashClub(club, view.currentX100, true);
         panicQueue(queue, view.currentX100, true);
         pop.x = 1;
@@ -100,7 +109,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     } else if (view.phase !== previous) {
       if (crashed && !club.crashed) {
         const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        outcome = outcomeFor(view, secured);
+        // A crash first drawn late (a hidden tab, a throttled frame) settles the line at the crash point, and a
+        // cash-out first seen with the crash still takes your coin out of the line.
+        if (quiet) { settleQueue(queue, multiplier); settleClub(club, queue.suits); }
+        if (secured) { leaveQueue(queue, quiet); callTaxi(club, quiet); }
         crashClub(club, view.currentX100, quiet);
         panicQueue(queue, view.currentX100, quiet);
         if (quiet) pop.x = 1;

@@ -74,9 +74,12 @@ export class Renderer {
   private env: Environment | null = null;
   private time = 0;
 
-  /** Throws when WebGL2 is unavailable, so the caller can fall back to Canvas 2D. */
-  constructor() {
-    this.canvas = document.createElement('canvas');
+  /**
+   * Throws when WebGL2 is unavailable, so the caller can fall back to Canvas 2D. Pass the canvas of a context
+   * that was lost and has been restored to upload everything again on it: its old programs and buffers are gone.
+   */
+  constructor(canvas: HTMLCanvasElement = document.createElement('canvas')) {
+    this.canvas = canvas;
     const gl = this.canvas.getContext('webgl2', { alpha: false, antialias: true, depth: true, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL2 is not available');
     this.gl = gl;

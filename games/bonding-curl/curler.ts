@@ -76,11 +76,19 @@ export function resetCurler(c: Curler): void {
 
 export const radiusFor = (growth: number): number => 16 + 128 * (1 - Math.exp(-growth / 2.6));
 
-/** Jumps straight to the state a multiplier calls for, for a first frame mid-round. */
-export function settleCurler(c: Curler, multiplier: number, growth: number): void {
-  c.mode = 'curling';
+/**
+ * Jumps straight to the state a multiplier calls for, for a round met late. `posed` is for an exit already
+ * taken: the weight is down, the kiss is over and the shades are on, with no drop event to react to.
+ */
+export function settleCurler(c: Curler, multiplier: number, growth: number, posed = false): void {
+  c.mode = posed ? 'posing' : 'curling';
   settleSpring(c.radius, radiusFor(growth));
   c.sleeve = multiplier < SLEEVE_AT;
+  if (!posed) return;
+  c.modeAge = 2; // past the kiss, which runs from 0.3 s to 1.4 s into the pose
+  settleSpring(c.curl, 1);
+  settleSpring(c.shades, 1);
+  c.dumbbell.dropped = true;
 }
 
 /** The exit was accepted: drop it, kiss it, shades. */

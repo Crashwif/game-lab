@@ -7,6 +7,7 @@
  * is a generic cartoon with no likeness of anyone. Nothing here changes
  * the outcome.
  */
+import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, gust, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -14,6 +15,9 @@ export const STAGE = { w: 960, h: 540 } as const;
 export const HORIZON = 210;
 export type Point = { x: number; y: number };
 const MEME_FONT = 'Impact, "Arial Black", sans-serif';
+/** The phone chart takes a sample this often at first, and keeps at most this many before it thins them. */
+const CHART_STEP = 0.15;
+const CHART_POINTS = 60;
 
 interface Gull { x: number; y: number; phase: number; speed: number }
 interface Wake { x: number; y: number; age: number; life: number; size: number }
@@ -34,6 +38,9 @@ export interface Mansion {
   prTeam: Spring;
   draft: Spring;
   chart: number[];
+  /** When the chart takes its next sample, on `time`, and the spacing it samples at now. */
+  chartAt: number;
+  chartStep: number;
   posted: boolean;
   endAge: number;
   ended: boolean;
@@ -47,7 +54,7 @@ export interface Mansion {
 export function createMansion(): Mansion {
   const gulls: Gull[] = [];
   for (let i = 0; i < 4; i += 1) gulls.push({ x: 520 + i * 110, y: 60 + noise(i * 3.7) * 70, phase: noise(i) * 6, speed: 14 + noise(i * 2.2) * 10 });
-  return { time: 0, typing: spring(0), wave: spring(0), shrug: spring(0), glance: spring(0), whisper: spring(0), whisperAt: 1.5, whisperOn: false, yachtSize: spring(0.4), yachtX: spring(800), engine: spring(0), packing: spring(0), prTeam: spring(0), draft: spring(0), chart: [], posted: false, endAge: 0, ended: false, blinkAt: 2, eyeOpen: spring(1), gulls, wakes: [], smoke: 0 };
+  return { time: 0, typing: spring(0), wave: spring(0), shrug: spring(0), glance: spring(0), whisper: spring(0), whisperAt: 1.5, whisperOn: false, yachtSize: spring(0.4), yachtX: spring(800), engine: spring(0), packing: spring(0), prTeam: spring(0), draft: spring(0), chart: [], chartAt: 0, chartStep: CHART_STEP, posted: false, endAge: 0, ended: false, blinkAt: 2, eyeOpen: spring(1), gulls, wakes: [], smoke: 0 };
 }
 
 export function resetMansion(m: Mansion): void {
@@ -65,6 +72,8 @@ export function resetMansion(m: Mansion): void {
   settleSpring(m.prTeam, 0);
   settleSpring(m.draft, 0);
   m.chart = [];
+  m.chartAt = m.time;
+  m.chartStep = CHART_STEP;
   m.posted = false;
   m.endAge = 0;
   m.ended = false;
@@ -72,12 +81,24 @@ export function resetMansion(m: Mansion): void {
   m.smoke = 0;
 }
 
-/** Jumps the slow springs to where a multiplier already is, for a round joined late. */
+/** Jumps the slow springs and the phone chart to where a multiplier already is, for a round joined late. */
 export function settleMansion(m: Mansion, tension: number, multiplier: number): void {
   settleSpring(m.yachtSize, 0.4 + 0.6 * Math.min(1, Math.log2(multiplier) / 4));
+  settleSpring(m.engine, tension > 0.65 ? 1 : 0);
   settleSpring(m.packing, tension > 0.5 ? 1 : 0);
-  settleSpring(m.prTeam, tension > 0.7 ? 1 : 0);
-  settleSpring(m.draft, tension > 0.6 ? 1 : 0);
+  settleSpring(m.prTeam, tension > 0.72 ? 1 : 0);
+  settleSpring(m.draft, tension > 0.58 ? 1 : 0);
+  // The chart as the phone would have sampled it so far: the curve is exponential, so samples evenly spaced
+  // in time climb geometrically from 1.00×. The next live sample then lands on the same spacing.
+  const seconds = Math.log(multiplier) / (free.GROWTH_RATE_PER_MS * 1000);
+  m.chart = [];
+  m.chartStep = CHART_STEP;
+  m.chartAt = m.time;
+  if (!(seconds > 0)) return;
+  while (Math.floor(seconds / m.chartStep) >= CHART_POINTS) m.chartStep *= 2;
+  const samples = Math.floor(seconds / m.chartStep);
+  for (let i = 0; i <= samples; i += 1) m.chart.push(Math.pow(multiplier, (i * m.chartStep) / seconds));
+  m.chartAt = m.time + (samples + 1) * m.chartStep - seconds;
 }
 
 /** A milestone: a wave to the fans, a burst of typing. */
@@ -95,7 +116,7 @@ export function endMansion(m: Mansion, seed: number, quiet: boolean): void {
   m.wakes = [];
   const rng = mulberry32(seed);
   m.smoke = 0.5 + rng() * 0.5;
-  if (quiet) { settleSpring(m.yachtX, 1100); settleSpring(m.shrug, 1); settleSpring(m.draft, 1); settleSpring(m.engine, 1); return; }
+  if (quiet) { settleSpring(m.yachtX, 1100); settleSpring(m.shrug, 0); settleSpring(m.draft, 1); settleSpring(m.engine, 1); settleSpring(m.packing, 1); settleSpring(m.prTeam, 1); return; }
   m.shrug.v += 8;
   settleSpring(m.engine, 1);
 }
@@ -124,10 +145,15 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   const blinking = m.time > m.blinkAt && m.time < m.blinkAt + 0.12;
   if (m.time >= m.blinkAt + 0.12) m.blinkAt = m.time + 2 + 3 * noise(m.blinkAt);
   stepSpring(m.eyeOpen, blinking ? 0.08 : 1, 24, 0.9, dt);
-  // The chart on the phone.
-  if (drive.running && !m.ended) {
-    if (m.chart.length === 0 || m.time - (m.chart.length * 0.15) > 0) m.chart.push(Math.max(1, drive.multiplier));
-    if (m.chart.length > 60) m.chart.shift();
+  // The chart on the phone: one sample per step of round time. When it fills, every other sample goes (the
+  // first and the newest stay) and the step doubles, so the whole climb from 1.00× stays on the screen.
+  if (drive.running && !m.ended && m.time >= m.chartAt) {
+    m.chart.push(Math.max(1, drive.multiplier));
+    if (m.chart.length > CHART_POINTS) {
+      m.chart = m.chart.filter((_, i) => i % 2 === 0);
+      m.chartStep *= 2;
+    }
+    m.chartAt = m.time + m.chartStep;
   }
   if (m.ended) {
     m.endAge += dt;
@@ -529,7 +555,8 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
   // Header.
   ctx.fillStyle = '#1f2230'; ctx.fillRect(p.x + 8, p.y + 14, p.w - 16, 28);
   label(ctx, '$FAMOUS', p.x + 18, p.y + 33, 12, '#ffffff');
-  label(ctx, `${multiplier.toFixed(2)}×`, p.x + p.w - 18, p.y + 33, 12, m.posted ? '#ff4d6d' : '#7cf67c', 'right');
+  const ticker = ctx.measureText('$FAMOUS').width;
+  label(ctx, `${multiplier.toFixed(2)}×`, p.x + p.w - 18, p.y + 33, 12, m.posted ? '#ff4d6d' : '#7cf67c', 'right', p.w - 36 - ticker - 8);
   // The chart.
   const cx = p.x + 14; const cy = p.y + 52; const cw = p.w - 28; const ch = 56;
   ctx.strokeStyle = '#2b2f40'; ctx.lineWidth = 1;

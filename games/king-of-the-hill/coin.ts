@@ -34,6 +34,8 @@ export interface CoinState {
   bumpClock: number;
   clingers: Clinger[];
   jeets: Jeet[];
+  /** How many of the JEET_AT milestones have lost their holder this round, so each bails once. */
+  jeeted: number;
   dust: Dust[];
   crown: Spring;
   cap: Spring;
@@ -49,7 +51,7 @@ const MILESTONES: { at: number; key: 'crown' | 'cap' | 'flag' }[] = [{ at: 1.6, 
 const JEET_AT = [1.5, 2.2, 3.5, 5, 8];
 
 export function createCoin(): CoinState {
-  return { time: 0, x: 0, radius: spring(40), roll: 0, back: spring(0), wobble: spring(0), bumpClock: 0, clingers: [], jeets: [], dust: [], crown: spring(0), cap: spring(0), flag: spring(0), crashed: false, crashAge: 0, crashSpeed: 0, events: { bump: false, jeet: false, milestone: null }, rng: mulberry32(7) };
+  return { time: 0, x: 0, radius: spring(40), roll: 0, back: spring(0), wobble: spring(0), bumpClock: 0, clingers: [], jeets: [], jeeted: 0, dust: [], crown: spring(0), cap: spring(0), flag: spring(0), crashed: false, crashAge: 0, crashSpeed: 0, events: { bump: false, jeet: false, milestone: null }, rng: mulberry32(7) };
 }
 
 export function resetCoin(c: CoinState): void {
@@ -60,6 +62,7 @@ export function resetCoin(c: CoinState): void {
   settleSpring(c.wobble, 0);
   c.clingers = [];
   c.jeets = [];
+  c.jeeted = 0;
   c.dust = [];
   settleSpring(c.crown, 0);
   settleSpring(c.cap, 0);
@@ -76,7 +79,8 @@ export function settleCoin(c: CoinState, drive: CoinDrive): void {
   settleSpring(c.radius, drive.radius);
   const multiplier = Math.pow(2, drive.growth);
   for (const m of MILESTONES) if (multiplier >= m.at) settleSpring(c[m.key], 1);
-  const count = Math.min(8, Math.floor(drive.growth * 3)) - JEET_AT.filter((j) => multiplier >= j).length;
+  c.jeeted = JEET_AT.filter((j) => multiplier >= j).length;
+  const count = Math.min(8, Math.floor(drive.growth * 3)) - c.jeeted;
   for (let i = 0; i < Math.max(0, count); i += 1) c.clingers.push({ angle: noise(i * 2.7) * Math.PI * 2, tone: noise(i * 5.1) });
 }
 
@@ -116,7 +120,7 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
         puff(c, coinPose(c).contact, 6);
       }
       const want = Math.min(8, Math.floor(drive.growth * 3));
-      while (c.clingers.length + JEET_AT.filter((j) => multiplier >= j).length < want) c.clingers.push({ angle: c.rng() * Math.PI * 2, tone: c.rng() });
+      while (c.clingers.length + c.jeeted < want) c.clingers.push({ angle: c.rng() * Math.PI * 2, tone: c.rng() });
       for (const m of MILESTONES) {
         if (multiplier >= m.at && c[m.key].x < 0.01 && c[m.key].v === 0) {
           c[m.key].v = 8;
@@ -124,14 +128,14 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
           if (m.key === 'cap') for (let i = 0; i < 40; i += 1) puff(c, coinPose(c).centre, 1, ['#ff4d6d', '#7cf67c', '#8fd3ff', '#ffe27a'][i % 4]!, 2.4);
         }
       }
-      for (const j of JEET_AT) {
-        if (multiplier >= j && c.clingers.length && !c.jeets.some((x) => Math.abs(x.tone - j) < 1e-6)) {
-          const gone = c.clingers.shift()!;
-          const pose = coinPose(c);
-          const a = gone.angle + c.roll;
-          c.jeets.push({ x: pose.centre.x + Math.cos(a) * pose.r, y: pose.centre.y + Math.sin(a) * pose.r, vx: -(120 + c.rng() * 120), vy: 160 + c.rng() * 120, angle: 0, spin: -6 - c.rng() * 4, age: 0, tone: j });
-          c.events.jeet = true;
-        }
+      // One holder bails at each milestone, counted rather than looked up, as tumbling jeets expire.
+      while (c.jeeted < JEET_AT.length && multiplier >= JEET_AT[c.jeeted]! && c.clingers.length) {
+        const gone = c.clingers.shift()!;
+        const pose = coinPose(c);
+        const a = gone.angle + c.roll;
+        c.jeets.push({ x: pose.centre.x + Math.cos(a) * pose.r, y: pose.centre.y + Math.sin(a) * pose.r, vx: -(120 + c.rng() * 120), vy: 160 + c.rng() * 120, angle: 0, spin: -6 - c.rng() * 4, age: 0, tone: JEET_AT[c.jeeted]! });
+        c.events.jeet = true;
+        c.jeeted += 1;
       }
     }
     stepSpring(c.back, 0, 5, 0.8, dt);

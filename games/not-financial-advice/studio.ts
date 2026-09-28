@@ -4,12 +4,19 @@
  * The cloth, the sticker and the truck are presentation. They never
  * move the committed crash point.
  */
-import { clamp, spring, stepSpring, type Spring } from './motion';
+import { clamp, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 export const VIDEO_W = 590;
 export const VIDEO_H = 332;
 const SKIN = '#f3dccb';
+/** Where the tow truck parks after the crash, and how far it hauls the Lambo out. */
+const TOW_PARKED = 340;
+const HAULED = 260;
+
+/** How far the RENTAL sticker has peeled, and where the tow truck waits, at a given tension. */
+const peel = (tension: number): number => clamp(tension * 1.15, 0, 1);
+const towWaiting = (tension: number): number => 640 - tension * 40;
 
 export interface Studio {
   tear: number;
@@ -59,19 +66,26 @@ export function resetStudio(s: Studio): void {
   s.soldFlash = 0;
 }
 
+/** Jumps the props to where the tension has them, for a stretch of the round the scene did not draw. */
+export function settleStudio(s: Studio, tension: number): void {
+  s.tear = tension;
+  settleSpring(s.sticker, peel(tension));
+  settleSpring(s.truck, towWaiting(tension));
+}
+
+/** The reveal. `quiet` (a crash that happened off screen) opens on its aftermath: no SOLD flash, nothing moving. */
 export function endStudio(s: Studio, quiet: boolean): void {
   if (s.crashed) return;
   s.crashed = true;
-  s.soldFlash = 1;
   if (quiet) {
+    // The tear and the sticker follow the tension, so they stay where the round left them.
     s.crashT = 3;
-    s.fall.x = 1;
-    s.sticker.x = 1;
-    s.truck.x = 360;
-    s.pull = 220;
-    s.sponsor.x = 1;
-    s.tear = 1;
+    settleSpring(s.fall, 1);
+    settleSpring(s.truck, TOW_PARKED);
+    s.pull = HAULED;
+    settleSpring(s.sponsor, 1);
   } else {
+    s.soldFlash = 1;
     s.fall.v = 2;
     s.sponsor.v = 6;
   }
@@ -81,11 +95,11 @@ export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
   s.crashT += s.crashed ? dt : 0;
   s.soldFlash = Math.max(0, s.soldFlash - dt * 1.4);
   s.tear = drive.tension;
-  stepSpring(s.sticker, clamp(drive.tension * 1.15, 0, 1), 5, 0.8, dt);
+  stepSpring(s.sticker, peel(drive.tension), 5, 0.8, dt);
   stepSpring(s.fall, s.crashed ? 1 : 0, 3.2, 0.85, dt);
-  const truckTarget = s.crashed ? 340 : 640 - drive.tension * 40;
+  const truckTarget = s.crashed ? TOW_PARKED : towWaiting(drive.tension);
   stepSpring(s.truck, truckTarget, s.crashed ? 4 : 6, 0.9, dt);
-  if (s.crashed && s.truck.x < 430) s.pull = Math.min(260, s.pull + 90 * dt);
+  if (s.crashed && s.truck.x < 430) s.pull = Math.min(HAULED, s.pull + 90 * dt);
   stepSpring(s.sponsor, s.crashed ? 1 : 0, 10, 0.55, dt);
 }
 

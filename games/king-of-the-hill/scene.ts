@@ -37,6 +37,11 @@ export interface Scene {
 const W = 960;
 const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The multiplier readout's right edge, and the width past which it is squeezed rather than run into the caption. */
+const READOUT_X = 930;
+const READOUT_MAX = 300;
+/** The centre line of the caption and the secured badge. */
+const CAPTION_X = 430;
 /** World px up the hill per doubling of the multiplier. */
 const PX_PER_DOUBLING = 620;
 const TICKER = '$CRASH';
@@ -71,6 +76,8 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 
 function formatMcap(multiplier: number): string {
   const usd = 5000 * Math.pow(multiplier, 1.9);
+  if (usd >= 1e12) return `$${(usd / 1e12).toFixed(2)}T`;
+  if (usd >= 1e9) return `$${(usd / 1e9).toFixed(2)}B`;
   if (usd >= 1e6) return `$${(usd / 1e6).toFixed(2)}M`;
   return `$${(usd / 1e3).toFixed(1)}K`;
 }
@@ -164,27 +171,43 @@ export function createScene(options: SceneOptions = {}): Scene {
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
     const drive: CoinDrive = { x: running || crashed ? 60 + PX_PER_DOUBLING * growth : 60, radius: 40 + 50 * (1 - Math.exp(-growth / 2)), growth, running };
+    const ending: Outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
 
     if (previous === null) {
+      // A fresh scene (the page joining, or a round first seen after its betting phase) settles into the round
+      // as it stands: an exit already taken has the ape gone and the community pushing, and a crash is its quiet
+      // aftermath, with the camera held where the dev sold, as it is after a crash watched live.
       previous = view.phase;
       settleCoin(coin, drive);
       resetApe(ape);
-      if (crashed) {
-        crashCoin(coin, view.currentX100, true);
-        outcome = 'rugged';
-        pop.x = 1;
-        ape.mode = 'pancake';
-        ape.pancakeX = drive.x - 120;
-      }
       const pose = coinPose(coin);
       settleSpring(cam.x, pose.contact.x + 40);
       settleSpring(cam.y, pose.contact.y + 70);
+      if (secured) {
+        ape.mode = 'gone';
+        settleSpring(badge, 1);
+      }
+      if (crashed) {
+        crashCoin(coin, view.currentX100, true);
+        outcome = ending;
+        pop.x = 1;
+        if (ape.mode === 'gone') {
+          communityFlat = true;
+          communityX = pose.contact.x;
+        } else {
+          ape.mode = 'pancake';
+          ape.pancakeX = pose.contact.x - pose.r - 40;
+        }
+      }
+      if (ape.mode === 'push') settleSpring(ape.lean, 0.35 + 0.5 * fear);
     } else if (view.phase !== previous) {
       if (crashed && !coin.crashed) {
         const quiet = view.crashAge > 1500;
         const pose = coinPose(coin);
         crashCoin(coin, view.currentX100, quiet);
-        outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
+        outcome = ending;
+        // An exit this scene never drew (the tab was hidden through it) has still taken the ape off the hill.
+        if (secured && lambo.mode === 'none') ape.mode = 'gone';
         if (ape.mode === 'push' || ape.mode === 'boarding') {
           ape.mode = 'pancake';
           ape.pancakeX = pose.contact.x - pose.r - 40;
@@ -272,19 +295,22 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
-    // HUD in screen space.
+    // HUD in screen space. The readout is measured first so the centred caption stays 24 units clear of it.
+    const readout = `${multiplier.toFixed(2)}×`;
+    ctx.font = `900 66px ${MEME_FONT}`;
+    const readoutWidth = Math.min(READOUT_MAX, ctx.measureText(readout).width);
     if (caption) {
       ctx.save();
-      ctx.translate(430, 68);
+      ctx.translate(CAPTION_X, 68);
       const k = 1 + 0.1 * captionPop.x;
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
+      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', Math.min(560, 2 * (READOUT_X - readoutWidth - 24 - CAPTION_X)) / k);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
-      ctx.translate(430, 114 + Math.sin(time * 2) * 3);
+      ctx.translate(CAPTION_X, 114 + Math.sin(time * 2) * 3);
       ctx.rotate(-0.03);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);
@@ -294,7 +320,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+    memeText(ctx, readout, READOUT_X, 80, 66, colour, 'right', READOUT_MAX);
     ctx.restore();
     memeText(ctx, `MCAP ${formatMcap(multiplier)}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     void W;

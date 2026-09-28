@@ -62,9 +62,15 @@ export function settleQueue(q: Queue, multiplier: number): void {
   q.suits = SUITS.filter((m) => multiplier >= m).length;
 }
 
-/** Your coin steps out of the line toward the taxi. */
-export function leaveQueue(q: Queue): void {
+/** Your coin steps out of the line toward the taxi. `quiet` puts him by the taxi already, for an exit that already happened. */
+export function leaveQueue(q: Queue, quiet = false): void {
   if (q.mode !== 'queued') return;
+  if (quiet) {
+    q.mode = 'gone';
+    settleSpring(q.youX, 1);
+    settleSpring(q.shades, 1);
+    return;
+  }
   q.mode = 'stepping';
   q.shades.v = 6;
 }

@@ -3,7 +3,7 @@
  * podium, flags, crowd, press pool, confetti cannons, helicopter and the
  * seat you can still leave. Hair is drawn without the head's shake.
  */
-import { clamp, mulberry32, noise, spring, stepSpring, type Spring } from './motion';
+import { clamp, mulberry32, noise, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 const SKIN = '#f3dccb';
@@ -58,7 +58,8 @@ export function leaveSeat(r: Rally): void {
   r.leaving = true;
 }
 
-export function dumpRally(r: Rally, seed: number, quiet: boolean): void {
+/** The dump. `quiet` jumps to the end pose, for a crash that already happened; `reduced` plays it without the confetti. */
+export function dumpRally(r: Rally, seed: number, quiet: boolean, reduced: boolean): void {
   if (r.crashed) return;
   r.crashed = true;
   if (quiet) {
@@ -71,6 +72,7 @@ export function dumpRally(r: Rally, seed: number, quiet: boolean): void {
     r.surge = 1;
     return;
   }
+  if (reduced) return;
   const rand = mulberry32(seed);
   spawn(r, 230, 300, rand);
   spawn(r, 560, 300, rand);
@@ -78,14 +80,35 @@ export function dumpRally(r: Rally, seed: number, quiet: boolean): void {
 
 export interface RallyDrive { running: boolean; multiplier: number; tension: number; reduced: boolean; }
 
+/** How many milestone cannons a round has earned by this multiplier. */
+const marksPassed = (multiplier: number): number => MARKS.filter((mark) => multiplier >= mark).length;
+
+/**
+ * Puts the rally where the view says the round already is, for the part of a round the scene did not
+ * watch: the cannons it passed are counted but not fired, the flags and the helicopter sit where the
+ * tension holds them, and a seat you already left is empty.
+ */
+export function settleRally(r: Rally, drive: RallyDrive, left: boolean): void {
+  r.cannons = Math.max(r.cannons, marksPassed(drive.multiplier));
+  settleSpring(r.droop, drive.tension * 0.15);
+  settleSpring(r.heliX, 760 - drive.tension * 80);
+  if (left) {
+    r.leaving = true;
+    r.seatX = 0;
+  }
+}
+
 export function stepRally(r: Rally, drive: RallyDrive, dt: number): void {
   r.crashT += r.crashed ? dt : 0;
-  r.rotor += dt * (10 + drive.tension * 16);
-  const marks = MARKS.filter((mark) => drive.multiplier >= mark).length;
+  // Reduced motion slows the rotor (and the bob that follows it) rather than stopping the helicopter dead.
+  r.rotor += dt * (10 + drive.tension * 16) * (drive.reduced ? 0.2 : 1);
+  const marks = marksPassed(drive.multiplier);
   if (drive.running && marks > r.cannons) {
-    const rand = mulberry32(marks * 17 + 3);
-    spawn(r, 210, 310, rand);
-    spawn(r, 560, 300, rand);
+    if (!drive.reduced) {
+      const rand = mulberry32(marks * 17 + 3);
+      spawn(r, 210, 310, rand);
+      spawn(r, 560, 300, rand);
+    }
     r.cannons = marks;
   }
   stepSpring(r.tip, r.crashed ? 1 : 0, 5, 0.55, dt);

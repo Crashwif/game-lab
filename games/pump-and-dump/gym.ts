@@ -12,6 +12,8 @@ export const SKIN = '#f3dccb';
 export const FLOOR_Y = 332;
 export const MIRROR = { x: 130, y: 36, w: 700, h: 214 } as const;
 const MEME_FONT = 'Impact, "Arial Black", sans-serif';
+/** The mirror's chart takes a point every 100 ms of the round, up to this many. */
+const TRAIL_POINTS = 900;
 
 export type Point = { x: number; y: number };
 export type FanKind = 'bro' | 'girl' | 'old' | 'big';
@@ -83,9 +85,15 @@ export function swoon(g: Gym): void {
   g.swoonUntil = g.time + 2.2;
 }
 
-/** The girls walk out. */
-export function walkOut(g: Gym): void {
+/** The girls walk out. For a crash met `age` seconds late, each starts where the walk has taken her by now. */
+export function walkOut(g: Gym, age = 0): void {
   g.leaving = true;
+  if (age <= 0) return;
+  for (const f of g.fans) {
+    if (f.kind !== 'girl' || f.gone) continue;
+    f.x = f.homeX + 150 * age;
+    if (f.x > 1010) f.gone = true;
+  }
 }
 
 /** A chalk cloud (or any cloud) at a point. */
@@ -94,6 +102,16 @@ export function puff(g: Gym, at: Point, count: number, colour: string, seedOffse
     const n = i * 1.7 + seedOffset;
     g.puffs.push({ x: at.x + (noise(n) - 0.5) * 40, y: at.y + (noise(n + 1) - 0.5) * 30, vx: (noise(n + 2) - 0.5) * 120, vy: -20 - noise(n + 3) * 60, r: 8 + noise(n + 4) * 14, age: 0, life: 0.9 + noise(n + 5) * 0.6, colour });
   }
+}
+
+/** The mirror chart's point `elapsed` ms into the round, at `growth` (log2 of the multiplier). */
+const trailPoint = (elapsed: number, growth: number): Point => ({ x: MIRROR.x + 30 + (MIRROR.w - 60) * (1 - Math.exp(-elapsed / 32000)), y: MIRROR.y + MIRROR.h - 20 - (MIRROR.h - 50) * Math.min(growth, 4.2) / 4.2 });
+
+/** The mirror's chart as it stands `elapsed` ms in, for a round met late. The curve is exponential, so growth climbs in step with time. */
+export function settleTrail(g: Gym, elapsed: number, growth: number): void {
+  g.trail = [];
+  for (let at = 0; at <= elapsed && g.trail.length < TRAIL_POINTS; at += 100) g.trail.push(trailPoint(at, at > 0 ? (growth * at) / elapsed : 0));
+  g.trailAt = Math.floor(elapsed / 100);
 }
 
 export function finishGym(g: Gym, cheerful: boolean, quiet: boolean): void {
@@ -113,9 +131,9 @@ export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
   g.viewers = Math.round(69 + 420 * (Math.pow(drive.multiplier, 1.4) - 1));
   if (drive.running) {
     const at = Math.floor(drive.elapsed / 100);
-    if (at !== g.trailAt && g.trail.length < 900) {
+    if (at !== g.trailAt && g.trail.length < TRAIL_POINTS) {
       g.trailAt = at;
-      g.trail.push({ x: MIRROR.x + 30 + (MIRROR.w - 60) * (1 - Math.exp(-drive.elapsed / 32000)), y: MIRROR.y + MIRROR.h - 20 - (MIRROR.h - 50) * Math.min(drive.growth, 4.2) / 4.2 });
+      g.trail.push(trailPoint(drive.elapsed, drive.growth));
     }
   }
   for (const f of g.fans) {
