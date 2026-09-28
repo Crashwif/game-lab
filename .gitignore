@@ -3,3 +3,4 @@ dist/
 *.tgz
 .env*
 gallery-out/
+scripts/audio/cache/

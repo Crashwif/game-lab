@@ -3,8 +3,9 @@
  * scripts/shell/main.ts, every games/<slug>/audio.ts a copy of scripts/shell/audio.ts (the procedural
  * music and effects a game flavours through its options and cues), every games/<slug>/style.css starts
  * with scripts/shell/style.css (a game's own tokens follow its closing marker line), and every index.html
- * carries the elements the shell and the audio drive. Remix source packs hold only a game's own directory,
- * so the shell is copied into each game, not imported.
+ * carries the elements the shell and the audio drive. audio.ts imports the game's clips.json (recorded
+ * clips as data URLs, {} for none; scripts/audio/generate.mjs writes it), so every game has one. Remix
+ * source packs hold only a game's own directory, so the shell is copied into each game, not imported.
  *
  *   node scripts/shell.mjs          check (npm test and CI): lists every game that drifted and exits 1
  *   node scripts/shell.mjs --write  copies the canonical main.ts, audio.ts and style block into every game
@@ -51,6 +52,16 @@ for (const slug of GAMES) {
   }
   if ((await readFile(`${dir}/main.ts`)) !== main) problems.push(`games/${slug}/main.ts differs from scripts/shell/main.ts`);
   if ((await readFile(`${dir}/audio.ts`).catch(() => null)) !== audio) problems.push(`games/${slug}/audio.ts differs from scripts/shell/audio.ts`);
+  const clips = await readFile(`${dir}/clips.json`).catch(() => null);
+  if (clips === null) problems.push(`games/${slug}/clips.json is missing (audio.ts imports it; {} means no recorded clips)`);
+  else {
+    try {
+      const parsed = JSON.parse(clips);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || Object.values(parsed).some((v) => typeof v !== 'string')) problems.push(`games/${slug}/clips.json must be an object of clip name to data URL`);
+    } catch (error) {
+      problems.push(`games/${slug}/clips.json: ${error.message}`);
+    }
+  }
   if (!css.startsWith(block)) problems.push(`games/${slug}/style.css does not start with the block in scripts/shell/style.css`);
   const html = await readFile(`${dir}/index.html`);
   for (const [name, pattern] of REQUIRED) if (!pattern.test(html)) problems.push(`games/${slug}/index.html lacks ${name} (${pattern.source})`);

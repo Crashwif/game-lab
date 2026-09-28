@@ -16,6 +16,8 @@
  * (Boiler Room's sound.ts) can build on, so one button governs it all.
  */
 
+import localClips from './clips.json';
+
 export type Style = 'phonk' | 'chiptune' | 'eurodance' | 'trap' | 'lofi' | 'techno' | 'synthwave' | 'dnb' | 'hardstyle' | 'elevator' | 'casino' | 'ambient' | 'military' | 'club' | 'hospital';
 /** The crash stinger: what the game's crash sounds like. */
 export type Crash = 'boom' | 'pop' | 'splash' | 'shatter' | 'thud' | 'flatline' | 'trombone' | 'scratch' | 'crowd' | 'static' | 'slam' | 'siren';
@@ -36,12 +38,17 @@ export interface AudioOptions {
   music?: number;
   effects?: number;
   /**
-   * Recorded clips as data: URLs (or any URL the sandbox can reach) that play instead of the synthesised
-   * music loop, crash or cash-out when given. Base64 in a .json beside the game keeps the pack self-contained;
-   * a 10 s loop at 64 kb/s is about 110 KB of text.
+   * Recorded clips that play instead of the synthesised music loop, crash stinger, cash-out or a named effect.
+   * By default they come from clips.json beside the game (scripts/audio/generate.mjs writes it from the prompt
+   * manifest); these override it. Each is a data: URL, so the pack stays self-contained: a 12 s loop at
+   * 64 kb/s is about 130 KB of text, a stinger at 32 kb/s about 5 KB a second.
    */
-  clips?: { music?: string; crash?: string; cashout?: string };
+  clips?: Clips;
 }
+
+/** What a recorded clip can stand in for. */
+export type ClipName = 'music' | 'crash' | 'cashout' | Effect;
+export type Clips = Partial<Record<ClipName, string>>;
 
 export interface Audio {
   /** off, or on, or effects only (no music). */
@@ -313,7 +320,7 @@ function createAudio(options: AudioOptions): Audio {
   let crackle: AudioBufferSourceNode | null = null;
   let riser: { osc: OscillatorNode; gain: GainNode; noise: GainNode; filter: BiquadFilterNode } | null = null;
   let clipMusic: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
-  const clipBuffers: Partial<Record<'music' | 'crash' | 'cashout', AudioBuffer>> = {};
+  const clipBuffers: Partial<Record<ClipName, AudioBuffer>> = {};
 
   let mode: 'off' | 'on' | 'fx' = 'off';
   let hidden = false;
@@ -440,10 +447,8 @@ function createAudio(options: AudioOptions): Audio {
   }
 
   async function loadClips(ctx: AudioContext): Promise<void> {
-    const clips = options.clips;
-    if (!clips) return;
-    for (const key of ['music', 'crash', 'cashout'] as const) {
-      const url = clips[key];
+    const clips: Clips = { ...(localClips as Clips), ...options.clips };
+    for (const [key, url] of Object.entries(clips) as [ClipName, string | undefined][]) {
       if (!url) continue;
       try {
         const bytes = await (await fetch(url)).arrayBuffer();
@@ -1176,12 +1181,15 @@ function createAudio(options: AudioOptions): Audio {
     }
   }
 
-  function playClip(ctx: AudioContext, key: 'crash' | 'cashout', out: AudioNode): boolean {
+  /** Plays the recorded clip standing in for `key`, if there is one, at `level`. */
+  function playClip(ctx: AudioContext, key: ClipName, out: AudioNode, level = 1): boolean {
     const buffer = clipBuffers[key];
     if (!buffer) return false;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    src.connect(out);
+    const g = ctx.createGain();
+    g.gain.value = clampNum(level, 0, 2);
+    src.connect(g).connect(out);
     src.start();
     return true;
   }
@@ -1250,9 +1258,12 @@ function createAudio(options: AudioOptions): Audio {
         riser.osc.frequency.setTargetAtTime(midiHz(root) * (1 + 3 * top), t, 0.5);
         riser.filter.frequency.setTargetAtTime(500 + 5000 * top, t, 0.5);
       }
+      // A recorded loop cannot add layers, but it can hurry: up to a tenth faster at the top.
+      if (clipMusic) clipMusic.source.playbackRate.setTargetAtTime(1 + (phase === 'running' ? 0.1 * tension : 0), t, 0.6);
     },
     fx(name, strength = 1) {
       if (!live()) return;
+      if (playClip(context!, name, fxBus!, strength)) return;
       effect(context!, context!.currentTime, fxBus!, name, strength);
     },
     milestone(index) {
@@ -1263,23 +1274,27 @@ function createAudio(options: AudioOptions): Audio {
       const semis = Math.min(index, 8) * 2;
       tone(ctx, t, fxBus!, 'sine', midiHz(88 + semis), 0.18, 0.002, 0.5);
       tone(ctx, t + 0.09, fxBus!, 'sine', midiHz(95 + semis), 0.18, 0.002, 0.7);
-      if (index >= 3 && index % 2 === 1) airhorn(ctx, t + 0.05, fxBus!, Math.min(1, 0.5 + index * 0.1));
+      if (index >= 3 && index % 2 === 1) {
+        const level = Math.min(1, 0.5 + index * 0.1);
+        if (!playClip(ctx, 'airhorn', fxBus!, level)) airhorn(ctx, t + 0.05, fxBus!, level);
+      }
     },
     cashout() {
       if (!live()) return;
       const ctx = context!;
       const t = ctx.currentTime;
-      if (playClip(ctx, 'cashout', fxBus!)) return;
-      kaching(ctx, t, fxBus!, 1);
-      // A major fanfare over the music, ducked for a beat.
-      const chord = [0, 4, 7, 12, 16];
-      chord.forEach((semi, i) => tone(ctx, t + 0.15 + i * 0.06, fxBus!, 'square', midiHz(root + 24 + semi), 0.1, 0.005, 0.5 + i * 0.1));
+      // The music ducks for a beat under the register, recorded or not.
       if (musicBus && mode === 'on' && !stopped) {
         musicBus.gain.cancelScheduledValues(t);
         musicBus.gain.setValueAtTime(musicBus.gain.value, t);
         musicBus.gain.linearRampToValueAtTime(musicLevel * 0.3, t + 0.05);
         musicBus.gain.linearRampToValueAtTime(musicLevel, t + 1);
       }
+      if (playClip(ctx, 'cashout', fxBus!)) return;
+      kaching(ctx, t, fxBus!, 1);
+      // A major fanfare over the music.
+      const chord = [0, 4, 7, 12, 16];
+      chord.forEach((semi, i) => tone(ctx, t + 0.15 + i * 0.06, fxBus!, 'square', midiHz(root + 24 + semi), 0.1, 0.005, 0.5 + i * 0.1));
       crowd(ctx, t + 0.3, fxBus!, 0.7, 'cheer');
     },
     crash(kind = defaultCrash, quiet = false) {
