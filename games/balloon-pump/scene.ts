@@ -5,9 +5,11 @@
  * and nothing drawn here changes the committed outcome.
  */
 import { free } from '@crashwif/crash-math';
+import { pageAudio } from './audio';
 import { TETHER, type BalloonDrive, balloonGeometry, burstBalloon, createBalloon, drawBalloon, drawBalloonShadow, resetBalloon, settleBalloon, stepBalloon } from './balloon';
 import { airPacket, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { PUMP, type Point, type PumperDrive, createPumper, drawPumper, settlePumper, stepPumper } from './pumper';
+import { FLIGHT_S, createSniper, drawBushBack, drawSniper, drawStone, fire, resetSniper, settleSniper, stepSniper } from './sniper';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -44,6 +46,12 @@ const READOUT_MAX = 300;
 const CAPTION_X = 430;
 /** The chart takes a point every 100 ms of the round, up to this many. */
 const TRAIL_POINTS = 900;
+/** The multipliers a milestone stinger plays at. */
+const RUNGS = [1.5, 2, 3, 5, 10, 25];
+/** The burst's hit-stop and slow motion: a short freeze, then the shreds fly at a third speed for a moment. */
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
 const HOSE: [Point, Point, Point, Point] = [{ x: PUMP.x - 4, y: 436 }, { x: 420, y: 512 }, { x: 560, y: 502 }, TETHER];
 type Outcome = 'rekt' | 'called' | 'pop';
 type Star = { x: number; y: number; r: number; k: number };
@@ -264,12 +272,16 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'chiptune', crash: 'pop' });
   const pumper = createPumper();
   const balloon = createBalloon();
+  const sniper = createSniper();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
   const laser = spring(0);
+  /** The camera's punch into the burst. */
+  const punch = spring(0);
   const stars: Star[] = Array.from({ length: 46 }, (_, i) => ({ x: noise(i * 3.1) * W, y: 8 + noise(i * 7.7) * 250, r: 0.7 + noise(i * 1.3) * 1.5, k: 1 + noise(i * 5.9) * 2 }));
   let last: number | null = null;
   let time = 0;
@@ -280,17 +292,55 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let trail: Point[] = [];
   let trailAt = -1;
+  /** Seconds until the stone lands and the balloon bursts; -1 with no shot in the air. */
+  let fuse = -1;
+  let freeze = 0;
+  let slow = 0;
+  let laserOn = false;
+  let burstEnding: Outcome = 'pop';
+
+  /** The burst itself: the shreds, the outcome, the shake, the punch-in, the hit-stop and the sound. */
+  function burst(view: SceneView, quiet: boolean): void {
+    burstBalloon(balloon, view.currentX100, quiet);
+    outcome = burstEnding;
+    if (quiet) {
+      pop.x = 1;
+      audio.crash('pop', true);
+      return;
+    }
+    shake = 1;
+    pop.v = 16;
+    punch.v = 8;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    audio.crash('pop');
+  }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the burst runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);
+    const tension = 1 - Math.exp(-growth / 2.2);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
     const balloonDrive: BalloonDrive = {
       radius: running || crashed ? 40 + 150 * (1 - Math.exp(-growth / 2.3)) : 36,
       fear,
@@ -308,29 +358,40 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
       settle = true;
       settleBalloon(balloon, balloonDrive);
-      if (crashed) {
-        burstBalloon(balloon, view.currentX100, true);
-        outcome = ending;
-        pop.x = 1;
-      }
+      settleSniper(sniper, { growth, running, target: balloonGeometry(balloon).centre });
+      burstEnding = ending;
+      if (crashed) burst(view, true);
     } else if (view.phase !== previous) {
-      if (crashed && balloon.alive) {
+      if (crashed && balloon.alive && fuse < 0) {
         settle = view.crashAge > 1500;
-        if (settle) settleBalloon(balloon, balloonDrive);
-        burstBalloon(balloon, view.currentX100, settle);
-        outcome = ending;
-        if (settle) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        burstEnding = ending;
+        if (settle) {
+          settleBalloon(balloon, balloonDrive);
+          burst(view, true);
+        } else {
+          // The intern takes the shot: the stone is in the air for a few frames, then the balloon goes.
+          fire(sniper, balloonGeometry(balloon).centre);
+          fuse = FLIGHT_S;
+          audio.fx('yeet', 1);
+        }
       }
       if (view.phase === 'betting') {
         resetBalloon(balloon);
+        resetSniper(sniper);
         outcome = null;
         secured = null;
         trail = [];
         trailAt = -1;
+        fuse = -1;
+        freeze = slow = 0;
       }
       previous = view.phase;
     }
+    if (fuse >= 0) {
+      fuse -= real;
+      if (fuse < 0 && balloon.alive) burst(view, false);
+    }
+    audio.update(view.phase, tension);
     if (settle && (running || crashed)) {
       // The chart as far as the number has come: the crash point's time comes from the curve.
       const elapsed = running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS;
@@ -343,7 +404,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       pumping: running,
       rate: Math.min(2.1, 0.85 + 1.2 * (1 - Math.exp(-growth / 2.2))),
       fear,
-      fallen: crashed,
+      fallen: crashed && !balloon.alive,
       crying: outcome === 'rekt',
       smug: secured !== null,
       laser: 0,
@@ -357,14 +418,25 @@ export function createScene(options: SceneOptions = {}): Scene {
       settleSpring(laser, lasers);
     }
     stepPumper(pumper, pumperDrive, dt);
+    if (running && pumper.events.push) audio.fx('chuff', 0.4 + 0.5 * tension);
+    if (running && pumper.events.bottom) audio.fx('squeak', 0.5 + 0.7 * tension);
     balloonDrive.inflow = running && pumper.events.bottom;
     stepBalloon(balloon, balloonDrive, dt);
     const geometry = balloonGeometry(balloon);
     pumperDrive.gaze = balloon.alive ? geometry.centre : { x: TETHER.x, y: TETHER.y - 80 };
+    stepSniper(sniper, { growth, running, target: balloon.alive ? geometry.centre : null }, dt);
+    if (sniper.events.up) audio.fx('creak', 0.7);
+    if (sniper.events.notch) audio.fx('ratchet', 0.6);
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     stepSpring(laser, lasers, 8, 1, dt);
     pumperDrive.laser = clamp(laser.x, 0, 1);
+    if (pumperDrive.laser > 0.5 && !laserOn) {
+      laserOn = true;
+      audio.fx('zap', 0.8);
+    } else if (pumperDrive.laser < 0.2) laserOn = false;
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -382,13 +454,23 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the burst and eases back out.
+      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      ctx.translate(balloon.burstAt.x, balloon.burstAt.y);
+      ctx.scale(k, k);
+      ctx.translate(-balloon.burstAt.x, -balloon.burstAt.y);
+    }
     drawSky(ctx, time, stars, reduced);
     drawTrail(ctx, trail, outcome !== null);
     drawGround(ctx);
+    drawBushBack(ctx);
+    drawSniper(ctx, sniper);
     drawHose(ctx, running ? airPacket(pumper.phase) : null);
     drawBalloonShadow(ctx, balloon);
     const pumperView = drawPumper(ctx, pumper, pumperDrive);
     drawBalloon(ctx, balloon);
+    drawStone(ctx, sniper);
     if (pumperDrive.laser > 0.02 && balloon.alive) drawLasers(ctx, pumperView.eyes, geometry.centre, pumperDrive.laser, time, reduced);
     if (outcome && pop.x > 0.02) drawPop(ctx, balloon.burstAt, outcome === 'rekt' ? 'REKT' : 'POP!', clamp(pop.x, 0, 1.3));
     if (secured && badge.x > 0.02) drawBadge(ctx, secured, clamp(badge.x, 0, 1.3), time);

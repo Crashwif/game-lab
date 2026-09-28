@@ -4,9 +4,11 @@
  * its worker, then the HUD. All motion is stepped here with the real frame
  * time, and nothing drawn here changes the committed outcome.
  */
-import { type CraneState, createCrane, drawCrane, drawPile, loadPose, resetCrane, settleCrane, stepCrane } from './crane';
+import { pageAudio } from './audio';
+import { type CraneState, createCrane, drawCrane, drawPile, jolt, loadPose, resetCrane, settleCrane, stepCrane } from './crane';
 import { clamp, fract, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
-import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, createTower, drawDebris, drawDust, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, towerHeight, towerTopY } from './tower';
+import { type OfficeDrive, type OfficeState, createOffice, drawOffice, resetOffice, scatterQueue, sellPenthouse, sellUnit, settleOffice, stepOffice } from './office';
+import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, towerHeight, towerTopY } from './tower';
 import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, settleSafe, stepWorker, towerFell } from './worker';
 
 export interface SceneView {
@@ -43,6 +45,16 @@ const READOUT_MAX_W = 300;
 const FLOORS_PER_DOUBLING = 6;
 /** Camera centre that puts the ground at screen y 500 at scale 1. */
 const GROUND_CAM_Y = GROUND_Y - 230;
+/** The multipliers a milestone stinger plays at: the caption ladder. */
+const RUNGS = [1.3, 1.7, 2.5, 4, 7, 12, 25];
+/**
+ * The collapse's choreography: the base gives with a lurch and a creak, the joints let go a few frames later
+ * (the fuse), the picture holds for a hit-stop, and the first fall runs slow before time catches up.
+ */
+const FUSE_S = 0.14;
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
 type Outcome = 'rekt' | 'called' | 'timber';
 type Secured = { x100: number; payout: number | null };
 type Star = { x: number; y: number; r: number; k: number };
@@ -214,13 +226,17 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'trap', crash: 'boom' });
   const tower: TowerState = createTower();
   const crane: CraneState = createCrane();
   const worker: WorkerState = createWorker();
+  const office: OfficeState = createOffice();
   const cam = { y: spring(GROUND_CAM_Y), scale: spring(1) };
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch into the collapse. */
+  const punch = spring(0);
   const stars: Star[] = Array.from({ length: 70 }, (_, i) => ({ x: -500 + noise(i * 3.1) * 2000, y: GROUND_Y - 600 - noise(i * 7.7) * 1900, r: 0.8 + noise(i * 1.3) * 1.6, k: 1 + noise(i * 5.9) * 2 }));
   const clouds: Cloud[] = Array.from({ length: 9 }, (_, i) => ({ x: noise(i * 2.3) * 2600, y: GROUND_Y - 240 - noise(i * 4.1) * 760, w: 70 + noise(i * 6.7) * 90, speed: 4 + noise(i * 8.9) * 7 }));
   const far: Building[] = Array.from({ length: 44 }, (_, i) => ({ x: -800 + i * 64 + noise(i) * 18, w: 34 + noise(i + 0.5) * 36, h: 90 + noise(i + 0.7) * 200 }));
@@ -232,6 +248,18 @@ export function createScene(options: SceneOptions = {}): Scene {
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
+  /** Seconds until the joints let go after the base gives; -1 with no collapse pending. */
+  let fuse = -1;
+  let freeze = 0;
+  let slow = 0;
+  /** Sound gates: the sway's creak, the collapse's screams and thuds, the hoist's mode edges. */
+  let creakClock = 0;
+  let swayDir = 0;
+  let screams = 0;
+  let screamClock = 0;
+  let thudClock = 0;
+  let thuds = 0;
+  let workerMode = worker.mode;
 
   function cameraTarget(): { y: number; s: number } {
     const inFall = tower.collapsed && tower.fallAge < 2.6;
@@ -275,9 +303,26 @@ export function createScene(options: SceneOptions = {}): Scene {
       worker.cage.y = worker.y;
     }
     towerFell(worker, tower, tower.rod.dir, quiet);
+    scatterQueue(office, quiet);
     if (!quiet) {
       shake = 1;
       pop.v = 16;
+      punch.v = 8;
+      jolt(crane, 2.5 * tower.rod.dir);
+      if (!reduced) {
+        freeze = FREEZE_S;
+        slow = SLOW_S;
+      }
+      audio.crash('boom');
+      screams = 0;
+      screamClock = 0;
+      thuds = 0;
+      thudClock = 0;
+      if (tower.debris.some((d) => d.residents.length)) {
+        audio.fx('scream', 1);
+        screams = 1;
+        screamClock = 0.45;
+      }
       return;
     }
     // The crane has long since climbed back down to the empty site, and the camera with it.
@@ -285,19 +330,34 @@ export function createScene(options: SceneOptions = {}): Scene {
     crane.holding = false;
     settleCamera();
     pop.x = 1;
+    audio.crash('boom', true);
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the fall runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);
+    const tension = 1 - Math.exp(-growth / 2.2);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
     const progress = running || crashed ? FLOORS_PER_DOUBLING * growth : 0;
+    const officeDrive: OfficeDrive = { running, growth: running || crashed ? growth : 0, tension: running ? tension : 0 };
 
     // Phase edges: joining late, the collapse, and a fresh site for the next round.
     if (previous === null) {
@@ -309,50 +369,115 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetWorker(worker);
       worker.y = worker.lastSurface = towerTopY(tower);
       if (secured) settleSafe(worker);
+      settleOffice(office, officeDrive, crashed);
+      if (secured) sellPenthouse(office);
+      office.confetti = [];
+      office.floaters = [];
       if (crashed) collapse(view, true);
       settleCamera();
       settleSpring(badge, secured ? 1 : 0);
+      workerMode = worker.mode;
     } else if (view.phase !== previous) {
-      if (crashed && !tower.collapsed) {
+      if (crashed && !tower.collapsed && fuse < 0) {
         // Floors a hidden tab missed go up first, so the rubble matches the crash point.
         while (floorCount(tower) < Math.floor(progress)) landFloor(tower, 0, 0, true);
-        collapse(view, view.crashAge > 1500);
+        if (view.crashAge > 1500) collapse(view, true);
+        else {
+          // The base gives first: a lurch and a creak, then the joints let go a few frames later.
+          fuse = FUSE_S;
+          tower.thud.v += 160;
+          jolt(crane, -1.2);
+          audio.fx('creak', 1.4);
+        }
       }
       if (view.phase === 'betting') {
         resetTower(tower);
         resetCrane(crane);
         resetWorker(worker);
+        resetOffice(office);
         outcome = null;
         secured = null;
+        fuse = -1;
+        freeze = slow = 0;
+        workerMode = worker.mode;
       }
       previous = view.phase;
     }
+    if (fuse >= 0) {
+      fuse -= real;
+      if (fuse < 0 && !tower.collapsed) collapse(view, false);
+    }
+    audio.update(view.phase, tension);
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     if (secured && worker.mode === 'top' && running) callHoist(worker);
 
     // Wind grows with the stack; the crane places a floor each time the count ticks over.
     const wind = gust(time) * (60 + 1.8 * Math.min(30, floorCount(tower)));
     if (running) {
-      stepCrane(crane, progress, towerTopY(tower), wind, dt);
+      stepCrane(crane, progress, towerTopY(tower), wind, dt, tension);
       if (crane.events.release) {
         landFloor(tower, crane.drop.offset, crane.drop.velocity);
         if (!reduced) shake = Math.max(shake, 0.22);
+        jolt(crane, 0.9 + 1.6 * tension);
+        audio.fx('thud', 0.6 + 0.5 * tension);
+        // Every floor that lands is a unit sold: the front of the queue goes in.
+        if (sellUnit(office)) audio.fx('kaching', 0.7);
       }
+      if (crane.events.pickup) audio.fx('ratchet', 0.55);
       while (floorCount(tower) < Math.floor(progress)) landFloor(tower, 0, 0, true);
     } else {
       // Idle between rounds, and after a collapse the crane climbs back down to the empty site.
-      stepCrane(crane, crane.phase, towerTopY(tower), wind * 0.3, dt);
+      stepCrane(crane, crane.phase, towerTopY(tower), wind * 0.3, dt, tension * 0.5);
     }
     stepTower(tower, running ? wind : wind * 0.5, dt);
+    stepOffice(office, officeDrive, dt);
+    // The stack creaks as it reverses at the end of each sway, louder the further it went.
+    creakClock -= dt;
+    if (running && !tower.collapsed) {
+      const dir = Math.sign(topOffset(tower));
+      if (dir !== 0 && dir !== swayDir) {
+        if (swayDir !== 0 && creakClock <= 0 && Math.abs(topOffset(tower)) > 6) {
+          audio.fx('creak', clamp(0.3 + Math.abs(topOffset(tower)) / 30, 0.3, 1.2));
+          creakClock = 1.2;
+        }
+        swayDir = dir;
+      }
+    }
+    // The collapse's rumble: the first hard landings thud, and the residents scream as the floors let go.
+    thudClock -= real;
+    if (tower.events.hits && thuds < 8 && thudClock <= 0) {
+      thuds += 1;
+      thudClock = 0.12;
+      audio.fx('thud', 0.9 - thuds * 0.06);
+    }
+    screamClock -= real;
+    if (tower.events.ejected && screams < 4 && screamClock <= 0) {
+      screams += 1;
+      screamClock = 0.4;
+      audio.fx('scream', 0.85 - screams * 0.12);
+    }
     const load = loadPose(crane);
     const landing: Landing | null = running && crane.holding && fract(crane.phase) >= 0.86 ? { x: load.x, topY: load.y - FLOOR_H / 2 } : null;
     stepWorker(worker, tower, fear, landing, dt);
+    if (worker.mode !== workerMode) {
+      // The hoist's beats: the cage arrives with a ding, and the ride ends with the penthouse's money.
+      if (worker.mode === 'boarding') audio.fx('ding', 1.1);
+      if (worker.mode === 'safe' && workerMode === 'riding') {
+        sellPenthouse(office);
+        audio.fx('kaching', 1.2);
+      }
+      workerMode = worker.mode;
+    }
 
     const target = cameraTarget();
     stepSpring(cam.y, target.y, 2.4, 1, dt);
     stepSpring(cam.scale, target.s, 2.4, 1, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    stepSpring(punch, 0, 9, 0.5, dt);
+    // Through the fuse the round is over but the stack is still up: the HUD keeps reading as running until it falls.
+    const shown: SceneView = fuse >= 0 ? { ...view, phase: 'running' } : view;
+    const nextCaption = captionFor(shown, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
       captionPop.v = 6;
@@ -364,6 +489,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     const camY = cam.y.x;
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the tipping stack and eases back out.
+      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      const px = W / 2 + (TOWER_X - W / 2) * s;
+      const py = H / 2 + (GROUND_Y - tower.fallHeight * 0.4 - camY) * s;
+      ctx.translate(px, py);
+      ctx.scale(k, k);
+      ctx.translate(-px, -py);
+    }
     drawSky(ctx, camY, s, time, stars, reduced);
     drawSkyline(ctx, camY, s, far, 0.35, 'rgba(95, 125, 175, 0.45)');
     drawClouds(ctx, camY, s, clouds, time);
@@ -371,14 +505,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     worldTransform(ctx, camY, s);
     drawGround(ctx);
+    drawOffice(ctx, office, officeDrive);
     drawPile(ctx);
     drawCrane(ctx, crane);
-    drawTower(ctx, tower);
+    drawTower(ctx, tower, running || fuse >= 0 ? fear : tower.collapsed ? 0 : fear * 0.5, time);
     const grounded = worker.mode === 'falling' || worker.mode === 'down';
     drawCage(ctx, worker, false);
     if (!grounded) drawWorker(ctx, worker);
     drawCage(ctx, worker, true);
-    drawDebris(ctx, tower);
+    drawDebris(ctx, tower, time);
+    drawFallers(ctx, tower, time);
     if (grounded) drawWorker(ctx, worker);
     drawDust(ctx, tower);
     ctx.restore();
@@ -418,9 +554,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    drawReadout(ctx, view, readout, outcome !== null);
-    // The floor count is the floor price, and a collapsed tower has none.
-    memeText(ctx, `FLOOR PRICE: ${tower.collapsed ? 0 : floorCount(tower)}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left', 260);
+    drawReadout(ctx, shown, readout, outcome !== null);
+    // The floor count is the floor price, and a collapsed tower has none. It sits on the concrete strip under the
+    // ground line (screen y 500), clear of the sales office and its queue.
+    memeText(ctx, `FLOOR PRICE: ${tower.collapsed ? 0 : floorCount(tower)}`, 26, 526, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left', 260);
   }
 
   return { draw };

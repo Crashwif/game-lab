@@ -30,10 +30,15 @@ export interface Monitor {
   scribble: number[];
   alarm: number;
   discharged: boolean;
+  /** Beats the trace has drawn so far, for a heartbeat the scene can play in time with it. */
+  beats: number;
+  /** Columns of the defibrillator's spike still to draw, and whether the paddles are charged (the header says so). */
+  spike: number;
+  charge: number;
 }
 
 export function createMonitor(): Monitor {
-  return { time: 0, phase: 0, samples: new Float32Array(TRACE.w), head: 0, bpm: spring(72), doseIndex: 0, goal: DOSES[0]!, fill: spring(0), pulse: spring(0), flat: false, flatAge: 0, scribble: [], alarm: 0, discharged: false };
+  return { time: 0, phase: 0, samples: new Float32Array(TRACE.w), head: 0, bpm: spring(72), doseIndex: 0, goal: DOSES[0]!, fill: spring(0), pulse: spring(0), flat: false, flatAge: 0, scribble: [], alarm: 0, discharged: false, beats: 0, spike: 0, charge: 0 };
 }
 
 export function resetMonitor(m: Monitor): void {
@@ -50,6 +55,8 @@ export function resetMonitor(m: Monitor): void {
   m.scribble = [];
   m.alarm = 0;
   m.discharged = false;
+  m.spike = 0;
+  m.charge = 0;
 }
 
 /** The heart rate the monitor heads for: resting, or racing with the tension while the round runs. */
@@ -88,6 +95,11 @@ export function dischargeMonitor(m: Monitor): void {
   m.discharged = true;
 }
 
+/** A shock from the paddles: one tall spike on the flat trace, then flat again. */
+export function shockMonitor(m: Monitor): void {
+  if (m.flat) m.spike = 12;
+}
+
 /** The flatline. `quiet` skips the scribble for a crash that already happened. */
 export function flatlineMonitor(m: Monitor, seed: number, quiet: boolean): void {
   if (m.flat) return;
@@ -104,10 +116,15 @@ export interface MonitorDrive { running: boolean; multiplier: number; tension: n
 
 /** The trace's next column at `speed` pixels a second: the beat, or the scribble and then the flat line. */
 function traceSample(m: Monitor, tension: number, speed: number): number {
+  const beat = Math.floor(m.phase);
   m.phase += (m.bpm.x / 60) * (1 / speed);
+  if (!m.flat && Math.floor(m.phase) !== beat) m.beats += 1;
   const ph = m.phase % 1;
   let v = 0;
-  if (m.flat) {
+  if (m.spike > 0) {
+    m.spike -= 1;
+    v = m.spike > 8 ? 1.25 : m.spike > 5 ? -0.55 : m.spike > 2 ? 0.2 : 0;
+  } else if (m.flat) {
     const s = m.scribble;
     v = m.flatAge < 0.9 && s.length ? s[Math.floor(noise(m.phase * 91) * s.length)]! * (1 - m.flatAge / 0.9) : 0;
   } else {
@@ -178,9 +195,10 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   ctx.fillStyle = '#132027';
   ctx.fillRect(PANEL.x, PANEL.y, PANEL.w, 54);
   const alarm = m.flat && !reduced ? Math.floor(m.time * 4) % 2 === 0 : false;
-  ctx.fillStyle = m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : tension > 0.7 ? '#e6a23c' : '#2e8b57';
+  const charging = m.flat && m.charge > 0.5;
+  ctx.fillStyle = charging ? '#e6a23c' : m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : tension > 0.7 ? '#e6a23c' : '#2e8b57';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, 14, 92, 24, 5); ctx.fill();
-  label(ctx, m.flat ? 'ASYSTOLE' : m.discharged ? 'DISCHARGED' : tension > 0.7 ? 'UNSTABLE' : 'MONITORING', PANEL.x + 60, 31, 11, '#ffffff', 'center');
+  label(ctx, charging ? 'CHARGING' : m.flat ? 'ASYSTOLE' : m.discharged ? 'DISCHARGED' : tension > 0.7 ? 'UNSTABLE' : 'MONITORING', PANEL.x + 60, 31, 11, '#ffffff', 'center');
   label(ctx, 'bed 2 · $HOPE', PANEL.x + 118, 31, 13, '#c9d6dc');
   label(ctx, `${multiplier.toFixed(2)}×`, PANEL.x + PANEL.w - 14, 32, 15, m.flat ? '#ff4d6d' : '#7cf67c', 'right', true);
   // The trace screen.

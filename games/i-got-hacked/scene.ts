@@ -4,9 +4,10 @@
  * is stepped here with the real frame time, and nothing drawn here changes
  * the committed outcome.
  */
-import { INK, type Mansion, STAGE, celebrate, createMansion, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
+import { pageAudio } from './audio';
+import { INK, type Mansion, STAGE, celebrate, createMansion, drawBarbecue, drawDrone, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
-import { TICKER, type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
+import { POPS, TICKER, type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -38,6 +39,10 @@ const TEXT_X = STAGE.w / 2 + 80;
 const TEXT_RIGHT = TICKER.x - 12;
 /** A caption wider than this goes onto two lines. */
 const CAPTION_WIDTH = 420;
+/** The multipliers the milestone stingers play at: the champagne pops. */
+const RUNGS = POPS;
+/** Seconds after the post that the pool's drain gurgles. */
+const DRAIN_AT = 0.6;
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
@@ -80,11 +85,20 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  // Celebrity pool party trap; the crash is the post going out, so it gets the sad trombone.
+  const audio = pageAudio({ style: 'trap', crash: 'trombone' });
   const mansion: Mansion = createMansion();
   const party: Party = createParty();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The phone close-up's punch as the post lands. */
+  const phonePunch = spring(0);
+  /** The green wash of an accepted exit. */
+  let cashFlash = 0;
+  /** Sounds fired once: the yacht's engine, the pool's drain. */
+  let engineOn = false;
+  let drained = false;
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -102,7 +116,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) { audio.cashout(); cashFlash = 1; }
+    }
 
     if (previous === null) {
       // This scene's first frame, which can land anywhere in a round: settle into it without replaying anything.
@@ -112,40 +129,68 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (running || crashed) {
         settleParty(party, multiplier);
         settleMansion(mansion, tension, multiplier);
+        engineOn = mansion.engine.x > 0.5;
         if (secured) { leaveParty(party, true); settleSpring(badge, 1); }
       }
       if (crashed) {
         outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
         endMansion(mansion, view.currentX100, true);
         drainParty(party, view.currentX100, outcome === 'called', true);
+        drained = true;
         pop.x = 1;
+        audio.crash('trombone', true);
       }
     } else if (view.phase !== previous) {
       if (crashed && !mansion.ended) {
         const quiet = view.crashAge > 1500;
         outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
         // A cash-out first seen with the crash still walks your fan out, or places them gone if the crash is old.
-        if (secured) leaveParty(party, quiet);
+        if (secured) leaveParty(party, quiet, reduced);
         endMansion(mansion, view.currentX100, quiet);
         drainParty(party, view.currentX100, outcome === 'called', quiet);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        if (quiet) { pop.x = 1; drained = true; audio.crash('trombone', true); }
+        else {
+          // The post goes out: the trombone, the party's gasp, the phone punching in and the shake.
+          shake = 1;
+          pop.v = 16;
+          if (!reduced) phonePunch.v = 10;
+          audio.crash('trombone');
+          audio.fx('gasp', 0.9);
+        }
       }
       if (view.phase === 'betting') {
         resetMansion(mansion);
         resetParty(party);
         outcome = null;
         secured = null;
+        engineOn = false;
+        drained = false;
+        cashFlash = 0;
       }
       previous = view.phase;
     }
-    if (secured && running) leaveParty(party);
+    if (secured && running) leaveParty(party, false, reduced);
 
     const reached = stepParty(party, { running, multiplier, tension, reduced }, dt);
-    if (reached) { celebrate(mansion, party.popIndex); if (!reduced) shake = Math.max(shake, 0.15); }
+    if (reached) {
+      celebrate(mansion, party.popIndex);
+      if (!reduced) shake = Math.max(shake, 0.15);
+      audio.fx('pop', 0.7 + 0.25 * (party.popIndex % 3));
+    }
     stepMansion(mansion, { running, tension, multiplier, reduced }, dt);
+    // The sounds of the scene's own events: the draft's excuse flipping, the drone's flash, a drive on the grill, the
+    // yacht's engine starting, the pool's drain; the milestone stingers follow the champagne pops.
+    if (mansion.events.excuse) audio.fx('tick', 0.5);
+    if (mansion.events.flash) audio.fx('camera', 0.7);
+    if (mansion.events.drive) audio.fx('hiss', 0.45);
+    if (running && !engineOn && mansion.engine.x > 0.5) { engineOn = true; audio.fx('engine', 0.8); }
+    if (mansion.ended && !drained && mansion.endAge > DRAIN_AT) { drained = true; audio.fx('glug', 0.8); }
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    audio.update(view.phase, tension);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(phonePunch, 0, 10, 0.4, dt);
+    cashFlash = Math.max(0, cashFlash - dt / 0.4);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -157,8 +202,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
     drawMansion(ctx, mansion, tension, reduced);
+    drawDrone(ctx, mansion, reduced);
     drawParty(ctx, party, tension, outcome !== null, outcome === 'called', reduced);
-    drawPhone(ctx, mansion, multiplier);
+    drawBarbecue(ctx, mansion, reduced);
+    drawPhone(ctx, mansion, multiplier, 1 + 0.12 * clamp(phonePunch.x, -0.5, 1.2), reduced);
     drawTicker(ctx, party, multiplier);
     if (outcome && pop.x > 0.02 && mansion.endAge > 0.4) {
       ctx.save();
@@ -171,6 +218,15 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
+    // The drone's flash and the green of an exit wash the whole picture; neither under reduced motion.
+    if (!reduced && mansion.drone.flash > 0.02) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * mansion.drone.flash * mansion.drone.flash})`;
+      ctx.fillRect(0, 0, STAGE.w, STAGE.h);
+    }
+    if (!reduced && cashFlash > 0.02) {
+      ctx.fillStyle = `rgba(124, 246, 124, ${0.22 * cashFlash})`;
+      ctx.fillRect(0, 0, STAGE.w, STAGE.h);
+    }
 
     if (caption) {
       ctx.save();

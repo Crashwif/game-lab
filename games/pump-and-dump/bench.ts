@@ -16,12 +16,18 @@ const HEAD: Point = { x: 480, y: 372 };
 const PLATE_COLOURS = ['#e63946', '#3b82f6', '#ffd60a', '#2e8b57', '#f8f8f8', '#e63946', '#3b82f6', '#ffd60a'];
 /** Displayed multipliers at which the next pair of plates goes on. */
 export const PLATE_AT = [1.3, 1.7, 2.2, 3, 4, 5.5, 7.5, 10];
+/** Every plate is a memecoin: the ticker the arm calls out as it slides each one on. */
+const TICKERS = ['$PUMP', '$GYATT', '$HOPIUM', '$NATTY', '$RIZZ', '$SPOTME', '$EGOLIFT', '$SPINE'];
 const FLOOR = 522;
+/** Where the spotter's syringe comes to rest: the floor behind the bench, at his feet. */
+const SYRINGE_FLOOR = 408;
 
 export type Who = 'chad' | 'bro';
 export type Mode = 'idle' | 'lifting' | 'racking' | 'sitting' | 'swap';
 
 interface Plate { side: -1 | 1; index: number; x: number; y: number; vx: number; vy: number; spin: number; angle: number; loose: boolean; gone: boolean }
+/** The spotter's syringe: tucked behind his ear, working its way out with the load, out and rolling at the crash. */
+interface Syringe { peek: Spring; out: boolean; x: number; y: number; vx: number; vy: number; angle: number; spin: number; settled: boolean }
 
 export interface Bench {
   time: number;
@@ -42,11 +48,20 @@ export interface Bench {
   spotHands: Spring;
   chadX: Spring;
   grunt: Spring;
-  events: { rep: boolean; plate: boolean; racked: boolean; swapped: boolean };
+  /** The rack's jolt when the bar lands. */
+  jolt: Spring;
+  /** The bar is on its way down and has not landed yet. */
+  impactPending: boolean;
+  syringe: Syringe;
+  /** What happened this step; `bounce` counts plates that hit the floor hard. */
+  events: { rep: boolean; plate: boolean; racked: boolean; swapped: boolean; impact: boolean; bounce: number };
 }
 
+const freshSyringe = (): Syringe => ({ peek: spring(0), out: false, x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, settled: false });
+const noEvents = (): Bench['events'] => ({ rep: false, plate: false, racked: false, swapped: false, impact: false, bounce: 0 });
+
 export function createBench(): Bench {
-  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), events: { rep: false, plate: false, racked: false, swapped: false } };
+  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), jolt: spring(0), impactPending: false, syringe: freshSyringe(), events: noEvents() };
 }
 
 export function resetBench(b: Bench): void {
@@ -65,6 +80,9 @@ export function resetBench(b: Bench): void {
   settleSpring(b.spotHands, 0);
   settleSpring(b.chadX, 480);
   settleSpring(b.grunt, 0);
+  settleSpring(b.jolt, 0);
+  b.impactPending = false;
+  b.syringe = freshSyringe();
 }
 
 function addPlates(b: Bench, index: number, quiet: boolean): void {
@@ -109,6 +127,7 @@ export function dumpBar(b: Bench, seed: number, quiet: boolean): void {
   }
   b.dumped = true;
   b.dumpAge = quiet ? 10 : 0;
+  b.impactPending = !quiet;
   b.arrival = null;
   settleSpring(b.spotHands, 0);
   const rng = mulberry32(seed);
@@ -121,6 +140,14 @@ export function dumpBar(b: Bench, seed: number, quiet: boolean): void {
   }
   if (quiet) { settleSpring(b.barY, BAR.chest + 34); settleSpring(b.hands, 0); }
   else b.barY.v += 500;
+  // The syringe leaves the spotter's ear (or rolls out from under the bench if he is the one under the bar):
+  // out and bouncing, or already lying where it stopped for a crash met late. Drawn after the plates so their scatter keeps its seed.
+  const s = b.syringe;
+  s.out = true;
+  settleSpring(s.peek, 0);
+  if (quiet) { s.x = 604; s.y = SYRINGE_FLOOR; s.vx = 0; s.vy = 0; s.angle = 0; s.spin = 0; s.settled = true; }
+  else if (b.onBench === 'chad') { s.x = 500; s.y = UPRIGHT.base - 138; s.vx = 150 + rng() * 80; s.vy = -120 - rng() * 80; s.angle = -0.6; s.spin = 8 + rng() * 5; s.settled = false; }
+  else { s.x = 540; s.y = SYRINGE_FLOOR - 10; s.vx = 120 + rng() * 60; s.vy = -60; s.angle = 0.4; s.spin = 6; s.settled = false; }
 }
 
 export interface BenchDrive { running: boolean; multiplier: number; growth: number; tension: number }
@@ -129,7 +156,7 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
   b.time += dt;
   b.modeAge += dt;
   b.tension = drive.tension;
-  b.events = { rep: false, plate: false, racked: false, swapped: false };
+  b.events = noEvents();
   if (b.mode === 'idle' && drive.running) { b.mode = 'lifting'; b.modeAge = 0; b.phase = 0; }
   if (b.mode === 'racking' && b.modeAge > 0.7) { b.mode = 'sitting'; b.modeAge = 0; b.events.racked = true; }
   if (b.mode === 'sitting' && b.modeAge > 2.2) { b.mode = 'swap'; b.modeAge = 0; b.onBench = 'bro'; b.events.swapped = true; }
@@ -163,8 +190,25 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
       p.y += p.vy * dt;
       p.angle += p.spin * dt;
       const floorAt = FLOOR - 44;
-      if (p.y > floorAt - BAR.chest - 34 && p.vy > 0) { p.y = floorAt - BAR.chest - 34; p.vy *= -0.35; p.vx *= 0.9; p.spin *= 0.8; }
+      if (p.y > floorAt - BAR.chest - 34 && p.vy > 0) { p.y = floorAt - BAR.chest - 34; p.vy *= -0.35; p.vx *= 0.9; p.spin *= 0.8; if (p.vy < -60) b.events.bounce += 1; }
       if (p.x < -80 || p.x > 1040) p.gone = true;
+    }
+    // The bar lands: the moment the drop's hit-stop, the shake and the stinger hang on.
+    if (b.impactPending && (b.barY.x >= BAR.chest + 26 || b.dumpAge > 0.45)) { b.impactPending = false; b.events.impact = true; b.jolt.v += 12; }
+  }
+  stepSpring(b.jolt, 0, 20, 0.28, dt);
+  // Anticipation: the syringe works its way out from behind the spotter's ear as the load climbs, then flies at the crash.
+  const s = b.syringe;
+  stepSpring(s.peek, !b.dumped && b.mode === 'lifting' && b.onBench === 'chad' ? smoothstep(0.3, 0.9, drive.tension) : 0, 4, 0.8, dt);
+  if (s.out && !s.settled) {
+    s.vy += 900 * dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.angle += s.spin * dt;
+    if (s.y >= SYRINGE_FLOOR) {
+      s.y = SYRINGE_FLOOR;
+      if (s.vy > 90) { s.vy *= -0.3; s.vx *= 0.8; s.spin *= 0.5; }
+      else { s.vy = 0; s.spin = 0; s.angle = 0; s.vx *= Math.exp(-2.2 * dt); if (Math.abs(s.vx) < 6) { s.vx = 0; s.settled = true; } }
     }
   }
 }
@@ -196,6 +240,25 @@ function bendJoint(root: Point, end: Point, upper: number, lower: number, side: 
   const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
   const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
   return { x: root.x + dx / distance * along - dy / distance * bend, y: root.y + dy / distance * along + dx / distance * bend };
+}
+
+/** A syringe: plunger, barrel with something yellow in it, a red label, the needle. */
+function drawSyringe(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number, scale: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(scale, scale);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(27, 0); ctx.stroke();
+  ctx.fillStyle = 'rgba(232, 242, 255, 0.92)';
+  ctx.beginPath(); ctx.roundRect(-14, -5, 28, 10, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffd60a'; ctx.fillRect(-11, -3, 13, 6);
+  ctx.fillStyle = '#e63946'; ctx.fillRect(3, -5, 8, 10);
+  ctx.fillStyle = '#2b2b30';
+  ctx.beginPath(); ctx.roundRect(-25, -2.5, 12, 5, 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-28, -6.5, 4, 13, 1.5); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 
 function skinFor(who: Who, tension: number): string {
@@ -344,8 +407,12 @@ export function drawStanding(ctx: CanvasRenderingContext2D, b: Bench, who: Who, 
     ctx.fillStyle = '#2e8b57';
     ctx.beginPath(); ctx.moveTo(-8, -98); ctx.lineTo(-3, -106); ctx.lineTo(1, -101); ctx.lineTo(8, -114); ctx.lineTo(8, -96); ctx.lineTo(-8, -96); ctx.closePath(); ctx.fill();
   }
-  // Head.
+  // Head. The spotter keeps a syringe behind his ear like a pencil; it works its way out as the load climbs.
   const hy = -170;
+  if (who === 'bro' && !b.syringe.out && (pose === 'phone' || pose === 'spot')) {
+    const peek = clamp(b.syringe.peek.x, 0, 1);
+    drawSyringe(ctx, 22 + 12 * peek, hy - 4 - 8 * peek + Math.sin(b.time * 27) * 1.5 * peek, -0.6 - 0.3 * peek, 0.85);
+  }
   ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   if (who === 'chad') {
     ctx.beginPath(); ctx.moveTo(-24, hy - 16); ctx.quadraticCurveTo(-26, hy - 40, 0, hy - 40); ctx.quadraticCurveTo(26, hy - 40, 24, hy - 16); ctx.lineTo(22, hy + 14); ctx.quadraticCurveTo(20, hy + 28, 0, hy + 30); ctx.quadraticCurveTo(-20, hy + 28, -22, hy + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -397,7 +464,10 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
   if (who === 'bro' || b.mode === 'swap') {
     drawStanding(ctx, b, 'chad', b.chadX.x, UPRIGHT.base + 60, 0.9, b.dumped ? 'thumbs' : 'flex', barY);
   }
-  // Rack uprights and hooks.
+  // Rack uprights and hooks, jolted when the bar lands.
+  const jolt = clamp(b.jolt.x, -1, 1);
+  ctx.save();
+  ctx.translate(0, jolt * 4);
   for (const x of [UPRIGHT.left, UPRIGHT.right]) {
     ctx.fillStyle = '#4a4a55'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.roundRect(x - 9, UPRIGHT.top, 18, UPRIGHT.base - UPRIGHT.top, 4); ctx.fill(); ctx.stroke();
@@ -406,6 +476,19 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
     ctx.beginPath(); ctx.roundRect(x < 480 ? x + 6 : x - 26, BAR.rack - 4, 20, 22, 3); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#2b2b30';
     ctx.beginPath(); ctx.roundRect(x + inner * 8 + (inner < 0 ? -12 : 0), BAR.rack + 8, 12, 10, 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+  // The syringe, out: bouncing across the floor in front of the rack, then lying there with its label.
+  if (b.syringe.out) {
+    const s = b.syringe;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.beginPath(); ctx.ellipse(s.x, SYRINGE_FLOOR + 6, 26, 4, 0, 0, Math.PI * 2); ctx.fill();
+    drawSyringe(ctx, s.x, s.y, s.angle, 1.15);
+    if (s.settled) {
+      ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      ctx.font = '900 13px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+      ctx.strokeText('DEFINITELY CREATINE', s.x + 10, s.y - 16); ctx.fillText('DEFINITELY CREATINE', s.x + 10, s.y - 16);
+    }
   }
   // Bench: far half.
   ctx.fillStyle = '#7a1a24'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -516,7 +599,8 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
     ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
     ctx.font = '900 18px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
     ctx.globalAlpha = k;
-    ctx.strokeText('+ PLATE', hx, hy - 60); ctx.fillText('+ PLATE', hx, hy - 60);
+    const ticker = `+ ${TICKERS[a.index % TICKERS.length]!}`;
+    ctx.strokeText(ticker, hx, hy - 60); ctx.fillText(ticker, hx, hy - 60);
     ctx.globalAlpha = 1;
   }
   // Legs toward the camera, then the near end of the bench.

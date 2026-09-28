@@ -16,6 +16,7 @@ const LINES = ['queen <3', 'take my money', 'wen reveal', 'gm queen', 'simping h
 const CRASH_LINES = ['RUGGED', 'NGMI', 'who was that', 'STREAM ENDED??', 'it was a boyfriend', 'my bags', 'exit liquidity', 'rugged again', 'F', 'cope', 'bf had 40% of supply', 'the reveal was a rug', 'i tipped for THIS', 'the bf is the dev', 'refund??'];
 
 export interface Message { name: string; text: string; tip: number; y: number; age: number; seed: number }
+interface Confetti { x: number; y: number; vx: number; vy: number; angle: number; spin: number; colour: string; age: number; life: number }
 
 export type SimpMode = 'seated' | 'closing' | 'walking' | 'gone';
 
@@ -31,16 +32,29 @@ export interface Chat {
   simp: { mode: SimpMode; x: number; modeAge: number; shades: Spring };
   sulk: Spring;
   hype: Spring;
+  /** The pinned tip menu: which tier is on top, and its pop when it climbs. */
+  menuIndex: number;
+  menuPop: Spring;
+  /** Your simp's send-off. */
+  confetti: Confetti[];
+  /** What happened this step: a tip was posted. */
+  events: { tip: boolean };
 }
 
-const GOALS = [1.5, 2, 3, 5, 8, 13, 21, 34, 55];
+export const GOALS = [1.5, 2, 3, 5, 8, 13, 21, 34, 55];
 /** The goal at `index`: Infinity once the last one is reached, when the reveal is due any second. */
 const goalAt = (index: number): number => GOALS[index] ?? Infinity;
 /** What the queen posts as each goal is reached; the last is for the final goal, when the reveal is due any second. */
 const QUEEN_POSTS = ['one more milestone frens <3', 'ur all so generous omg', 'my bf... i mean my brother says hi', 'almost there babes', 'one more and the hoodie comes off', 'ok ok the reveal is SO close', 'ok ok reveal any second frens <3'];
+/** The top tier of the pinned tip menu at each goal reached: dumber and dearer every time. */
+const TIP_MENU: [string, string][] = [
+  ['SAYS GM', '1 SOL'], ['SAYS UR NAME', '5 SOL'], ['HOODIE STRING PULL', '69 SOL'], ['BLINKS TWICE', '420 SOL'], ['UNMUTES MIC', '1,000 SOL'],
+  ['REVEALS DOG NAME', '4,200 SOL'], ['HOODIE STAYS ON', '69,000 SOL'], ['SAYS GN', '1 KIDNEY'], ['REMEMBERS U', 'UR HOUSE'], ['ACKNOWLEDGES U', 'NOT FOR SALE'],
+];
+const CONFETTI = ['#7cf67c', '#ffe27a', '#ff5d9e', '#8fd3ff'];
 
 export function createChat(): Chat {
-  return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) }, sulk: spring(0), hype: spring(0) };
+  return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) }, sulk: spring(0), hype: spring(0), menuIndex: 0, menuPop: spring(0), confetti: [], events: { tip: false } };
 }
 
 export function resetChat(c: Chat): void {
@@ -54,6 +68,10 @@ export function resetChat(c: Chat): void {
   c.simp = { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) };
   settleSpring(c.sulk, 0);
   settleSpring(c.hype, 0);
+  c.menuIndex = 0;
+  settleSpring(c.menuPop, 0);
+  c.confetti = [];
+  c.events = { tip: false };
 }
 
 function post(c: Chat, name: string, text: string, tip: number): void {
@@ -61,6 +79,17 @@ function post(c: Chat, name: string, text: string, tip: number): void {
   for (const m of c.messages) m.y -= height;
   c.messages.push({ name, text, tip, y: PANEL.y + PANEL.h - 100, age: 0, seed: c.time });
   if (c.messages.length > 18) c.messages.shift();
+  if (tip > 0) c.events.tip = true;
+}
+
+/** Your simp's send-off: a small burst from his seat, capped at 36 pieces. */
+function throwConfetti(c: Chat, x: number, y: number): void {
+  c.confetti = [];
+  for (let i = 0; i < 36; i += 1) {
+    const a = -Math.PI / 2 + (noise(i * 1.7) - 0.5) * 2.2;
+    const s = 160 + noise(i * 2.9) * 220;
+    c.confetti.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, angle: noise(i * 3.1) * 6, spin: (noise(i * 4.3) - 0.5) * 20, colour: CONFETTI[i % 4]!, age: 0, life: 1.2 + noise(i * 5.7) * 0.5 });
+  }
 }
 
 /** How full the tip bar is: the way from the last goal to the next, and full once the last is reached. */
@@ -74,18 +103,20 @@ function goalFill(c: Chat, multiplier: number): number {
 export function settleChat(c: Chat, multiplier: number): void {
   while (c.goalIndex < GOALS.length && multiplier >= c.goal) { c.goalIndex += 1; c.goal = goalAt(c.goalIndex); }
   settleSpring(c.fill, goalFill(c, multiplier));
+  c.menuIndex = Math.min(c.goalIndex, TIP_MENU.length - 1);
 }
 
 /** Your simp closes the tab. `gone` is an exit met late: he has already left. */
 export function unsubscribe(c: Chat, gone = false): void {
   if (gone) { c.simp.mode = 'gone'; settleSpring(c.simp.shades, 1); }
-  else if (c.simp.mode === 'seated') { c.simp.mode = 'closing'; c.simp.modeAge = 0; }
+  else if (c.simp.mode === 'seated') { c.simp.mode = 'closing'; c.simp.modeAge = 0; throwConfetti(c, 40 + 4 * 68, ROW_Y - 44); }
 }
 
 /** The crash floods the chat. `quiet` is a crash met late: the bar is already drained and the flood already posted. */
 export function floodChat(c: Chat, cheerful: boolean, quiet: boolean): void {
   c.flooded = true;
   if (cheerful) settleSpring(c.hype, 1); else settleSpring(c.sulk, 1);
+  if (!quiet) c.menuPop.v = 7;
   if (quiet) {
     settleSpring(c.fill, 0);
     for (let i = 0; i < 8; i += 1) post(c, NAMES[i]!, CRASH_LINES[i]!, 0);
@@ -97,6 +128,7 @@ export interface ChatDrive { running: boolean; multiplier: number; tension: numb
 /** Returns true on the frame a goal is reached (and moved). */
 export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
   c.time += dt;
+  c.events = { tip: false };
   let reached = false;
   const rate = c.flooded ? 6 : drive.running ? 1 + 6 * drive.tension : 0.4;
   if (c.time > c.nextAt) {
@@ -117,11 +149,17 @@ export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
   }
   stepSpring(c.fill, c.flooded ? 0 : goalFill(c, drive.multiplier), 8, 0.9, dt);
   stepSpring(c.modSleep, drive.running && drive.tension > 0.6 ? 1 : 0, 3, 0.8, dt);
+  const menuIndex = Math.min(c.goalIndex, TIP_MENU.length - 1);
+  if (menuIndex !== c.menuIndex) { c.menuIndex = menuIndex; c.menuPop.v = 7; }
+  stepSpring(c.menuPop, 0, 12, 0.35, dt);
   const s = c.simp;
   s.modeAge += dt;
   if (s.mode === 'closing' && s.modeAge > 0.7) { s.mode = 'walking'; s.modeAge = 0; }
   if (s.mode === 'walking') { s.x -= 170 * dt; if (s.x < -60) { s.mode = 'gone'; s.modeAge = 0; } }
   stepSpring(s.shades, s.mode !== 'seated' ? 1 : 0, 12, 0.5, dt);
+  const drag = Math.exp(-1.6 * dt);
+  for (const p of c.confetti) { p.age += dt; p.vy += 520 * dt; p.vx *= drag; p.x += p.vx * dt; p.y += p.vy * dt; p.angle += p.spin * dt; }
+  c.confetti = c.confetti.filter((p) => p.age < p.life);
   return reached;
 }
 
@@ -174,6 +212,21 @@ export function drawChat(ctx: CanvasRenderingContext2D, c: Chat, multiplier: num
       label(ctx, m.text, PANEL.x + 18 + w, y, 12, m.text === m.text.toUpperCase() && m.text.length > 3 ? '#ff4d6d' : '#e7e7ef', 'left', PANEL.w - 36 - w);
     }
   }
+  ctx.restore();
+  // The pinned tip menu: the top tier climbs with the goal ladder, and at the crash it reads REFUNDS · NO.
+  const item = c.flooded ? ['REFUNDS', 'NO'] : TIP_MENU[c.menuIndex]!;
+  const mk = 1 + 0.08 * clamp(c.menuPop.x, -1, 1);
+  ctx.fillStyle = '#16161c';
+  ctx.fillRect(PANEL.x, 64, PANEL.w, 48);
+  ctx.save();
+  ctx.translate(PANEL.x + PANEL.w / 2, 88);
+  ctx.scale(mk, mk);
+  ctx.translate(-(PANEL.x + PANEL.w / 2), -88);
+  ctx.fillStyle = c.flooded ? '#3a1420' : '#2b2440'; ctx.strokeStyle = c.flooded ? '#ff4d6d' : '#7c3aed'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(PANEL.x + 8, 68, PANEL.w - 16, 40, 6); ctx.fill(); ctx.stroke();
+  label(ctx, 'PINNED · TIP MENU', PANEL.x + 16, 81, 9, c.flooded ? '#ff9db0' : '#c9b8ff');
+  label(ctx, item[0]!, PANEL.x + 16, 99, 13, '#ffffff', 'left', 196);
+  label(ctx, item[1]!, PANEL.x + PANEL.w - 16, 99, 13, '#ffe27a', 'right', 110);
   ctx.restore();
   // Tip goal.
   const fill = clamp(c.fill.x, 0, 1);
@@ -257,6 +310,15 @@ export function drawSimps(ctx: CanvasRenderingContext2D, c: Chat, tension: numbe
     ctx.restore();
   } else if (s.mode === 'walking') {
     drawSimp(ctx, s.x, 4, 6, 'hype', 'none', true, 1, c.time * 12);
+  }
+  for (const p of c.confetti) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+    ctx.globalAlpha = clamp((p.life - p.age) / 0.4, 0, 1);
+    ctx.fillStyle = p.colour;
+    ctx.fillRect(-4, -2, 8, 4);
+    ctx.restore();
   }
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.strokeRect(0, VIDEO.h, VIDEO.w, 540 - VIDEO.h);

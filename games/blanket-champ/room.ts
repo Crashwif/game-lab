@@ -4,8 +4,9 @@
  * the blanket's movement. The joke lives in their reactions and in
  * the room reacting to it: the headboard knocking the wall, the lamp
  * wobbling, the glass walking off the nightstand, the cat leaving, the
- * neighbour's fist, the buckling bed legs, and finally the arm that flops
- * out with a thumbs-up.
+ * neighbour's fist, the buckling bed legs, the wall TV tuned to DEGEN NEWS
+ * with a BREAKING headline for every stage, and finally the arm that flops
+ * out with a thumbs-up while the cat comes back holding a tiny NGMI sign.
  */
 import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
@@ -21,6 +22,11 @@ const GLASS_EDGE = 190;
 const CAT_X = 806;
 const CAT_GONE = 1000;
 const CAT_SPEED = 140;
+/** How long after the finish the cat is back with its sign. */
+const CAT_BACK_S = 1.3;
+/** The TV on the wall where the poster used to be, and the window (narrowed to leave the wall beside it to the bookie's board). */
+export const TV = { x: 18, y: 22, w: 96, h: 86 };
+export const WINDOW = { x: 740, y: 60, w: 120, h: 130 };
 
 /** Beats per second of the quilt at `growth` (log2 of the multiplier). */
 const tempoAt = (growth: number): number => 0.8 + 2.2 * (1 - Math.exp(-growth / 2));
@@ -43,19 +49,31 @@ export interface RoomState {
   glassFall: { y: number; vy: number; done: boolean };
   catX: number;
   catGone: boolean;
+  /** The cat is walking back in after the finish, sign up. */
+  catBack: boolean;
+  catSign: Spring;
+  catSignText: string;
   fist: Spring;
+  fistSeen: boolean;
   legs: Spring;
   wallCracks: number;
   finished: boolean;
   finishAge: number;
   armOut: Spring;
   thumb: Spring;
+  /** The TV's two-line headline, and how far it has slid in (1 in place). */
+  headline: [string, string];
+  slide: Spring;
+  /** 1, or 0 under reduced motion: the champ's tremble near the top. */
+  motion: number;
   puffs: Puff[];
-  events: { beat: boolean; glassFell: boolean; catLeft: boolean; fist: boolean };
+  events: { beat: boolean; glassFell: boolean; catLeft: boolean; fist: boolean; catBack: boolean };
 }
 
-export function createRoom(): RoomState {
-  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassX: GLASS_X, glassFallen: false, glassFall: { y: 0, vy: 0, done: false }, catX: CAT_X, catGone: false, fist: spring(0), legs: spring(0), wallCracks: 0, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), puffs: [], events: { beat: false, glassFell: false, catLeft: false, fist: false } };
+const noEvents = (): RoomState['events'] => ({ beat: false, glassFell: false, catLeft: false, fist: false, catBack: false });
+
+export function createRoom(motion = 1): RoomState {
+  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassX: GLASS_X, glassFallen: false, glassFall: { y: 0, vy: 0, done: false }, catX: CAT_X, catGone: false, catBack: false, catSign: spring(0), catSignText: 'NGMI', fist: spring(0), fistSeen: false, legs: spring(0), wallCracks: 0, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), headline: ['TONIGHT:', 'THE MAIN EVENT'], slide: spring(1), motion, puffs: [], events: noEvents() };
 }
 
 export function resetRoom(r: RoomState): void {
@@ -68,7 +86,10 @@ export function resetRoom(r: RoomState): void {
   r.glassFall = { y: 0, vy: 0, done: false };
   r.catX = CAT_X;
   r.catGone = false;
+  r.catBack = false;
+  settleSpring(r.catSign, 0);
   settleSpring(r.fist, 0);
+  r.fistSeen = false;
   settleSpring(r.legs, 0);
   r.wallCracks = 0;
   r.finished = false;
@@ -78,9 +99,18 @@ export function resetRoom(r: RoomState): void {
   r.puffs = [];
 }
 
+/** A new headline: it slides in from the right of the screen. Returns whether it changed. */
+export function setHeadline(r: RoomState, lines: [string, string]): boolean {
+  if (r.headline[0] === lines[0] && r.headline[1] === lines[1]) return false;
+  r.headline = lines;
+  r.slide.x = 0;
+  r.slide.v = 0;
+  return true;
+}
+
 export function stepRoom(r: RoomState, growth: number, running: boolean, dt: number): void {
   r.time += dt;
-  r.events = { beat: false, glassFell: false, catLeft: false, fist: false };
+  r.events = noEvents();
   const multiplier = Math.pow(2, growth);
   r.tension = clamp(growth / 3.3, 0, 1);
   r.tempo = running && !r.finished ? tempoAt(growth) : 0;
@@ -101,7 +131,9 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
   stepSpring(r.headboard, 0, 18, 0.35, dt);
   stepSpring(r.lamp, 0, 5, 0.12, dt);
   stepSpring(r.fist, running && multiplier >= 4 ? 12 : 0, 6, 0.6, dt);
+  if (!r.fistSeen && r.fist.x > 6) { r.fistSeen = true; r.events.fist = true; }
   stepSpring(r.legs, running && multiplier >= 6 ? 1 : 0, 3, 0.6, dt);
+  stepSpring(r.slide, 1, 9, 0.6, dt);
   r.wallCracks = running ? cracksAt(multiplier) : r.wallCracks;
   if (!r.glassFallen && r.glassX > GLASS_EDGE) {
     r.glassFallen = true;
@@ -121,7 +153,11 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
     r.finishAge += dt;
     stepSpring(r.armOut, 1, 6, 0.5, dt);
     stepSpring(r.thumb, r.finishAge > 0.9 ? 1 : 0, 10, 0.4, dt);
+    // The cat is back, sign first: from the door if it left, or the sign just goes up where it sat.
+    if (r.finishAge > CAT_BACK_S && r.catGone && !r.catBack) { r.catBack = true; r.catGone = false; r.catX = CAT_GONE; r.events.catBack = true; }
+    if (r.catBack && r.catX > CAT_X) r.catX = Math.max(CAT_X, r.catX - CAT_SPEED * 1.4 * dt);
   }
+  stepSpring(r.catSign, r.finished && r.finishAge > CAT_BACK_S ? 1 : 0, 8, 0.4, dt);
   for (const p of r.puffs) {
     p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
     if (p.kind === 'puff') { p.r += 14 * dt; p.vy -= 20 * dt; }
@@ -156,25 +192,98 @@ export function settleRoom(r: RoomState, multiplier: number, running: boolean): 
   else r.catX = Math.max(r.catX, catX);
   r.wallCracks = Math.max(r.wallCracks, cracksAt(multiplier));
   settleSpring(r.fist, running && multiplier >= 4 ? 12 : 0);
+  r.fistSeen = running && multiplier >= 4;
   settleSpring(r.legs, running && multiplier >= 6 ? 1 : 0);
+  settleSpring(r.slide, 1);
 }
 
-/** The champ finishes. */
-export function finishRoom(r: RoomState, quiet: boolean, legendary: boolean): void {
+/** The champ finishes. `sign` is what the cat's placard says about it. */
+export function finishRoom(r: RoomState, quiet: boolean, legendary: boolean, sign: string): void {
   r.finished = true;
   r.finishAge = quiet ? 10 : 0;
   r.tempo = 0;
-  if (quiet) { settleSpring(r.armOut, 1); settleSpring(r.thumb, 1); settleSpring(r.lump, 0.08); return; }
+  r.catSignText = sign;
+  if (quiet) {
+    settleSpring(r.armOut, 1);
+    settleSpring(r.thumb, 1);
+    settleSpring(r.lump, 0.08);
+    settleSpring(r.catSign, 1);
+    r.catGone = false;
+    r.catBack = true;
+    r.catX = CAT_X;
+    return;
+  }
   for (let i = 0; i < 12; i += 1) {
     const n = i * 1.7;
     r.puffs.push({ kind: 'puff', x: 450 + (noise(n) - 0.5) * 120, y: 300, vx: (noise(n + 1) - 0.5) * 60, vy: -30 - noise(n + 2) * 40, r: 6 + noise(n + 3) * 8, age: 0, life: 1.2 + noise(n + 4) * 0.6, colour: '#ffffff' });
   }
   if (legendary) {
-    for (let i = 0; i < 60; i += 1) {
+    for (let i = 0; i < 40; i += 1) {
       const n = i * 2.3;
       r.puffs.push({ kind: 'confetti', x: noise(n) * 960, y: -10, vx: (noise(n + 1) - 0.5) * 40, vy: 60 + noise(n + 2) * 90, r: 2 + noise(n + 3) * 3, age: 0, life: 3 + noise(n + 4) * 2, colour: ['#ff4d6d', '#7cf67c', '#8fd3ff', '#ffe27a'][i % 4]! });
     }
   }
+}
+
+/** The wall TV: DEGEN NEWS, an anchor, and the BREAKING lower third with the headline sliding in. It ends above the crowd's signs. */
+function drawTV(ctx: CanvasRenderingContext2D, r: RoomState): void {
+  const { x, y, w, h } = TV;
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill(); ctx.stroke();
+  const sx = x + 6;
+  const sy = y + 6;
+  const sw = w - 12;
+  const sh = h - 12;
+  ctx.fillStyle = '#243b6b';
+  ctx.fillRect(sx, sy, sw, sh);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
+  // The studio: a desk, an anchor with a tie, a globe, and the channel bug.
+  ctx.fillStyle = '#3b82f6';
+  ctx.beginPath(); ctx.arc(sx + 66, sy + 20, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(sx + 66, sy + 20, 10, 4, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#e63946'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(sx + 20, sy + 26, 26, 16, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f3dccb';
+  ctx.beginPath(); ctx.ellipse(sx + 33, sy + 17, 9.5, 11, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(sx + 30, sy + 16, 1.4, 0, Math.PI * 2); ctx.arc(sx + 36, sy + 16, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(sx + 30, sy + 22); ctx.lineTo(sx + 36, sy + 22); ctx.stroke();
+  ctx.fillStyle = '#5a3a22';
+  ctx.beginPath(); ctx.ellipse(sx + 33, sy + 9, 10, 5, 0, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath(); ctx.moveTo(sx + 31, sy + 28); ctx.lineTo(sx + 35, sy + 28); ctx.lineTo(sx + 33, sy + 37); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5b6b8a';
+  ctx.fillRect(sx, sy + 34, sw, 5);
+  // The channel bug and the BREAKING lower third.
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = '900 8px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('DEGEN NEWS', sx + 3, sy + 9);
+  ctx.fillStyle = Math.floor(r.time * 2) % 2 || r.motion === 0 ? '#e63946' : '#7a1a24';
+  ctx.beginPath(); ctx.arc(sx + sw - 7, sy + 6, 2.5, 0, Math.PI * 2); ctx.fill();
+  const ly = sy + sh - 36;
+  ctx.fillStyle = '#e63946';
+  ctx.fillRect(sx, ly, sw, 11);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  ctx.fillText(r.finished ? 'BREAKING' : r.tempo > 0 ? 'LIVE' : 'COMING UP', sx + 4, ly + 9);
+  ctx.fillStyle = '#fbf8f1';
+  ctx.fillRect(sx, ly + 11, sw, 25);
+  const slide = (1 - clamp(r.slide.x, 0, 1)) * (sw + 10);
+  ctx.fillStyle = INK;
+  ctx.font = '900 10px Impact, "Arial Black", sans-serif';
+  ctx.fillText(r.headline[0], sx + 4 + slide, ly + 21, sw - 8);
+  ctx.fillText(r.headline[1], sx + 4 + slide, ly + 32, sw - 8);
+  ctx.restore();
+  // Screen glare.
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + sw * 0.5, sy); ctx.lineTo(sx, sy + sh * 0.6); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 
 export function drawWall(ctx: CanvasRenderingContext2D, r: RoomState): void {
@@ -185,26 +294,14 @@ export function drawWall(ctx: CanvasRenderingContext2D, r: RoomState): void {
   // Window with the night outside, and later the fire brigade.
   ctx.fillStyle = '#1b2440';
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.roundRect(740, 60, 150, 130, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(WINDOW.x, WINDOW.y, WINDOW.w, WINDOW.h, 4); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  for (let i = 0; i < 12; i += 1) { ctx.beginPath(); ctx.arc(752 + noise(i) * 126, 70 + noise(i * 2.7) * 110, 1.2, 0, Math.PI * 2); ctx.fill(); }
+  for (let i = 0; i < 12; i += 1) { ctx.beginPath(); ctx.arc(WINDOW.x + 10 + noise(i) * (WINDOW.w - 20), WINDOW.y + 10 + noise(i * 2.7) * (WINDOW.h - 20), 1.2, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = '#f7f0d8';
-  ctx.beginPath(); ctx.arc(850, 96, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(WINDOW.x + 92, 96, 14, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(815, 60); ctx.lineTo(815, 190); ctx.moveTo(740, 125); ctx.lineTo(890, 125); ctx.stroke();
-  // Poster.
-  ctx.fillStyle = '#14213d';
-  ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.roundRect(18, 28, 96, 124, 3); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffe27a';
-  ctx.font = '900 15px Impact, "Arial Black", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('TO THE', 66, 54);
-  ctx.fillText('MOON', 66, 72);
-  ctx.fillStyle = '#e63946';
-  ctx.beginPath(); ctx.moveTo(66, 82); ctx.lineTo(80, 118); ctx.lineTo(66, 136); ctx.lineTo(52, 118); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#ffb703';
-  ctx.beginPath(); ctx.moveTo(58, 136); ctx.lineTo(66, 148); ctx.lineTo(74, 136); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(WINDOW.x + WINDOW.w / 2, WINDOW.y); ctx.lineTo(WINDOW.x + WINDOW.w / 2, WINDOW.y + WINDOW.h); ctx.moveTo(WINDOW.x, 125); ctx.lineTo(WINDOW.x + WINDOW.w, 125); ctx.stroke();
+  drawTV(ctx, r);
   // Cracks spreading from the headboard.
   if (r.wallCracks > 0.02) {
     ctx.strokeStyle = 'rgba(28, 31, 38, 0.7)';
@@ -236,6 +333,41 @@ export function drawWall(ctx: CanvasRenderingContext2D, r: RoomState): void {
     ctx.fillText('KEEP IT DOWN!', 105 + fist * 1.2, -24);
     ctx.restore();
   }
+}
+
+/** The cat on the dresser: leaving tail-first from 2×, back after the finish with a placard held up in one paw. */
+function drawCat(ctx: CanvasRenderingContext2D, r: RoomState): void {
+  const leaving = !r.catBack && r.catX > CAT_X + 1;
+  const walking = leaving || (r.catBack && r.catX > CAT_X + 1);
+  const bob = walking ? Math.abs(Math.sin(r.time * 14)) * 3 : 0;
+  ctx.save();
+  ctx.translate(r.catX, 384 - bob);
+  if (leaving) ctx.scale(-1, 1);
+  ctx.fillStyle = '#3a3a3a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.ellipse(0, -12, 24, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-20, -22, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-28, -28); ctx.lineTo(-26, -40); ctx.lineTo(-19, -30); ctx.moveTo(-14, -30); ctx.lineTo(-11, -40); ctx.lineTo(-8, -29); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(22, -14); ctx.quadraticCurveTo(44, -20 + Math.sin(r.time * 3) * 8, 40, -40); ctx.stroke();
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath(); ctx.arc(-24, -24, 1.8, 0, Math.PI * 2); ctx.arc(-17, -24, 1.8, 0, Math.PI * 2); ctx.fill();
+  const sign = clamp(r.catSign.x, 0, 1.2);
+  if (sign > 0.02) {
+    // The placard comes up on a stick from behind the head, wobbling with the walk.
+    ctx.save();
+    ctx.translate(-6, -30);
+    ctx.rotate(-0.15 + Math.sin(r.time * 4) * 0.06 - (1 - Math.min(sign, 1)) * 0.8);
+    const up = 30 * sign;
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -up); ctx.stroke();
+    ctx.fillStyle = '#fbf8f1'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(-20, -up - 18, 40, 18, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(r.catSignText, 0, -up - 9, 36);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 export function drawFloorAndFurniture(ctx: CanvasRenderingContext2D, r: RoomState): void {
@@ -281,18 +413,7 @@ export function drawFloorAndFurniture(ctx: CanvasRenderingContext2D, r: RoomStat
   ctx.beginPath(); ctx.roundRect(730, 384, 160, FLOOR_Y - 384, 3); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#8a6a44';
   for (const y of [396, 424]) { ctx.beginPath(); ctx.roundRect(742, y, 136, 20, 2); ctx.fill(); ctx.stroke(); }
-  if (!r.catGone) {
-    ctx.save();
-    ctx.translate(r.catX, 384);
-    ctx.fillStyle = '#3a3a3a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.ellipse(0, -12, 24, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-20, -22, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-28, -28); ctx.lineTo(-26, -40); ctx.lineTo(-19, -30); ctx.moveTo(-14, -30); ctx.lineTo(-11, -40); ctx.lineTo(-8, -29); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(22, -14); ctx.quadraticCurveTo(44, -20 + Math.sin(r.time * 3) * 8, 40, -40); ctx.stroke();
-    ctx.fillStyle = '#ffe27a';
-    ctx.beginPath(); ctx.arc(-24, -24, 1.8, 0, Math.PI * 2); ctx.arc(-17, -24, 1.8, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
+  if (!r.catGone) drawCat(ctx, r);
 }
 
 /** Pillows and faces, feet tucked behind the quilt, then the gripping hand and finish. */
@@ -302,6 +423,7 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   const pose: SleeperPose = {
     time: r.time, beat: r.beatPhase * Math.PI * 2, tension: r.tension,
     active: r.tempo > 0, finished: r.finished, rest: r.finished ? clamp(r.finishAge * 1.8, 0, 1) : 0,
+    tremble: r.motion * (r.tempo > 0 ? clamp((r.tension - 0.62) / 0.38, 0, 1) : 0),
   };
   ctx.save();
   ctx.fillStyle = 'rgba(28, 31, 38, 0.18)';

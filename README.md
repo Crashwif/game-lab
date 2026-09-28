@@ -13,30 +13,30 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting.
+Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting. Every game has a Sound button: music and effects are synthesised on the page, off until you turn them on, and the choice is remembered.
 
 | Reference | What to study | Status |
 | --- | --- | --- |
-| [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a seeded burst, meme captions | Playable |
-| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook, camera tracking, a seeded collapse | Playable |
-| [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, opt-in procedural sound | Playable |
-| [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, a reflection, a seeded shatter into floes | Playable |
-| [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a Lambo pick-up | Playable |
-| [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a whale, a drain-plug rug pull | Playable |
-| [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a cheering crowd | Playable |
-| [Gas Fees](games/gas-fees) | A packed lift in depth order, a roster of arrivals, a seeded gas cloud, a face that changes colour | Playable |
-| [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a goal that keeps moving, a boyfriend reveal | Playable |
-| [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates that roll, a spotter on his phone | Playable |
-| [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a sleeve that tears, a seeded burst | Playable |
-| [Wife Changing Money](games/wife-changing-money) | A 3 am kitchen lit by a laptop, a hunched seated rig, a text stack, a stair light and a ceiling thump, a suitcase meter | Playable |
-| [Not Financial Advice](games/not-financial-advice) | A green screen that tears, a rental sticker that peels, a wallet feed, a disclosure that shrinks with the odds | Playable |
-| [Honeypot](games/honeypot) | A filling jar with meniscus and drips, honey strings, a bee swarm on the tension, a lid that screws shut | Playable |
-| [Insider Wallets](games/insider-wallets) | A wallet tracker on the multiplier curve, a crowd of layered heads, confetti cannons, a helicopter exit | Playable |
-| [The Trenches](games/the-trenches) | A marching squad with squash on each step, a parallax ridge, a seeded nuke and shockwave, a field phone that rings | Playable |
-| [Hopium Drip](games/hopium-drip) | An EKG trace driven by the multiplier, a draining IV bag, a bed rig, a curtain that pulls, a flatline | Playable |
-| [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
-| [Wen Binance](games/wen-binance) | A queue that advances on the curve, a flickering marquee, a bass shake, doors that open on a spring | Playable |
-| [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD in Canvas 2D on top | Playable |
+| [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a slingshot that winds up with the multiplier, a seeded burst with hit-stop and slow motion, meme captions | Playable |
+| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook and counterweight, residents in the windows, a sales office queue, camera tracking, a seeded collapse with hit-stop | Playable |
+| [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, a game's own sounds on the shared audio bus | Playable |
+| [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, bagholders thawing under the ice, a liquidation drone that closes in, a reflection, a seeded shatter into floes | Playable |
+| [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a dev on a cloud throne with a SELL lever, an airdrop plane, a Lambo pick-up | Playable |
+| [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a helicopter airdrop, a whale, a drain-plug rug pull and a selfie with the empty pool | Playable |
+| [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a live odds board, a news ticker, a cheering crowd | Playable |
+| [Gas Fees](games/gas-fees) | A packed lift in depth order, a roster of arrivals, a canary that reels with the multiplier, an air quality readout, a seeded gas cloud, muzak that speeds up | Playable |
+| [OnlyFrens](games/onlyfrens) | A livestream layout, a scrolling chat, a tip menu and a goal that keep moving, a second monitor shorting her own coin, a boyfriend reveal | Playable |
+| [Pump & Dump](games/pump-and-dump) | A bench press from the feet, a bar that bends, plates named after memecoins, a NATTY? poll, a spotter on his phone, a dropped bar with hit-stop | Playable |
+| [Bonding Curl](games/bonding-curl) | A bicep as a pressure volume, veins and sheen, a cuff that reads market cap, a sleeve that tears, a paramedic at the door, a seeded burst | Playable |
+| [Wife Changing Money](games/wife-changing-money) | A 3 am kitchen lit by a laptop, a hunched seated rig, a cursor that drifts toward SELL, a wedding photo that tilts, a text stack, a stair light and a ceiling thump, a suitcase meter | Playable |
+| [Not Financial Advice](games/not-financial-advice) | A green screen that tears, a rental sticker that peels, a sponsor read at every milestone, a wallet feed with a cousin dumping, a disclosure that shrinks with the odds | Playable |
+| [Honeypot](games/honeypot) | A filling jar with meniscus and drips, honey strings, a fox auditor with a stamp, a bee swarm on the tension, a lid that screws shut | Playable |
+| [Insider Wallets](games/insider-wallets) | A wallet tracker on the multiplier curve with an allocation pie, a tie that grows into the crowd, a press pool that escalates, confetti cannons, a helicopter exit | Playable |
+| [The Trenches](games/the-trenches) | A marching squad with squash on each step, a parallax ridge, a DAYS SINCE LAST RUG sign, a white flag the sergeant glares down, a seeded nuke and shockwave, a field phone that rings | Playable |
+| [Hopium Drip](games/hopium-drip) | An EKG trace driven by the multiplier with a heartbeat to match, a draining IV bag, a bed rig, a curtain that pulls, a crash cart that shocks the laptop, a flatline | Playable |
+| [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone that cycles excuses, a paparazzi drone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
+| [Wen Binance](games/wen-binance) | A queue that advances on the curve, a marquee whose letters loosen and drop, a ticket scalper, a bass shake, doors that open on a spring | Playable |
+| [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD with a rumour feed in Canvas 2D on top | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own
@@ -49,7 +49,7 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 ## The page shell
 
-Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
+Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every game's `audio.ts` is the same file too: the page's sound, which the game's scene flavours. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell or the audio drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
 
 The shell:
 
@@ -59,6 +59,22 @@ The shell:
 - shows a room error or a refusal as a notice, and stops offering Cash out when no server frame has arrived for 2 s;
 - framed by the platform, hides Join, keeps Cash out and reports the page's height so the host can size the frame (see [embedded mode](docs/integration.md#embedded-mode));
 - in replay mode, plays `replay.json` by the frame clock, so slow frames and a hidden tab never make the recording drift.
+
+The audio (`audio.ts`) is procedural Web Audio with no files, so a bundle stays self-contained and a source pack stays text. A scene calls `pageAudio({ style, crash })` once, with a genre from fifteen presets (phonk, chiptune, eurodance, trap, lofi, techno, synthwave, dnb, hardstyle, elevator, casino, ambient, military, club, hospital) and the stinger its crash makes, then feeds it the round each frame (`update(phase, tension)`) and its own cues (`fx(name)`, `milestone(index)`, `cashout()`, `crash()`). The music is a step sequencer scheduled ahead of the audio clock: the tempo, the filter, the layers (hats, arpeggio, lead, a riser) and snare rolls follow the tension, betting plays a thinned beat, the first running frame drops, a cash-out ducks the music under a register and a fanfare, and the crash tape-stops it into the stinger. The Sound button cycles off, on and effects only, remembers the choice, and a remembered choice starts with the next click or key (the user activation autoplay rules want). It goes quiet while the page is hidden or the picture is scrolled out of view. A game with its own sounds (Boiler Room's hiss, chuff, ping and blast) builds them on the engine's context and bus, so one button governs everything.
+
+Recorded clips can stand in for any of it. Every game has a `clips.json` beside `audio.ts` (`{}` for none): clip names (`music`, `crash`, `cashout`, or any effect name such as `airhorn` or `scream`) to data URLs, which the engine decodes when sound is turned on and plays instead of the synthesised music loop, stinger, register or effect; a recorded loop still runs through the tension filter and hurries up to a tenth at the top. `pageAudio({ clips })` overrides the file. Base64 keeps the pack text-only, as the platform needs: a 12 s loop at 64 kb/s is about 130 KB, a stinger at 32 kb/s about 5 KB a second, and a game's `clips.json` must stay under the platform's 256 KB per source file.
+
+### Generating clips with ElevenLabs
+
+`scripts/audio/prompts.json` holds a prompt per clip per game (a music loop, the crash, the cash-out and a couple of signature effects each), and `npm run audio` turns it into every `clips.json`:
+
+```sh
+ELEVENLABS_API_KEY=… npm run audio                          # every game
+npm run audio -- --game gas-fees --clip crash               # one clip
+npm run audio -- --dry-run                                  # print the requests, call nothing
+```
+
+Music goes to the Music endpoint (`/v1/music`, instrumental, as long as the manifest's `seconds`) and everything else to Sound Effects (`/v1/sound-generation`, with `loop` for beds); a music request the plan refuses falls back to the effects model as a loop. Raw audio is cached under `scripts/audio/cache/` (ignored by git) keyed by the request, so a re-run only pays for prompts that changed, and `--force` regenerates. The script keeps each `clips.json` under 200 KB and fails otherwise; shorten the loop or lower the bit rate in the manifest. The key lives in the environment, never in the repository, and commercial use of the audio needs a paid ElevenLabs plan. Listen before committing: open the game with `npm run dev`, turn the sound on, and replace any clip whose prompt missed by editing the manifest and running that one clip again.
 
 ## Game Lab deploy
 

@@ -2,7 +2,8 @@
  * The ape: the degen pushing the coin. Feet trudge on the slope through
  * two-bone legs, hands ride the rim through two-bone arms, the body leans
  * harder as the hill steepens, and planted feet brace against bumps. A cashout hops him
- * into the Lambo; the crash flattens him into a pancake.
+ * into the Lambo; the crash has him let go and throw his hands up as the coin
+ * comes back down (the brace), then flattens him into a pancake.
  */
 import { type Spring, clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { type Camera, type Point, heightAt, slopeAngle, toScreen } from './hill';
@@ -13,7 +14,7 @@ const FUR = '#3b2f2f';
 const FUR_LIGHT = '#5a4646';
 const MUZZLE = '#d9b99b';
 
-export type ApeMode = 'push' | 'boarding' | 'gone' | 'pancake';
+export type ApeMode = 'push' | 'boarding' | 'brace' | 'gone' | 'pancake';
 
 export interface ApeState {
   mode: ApeMode;
@@ -29,12 +30,14 @@ export interface ApeState {
   fear: number;
   /** Where he was flattened, world x. */
   pancakeX: number;
+  /** Where he stands while he braces, world x: the coin no longer carries him. */
+  braceX: number;
 }
 
 export interface ApeDrive { anchor: ApeAnchor; walking: boolean; fear: number; bump: boolean }
 
 export function createApe(): ApeState {
-  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0 };
+  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0, braceX: 0 };
 }
 
 export function resetApe(a: ApeState): void {
@@ -62,8 +65,8 @@ export function stepApe(a: ApeState, drive: ApeDrive, dt: number): void {
   if (a.mode === 'push' && drive.bump) a.slip.v += 40;
   stepSpring(a.slip, 0, 8, 0.6, dt);
   if (a.mode === 'push') stepGait(a.gait, drive.anchor.contactX - drive.anchor.r - 44 - a.slip.x, drive.walking, dt);
-  stepSpring(a.lean, a.mode === 'push' ? 0.35 + 0.5 * drive.fear : 0, 6, 0.8, dt);
-  const shock = a.mode === 'pancake';
+  stepSpring(a.lean, a.mode === 'push' ? 0.35 + 0.5 * drive.fear : a.mode === 'brace' ? -0.3 : 0, a.mode === 'brace' ? 14 : 6, 0.6, dt);
+  const shock = a.mode === 'pancake' || a.mode === 'brace';
   const blinking = a.time > a.blinkAt && a.time < a.blinkAt + 0.13;
   if (a.time >= a.blinkAt + 0.13) a.blinkAt = a.time + 2.2 + 2.6 * noise(a.blinkAt);
   stepSpring(a.eyeOpen, shock ? 1.6 : blinking ? 0.08 : 1 + 0.3 * drive.fear, 24, 0.9, dt);
@@ -74,9 +77,17 @@ export function stepApe(a: ApeState, drive: ApeDrive, dt: number): void {
 /** World anchor points for the rig behind the coin. */
 export interface ApeAnchor { contactX: number; centre: Point; r: number }
 
+/** The dev sold: he lets go where he stands and throws his hands up at what is coming back down. */
+export function brace(a: ApeState, anchor: ApeAnchor): void {
+  a.braceX = anchor.contactX - anchor.r - 44 - a.slip.x;
+  a.mode = 'brace';
+  a.modeAge = 0;
+  a.lean.v -= 4;
+}
+
 /** Shared placement for the hips, planted soles and ankles, including the cashout hop. */
 export function apeFooting(a: ApeState, anchor: ApeAnchor) {
-  const baseX = anchor.contactX - anchor.r - 44 - a.slip.x;
+  const baseX = a.mode === 'brace' ? a.braceX : anchor.contactX - anchor.r - 44 - a.slip.x;
   // Average the footing beneath the body so entering the ramp does not snap the hips.
   const slope = Math.atan2(heightAt(baseX + 18) - heightAt(baseX - 18), 36);
   const along = { x: Math.cos(slope), y: Math.sin(slope) };
@@ -148,7 +159,9 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
   const head = add(shoulder, 24, 26);
   const handA = { x: anchor.centre.x - Math.cos(0.5) * anchor.r, y: anchor.centre.y + Math.sin(0.5) * anchor.r };
   const handB = { x: anchor.centre.x - Math.cos(0.12) * anchor.r, y: anchor.centre.y - Math.sin(0.12) * anchor.r };
-  const hands = boarding ? [add(hip, -20, 60), add(hip, 10, 64)] : [handA, handB];
+  const up = a.mode === 'brace' ? clamp(a.modeAge / 0.18, 0, 1) : 0;
+  const wave = Math.sin(a.time * 22) * 6 * up;
+  const hands = boarding ? [add(hip, -20, 60), add(hip, 10, 64)] : up > 0 ? [add(shoulder, -26 + wave, 60 * up + 10), add(shoulder, 10 - wave, 66 * up + 12)] : [handA, handB];
   // Far leg, far arm, body, near leg, head, near arm.
   // Knees bend uphill; elbows bend the other way in the y-up world frame.
   limb(add(hip, -6, 0), feet[0]!.ankle, 44, 44, 1, 16, FUR);

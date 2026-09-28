@@ -1,12 +1,14 @@
 /**
  * Composes Pump & Dump from the room state: the gym, the crowd, the bench
- * and everyone on or around it, the chalk, then the HUD. All motion is
- * stepped here with the real frame time, and nothing drawn here changes
- * the committed outcome.
+ * and everyone on or around it, the chalk, the poll on the phone, then the
+ * HUD, with the sound cued from what they do. All motion is stepped here
+ * with the real frame time, and nothing drawn here changes the committed
+ * outcome.
  */
 import { free } from '@crashwif/crash-math';
+import { pageAudio } from './audio';
 import { type Bench, PLATE_AT, benchHead, createBench, drawBench, dumpBar, rackBar, resetBench, settleBench, stepBench } from './bench';
-import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym } from './gym';
+import { type Gym, INK, cough, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym } from './gym';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 
 export interface SceneView {
@@ -25,7 +27,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake. */
+  /** Drops the screen shake, the hit-stop, the slow motion and the camera punch. */
   reducedMotion?: boolean;
 }
 
@@ -37,6 +39,12 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'dumped';
 type Secured = { x100: number; payout: number | null };
 const HECKLES = ['GO BRO', 'OILED UP', 'SHEEEESH', "HE'S HIM", 'GYATT', 'EGO LIFT', 'ALL NATTY?', 'CALL 911'];
+/** The drop's hit-stop and slow motion. */
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
+/** Where the phone overlay sits; the poll is drawn on its screen under the viewer count. */
+const PHONE = { x: 866, y: 44 } as const;
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -65,13 +73,46 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'HIS SPINE IS RUGGING';
 }
 
+/** The NATTY OR NOT poll on the phone: NOT wins more of it the higher the bar goes, and all of it once it comes down. */
+function drawPoll(ctx: CanvasRenderingContext2D, not: number, live: boolean, time: number, reduced: boolean): void {
+  ctx.save();
+  ctx.translate(PHONE.x, PHONE.y);
+  ctx.textBaseline = 'alphabetic';
+  // On the phone's screen (8 to 142 down), under the viewer count.
+  ctx.fillStyle = '#ffffff'; ctx.font = '900 11px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('NATTY?', 38, 66);
+  const rows: [string, number, string][] = [['YES', 1 - not, '#2e8b57'], ['NOT', not, '#e63946']];
+  for (const [i, [name, share, colour]] of rows.entries()) {
+    const y = 72 + i * 22;
+    ctx.fillStyle = '#14181f'; ctx.beginPath(); ctx.roundRect(10, y, 56, 14, 4); ctx.fill();
+    ctx.fillStyle = colour; ctx.beginPath(); ctx.roundRect(10, y, Math.max(5, 56 * share), 14, 4); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(`${name} ${Math.round(share * 100)}%`, 14, y + 11);
+  }
+  ctx.textAlign = 'center'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  if (!live || not > 0.985) {
+    const k = reduced ? 1 : 0.55 + 0.45 * Math.abs(Math.sin(time * 4));
+    ctx.fillStyle = `rgba(255, 120, 140, ${k})`;
+    ctx.fillText('SEC WATCHING', 38, 130);
+  } else if (not > 0.6) {
+    ctx.fillStyle = '#ffe27a';
+    ctx.fillText('SUS', 38, 130);
+  }
+  ctx.restore();
+}
+
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'hardstyle', crash: 'slam' });
   const gym: Gym = createGym();
   const bench: Bench = createBench();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch into the drop. */
+  const punch = spring(0);
+  /** The poll's NOT share. */
+  const natty = spring(0.12);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -80,6 +121,13 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let heckleAt = 0;
+  let freeze = 0;
+  let slow = 0;
+  /** The green of an accepted exit, fading. */
+  let flash = 0;
+  let clangAt = 0;
+  let clangs = 0;
+  let notified = false;
 
   /** The crash: the bar comes down on whoever is under it. `quiet` settles into a drop that already happened. */
   function drop(view: SceneView, multiplier: number, quiet: boolean): void {
@@ -87,20 +135,54 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (quiet) settleBench(bench, multiplier, secured !== null);
     dumpBar(bench, view.currentX100, quiet);
     finishGym(gym, outcome === 'called', quiet);
-    if (quiet) pop.x = 1;
-    else { shake = 1; pop.v = 16; puff(gym, { x: 480, y: 420 }, 14, '#ffffff', 3); }
+    if (quiet) {
+      pop.x = 1;
+      audio.crash('slam', true);
+      return;
+    }
+    // The bar is falling; everything else waits for it to land.
+    audio.fx('whoosh', 0.9);
+  }
+
+  /** The bar lands: the shake, the hit-stop and the slow motion, the punch-in, the chalk, the stinger. */
+  function impact(): void {
+    shake = 1;
+    pop.v = 16;
+    punch.v = 8;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    puff(gym, { x: 480, y: 420 }, 14, '#ffffff', 3);
+    heckle(gym, 'NOT NATTY', false);
+    audio.crash('slam');
+    audio.fx('scream', 0.8);
+    clangs = 0;
+    clangAt = time + 0.15;
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the drop runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) { audio.cashout(); flash = 1; }
+    }
 
     // A round met late (a first frame, which may land mid-round or after the crash, or a drop missed while the
     // tab was hidden) settles into place instead of playing out what it missed.
@@ -123,6 +205,9 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = null;
         secured = null;
         heckleAt = 0;
+        freeze = slow = 0;
+        notified = false;
+        settleSpring(natty, 0.12);
       }
       previous = view.phase;
     }
@@ -130,18 +215,35 @@ export function createScene(options: SceneOptions = {}): Scene {
       // The mirror's chart as far as the number has come: the crash point's time comes from the curve.
       settleTrail(gym, running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS, growth);
       settleSpring(badge, secured ? 1 : 0);
+      settleSpring(natty, running ? 0.12 + 0.88 * tension : 1);
+      notified = true;
     }
     if (secured && running) rackBar(bench);
+    audio.update(view.phase, tension);
 
     stepBench(bench, { running, multiplier, growth, tension }, dt);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: 0 }, dt);
-    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); if (!reduced) shake = Math.max(shake, 0.2); }
-    if (bench.events.rep && running && !reduced) shake = Math.max(shake, 0.05 + 0.2 * tension);
-    if (bench.events.racked) { puff(gym, { x: 480, y: 380 }, 16, '#ffffff', 1); heckle(gym, 'GYATT', true); }
-    if (bench.events.swapped) puff(gym, { x: 480, y: 400 }, 16, '#ffffff', 2);
+    if (bench.events.impact) impact();
+    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }
+    if (running) audio.milestone(PLATE_AT.filter((p) => multiplier >= p).length);
+    if (bench.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.05 + 0.2 * tension); audio.fx('chuff', 0.35 + 0.5 * tension); }
+    if (bench.events.racked) {
+      // Re-racked: a chalk cloud so big the crowd coughs, and the flex.
+      puff(gym, { x: 480, y: 370 }, 30, '#ffffff', 1, 1.7);
+      cough(gym);
+      heckle(gym, 'GYATT', true);
+      audio.fx('clang', 1);
+      audio.fx('spray', 0.9);
+    }
+    if (bench.events.swapped) { puff(gym, { x: 480, y: 400 }, 16, '#ffffff', 2); audio.fx('creak', 0.6); }
+    // Plates hitting the floor: a clang each, spaced out, and only the first few.
+    if (bench.events.bounce > 0 && bench.dumpAge > 0.12 && time > clangAt && clangs < 6) { clangAt = time + 0.12; clangs += 1; audio.fx('clang', 0.3 + 0.1 * Math.min(3, bench.events.bounce)); }
     if (running && tension > 0.5 && time > heckleAt) { heckleAt = time + 3.5; heckle(gym, HECKLES[Math.floor(time * 1.3) % HECKLES.length]!, false); }
+    stepSpring(natty, running ? 0.12 + 0.88 * tension : outcome ? 1 : 0.12, 3, 0.8, dt);
+    if (running && !notified && natty.x > 0.5) { notified = true; audio.fx('notify', 0.6); }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -149,16 +251,24 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
+    if (flash > 0) flash = Math.max(0, flash - real / 0.6);
 
+    const head = benchHead();
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the bar landing and eases back out.
+      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      ctx.translate(head.x, head.y);
+      ctx.scale(k, k);
+      ctx.translate(-head.x, -head.y);
+    }
     drawGymBack(ctx, gym, outcome !== null);
     drawGymCrowd(ctx, gym, outcome === 'called');
     drawGymFloor(ctx);
     drawBench(ctx, bench);
     drawPuffs(ctx, gym);
     if (outcome && pop.x > 0.02) {
-      const head = benchHead();
       ctx.save();
       ctx.translate(head.x, head.y - 60);
       ctx.rotate(-0.1);
@@ -169,7 +279,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
+    if (flash > 0.01) { ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * flash})`; ctx.fillRect(0, 0, 960, 540); }
     drawPhoneOverlay(ctx, gym, !outcome);
+    drawPoll(ctx, clamp(natty.x, 0, 1), !outcome, time, reduced);
 
     if (caption) {
       ctx.save();
@@ -182,7 +294,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
-      ctx.translate(480, 514 + Math.sin(time * 2) * 3);
+      // Under the caption, on the mirror: off the bench, where the re-rack and the flex are the beat.
+      ctx.translate(480, 118 + Math.sin(time * 2) * 3);
       ctx.rotate(-0.02);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);

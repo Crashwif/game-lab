@@ -1,19 +1,26 @@
 /**
  * The crowd: three bleacher rows of Wojak fans with foam fingers and signs,
- * a commentary booth, a bookie, and your supporter in the front row. The
- * crowd bobs harder as the tempo rises, does the wave at milestones, and at
- * the finish either cheers or puts its heads in its hands. An accepted exit
- * walks your supporter to the bookie for the bag and the shades.
+ * a commentary booth, a bookie with his live odds board on the wall, and your
+ * supporter in the front row. The crowd bobs harder as the tempo rises, does
+ * the wave at milestones, and at the finish either cheers or puts its heads
+ * in its hands. The odds shorten with the multiplier and every line it passes
+ * flips to VOID; the rest pay at the finish. An accepted exit walks your
+ * supporter to the bookie for the bag, the shades and a burst of confetti.
  */
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
 
 const INK = '#1c1f26';
-const SIGNS = ['LONG ONLY', 'HARD CAP', "DON'T PULL OUT EARLY", 'BLOW-OFF TOP', 'GM CHAMP', 'DEEP LIQUIDITY', 'UP ONLY', 'NO SOFT RUGS'];
+const SIGNS = ['LONG ONLY', 'HARD CAP', "DON'T PULL OUT EARLY", 'BLOW-OFF TOP', 'GM CHAMP', 'DEEP LIQUIDITY', 'UP ONLY', 'NO SOFT RUGS', 'SOLD A KIDNEY', 'WIFE IS SHORT', 'NGMI (HIM)', 'PUMP THEN DUMP'];
 const ROWS = [{ y: 262, scale: 1, count: 12 }, { y: 218, scale: 0.86, count: 13 }, { y: 180, scale: 0.74, count: 14 }];
 export const SUPPORTER = { row: 0, index: 5 };
 const BOOKIE_X = 904;
+/** The odds board on the wall under the booth, above the bookie's head, and the lines it takes. */
+export const ODDS = { x: 872, y: 112, w: 82, h: 78 };
+const LINES = [2, 5, 10, 20];
+const CONFETTI = 36;
 
 export type SupporterMode = 'seated' | 'walking' | 'collecting' | 'done';
+export interface Confetti { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour: string; spin: number }
 
 export interface CrowdState {
   time: number;
@@ -24,10 +31,14 @@ export interface CrowdState {
   hype: Spring;
   supporter: { mode: SupporterMode; x: number; modeAge: number; shades: Spring; ticket: boolean };
   bookiePop: Spring;
+  /** The board: which lines the number has passed, a bounce per row as it flips, and whether the rest have paid. */
+  odds: { voided: boolean[]; flips: Spring[]; paid: boolean };
+  confetti: Confetti[];
+  events: { collected: boolean; wave: boolean };
 }
 
 export function createCrowd(): CrowdState {
-  return { time: 0, cheer: 0, wave: -1, waveAt: 0, sulk: spring(0), hype: spring(0), supporter: { mode: 'seated', x: 0, modeAge: 0, shades: spring(0), ticket: true }, bookiePop: spring(0) };
+  return { time: 0, cheer: 0, wave: -1, waveAt: 0, sulk: spring(0), hype: spring(0), supporter: { mode: 'seated', x: 0, modeAge: 0, shades: spring(0), ticket: true }, bookiePop: spring(0), odds: { voided: LINES.map(() => false), flips: LINES.map(() => spring(0)), paid: false }, confetti: [], events: { collected: false, wave: false } };
 }
 
 function fanX(row: number, index: number): number {
@@ -41,6 +52,8 @@ export function resetCrowd(c: CrowdState): void {
   settleSpring(c.hype, 0);
   c.supporter = { mode: 'seated', x: fanX(SUPPORTER.row, SUPPORTER.index), modeAge: 0, shades: spring(0), ticket: true };
   settleSpring(c.bookiePop, 0);
+  c.odds = { voided: LINES.map(() => false), flips: LINES.map(() => spring(0)), paid: false };
+  c.confetti = [];
 }
 
 /** The exit was accepted: go and collect. */
@@ -51,23 +64,37 @@ export function collectWinnings(c: CrowdState): void {
 /** How loud the crowd is heading for: with the tension while the round runs, murmuring otherwise. */
 const cheerFor = (tension: number, running: boolean): number => (running ? 0.2 + 0.8 * tension : 0.05);
 
-/** Puts the crowd where a round met late leaves it: at the round's pitch, and your supporter already paid if you cashed out. */
-export function settleCrowd(c: CrowdState, tension: number, running: boolean, secured: boolean): void {
+/** The bookie's price on the champ finishing before `line` with the number at `multiplier`: shortens toward evens as it nears. */
+const oddsFor = (line: number, multiplier: number): number => Math.max(1.01, 1 + 1.4 * (line / multiplier - 1));
+
+/** Puts the crowd where a round met late leaves it: at the round's pitch, the board at the number, and your supporter already paid if you cashed out. */
+export function settleCrowd(c: CrowdState, tension: number, multiplier: number, running: boolean, secured: boolean): void {
   c.cheer = cheerFor(tension, running);
+  c.odds.voided = LINES.map((line) => multiplier >= line);
   if (secured) c.supporter = { mode: 'done', x: BOOKIE_X - 40, modeAge: 0, shades: spring(1), ticket: true };
 }
 
-/** The champ finished. */
+/** The champ finished: the lines he never reached pay out. */
 export function finishCrowd(c: CrowdState, cheerful: boolean, quiet: boolean): void {
   if (cheerful) { c.hype.v += quiet ? 0 : 12; settleSpring(c.hype, 1); }
   else settleSpring(c.sulk, quiet ? 1 : 0), (c.sulk.v += quiet ? 0 : 10);
   c.supporter.ticket = false;
+  c.odds.paid = true;
+  if (!quiet) for (const [i, flip] of c.odds.flips.entries()) if (!c.odds.voided[i]) flip.v += 14;
+}
+
+function celebrate(c: CrowdState, x: number, y: number): void {
+  for (let i = 0; i < CONFETTI; i += 1) {
+    const n = i * 3.1 + c.time;
+    c.confetti.push({ x, y, vx: (noise(n) - 0.5) * 320, vy: -160 - noise(n + 1) * 220, r: 2 + noise(n + 2) * 3, age: 0, life: 1.1 + noise(n + 3) * 0.7, colour: ['#7cf67c', '#ffe27a', '#ff5d9e', '#8fd3ff'][i % 4]!, spin: noise(n + 4) * 6 });
+  }
 }
 
 export function stepCrowd(c: CrowdState, tension: number, multiplier: number, beat: boolean, running: boolean, dt: number): void {
   c.time += dt;
+  c.events = { collected: false, wave: false };
   c.cheer += (cheerFor(tension, running) - c.cheer) * (1 - Math.exp(-dt / 0.8));
-  if (running && multiplier >= 3 && c.time > c.waveAt && c.wave < 0) { c.wave = 0; c.waveAt = c.time + 9; }
+  if (running && multiplier >= 3 && c.time > c.waveAt && c.wave < 0) { c.wave = 0; c.waveAt = c.time + 9; c.events.wave = true; }
   if (c.wave >= 0) { c.wave += dt / 1.6; if (c.wave > 1.3) c.wave = -1; }
   stepSpring(c.sulk, c.sulk.x > 0.5 ? 1 : 0, 6, 0.7, dt);
   stepSpring(c.hype, c.hype.x > 0.5 ? 1 : 0, 6, 0.7, dt);
@@ -75,13 +102,32 @@ export function stepCrowd(c: CrowdState, tension: number, multiplier: number, be
   s.modeAge += dt;
   if (s.mode === 'walking') {
     s.x = Math.min(BOOKIE_X - 40, s.x + 190 * dt);
-    if (s.x >= BOOKIE_X - 40) { s.mode = 'collecting'; s.modeAge = 0; c.bookiePop.v += 10; }
+    if (s.x >= BOOKIE_X - 40) {
+      s.mode = 'collecting';
+      s.modeAge = 0;
+      c.bookiePop.v += 10;
+      c.events.collected = true;
+      celebrate(c, BOOKIE_X - 34, ROWS[0]!.y - 50);
+    }
   } else if (s.mode === 'collecting') {
     if (s.modeAge > 0.8) { s.mode = 'done'; s.modeAge = 0; }
   } else if (s.mode === 'done') {
     stepSpring(s.shades, 1, 12, 0.5, dt);
   }
   stepSpring(c.bookiePop, 0, 8, 0.5, dt);
+  // The board: a line the number passes flips to VOID with a bounce.
+  for (const [i, line] of LINES.entries()) {
+    if (running && multiplier >= line && !c.odds.voided[i]) { c.odds.voided[i] = true; c.odds.flips[i]!.v += 14; }
+    stepSpring(c.odds.flips[i]!, 0, 10, 0.4, dt);
+  }
+  for (const p of c.confetti) {
+    p.age += dt;
+    p.vy += 420 * dt;
+    p.vx *= Math.exp(-1.5 * dt);
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
+  c.confetti = c.confetti.filter((p) => p.age < p.life);
   void beat;
 }
 
@@ -152,6 +198,53 @@ export function drawBleachers(ctx: CanvasRenderingContext2D): void {
   for (const [i, r] of ROWS.entries()) {
     ctx.beginPath(); ctx.roundRect(70 - i * 6, r.y - 2, 820 + i * 12, 30, 3); ctx.fill(); ctx.stroke();
   }
+}
+
+/** The bookie's board on the wall: a price per line that shortens with the number, VOID once passed, PAID at the finish. */
+export function drawOddsBoard(ctx: CanvasRenderingContext2D, c: CrowdState, multiplier: number, running: boolean, finished: boolean): void {
+  const { x, y, w } = ODDS;
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, ODDS.h, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = finished ? '#e63946' : '#ffe27a';
+  ctx.beginPath(); ctx.roundRect(x + 3, y + 3, w - 6, 13, 2); ctx.fill();
+  ctx.fillStyle = finished ? '#ffffff' : INK;
+  ctx.font = '900 10px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(finished ? 'SETTLED' : running ? 'LIVE ODDS' : 'FINISH BEFORE', x + w / 2, y + 10, w - 8);
+  for (const [i, line] of LINES.entries()) {
+    const ry = y + 26 + i * 15;
+    const voided = c.odds.voided[i] === true;
+    const paid = c.odds.paid && !voided;
+    const k = 1 + 0.35 * clamp(c.odds.flips[i]!.x, 0, 1.5);
+    ctx.save();
+    ctx.translate(x + w / 2, ry);
+    ctx.scale(k, k);
+    ctx.fillStyle = '#e7f4f0';
+    ctx.textAlign = 'left';
+    ctx.fillText(`<${line}×`, -w / 2 + 6, 0);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = voided ? '#ff4d6d' : paid ? '#7cf67c' : '#ffe27a';
+    const price = oddsFor(line, running || finished ? multiplier : 1);
+    ctx.fillText(voided ? 'VOID' : paid ? 'PAID' : price < 10 ? price.toFixed(2) : price.toFixed(1), w / 2 - 6, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** The cash-out confetti, in front of the crowd. */
+export function drawConfetti(ctx: CanvasRenderingContext2D, c: CrowdState): void {
+  for (const p of c.confetti) {
+    ctx.globalAlpha = clamp(1.5 * (1 - p.age / p.life), 0, 1);
+    ctx.fillStyle = p.colour;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.spin + p.age * 5);
+    ctx.fillRect(-p.r, -p.r * 0.5, p.r * 2, p.r);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
 }
 
 export function drawCrowd(ctx: CanvasRenderingContext2D, c: CrowdState, finished: boolean, cheerful: boolean): void {

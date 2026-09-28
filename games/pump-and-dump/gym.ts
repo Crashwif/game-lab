@@ -17,7 +17,7 @@ const TRAIL_POINTS = 900;
 
 export type Point = { x: number; y: number };
 export type FanKind = 'bro' | 'girl' | 'old' | 'big';
-export type Mood = 'calm' | 'hype' | 'shock' | 'sulk' | 'swoon';
+export type Mood = 'calm' | 'hype' | 'shock' | 'sulk' | 'swoon' | 'cough';
 
 export interface Fan {
   kind: FanKind;
@@ -48,14 +48,17 @@ export interface Gym {
   leaving: boolean;
   finished: boolean;
   viewers: number;
+  /** The crowd is coughing in the chalk until then. */
+  coughUntil: number;
 }
 
 const LINEUP: { kind: FanKind; x: number }[] = [
   { kind: 'bro', x: 150 }, { kind: 'girl', x: 250 }, { kind: 'big', x: 355 }, { kind: 'old', x: 600 }, { kind: 'girl', x: 700 }, { kind: 'bro', x: 800 },
 ];
+const COUGHS = ['*COUGH*', 'CANT SEE', '*HACK*', 'MY LUNGS'];
 
 export function createGym(): Gym {
-  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, leaving: false, finished: false, viewers: 69 };
+  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, leaving: false, finished: false, viewers: 69, coughUntil: 0 };
 }
 
 export function resetGym(g: Gym): void {
@@ -71,6 +74,17 @@ export function resetGym(g: Gym): void {
   g.swoonUntil = 0;
   g.leaving = false;
   g.finished = false;
+  g.coughUntil = 0;
+}
+
+/** A chalk cloud so big the crowd coughs: phones come down, and a few of them say so, one after another. */
+export function cough(g: Gym): void {
+  g.coughUntil = g.time + 1.9;
+  let n = 0;
+  for (const f of g.fans) {
+    if (f.gone || f.bubble || n >= 4) continue;
+    if (noise(f.seed * 2.1 + g.time) > 0.3) { f.bubble = { text: COUGHS[n]!, age: -0.25 * n - 0.3, pop: spring(0) }; n += 1; }
+  }
 }
 
 /** A shout from the crowd: a girl when `girls` is set, otherwise whoever is free. */
@@ -96,11 +110,12 @@ export function walkOut(g: Gym, age = 0): void {
   }
 }
 
-/** A chalk cloud (or any cloud) at a point. */
-export function puff(g: Gym, at: Point, count: number, colour: string, seedOffset = 0): void {
+/** A chalk cloud (or any cloud) at a point; `scale` makes a bigger, slower, longer one. Never more than 64 puffs alive. */
+export function puff(g: Gym, at: Point, count: number, colour: string, seedOffset = 0, scale = 1): void {
   for (let i = 0; i < count; i += 1) {
+    if (g.puffs.length >= 64) return;
     const n = i * 1.7 + seedOffset;
-    g.puffs.push({ x: at.x + (noise(n) - 0.5) * 40, y: at.y + (noise(n + 1) - 0.5) * 30, vx: (noise(n + 2) - 0.5) * 120, vy: -20 - noise(n + 3) * 60, r: 8 + noise(n + 4) * 14, age: 0, life: 0.9 + noise(n + 5) * 0.6, colour });
+    g.puffs.push({ x: at.x + (noise(n) - 0.5) * 40 * scale, y: at.y + (noise(n + 1) - 0.5) * 30, vx: (noise(n + 2) - 0.5) * 120 * scale, vy: -20 - noise(n + 3) * 60 * scale, r: (8 + noise(n + 4) * 14) * scale, age: 0, life: (0.9 + noise(n + 5) * 0.6) * scale, colour });
   }
 }
 
@@ -136,11 +151,12 @@ export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
       g.trail.push(trailPoint(drive.elapsed, drive.growth));
     }
   }
+  const coughing = g.time < g.coughUntil;
   for (const f of g.fans) {
-    stepSpring(f.phone, (drive.running && drive.tension > 0.3) || (g.finished && g.hype.x > 0.5) ? 1 : 0, 6, 0.7, dt);
+    stepSpring(f.phone, !coughing && ((drive.running && drive.tension > 0.3) || (g.finished && g.hype.x > 0.5)) ? 1 : 0, 6, 0.7, dt);
     if (f.bubble) {
       f.bubble.age += dt;
-      stepSpring(f.bubble.pop, f.bubble.age < 1.6 ? 1 : 0, 14, 0.5, dt);
+      stepSpring(f.bubble.pop, f.bubble.age >= 0 && f.bubble.age < 1.6 ? 1 : 0, 14, 0.5, dt);
       if (f.bubble.age > 2) f.bubble = null;
     }
     if (g.leaving && f.kind === 'girl' && !f.gone) {
@@ -303,6 +319,9 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
   const arm = (ax: number, ay: number, bx: number, by: number) => { ctx.strokeStyle = INK; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 11; ctx.stroke(); };
   if (mood === 'shock' || mood === 'sulk') {
     arm(-w, -120, -16, -170); arm(w, -120, 16, -170);
+  } else if (mood === 'cough') {
+    // Doubled over in the chalk: one hand over the mouth, the other waving it away.
+    arm(-w, -120, -w - 14 + Math.sin(g.time * 16 + f.seed) * 6, -132); arm(w, -120, 10, -150);
   } else {
     arm(-w, -120, -w - 8, -78);
     const hx = mix(w + 6, w - 4, phone);
@@ -318,16 +337,16 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
   const hy = f.kind === 'girl' ? -158 : -160;
   ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.ellipse(0, hy, 20, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  const eye = mood === 'shock' ? 1.6 : mood === 'swoon' ? 0.4 : 1;
+  const eye = mood === 'shock' ? 1.6 : mood === 'swoon' ? 0.4 : mood === 'cough' ? 0.15 : 1;
   for (const ex of [-7, 7]) {
     ctx.beginPath(); ctx.ellipse(ex, hy - 4, 4, 4 * eye, 0, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke();
     if (mood === 'swoon') heart(ctx, ex, hy - 4, 4.5, '#ff4d6d');
-    else { ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ex, hy - 3, 1.9, 0, Math.PI * 2); ctx.fill(); }
+    else if (mood !== 'cough') { ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ex, hy - 3, 1.9, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath();
   if (mood === 'hype' || mood === 'swoon') { ctx.ellipse(0, hy + 10, 5, 5, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
-  else if (mood === 'shock') { ctx.ellipse(0, hy + 11, 4, 6, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
+  else if (mood === 'shock' || mood === 'cough') { ctx.ellipse(0, hy + 11, 4, 6, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
   else if (mood === 'sulk') { ctx.moveTo(-6, hy + 13); ctx.quadraticCurveTo(0, hy + 7, 6, hy + 13); }
   else { ctx.moveTo(-6, hy + 9); ctx.quadraticCurveTo(0, hy + 13, 6, hy + 9); }
   ctx.stroke();
@@ -370,7 +389,7 @@ export function drawGymCrowd(ctx: CanvasRenderingContext2D, g: Gym, cheerful: bo
     let bob = Math.max(0, Math.sin(phase)) * 6 * g.cheer;
     if (g.hype.x > 0.05) bob += Math.max(0, Math.sin(g.time * 10 + i)) * 14 * g.hype.x;
     const swooning = g.time < g.swoonUntil && f.kind === 'girl';
-    const mood: Mood = g.finished ? (g.shock > 0 ? 'shock' : cheerful ? 'hype' : 'sulk') : swooning ? 'swoon' : g.cheer > 0.7 ? 'hype' : 'calm';
+    const mood: Mood = g.finished ? (g.shock > 0 ? 'shock' : cheerful ? 'hype' : 'sulk') : g.time < g.coughUntil ? 'cough' : swooning ? 'swoon' : g.cheer > 0.7 ? 'hype' : 'calm';
     drawFan(ctx, f, g, mood, bob);
   }
   for (const h of g.hearts) {

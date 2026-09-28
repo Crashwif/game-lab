@@ -1,11 +1,13 @@
 /**
  * Composes OnlyFrens from the room state: the stream, the chat, the simps,
- * then the HUD over the video. All motion is stepped here with the real
- * frame time, and nothing drawn here changes the committed outcome.
+ * then the HUD over the video, with the sound cued from what they do. All
+ * motion is stepped here with the real frame time, and nothing drawn here
+ * changes the committed outcome.
  */
-import { type Chat, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
+import { pageAudio } from './audio';
+import { type Chat, GOALS, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
-import { INK, type Stream, VIDEO, celebrate, createStream, drawStream, endStream, resetStream, stepStream } from './stream';
+import { INK, type Stream, VIDEO, cashFlash, celebrate, createStream, drawStream, endStream, resetStream, stepStream } from './stream';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -23,7 +25,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake, the LED pulse and the static. */
+  /** Drops the screen shake, the LED pulse, the door rattle, the freeze frame and the static. */
   reducedMotion?: boolean;
 }
 
@@ -34,6 +36,8 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 /** A longer wait between frames than this (a hidden tab, a throttled frame) is time the scene did not see. */
 const GAP_MS = 1000;
+/** The feed cuts to static this long after the door opens; the stinger lands with the cut, not the door. */
+const CUT_S = 0.9;
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
@@ -66,6 +70,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'synthwave', crash: 'static' });
   const stream: Stream = createStream();
   const chat: Chat = createChat();
   const pop = spring(0);
@@ -78,6 +83,12 @@ export function createScene(options: SceneOptions = {}): Scene {
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
+  /** The door has opened but the feed has not cut yet: the stinger is still to come. */
+  let cutPending = false;
+  let tipSoundAt = 0;
+  let creakAt = 0;
+  let creaked = false;
+  let simpMode = chat.simp.mode;
 
   /**
    * Puts in place what a stretch the scene did not see left behind: the goal ladder and the bags at
@@ -87,6 +98,22 @@ export function createScene(options: SceneOptions = {}): Scene {
     settleChat(chat, multiplier);
     stream.bags = Math.min(9, chat.goalIndex);
     if (secured) { unsubscribe(chat, true); settleSpring(badge, 1); }
+  }
+
+  /** The boyfriend reveal. `quiet` is a crash met late: the aftermath in place, no door, no cut, no stinger. */
+  function reveal(view: SceneView, quiet: boolean): void {
+    endStream(stream, view.currentX100, quiet);
+    floodChat(chat, outcome === 'called', quiet);
+    if (quiet) {
+      pop.x = 1;
+      audio.crash('static', true);
+      return;
+    }
+    shake = 1;
+    pop.v = 16;
+    cutPending = true;
+    audio.fx('door', 1);
+    audio.fx('gasp', 0.8);
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
@@ -99,7 +126,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) { audio.cashout(); cashFlash(stream); }
+    }
     const ending: Outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
 
     // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
@@ -111,25 +141,22 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (running || crashed) settle(multiplier);
       if (crashed) {
         outcome = ending;
-        endStream(stream, view.currentX100, true);
-        floodChat(chat, outcome === 'called', true);
-        pop.x = 1;
+        reveal(view, true);
       }
     } else if (view.phase !== previous) {
       if (crashed && !stream.ended) {
         const quiet = view.crashAge > 1500;
         outcome = ending;
         if (quiet || gap) settle(multiplier);
-        endStream(stream, view.currentX100, quiet);
-        floodChat(chat, outcome === 'called', quiet);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        reveal(view, quiet);
       }
       if (view.phase === 'betting') {
         resetStream(stream);
         resetChat(chat);
         outcome = null;
         secured = null;
+        cutPending = false;
+        creaked = false;
       }
       previous = view.phase;
     }
@@ -137,10 +164,25 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (gap && running) settle(multiplier);
     // An exit that landed with the crash, before a running frame saw it, still closes the tab.
     if (secured) unsubscribe(chat);
+    audio.update(view.phase, tension);
 
     const reached = stepChat(chat, { running, multiplier, tension }, dt);
-    if (reached) { celebrate(stream, chat.goalIndex); if (!reduced) shake = Math.max(shake, 0.2); }
+    if (reached) { celebrate(stream, chat.goalIndex); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('kaching', 0.8); }
+    if (running) audio.milestone(GOALS.filter((g) => multiplier >= g).length);
+    // Tips register, never more than a couple a second however fast the chat runs.
+    if (running && chat.events.tip && time > tipSoundAt) { tipSoundAt = time + 0.45; audio.fx('notify', 0.45 + 0.3 * tension); }
     stepStream(stream, { running, tension, multiplier, reduced }, dt);
+    // The handle creaks each time it works round, at most one every couple of seconds.
+    if (running && !stream.ended) {
+      if (stream.handle.x > 0.45 && !creaked && time > creakAt) { creaked = true; creakAt = time + 1.8; audio.fx('creak', 0.6 + 0.3 * tension); }
+      else if (stream.handle.x < 0.25) creaked = false;
+    }
+    if (cutPending && stream.endAge >= CUT_S) { cutPending = false; audio.crash('static'); }
+    if (chat.simp.mode !== simpMode) {
+      simpMode = chat.simp.mode;
+      if (simpMode === 'closing') audio.fx('click', 0.8);
+      if (simpMode === 'walking') audio.fx('whoosh', 0.7);
+    }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
@@ -154,16 +196,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     const viewers = Math.round(420 + 300 * (Math.pow(multiplier, 1.5) - 1));
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
-    drawStream(ctx, stream, tension, reduced);
+    drawStream(ctx, stream, tension, reduced, multiplier);
     drawSimps(ctx, chat, tension, outcome !== null, outcome === 'called');
     if (outcome && pop.x > 0.02 && stream.endAge > 0.5) {
       ctx.save();
-      ctx.translate(VIDEO.w / 2, 330);
+      // Right of centre, clear of the monitor where her short just closed.
+      ctx.translate(VIDEO.w / 2 + 50, 330);
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
       const text = outcome === 'rekt' ? 'RUGGED' : outcome === 'called' ? 'CALLED IT' : 'REVEAL';
-      memeText(ctx, text, 0, 0, 84, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      memeText(ctx, text, 0, 0, 80, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
       ctx.restore();
     }
     ctx.restore();

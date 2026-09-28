@@ -14,6 +14,21 @@ export type Point = { x: number; y: number };
 
 export type BagLabel = 'HOPIUM' | 'COPIUM' | 'RUGGED';
 export type PatientMode = 'bed' | 'unplugging' | 'dressing' | 'walking' | 'gone';
+/** What happened this step, for the scene's sound and camera: each is true for one frame. */
+export interface WardEvents { roommate: boolean; wife: boolean; wifeLeave: boolean; walk: boolean; cart: boolean; clear: boolean; zap: boolean; tod: boolean }
+
+/** The resuscitation, in seconds after the flatline: two CLEARs and shocks, the paddles down, the sheet, the time of death. */
+const SHOCKS = [1.15, 2.05] as const;
+const CLEAR_LEAD = 0.35;
+const PADDLES_DOWN = 2.8;
+const SHEET_AT = 3.1;
+export const TOD_AT = 3.5;
+/** Where the crash cart parks by the bed, and where it waits off the right edge. */
+const CART_IN = 596;
+const CART_OUT = 730;
+/** Where the wife stands, and where she waits outside the door. */
+const WIFE_X = 72;
+const WIFE_OUT = -90;
 
 interface Drop { y: number; age: number }
 interface Petal { x: number; y: number; vx: number; vy: number; rot: number; age: number }
@@ -48,6 +63,23 @@ export interface Ward {
   deathX100: number;
   shock: Spring;
   lights: number;
+  /** The crash cart (in past 4×, or with the crash), the paddles in the doctor's hands, his lunge at the laptop, the clipboard he drops. */
+  cartX: Spring;
+  cartIn: boolean;
+  paddles: Spring;
+  lunge: Spring;
+  clipDrop: Spring;
+  /** Shocks given, and how long since the last CLEAR and the last zap. */
+  shocks: number;
+  clearAge: number;
+  zapAge: number;
+  clearPop: Spring;
+  /** The wife at the door with the papers: where she stands, whether she has come in, what the papers say and for how long. */
+  wifeX: Spring;
+  wifeIn: boolean;
+  wifeMood: 'papers' | 'signed' | 'nvm';
+  moodAge: number;
+  events: WardEvents;
 }
 
 /** One per dose, short enough to sit inside the clipboard: the first lands with the first dose, the ninth with the ninth. */
@@ -61,6 +93,10 @@ export function createWard(): Ward {
     curtain: spring(0), roommateGone: spring(0), roommateFlat: false,
     patient: { mode: 'bed', x: 300, modeAge: 0, suit: spring(0), balloon: spring(0) },
     dead: false, deadAge: 0, sheet: spring(0), deathX100: 100, shock: spring(0), lights: 0,
+    cartX: spring(CART_OUT), cartIn: false, paddles: spring(0), lunge: spring(0), clipDrop: spring(0),
+    shocks: 0, clearAge: 9, zapAge: 9, clearPop: spring(0),
+    wifeX: spring(WIFE_OUT), wifeIn: false, wifeMood: 'papers', moodAge: 9,
+    events: { roommate: false, wife: false, wifeLeave: false, walk: false, cart: false, clear: false, zap: false, tod: false },
   };
 }
 
@@ -71,6 +107,9 @@ export function resetWard(w: Ward): void {
   settleSpring(w.curtain, 0); settleSpring(w.roommateGone, 0); w.roommateFlat = false;
   w.patient = { mode: 'bed', x: 300, modeAge: 0, suit: spring(0), balloon: spring(0) };
   w.dead = false; w.deadAge = 0; settleSpring(w.sheet, 0); w.deathX100 = 100; settleSpring(w.shock, 0); w.lights = 0;
+  settleSpring(w.cartX, CART_OUT); w.cartIn = false; settleSpring(w.paddles, 0); settleSpring(w.lunge, 0); settleSpring(w.clipDrop, 0);
+  w.shocks = 0; w.clearAge = 9; w.zapAge = 9; settleSpring(w.clearPop, 0);
+  settleSpring(w.wifeX, WIFE_OUT); w.wifeIn = false; w.wifeMood = 'papers'; w.moodAge = 9;
 }
 
 /** Jumps the ward to where a running round already is, for a round met late (a reconnect mid-round). */
@@ -82,6 +121,8 @@ export function settleWard(w: Ward, tension: number, doses: number): void {
   w.noteIndex = Math.min(NOTES.length, doses) - 1;
   if (tension > 0.55) { w.roommateFlat = true; settleSpring(w.roommateGone, 1); settleSpring(w.curtain, 1); }
   if (doses >= 4) { w.label = 'COPIUM'; settleSpring(w.swap, 0); }
+  if (tension > 0.6) { w.cartIn = true; settleSpring(w.cartX, CART_IN); }
+  if (tension >= 0.7) { w.wifeIn = true; settleSpring(w.wifeX, WIFE_X); }
 }
 
 /** A dose milestone: the patient twitches and leans in, the doctor writes, the nurse may swap the bag. */
@@ -116,6 +157,9 @@ export function flatline(w: Ward, crashX100: number, quiet: boolean): void {
   if (quiet) {
     settleSpring(w.sheet, 1); settleSpring(w.level, 0); settleSpring(w.doctorLean, 1);
     settleSpring(w.lean, 0); settleSpring(w.typing, 0); settleSpring(w.pupil, 1); settleSpring(w.eyeOpen, 0.05); settleSpring(w.wilt, 1);
+    // The resuscitation already happened: the cart is by the bed, the paddles are down, the clipboard is on the floor.
+    w.cartIn = true; settleSpring(w.cartX, CART_IN); settleSpring(w.clipDrop, 1); w.shocks = SHOCKS.length;
+    if (w.wifeIn) w.wifeMood = 'signed';
     return;
   }
   w.shock.v += 8;
@@ -125,6 +169,8 @@ export function flatline(w: Ward, crashX100: number, quiet: boolean): void {
 export interface WardDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
 
 export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
+  const e = w.events;
+  e.roommate = e.wife = e.wifeLeave = e.walk = e.cart = e.clear = e.zap = e.tod = false;
   w.time += dt;
   const t = drive.tension;
   const alive = !w.dead && w.patient.mode === 'bed';
@@ -151,21 +197,51 @@ export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   }
   for (const p of w.petals) { p.age += dt; p.x += p.vx * dt + Math.sin(p.age * 4) * 12 * dt; p.y += (p.vy + 40 * p.age) * dt; p.rot += dt * 2; }
   w.petals = w.petals.filter((p) => p.y < 400);
-  if (!w.roommateFlat && drive.running && t > 0.55) w.roommateFlat = true;
+  if (!w.roommateFlat && drive.running && t > 0.55) { w.roommateFlat = true; e.roommate = true; }
   stepSpring(w.curtain, w.roommateFlat ? 1 : 0, 3, 0.9, dt);
   stepSpring(w.roommateGone, w.roommateFlat && w.curtain.x > 0.8 ? 1 : 0, 2.5, 1, dt);
   const p = w.patient;
   p.modeAge += dt;
   if (p.mode === 'unplugging' && p.modeAge > 0.8) { p.mode = 'dressing'; p.modeAge = 0; }
   if (p.mode === 'dressing' && p.modeAge > 0.9) { p.mode = 'walking'; p.modeAge = 0; }
-  if (p.mode === 'walking') { p.x += 150 * dt; if (p.x > WARD.w + 80) { p.mode = 'gone'; p.modeAge = 0; } }
+  if (p.mode === 'walking') { p.x += 150 * dt; if (p.x > WARD.w + 80) { p.mode = 'gone'; p.modeAge = 0; e.walk = true; } }
   stepSpring(p.suit, p.mode === 'dressing' || p.mode === 'walking' || p.mode === 'gone' ? 1 : 0, 10, 0.5, dt);
   stepSpring(p.balloon, p.mode === 'walking' || p.mode === 'gone' ? 1 : 0, 6, 0.6, dt);
+  // The crash cart rolls in past 4× "just in case", or with the crash if it is not there yet; it overshoots and settles.
+  if (!w.cartIn && ((drive.running && alive && t > 0.6) || w.dead)) { w.cartIn = true; e.cart = true; }
+  stepSpring(w.cartX, w.cartIn ? CART_IN : CART_OUT, 5, 0.55, dt);
+  // The wife comes in past 5× with the papers, signs them at the death, and lets it go if he walks out.
+  if (!w.wifeIn && drive.running && alive && t >= 0.7) { w.wifeIn = true; e.wife = true; w.moodAge = 0; }
+  w.moodAge += dt;
+  const walkedOut = p.mode === 'dressing' || p.mode === 'walking' || p.mode === 'gone';
+  if (w.wifeIn && walkedOut && w.wifeMood === 'papers') { w.wifeMood = 'nvm'; w.moodAge = 0; e.wifeLeave = true; }
+  const wifeHere = w.wifeIn && !(w.wifeMood === 'nvm' && w.moodAge > 1.3);
+  stepSpring(w.wifeX, wifeHere ? WIFE_X : WIFE_OUT, 4, 0.75, dt);
+  w.clearAge += dt;
+  w.zapAge += dt;
   if (w.dead) {
+    const was = w.deadAge;
     w.deadAge += dt;
-    stepSpring(w.sheet, w.deadAge > 1.2 ? 1 : 0, 6, 0.9, dt);
-    stepSpring(w.shock, w.deadAge < 2 ? 1 : 0, 8, 0.8, dt);
+    const crossed = (at: number): boolean => was <= at && w.deadAge > at;
+    // The resuscitation: the paddles come up, CLEAR, a shock, CLEAR, a shock, then the sheet and the time of death.
+    for (const at of SHOCKS) {
+      if (crossed(at - CLEAR_LEAD)) { w.clearAge = 0; w.clearPop.v = 12; e.clear = true; }
+      if (crossed(at)) { w.shocks += 1; w.zapAge = 0; w.twitch.v += 26; w.lean.v += 9; w.eyeOpen.v += 20; e.zap = true; }
+    }
+    if (crossed(TOD_AT)) e.tod = true;
+    if (w.wifeIn && crossed(0.6)) { w.wifeMood = 'signed'; w.moodAge = 0; }
+    const working = w.deadAge > 0.45 && w.deadAge < PADDLES_DOWN;
+    stepSpring(w.paddles, working ? 1 : 0, 9, 0.6, dt);
+    stepSpring(w.lunge, working && w.deadAge > 0.8 ? 1 : 0, 7, 0.55, dt);
+    stepSpring(w.clipDrop, 1, 6, 1, dt);
+    stepSpring(w.sheet, w.deadAge > SHEET_AT ? 1 : 0, 6, 0.9, dt);
+    stepSpring(w.shock, w.deadAge < PADDLES_DOWN ? 1 : 0, 8, 0.8, dt);
+  } else {
+    stepSpring(w.paddles, 0, 9, 0.6, dt);
+    stepSpring(w.lunge, 0, 7, 0.55, dt);
+    stepSpring(w.clipDrop, 0, 6, 1, dt);
   }
+  stepSpring(w.clearPop, 0, 12, 0.4, dt);
 }
 
 /** Two-bone joint. Longer bones than the reach make the knee or elbow stick out; `side` picks the direction. */
@@ -302,13 +378,160 @@ function cannula(w: Ward, tension: number): { elbow: Point; hand: Point } | null
   return { elbow: map(bendJoint({ x: -22, y: -96 }, hand, 50, 46, 1)), hand: map(hand) };
 }
 
-/** The doctor at the foot of the bed with the clipboard. */
-function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
+/** The clipboard with the chart's notes: in the doctor's hand, or where he dropped it. */
+function drawClipboard(ctx: CanvasRenderingContext2D, w: Ward, x: number, y: number, rot: number): void {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rot);
+  ctx.fillStyle = '#c9a26b'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(-34, -30, 68, 80, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-29, -22, 58, 66, 2); ctx.fill();
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.roundRect(-14, -36, 28, 12, 3); ctx.fill();
+  ctx.fillStyle = '#e63946'; ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('CHART', -25, -10);
+  ctx.fillStyle = INK; ctx.font = '600 8px system-ui, sans-serif';
+  // The last five notes, or four once the time of death takes the bottom line. They stop short of the pen hand.
+  const tod = w.dead && w.deadAge > TOD_AT;
+  const last = tod ? 3 : 4;
+  for (let i = 0; i <= Math.min(w.noteIndex, last); i += 1) {
+    const idx = Math.max(0, w.noteIndex - last) + i;
+    ctx.fillStyle = idx >= 5 ? '#e63946' : INK;
+    ctx.fillText(`· ${NOTES[idx] ?? ''}`, -27, 2 + i * 9, 50);
+  }
+  if (tod) { ctx.fillStyle = '#e63946'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.fillText(`TOD ${(w.deathX100 / 100).toFixed(2)}×`, -25, 42); }
+  ctx.restore();
+}
+
+/** One defibrillator paddle in a hand: the plate, the grip, and the charge light. */
+function drawPaddle(ctx: CanvasRenderingContext2D, x: number, y: number, up: number, charged: boolean): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.5 * up);
+  ctx.fillStyle = '#3a3f4a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-6, -4, 12, 30, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#c9d6dc';
+  ctx.beginPath(); ctx.roundRect(-16, -36, 32, 34, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = charged ? '#ff4d6d' : '#7a1f28';
+  ctx.beginPath(); ctx.arc(0, -2, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = INK; ctx.font = '900 7px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('BUY', 0, -24); ctx.fillText('THE DIP', 0, -14);
+  ctx.restore();
+}
+
+/** The crash cart by the bed: a red cabinet on wheels with the defibrillator on top and the cables to the paddles. */
+function drawCart(ctx: CanvasRenderingContext2D, w: Ward, charged: boolean): void {
+  const x = w.cartX.x;
+  if (x > WARD.w + 60) return;
+  ctx.save();
+  ctx.translate(x, 470);
+  ctx.lineJoin = 'round';
+  for (const wx of [-24, 24]) { ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(wx, 2, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle = '#c8323f'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(-34, -70, 68, 66, 4); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(28,31,38,0.35)'; ctx.lineWidth = 2;
+  for (const dy of [-48, -26]) { ctx.beginPath(); ctx.moveTo(-30, dy); ctx.lineTo(30, dy); ctx.stroke(); }
+  ctx.fillStyle = '#ffe27a'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('BUY THE DIP', 0, -55);
+  ctx.fillStyle = '#ffffff'; ctx.font = '700 7px system-ui, sans-serif';
+  ctx.fillText('CRASH CART', 0, -34);
+  ctx.fillText('(1 use left)', 0, -12);
+  // The unit on top: a screen that reads the charge.
+  ctx.fillStyle = '#d7dde8'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-28, -96, 56, 26, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = charged ? '#ff4d6d' : '#0f1b22';
+  ctx.beginPath(); ctx.roundRect(-22, -91, 30, 16, 2); ctx.fill();
+  ctx.fillStyle = charged ? '#ffffff' : '#7cf67c'; ctx.font = '900 8px Impact, "Arial Black", sans-serif';
+  ctx.fillText(charged ? 'CHARGED' : '200 J', -7, -80);
+  ctx.fillStyle = charged ? '#ffe27a' : '#3a3f4a'; ctx.beginPath(); ctx.arc(18, -83, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+/** The wife at the door with the papers: arms folded round an envelope, a tapping foot, and the stamp once it is over. */
+function drawWife(ctx: CanvasRenderingContext2D, w: Ward): void {
+  const x = w.wifeX.x;
+  if (x < WIFE_OUT + 10) return;
+  ctx.save();
+  ctx.translate(x, 470);
+  ctx.lineJoin = 'round';
+  const skin = '#e7c3a5';
+  const tap = w.wifeMood === 'papers' ? Math.max(0, Math.sin(w.time * 7)) * 5 : 0;
+  // Legs and shoes; the near foot taps.
+  for (const side of [-1, 1]) {
+    const lift = side > 0 ? tap : 0;
+    limb(ctx, { x: side * 9, y: -80 }, { x: side * 11, y: -lift }, 46, 42, -side, 12, skin);
+    ctx.fillStyle = '#5a1e5a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(side * 11, 3 - lift, 10, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  // Dress.
+  ctx.fillStyle = '#7b2d8b'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-36, -76); ctx.lineTo(36, -76); ctx.lineTo(24, -160); ctx.lineTo(-24, -160); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Arms folded across, holding the envelope.
+  limb(ctx, { x: -22, y: -152 }, { x: 18, y: -118 }, 30, 28, 1, 11, skin);
+  limb(ctx, { x: 22, y: -152 }, { x: -18, y: -122 }, 30, 28, -1, 11, skin);
+  // The envelope.
+  ctx.save();
+  ctx.translate(0, -126); ctx.rotate(-0.12);
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-30, -12, 60, 24, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e63946'; ctx.font = '900 8px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  if (w.wifeMood === 'signed') {
+    // The stamp takes the envelope; the title shrinks to its corner.
+    ctx.font = '900 6px Impact, "Arial Black", sans-serif';
+    ctx.fillText('DIVORCE PAPERS', 0, -5);
+    ctx.rotate(-0.2);
+    ctx.strokeStyle = '#e63946'; ctx.lineWidth = 2;
+    ctx.strokeRect(-22, -2, 44, 13);
+    ctx.font = '900 10px Impact, "Arial Black", sans-serif';
+    ctx.fillText('SIGNED', 0, 8);
+  } else {
+    ctx.fillText('DIVORCE', 0, -2); ctx.fillText('PAPERS', 0, 8);
+  }
+  ctx.restore();
+  // Head, bun, brows.
+  const hy = -190;
+  ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(0, hy, 22, 25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#3a2418';
+  ctx.beginPath(); ctx.moveTo(-23, hy - 6); ctx.quadraticCurveTo(-20, hy - 32, 0, hy - 30); ctx.quadraticCurveTo(20, hy - 32, 23, hy - 6); ctx.quadraticCurveTo(0, hy - 16, -23, hy - 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, hy - 32, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(-8, hy - 2, 2.2, 0, Math.PI * 2); ctx.arc(8, hy - 2, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  const nvm = w.wifeMood === 'nvm';
+  ctx.beginPath();
+  if (nvm) { ctx.moveTo(-14, hy - 12); ctx.lineTo(-4, hy - 10); ctx.moveTo(4, hy - 10); ctx.lineTo(14, hy - 12); }
+  else { ctx.moveTo(-14, hy - 14); ctx.lineTo(-4, hy - 9); ctx.moveTo(4, hy - 9); ctx.lineTo(14, hy - 14); }
+  ctx.stroke();
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  if (nvm) ctx.arc(0, hy + 8, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+  else { ctx.moveTo(-7, hy + 12); ctx.lineTo(7, hy + 12); }
+  ctx.stroke();
+  // Earrings, and what she says.
+  ctx.fillStyle = '#ffe27a'; ctx.beginPath(); ctx.arc(-21, hy + 6, 2.5, 0, Math.PI * 2); ctx.arc(21, hy + 6, 2.5, 0, Math.PI * 2); ctx.fill();
+  if (w.moodAge < 1.6 && (w.wifeMood === 'nvm' || (w.wifeMood === 'papers' && w.wifeIn))) {
+    const text = w.wifeMood === 'nvm' ? 'nvm, love u' : 'sign here.';
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.font = '700 11px system-ui, sans-serif';
+    const bw = ctx.measureText(text).width + 18;
+    ctx.beginPath(); ctx.roundRect(-bw / 2 + 10, hy - 68, bw, 24, 6); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, hy - 44); ctx.lineTo(16, hy - 44); ctx.lineTo(8, hy - 34); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; ctx.textAlign = 'center';
+    ctx.fillText(text, 10, hy - 52);
+  }
+  ctx.restore();
+}
+
+/** The doctor at the foot of the bed with the clipboard, or lunging at the laptop with the paddles. Returns the paddles' positions when they are up. */
+function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): Point[] {
   const lean = clamp(w.doctorLean.x, 0, 1);
   const pen = clamp(w.doctorPen.x, -1, 1);
+  const up = clamp(w.paddles.x, 0, 1.1);
+  const lunge = clamp(w.lunge.x, 0, 1.1);
+  const charged = up > 0.6;
+  const paddles: Point[] = [];
   ctx.save();
-  ctx.translate(520, 470);
-  ctx.rotate(-0.12 * lean);
+  ctx.translate(520 - 45 * lunge, 470);
+  ctx.rotate(-0.12 * lean - 0.16 * lunge);
   ctx.translate(Math.sin(w.time * 1.3) * 2, 0);
   ctx.lineJoin = 'round';
   // Legs, shoes, and a coat hem that shifts as he leans in to write.
@@ -333,32 +556,28 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-16, -216); ctx.quadraticCurveTo(-20 + sway, -170, 6 + sway * 0.45, -160); ctx.stroke();
   ctx.fillStyle = '#9aa7b5'; ctx.beginPath(); ctx.arc(8 + sway * 0.45, -158, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // Arms and the clipboard.
-  limb(ctx, { x: -40, y: -205 }, { x: -46, y: -150 }, 36, 34, 1, 14, '#f4f7fb');
-  limb(ctx, { x: 40, y: -205 }, { x: 20 + pen * 3, y: -150 }, 36, 34, -1, 14, '#f4f7fb');
-  ctx.save();
-  ctx.translate(-14, -150); ctx.rotate(-0.25);
-  ctx.fillStyle = '#c9a26b'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.roundRect(-34, -30, 68, 80, 4); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-29, -22, 58, 66, 2); ctx.fill();
-  ctx.fillStyle = INK; ctx.beginPath(); ctx.roundRect(-14, -36, 28, 12, 3); ctx.fill();
-  ctx.fillStyle = '#e63946'; ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText('CHART', -25, -10);
-  ctx.fillStyle = INK; ctx.font = '600 8px system-ui, sans-serif';
-  // The last five notes, or four once the time of death takes the bottom line. They stop short of the pen hand.
-  const last = w.dead ? 3 : 4;
-  for (let i = 0; i <= Math.min(w.noteIndex, last); i += 1) {
-    const idx = Math.max(0, w.noteIndex - last) + i;
-    ctx.fillStyle = idx >= 5 ? '#e63946' : INK;
-    ctx.fillText(`· ${NOTES[idx] ?? ''}`, -27, 2 + i * 9, 50);
+  // Arms: on the clipboard, or out to the laptop with the paddles.
+  const leftHand = { x: mix(-46, -62, up), y: mix(-150, -142, up) };
+  const rightHand = { x: mix(20 + pen * 3, -6, up), y: mix(-150, -152, up) };
+  limb(ctx, { x: -40, y: -205 }, leftHand, 36, 34, 1, 14, '#f4f7fb');
+  limb(ctx, { x: 40, y: -205 }, rightHand, 36, 34, -1, 14, '#f4f7fb');
+  if (w.clipDrop.x < 0.02) drawClipboard(ctx, w, -14, -150, -0.25);
+  if (up > 0.05) {
+    const m = ctx.getTransform();
+    for (const hand of [leftHand, rightHand]) {
+      drawPaddle(ctx, hand.x, hand.y, up, charged);
+      const pt = m.transformPoint(new DOMPoint(hand.x, hand.y));
+      paddles.push({ x: pt.x, y: pt.y });
+    }
   }
-  if (w.dead) { ctx.fillStyle = '#e63946'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.fillText(`TOD ${(w.deathX100 / 100).toFixed(2)}×`, -25, 42); }
-  ctx.restore();
-  // Pen hand.
+  // Hands (the pen only while he is writing).
   ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(20 + pen * 3, -150, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = '#2b2b30'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(18 + pen * 3, -156); ctx.lineTo(4 + pen * 6, -170); ctx.stroke();
+  ctx.beginPath(); ctx.arc(rightHand.x, rightHand.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (up > 0.05) { ctx.beginPath(); ctx.arc(leftHand.x, leftHand.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  if (up < 0.3) {
+    ctx.strokeStyle = '#2b2b30'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(18 + pen * 3, -156); ctx.lineTo(4 + pen * 6, -170); ctx.stroke();
+  }
   // Head.
   const hy = -246;
   ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -372,8 +591,11 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
   ctx.fillStyle = INK;
   ctx.beginPath(); ctx.arc(-11, hy - 1, 2, 0, Math.PI * 2); ctx.arc(11, hy - 1, 2, 0, Math.PI * 2); ctx.fill();
   ctx.lineWidth = 2.2;
-  ctx.beginPath(); ctx.moveTo(-8, hy + 14); ctx.quadraticCurveTo(0, hy + 14 - 6 * lean, 8, hy + 14); ctx.stroke();
-  if (w.dead && w.deadAge > 1.5) {
+  ctx.beginPath();
+  if (up > 0.5) { ctx.ellipse(0, hy + 16, 5, 6 + 3 * clamp(w.clearPop.x, 0, 1), 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
+  else { ctx.moveTo(-8, hy + 14); ctx.quadraticCurveTo(0, hy + 14 - 6 * lean, 8, hy + 14); }
+  ctx.stroke();
+  if (w.dead && w.deadAge > TOD_AT) {
     ctx.save(); ctx.translate(-70, hy - 50); ctx.rotate(-0.06);
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.roundRect(-72, -22, 144, 40, 8); ctx.fill(); ctx.stroke();
@@ -385,6 +607,7 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): void {
     ctx.restore();
   }
   ctx.restore();
+  return paddles;
 }
 
 /** The roommate's bed behind the curtain, and the curtain itself. */
@@ -652,9 +875,44 @@ export function drawWard(ctx: CanvasRenderingContext2D, w: Ward, tension: number
     ctx.globalAlpha = sheet; ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
   }
   drawDrip(ctx, w, tension);
-  drawDoctor(ctx, w);
-  // The lights dim on the death.
-  if (w.dead && w.lights > 0) { ctx.fillStyle = `rgba(10, 20, 30, ${w.lights * smoothstep(0.8, 2.2, w.deadAge)})`; ctx.fillRect(0, 0, WARD.w, WARD.h); }
+  const charged = w.paddles.x > 0.6;
+  drawCart(ctx, w, charged);
+  const paddles = drawDoctor(ctx, w);
+  // The clipboard he dropped: it falls from his hand to the floor by the bed.
+  const drop = clamp(w.clipDrop.x, 0, 1);
+  if (drop >= 0.02) {
+    const k = smoothstep(0, 1, drop);
+    drawClipboard(ctx, w, mix(498, 440, k), mix(322, 466, k * k), mix(-0.25, -1.35, k));
+  }
+  // The cables from the cart to the paddles, and the shock itself: bolts between the paddles and round the laptop.
+  if (paddles.length === 2) {
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (const p of paddles) { ctx.beginPath(); ctx.moveTo(w.cartX.x - 10, 386); ctx.quadraticCurveTo((p.x + w.cartX.x) / 2, 430 + Math.sin(w.time * 3) * 6, p.x, p.y); ctx.stroke(); }
+    if (w.zapAge < 0.22 && !reduced) {
+      const k = 1 - w.zapAge / 0.22;
+      ctx.strokeStyle = `rgba(255, 226, 122, ${k})`; ctx.lineWidth = 3; ctx.lineJoin = 'miter';
+      const [a, b] = paddles as [Point, Point];
+      for (let j = 0; j < 3; j += 1) {
+        ctx.beginPath(); ctx.moveTo(a.x, a.y);
+        for (let i = 1; i < 6; i += 1) { const u = i / 6; ctx.lineTo(mix(a.x, b.x, u) + (noise(i * 3.1 + j * 7 + Math.floor(w.time * 40)) - 0.5) * 26, mix(a.y, b.y, u) + (noise(i * 5.3 + j * 11 + Math.floor(w.time * 40)) - 0.5) * 26); }
+        ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      ctx.fillStyle = `rgba(255, 255, 240, ${0.35 * k})`; ctx.beginPath(); ctx.arc(385, 345, 70, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  if (w.clearAge < 0.7 && w.dead) {
+    ctx.save();
+    ctx.translate(540, 300); ctx.rotate(-0.08);
+    const k = 1 + 0.25 * clamp(w.clearPop.x, 0, 1.2);
+    ctx.scale(k, k);
+    ctx.globalAlpha = w.clearAge > 0.5 ? 1 - (w.clearAge - 0.5) / 0.2 : 1;
+    memeSmall(ctx, 'CLEAR!', 0, 0, 40, '#ffe27a');
+    ctx.restore();
+  }
+  drawWife(ctx, w);
+  // The white of the shock, then the lights dim once the time is called.
+  if (w.dead && w.zapAge < 0.1 && !reduced) { ctx.fillStyle = `rgba(255, 255, 255, ${0.6 * (1 - w.zapAge / 0.1)})`; ctx.fillRect(0, 0, WARD.w, WARD.h); }
+  if (w.dead && w.lights > 0) { ctx.fillStyle = `rgba(10, 20, 30, ${w.lights * smoothstep(TOD_AT - 0.3, TOD_AT + 1.2, w.deadAge)})`; ctx.fillRect(0, 0, WARD.w, WARD.h); }
   ctx.restore();
   ctx.strokeStyle = INK; ctx.lineWidth = 5;
   ctx.strokeRect(WARD.x, WARD.y, WARD.w, WARD.h);

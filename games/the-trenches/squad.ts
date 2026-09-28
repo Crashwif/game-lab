@@ -8,7 +8,11 @@ import { INK, RIDGE_Y, TRENCH_Y, W } from './field';
 import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const YOURS = 2;
+/** The paper-hands frog: the one who raises the white flag. */
+export const FLAG_FROG = 3;
 const COUNT = 5;
+/** What the sergeant shouts at the white flag, in turn. */
+const GLARES = ['OI. FLAG DOWN.', 'NO PAPER HANDS HERE', 'BACK IN LINE, PRIVATE'];
 const TRENCH_FLOOR = TRENCH_Y + 78;
 const SKIN = '#5cab4a';
 const HELMET = '#5e6b3a';
@@ -26,6 +30,10 @@ export interface Frog {
   clang: Spring;
 }
 
+/** What happened this step, for the scene's sound: each is true for one frame. */
+export interface SquadEvents { whistle: boolean; step: boolean; phone: boolean; clang: boolean; glare: boolean; flip: boolean }
+interface Fleck { x: number; y: number; vx: number; vy: number; age: number; cash: boolean }
+
 export interface Squad {
   time: number;
   frogs: Frog[];
@@ -37,6 +45,20 @@ export interface Squad {
   dead: boolean;
   deadAge: number;
   phoneNext: number;
+  /** The white flag on the paper-hands frog: how far up it is, how long the sergeant's glare keeps it down, and the glares. */
+  flag: Spring;
+  flagDown: number;
+  glareNext: number;
+  glareAge: number;
+  glares: number;
+  /** The DAYS SINCE LAST RUG sign: the count, and the card's flip to zero. */
+  days: number;
+  flip: Spring;
+  /** Mud and cash thrown up when your frog lands back in the trench. */
+  flecks: Fleck[];
+  stepNext: number;
+  whistled: boolean;
+  events: SquadEvents;
 }
 
 function makeFrog(i: number): Frog {
@@ -44,7 +66,11 @@ function makeFrog(i: number): Frog {
 }
 
 export function createSquad(): Squad {
-  return { time: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), whistle: spring(0), ring: spring(0), bubble: '', bubbleAge: 9, dead: false, deadAge: 0, phoneNext: 4 };
+  return {
+    time: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), whistle: spring(0), ring: spring(0), bubble: '', bubbleAge: 9, dead: false, deadAge: 0, phoneNext: 4,
+    flag: spring(0), flagDown: 0, glareNext: 0, glareAge: 9, glares: 0, days: 1, flip: spring(0), flecks: [], stepNext: 0, whistled: false,
+    events: { whistle: false, step: false, phone: false, clang: false, glare: false, flip: false },
+  };
 }
 
 export function resetSquad(s: Squad): void {
@@ -57,11 +83,25 @@ export function resetSquad(s: Squad): void {
   s.dead = false;
   s.deadAge = 0;
   s.phoneNext = s.time + 4;
+  settleSpring(s.flag, 0);
+  s.flagDown = 0;
+  s.glareNext = s.time + 3;
+  s.glareAge = 9;
+  s.glares = 0;
+  s.days = 1;
+  settleSpring(s.flip, 0);
+  s.flecks = [];
+  s.whistled = false;
 }
 
-/** Joins a round already running: the squad is already out of the trench. */
-export function settleSquad(s: Squad): void {
+/** How far up the white flag is at this tension: it starts creeping up past 2×, and is fully up near the top. */
+const flagFor = (tension: number): number => smoothstep(0.35, 0.95, tension);
+
+/** Joins a round already running: the squad is already out of the trench, and the flag is where the tension holds it. */
+export function settleSquad(s: Squad, tension = 0): void {
   settleSpring(s.over, 1);
+  s.whistled = true;
+  settleSpring(s.flag, flagFor(tension));
   for (const f of s.frogs) f.mode = 'marching';
 }
 
@@ -98,6 +138,8 @@ export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
   s.bubble = 'DEV SOLD';
   s.bubbleAge = 0;
   settleSpring(s.ring, 1);
+  s.flagDown = 0;
+  if (quiet) { settleSpring(s.flip, 1); settleSpring(s.flag, 0); }
   for (const f of s.frogs) {
     if (f.mode === 'diving') { if (quiet) f.mode = 'safe'; continue; }
     if (f.mode !== 'marching' && f.mode !== 'trench') continue;
@@ -113,12 +155,20 @@ export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
 export interface SquadDrive { running: boolean; tension: number; multiplier: number; progress: number; reduced: boolean }
 
 export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
+  const e = s.events;
+  e.whistle = e.step = e.phone = e.clang = e.glare = e.flip = false;
   s.time += dt;
   s.bubbleAge += dt;
+  const wasDead = s.deadAge;
   if (s.dead) s.deadAge += dt;
+  // The sign counts the days (a day a metre, near enough) and flips to zero half a second after the nuke.
+  if (!s.dead) s.days = 1 + Math.floor((drive.multiplier - 1) * 8);
+  if (s.dead && wasDead <= 0.5 && s.deadAge > 0.5) e.flip = true;
+  stepSpring(s.flip, s.dead && s.deadAge > 0.5 ? 1 : 0, 10, 0.4, dt);
   const out = drive.running || s.dead;
   stepSpring(s.over, out ? 1 : 0, 6, 0.6, dt);
   stepSpring(s.whistle, drive.running && s.over.x < 0.9 ? 1 : 0, 10, 0.5, dt);
+  if (!s.whistled && s.whistle.x > 0.15) { s.whistled = true; e.whistle = true; }
   const cadence = 3 + 9 * drive.tension;
   for (const f of s.frogs) {
     // The whistle blows: the squad goes over the top.
@@ -126,13 +176,29 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
     if (f.mode === 'marching' && drive.running) {
       const before = Math.floor(f.phase);
       f.phase += dt * cadence;
-      if (Math.floor(f.phase) !== before) f.squash.v += 4 + 6 * drive.tension;
+      if (Math.floor(f.phase) !== before) {
+        f.squash.v += 4 + 6 * drive.tension;
+        // Your frog's plants carry the sound, a few a second at most.
+        if (f === s.frogs[YOURS] && s.time > s.stepNext) { s.stepNext = s.time + 0.28; e.step = true; }
+      }
     }
     stepSpring(f.squash, 0, 18, 0.35, dt);
     stepSpring(f.clang, 0, 14, 0.25, dt);
     if (f.mode === 'diving') {
       f.diveAge += dt;
-      if (f.diveAge >= 0.75) { f.mode = 'safe'; f.clang.v += 14; }
+      if (f.diveAge >= 0.75) {
+        f.mode = 'safe';
+        f.clang.v += 14;
+        e.clang = true;
+        // Mud and a little cash fly up from the landing (capped; none under reduced motion).
+        if (!drive.reduced && s.flecks.length < 40) {
+          for (let i = 0; i < 26; i += 1) {
+            const a = -Math.PI / 2 + (noise(i * 1.7 + 0.3) - 0.5) * 1.6;
+            const v = 90 + noise(i * 2.9 + 0.7) * 170;
+            s.flecks.push({ x: f.x + (noise(i * 0.9) - 0.5) * 30, y: TRENCH_FLOOR + 4, vx: Math.cos(a) * v, vy: Math.sin(a) * v, age: 0, cash: i % 3 === 0 });
+          }
+        }
+      }
     }
     if (f.mode === 'flung') {
       f.diveAge += dt;
@@ -150,8 +216,26 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
       s.bubble = lines[Math.floor(noise(s.time * 1.7) * lines.length)]!;
       s.bubbleAge = 0;
       s.phoneNext = s.time + 2.5 + noise(s.time) * 2;
+      e.phone = true;
     }
   }
+  // The white flag: the paper-hands frog raises it with the tension, and every few seconds the sergeant's glare
+  // snaps it back down, after which it creeps up again.
+  const flagFrog = s.frogs[FLAG_FROG]!;
+  const wanted = drive.running && !s.dead && flagFrog.mode === 'marching' ? flagFor(drive.tension) : 0;
+  s.flagDown = Math.max(0, s.flagDown - dt);
+  s.glareAge += dt;
+  if (wanted > 0.25 && s.flagDown <= 0 && s.time > s.glareNext) {
+    s.flagDown = 1.4;
+    s.glareAge = 0;
+    s.glares += 1;
+    s.glareNext = s.time + 3 + noise(s.glares * 2.1) * 2.5;
+    e.glare = true;
+  }
+  const down = s.flagDown > 0;
+  stepSpring(s.flag, down ? 0 : wanted, down ? 14 : 2.2, down ? 0.5 : 0.7, dt);
+  for (const k of s.flecks) { k.age += dt; k.vy += 520 * dt; k.x += k.vx * dt; k.y += k.vy * dt; }
+  s.flecks = s.flecks.filter((k) => k.age < 1.1 && k.y < TRENCH_FLOOR + 60);
 }
 
 function sandbag(ctx: CanvasRenderingContext2D, x: number, y: number, w: number): void {
@@ -342,6 +426,7 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       const stride = f.phase % 1;
       const expression = tension > 0.75 ? 'shock' : tension > 0.35 ? 'grit' : 'hype';
       drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false, mud: tension, phone: f !== s.frogs[YOURS], time: s.time });
+      if (f === s.frogs[FLAG_FROG] && s.flag.x > 0.03) drawFlag(ctx, at.x - 24 * at.scale, at.y - 30 * at.scale, clamp(s.flag.x, 0, 1.2), s.time);
       if (enlisted && f === s.frogs[YOURS]) {
         ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
         const ty = at.y - 100 * at.scale - 6 + Math.sin(s.time * 4) * 3;
@@ -370,8 +455,63 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
   }
 }
 
-/** The trench in the foreground: sandbags, the wall, the duckboards, the sergeant and his phone, and the frogs inside it. Your frog is tagged KIA only when `enlisted`. */
-export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: number, enlisted: boolean): void {
+/** The white flag, held up from the paper-hands frog's off hand: a pole that rises with `up` and a cloth that flaps. */
+function drawFlag(ctx: CanvasRenderingContext2D, x: number, y: number, up: number, time: number): void {
+  const top = y - 14 - 44 * up;
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, top); ctx.stroke();
+  ctx.strokeStyle = '#c9b48a'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, top); ctx.stroke();
+  const flap = Math.sin(time * 9) * 3 * up;
+  const w = 52 * Math.min(1, up * 1.6);
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, top); ctx.lineTo(x - w, top + flap); ctx.lineTo(x - w, top + 15 + flap); ctx.lineTo(x, top + 15);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (up > 0.5) {
+    ctx.fillStyle = INK; ctx.font = '900 8px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('PAPER HANDS', x - w / 2, top + 11 + flap * 0.5, w - 4);
+  }
+}
+
+/** The DAYS SINCE LAST RUG sign on the trench wall: the count climbs with the round, and the card flips to 0 at the nuke. */
+function drawSign(ctx: CanvasRenderingContext2D, s: Squad): void {
+  const x = 28;
+  const y = 416;
+  ctx.fillStyle = '#d9c9a0'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(x, y, 112, 30, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK; ctx.font = '900 8px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('DAYS SINCE', x + 6, y + 13);
+  ctx.fillText('LAST RUG', x + 6, y + 24);
+  // The counter card turns over on its rail; the spring's overshoot makes it bounce as it lands on 0.
+  const flip = clamp(s.flip.x, 0, 1.3);
+  const zero = flip >= 0.5;
+  ctx.save();
+  ctx.translate(x + 90, y + 15);
+  ctx.scale(1 + 0.2 * Math.max(0, flip - 1), Math.max(0.08, Math.abs(Math.cos(Math.PI * Math.min(flip, 1)))));
+  ctx.fillStyle = zero ? '#ff4d6d' : '#1c1f26';
+  ctx.beginPath(); ctx.roundRect(-16, -11, 32, 22, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = zero ? '#ffffff' : '#7cf67c'; ctx.font = '900 15px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(zero ? '0' : `${s.days}`, 0, 5);
+  ctx.restore();
+}
+
+/** Ration crates on the trench floor, stencilled with what the squad runs on. */
+function drawCrates(ctx: CanvasRenderingContext2D): void {
+  for (const [cx, label] of [[34, 'HOPIUM'], [86, 'COPIUM']] as const) {
+    ctx.fillStyle = '#7a7a4a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(cx, 448, 46, 30, 2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(28, 31, 38, 0.35)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx + 4, 452); ctx.lineTo(cx + 42, 474); ctx.moveTo(cx + 42, 452); ctx.lineTo(cx + 4, 474); ctx.stroke();
+    ctx.fillStyle = '#e7e7d0'; ctx.font = '900 9px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, cx + 23, 462);
+    ctx.font = '700 6px system-ui, sans-serif';
+    ctx.fillText('RATION', cx + 23, 471);
+  }
+}
+
+/** The trench in the foreground: sandbags, the wall, the sign and the crates, the duckboards, the sergeant and his phone, and the frogs inside it. Your frog is tagged KIA only when `enlisted`. */
+export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: number, enlisted: boolean, progress: number): void {
   // Wall and floor.
   ctx.fillStyle = '#4a3b28';
   ctx.fillRect(0, TRENCH_Y, W, 540 - TRENCH_Y);
@@ -383,6 +523,8 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
   // Sandbag lip.
   for (let i = 0; i < 20; i += 1) sandbag(ctx, -10 + i * 50 + (i % 2) * 6, TRENCH_Y - 14 - (i % 2) * 5, 52);
   for (let i = 0; i < 19; i += 1) sandbag(ctx, 15 + i * 50, TRENCH_Y - 4, 52);
+  drawSign(ctx, s);
+  drawCrates(ctx);
   // Frogs in the trench: waiting, safe with the cigar, or KIA.
   const settled = s.dead && s.deadAge > 1.05;
   for (const f of s.frogs) {
@@ -424,6 +566,24 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
   ctx.fillText('FIELD PHONE', 0, 4);
   ctx.restore();
   if (s.bubbleAge < 2.4 && s.bubble) bubbleText(ctx, s.bubble, px, TRENCH_FLOOR - 58 - (s.bubbleAge < 0.2 ? (0.2 - s.bubbleAge) * 40 : 0), s.dead, sx - 42);
+  // The sergeant's glare at the white flag: a line of sight, and what he shouts.
+  if (s.glareAge < 0.9 && !s.dead) {
+    const target = marchPosition(s.frogs[FLAG_FROG]!, progress, s.over.x);
+    ctx.save();
+    ctx.globalAlpha = 0.55 * (1 - s.glareAge / 0.9);
+    ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(sx - 12, TRENCH_FLOOR - 62); ctx.lineTo(target.x, target.y - 50 * target.scale); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    bubbleText(ctx, GLARES[(s.glares - 1 + GLARES.length) % GLARES.length]!, sx - 40, TRENCH_FLOOR - 104 - (s.glareAge < 0.15 ? (0.15 - s.glareAge) * 40 : 0), false, W - 20);
+  }
+  // The mud and cash of your landing.
+  for (const k of s.flecks) {
+    ctx.fillStyle = k.cash ? '#7cf67c' : '#5a4630';
+    ctx.globalAlpha = clamp(1.2 - k.age, 0, 1);
+    ctx.beginPath(); ctx.ellipse(k.x, k.y, k.cash ? 3 : 4, k.cash ? 2 : 3, k.age * 3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   // The whistle at the start.
   if (s.whistle.x > 0.05) {
     ctx.save(); ctx.globalAlpha = clamp(s.whistle.x, 0, 1);

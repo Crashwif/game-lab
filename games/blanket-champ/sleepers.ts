@@ -1,4 +1,5 @@
 /** Visible characters at either end of the duvet. Everything else stays covered. */
+import { noise } from './motion';
 const INK = '#1c1f26';
 const SKIN = '#f3dccb';
 const PARTNER_SKIN = '#dba082';
@@ -11,6 +12,8 @@ export interface SleeperPose {
   active: boolean;
   finished: boolean;
   rest: number;
+  /** 0..1: how hard the champ shakes near the top (already 0 under reduced motion). */
+  tremble: number;
 }
 
 function pillow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number): void {
@@ -36,8 +39,12 @@ function sweat(ctx: CanvasRenderingContext2D, x: number, y: number, size: number
 function head(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean): void {
   const beat = Math.sin(pose.beat + (partner ? 0.7 : 0));
   const bob = pose.active ? beat * (1.5 + pose.tension * 3) : Math.sin(pose.time * 1.4) * 0.5;
+  // The champ trembles near the top: a small hash jitter, the wind-up the finish pays off.
+  const tremble = partner ? 0 : pose.tremble;
+  const jx = (noise(Math.floor(pose.time * 31)) - 0.5) * 4 * tremble;
+  const jy = (noise(Math.floor(pose.time * 29) + 7) - 0.5) * 3 * tremble;
   ctx.save();
-  ctx.translate(partner ? 334 : 271, (partner ? 295 : 324) + bob + pose.rest * 7);
+  ctx.translate((partner ? 334 : 271) + jx, (partner ? 295 : 324) + bob + pose.rest * 7 + jy);
   ctx.rotate((partner ? 0.13 : -0.13) + (pose.active ? beat * 0.035 : 0) + pose.rest * (partner ? 0.1 : -0.16));
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2.8; ctx.strokeStyle = INK;
   const skin = partner ? PARTNER_SKIN : SKIN;

@@ -1,15 +1,24 @@
 /**
  * The lift itself: the shaft going past outside, the cables, the cabin with
  * its back doors and the lobby behind them, the floor indicator, the load
- * plaque, the ceiling light, the haze that gathers at the ankles, and the
- * crash: the green cloud, the fogged glass, the flicker and the bounce on
- * the cable. Nothing here changes the outcome.
+ * plaque, the methane readout, the canary in its cage, the ceiling light,
+ * the haze that gathers at the ankles, and the crash: the green cloud, the
+ * fogged glass, the flicker, the bounce on the cable, the canary dropping
+ * off its perch and the plaque flipping to MAX CAPACITY: 69. Nothing here
+ * changes the outcome.
  */
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { INK, type Point } from './riders';
 
 export const CABIN = { left: 200, right: 760, floor: 470, backLeft: 250, backRight: 710, backFloor: 420, top: 58, backTop: 72 } as const;
 export const DOOR_FRAME = { x: 380, y: 118, w: 200, h: 302 } as const;
+/** Where the cage hangs from the ceiling, and where the readout sits on the back wall; screen boxes the speech bubbles keep out of. */
+export const CAGE = { x: 722, hook: 62, top: 98, w: 44, h: 64 } as const;
+export const PPM_PANEL = { x: 590, y: 130, w: 94, h: 44 } as const;
+export const CAGE_BOX = { x: CAGE.x - 24, y: CAGE.hook - 4, w: 48, h: CAGE.top + CAGE.h - CAGE.hook + 10 };
+export const PPM_BOX = { x: PPM_PANEL.x - 4, y: PPM_PANEL.y - 4, w: PPM_PANEL.w + 8, h: PPM_PANEL.h + 8 };
+/** The methane readout's thresholds: the alarm beeps once at each. */
+export const PPM_ALARMS = [1000, 2500, 5000, 9000];
 
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number }
 interface Drip { x: number; y: number; speed: number; delay: number; length: number }
@@ -30,10 +39,22 @@ export interface Cabin {
   drips: Drip[];
   light: number;
   haze: number;
+  /** The canary: how woozy (0 perky .. 1 reeling), whether it has dropped, how far it has fallen (0 perch .. 1 floor), and the cage's swing. */
+  canary: { woozy: Spring; dropped: boolean; fall: Spring; swing: Spring };
+  /** The load plaque's flip to its true reading, 0 .. 1. */
+  flip: Spring;
+  /** The methane readout as displayed, smoothed toward the number's. */
+  ppm: number;
+  /** 1, or 0 under reduced motion: the readout's flashing. */
+  motion: number;
+  events: { canaryDrop: boolean };
 }
 
-export function createCabin(): Cabin {
-  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0 };
+/** Methane at the number: sniffable from 3×, a hazard by 8×, off the scale at the release. */
+export const ppmFor = (multiplier: number): number => 400 + 260 * Math.pow(Math.max(0, multiplier - 1), 1.35);
+
+export function createCabin(motion = 1): Cabin {
+  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0, canary: { woozy: spring(0), dropped: false, fall: spring(0), swing: spring(0) }, flip: spring(0), ppm: 400, motion, events: { canaryDrop: false } };
 }
 
 export function resetCabin(c: Cabin): void {
@@ -47,29 +68,44 @@ export function resetCabin(c: Cabin): void {
   c.drips = [];
   c.light = 1;
   c.haze = 0;
+  settleSpring(c.canary.woozy, 0);
+  c.canary.dropped = false;
+  settleSpring(c.canary.fall, 0);
+  settleSpring(c.canary.swing, 0);
+  settleSpring(c.flip, 0);
+  c.ppm = 400;
 }
 
 /** How fast the floors go past once the doors are shut. */
 const cruise = (tension: number): number => 70 + 200 * tension;
 
-/** Jumps to a cabin already on its way, for a first frame mid-round: doors shut and, while running, at speed. */
-export function settleCabin(c: Cabin, running: boolean, tension: number): void {
+/** Jumps to a cabin already on its way, for a first frame mid-round: doors shut and, while running, at speed, the canary and the readout at the number. */
+export function settleCabin(c: Cabin, running: boolean, tension: number, multiplier: number): void {
   settleSpring(c.doors, 0);
   settleSpring(c.speed, running ? cruise(tension) : 0);
+  settleSpring(c.canary.woozy, running ? tension : 0);
+  c.ppm = ppmFor(multiplier);
 }
 
-export interface CabinDrive { running: boolean; tension: number; doorsOpen: boolean; arrived: boolean; reduced: boolean }
+export interface CabinDrive { running: boolean; tension: number; multiplier: number; doorsOpen: boolean; arrived: boolean; reduced: boolean }
 
 export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
   c.time += dt;
+  c.events.canaryDrop = false;
   stepSpring(c.doors, drive.doorsOpen ? 1 : 0, 9, 0.85, dt);
   const open = c.doors.x > 0.05;
   stepSpring(c.speed, drive.running && !open && !c.gassed ? cruise(drive.tension) : 0, 3, 0.9, dt);
   c.scroll += c.speed.x * dt;
-  if (drive.arrived) { c.bounce.v += 26; c.ding.v += 12; }
+  if (drive.arrived) { c.bounce.v += 26; c.ding.v += 12; c.canary.swing.v += 2.2; }
   stepSpring(c.bounce, 0, c.gassed ? 7 : 12, 0.35, dt);
   stepSpring(c.ding, 0, 8, 0.6, dt);
   c.haze = drive.running && !c.gassed ? clamp((drive.tension - 0.66) / 0.34, 0, 1) : c.gassed ? 1 : Math.max(0, c.haze - dt);
+  // The canary reels harder as the air goes, and the cage swings with every jolt of the cabin.
+  const k = c.canary;
+  stepSpring(k.woozy, drive.running && !c.gassed ? drive.tension : c.gassed ? 1 : 0, 3, 0.7, dt);
+  stepSpring(k.swing, 0, 5, 0.15, dt);
+  const ppmTarget = c.gassed ? 9999 : drive.running ? ppmFor(drive.multiplier) : 400;
+  c.ppm += (ppmTarget - c.ppm) * (1 - Math.exp(-dt * (c.gassed ? 6 : 3)));
   if (c.gassed) {
     c.gasAge += dt;
     const flick = c.gasAge < 1.1 && !drive.reduced ? (noise(Math.floor(c.time * 30)) > 0.55 ? 0.25 : 1) : 0.55;
@@ -86,10 +122,13 @@ export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
     }
     c.puffs = c.puffs.filter((p) => p.age < p.life);
     for (const d of c.drips) { if (c.gasAge > d.delay) d.y += d.speed * dt; }
+    if (!k.dropped && c.gasAge > 0.42) { k.dropped = true; c.events.canaryDrop = true; k.swing.v += 1.5; }
   } else {
     const flicker = drive.running && drive.tension > 0.8 && !drive.reduced && noise(Math.floor(c.time * 24)) > 0.82 ? 0.45 : 1;
     c.light += (flicker - c.light) * (1 - Math.exp(-dt * 40));
   }
+  stepSpring(k.fall, k.dropped ? 1 : 0, 16, 0.3, dt);
+  stepSpring(c.flip, c.gassed && c.gasAge > 0.9 ? 1 : 0, 9, 0.55, dt);
 }
 
 /** Someone let one go. `quiet` skips the effects for a crash that already happened. */
@@ -100,7 +139,15 @@ export function gasCabin(c: Cabin, seed: number, origin: Point, quiet: boolean):
   c.puffs = [];
   c.drips = [];
   settleSpring(c.speed, 0);
-  if (quiet) { c.light = 0.55; return; }
+  if (quiet) {
+    c.light = 0.55;
+    c.canary.dropped = true;
+    settleSpring(c.canary.fall, 1);
+    settleSpring(c.canary.woozy, 1);
+    settleSpring(c.flip, 1);
+    c.ppm = 9999;
+    return;
+  }
   const rng = mulberry32(seed);
   for (let i = 0; i < 38; i += 1) {
     const a = rng() * Math.PI * 2;
@@ -111,6 +158,7 @@ export function gasCabin(c: Cabin, seed: number, origin: Point, quiet: boolean):
     c.drips.push({ x: CABIN.left + 20 + rng() * (CABIN.right - CABIN.left - 40), y: CABIN.top + 40 + rng() * 140, speed: 30 + rng() * 60, delay: 0.5 + rng() * 1.2, length: 20 + rng() * 40 });
   }
   c.bounce.v += 90;
+  c.canary.swing.v += 4;
 }
 
 /** The dark shaft outside the cabin with the floors going past, and the cables. */
@@ -138,7 +186,114 @@ export function drawShaft(ctx: CanvasRenderingContext2D, c: Cabin): void {
 
 const FLOOR_LOBBY = '#e9e3d6';
 
-/** The cabin shell from the back forward: walls, the lobby seen through the open doors. The riders in the lobby are drawn by the caller between this and `drawDoors`. */
+/** The canary in its cage, hung from the ceiling on a chain and swinging about the hook. */
+function drawCage(ctx: CanvasRenderingContext2D, c: Cabin): void {
+  const k = c.canary;
+  const { x, hook, top, w, h } = CAGE;
+  ctx.save();
+  ctx.translate(x, hook);
+  ctx.rotate(clamp(k.swing.x, -0.5, 0.5));
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // Chain and hook.
+  ctx.strokeStyle = '#8d99ae'; ctx.lineWidth = 2.5;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, top - hook - 6); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.translate(0, top - hook);
+  // The cage: a domed top, bars, a floor tray, drawn behind the bird then in front.
+  const left = -w / 2;
+  ctx.fillStyle = 'rgba(255, 226, 122, 0.12)';
+  ctx.beginPath(); ctx.moveTo(left, 10); ctx.quadraticCurveTo(left, -6, 0, -6); ctx.quadraticCurveTo(w / 2, -6, w / 2, 10); ctx.lineTo(w / 2, h); ctx.lineTo(left, h); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#d9b543'; ctx.lineWidth = 1.5;
+  for (let bx = left + 6; bx < w / 2; bx += 6.5) { ctx.beginPath(); ctx.moveTo(bx, 4); ctx.lineTo(bx, h - 2); ctx.stroke(); }
+  // The perch.
+  ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(left + 4, 36); ctx.lineTo(w / 2 - 4, 36); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(left + 8, h - 4); ctx.lineTo(left + 8, 36); ctx.stroke();
+  // The bird: on the perch, swaying more the woozier it gets, or on its back on the tray.
+  const woozy = clamp(k.woozy.x, 0, 1);
+  const fall = clamp(k.fall.x, 0, 1.15);
+  const sway = k.dropped ? 0 : Math.sin(c.time * (2 + 5 * woozy)) * 0.45 * woozy;
+  ctx.save();
+  ctx.translate(0, mix(36, h - 8, Math.min(fall, 1)));
+  ctx.rotate(sway + Math.PI * Math.min(fall, 1));
+  ctx.scale(1.25, 1.25);
+  ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = INK; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.ellipse(0, -7, 8, 5.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(-3, -8, 4, 2.5, 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(6, -13, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ff8c42';
+  ctx.beginPath(); ctx.moveTo(10, -13); ctx.lineTo(14, -12); ctx.lineTo(10, -10.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Feet on the perch (folded up once it drops).
+  ctx.strokeStyle = '#ff8c42'; ctx.lineWidth = 1.6;
+  for (const fx of [-2, 2]) { ctx.beginPath(); ctx.moveTo(fx, -2); ctx.lineTo(fx, 0 + (k.dropped ? -3 : 0)); ctx.stroke(); }
+  // The eye: bright, then a spiral as it reels, then an X.
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2;
+  if (k.dropped && fall > 0.5) {
+    ctx.beginPath(); ctx.moveTo(5.5, -15); ctx.lineTo(8.5, -12); ctx.moveTo(8.5, -15); ctx.lineTo(5.5, -12); ctx.stroke();
+  } else if (woozy > 0.45) {
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 4; a += 0.4) { const rr = 0.4 + a * 0.16; ctx.lineTo(7 + Math.cos(a + c.time * 6) * rr, -13.5 + Math.sin(a + c.time * 6) * rr); }
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.arc(7, -13.5, 1.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  // Sweat drops as it reels.
+  if (!k.dropped && woozy > 0.6) {
+    const p = (c.time * 1.3) % 1;
+    ctx.globalAlpha = 1 - p;
+    ctx.fillStyle = '#8fd3ff';
+    ctx.beginPath(); ctx.arc(12, 22 + p * 12, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // The tray, the dome and the front bars over the bird.
+  ctx.fillStyle = '#d9b543'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(left - 2, h - 4, w + 4, 6, 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#d9b543'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(left, 10); ctx.quadraticCurveTo(left, -6, 0, -6); ctx.quadraticCurveTo(w / 2, -6, w / 2, 10); ctx.lineTo(w / 2, h - 4); ctx.moveTo(left, 10); ctx.lineTo(left, h - 4); ctx.stroke();
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(217, 181, 67, 0.55)';
+  for (let bx = left + 3; bx < w / 2; bx += 6.5) { ctx.beginPath(); ctx.moveTo(bx, 4); ctx.lineTo(bx, h - 4); ctx.stroke(); }
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(0, -6, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+/** The methane readout on the back wall: green, amber, red, then off the scale. */
+function drawPPM(ctx: CanvasRenderingContext2D, c: Cabin): void {
+  const { x, y, w, h } = PPM_PANEL;
+  const ppm = Math.min(9999, Math.round(c.ppm));
+  const level = ppm >= 5000 ? 2 : ppm >= 2000 ? 1 : 0;
+  const colour = ['#7cf67c', '#ffb703', '#ff4d6d'][level]!;
+  const flash = c.gassed && c.motion > 0 && Math.floor(c.time * 4) % 2 === 0;
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = flash ? '#3a0f18' : '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.fill(); ctx.stroke();
+  ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = c.gassed ? '#ff4d6d' : '#9aa3ad';
+  ctx.fillText(c.gassed ? 'EVACUATE · EVACUATE' : 'CH4  AIR QUALITY', x + 6, y + 12);
+  ctx.fillStyle = colour;
+  ctx.font = '900 20px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(c.gassed ? '9999+' : String(ppm), x + w - 30, y + 36);
+  ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  ctx.fillText('PPM', x + w - 6, y + 36);
+  if (!c.gassed) {
+    // A bar under the label, filling toward the red.
+    ctx.fillStyle = '#2b333b';
+    ctx.fillRect(x + 6, y + 18, 36, 4);
+    ctx.fillStyle = colour;
+    ctx.fillRect(x + 6, y + 18, 36 * clamp(ppm / 9000, 0.05, 1), 4);
+  }
+  ctx.restore();
+}
+
+/** The cabin shell from the back forward: walls, the lobby seen through the open doors, the readout and the cage. The riders in the lobby are drawn by the caller between this and `drawDoors`. */
 export function drawCabinBack(ctx: CanvasRenderingContext2D, c: Cabin): void {
   const b = c.bounce.x;
   ctx.save();
@@ -176,11 +331,13 @@ export function drawCabinBack(ctx: CanvasRenderingContext2D, c: Cabin): void {
   ctx.fillRect(DOOR_FRAME.x + DOOR_FRAME.w - 74, DOOR_FRAME.y + 24, 54, 20);
   ctx.fillStyle = '#ffffff'; ctx.font = '900 12px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('EXIT', DOOR_FRAME.x + DOOR_FRAME.w - 47, DOOR_FRAME.y + 39);
+  drawPPM(ctx, c);
+  drawCage(ctx, c);
   ctx.restore();
 }
 
 /** The doors (closing over whatever was drawn in the lobby), the frame, the indicator and the plaque. */
-export function drawDoors(ctx: CanvasRenderingContext2D, c: Cabin, indicator: string, dumped: boolean, persons: number, maxPersons: number): void {
+export function drawDoors(ctx: CanvasRenderingContext2D, c: Cabin, indicator: string, dumped: boolean, persons: number, maxPersons: number, secured: boolean): void {
   const b = c.bounce.x;
   ctx.save();
   ctx.translate(0, b);
@@ -203,19 +360,25 @@ export function drawDoors(ctx: CanvasRenderingContext2D, c: Cabin, indicator: st
   const ding = clamp(c.ding.x, 0, 1);
   ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(DOOR_FRAME.x + 40, 84, DOOR_FRAME.w - 80, 26, 4); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = dumped ? '#ff4d6d' : ding > 0.1 ? '#ffffff' : '#7cf67c';
+  ctx.fillStyle = dumped ? '#ff4d6d' : secured ? '#7cf67c' : ding > 0.1 ? '#ffffff' : '#7cf67c';
   ctx.font = '900 16px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(indicator, DOOR_FRAME.x + DOOR_FRAME.w / 2, 103);
-  // Load plaque, red once the cabin is over capacity.
+  // Load plaque, red once the cabin is over capacity; after the release it flips over to its true reading.
+  const flip = clamp(c.flip.x, 0, 1);
+  const flipped = flip > 0.5;
   const over = persons > maxPersons;
-  const flash = over && Math.floor(c.time * 4) % 2 === 0;
-  ctx.fillStyle = flash ? '#ff4d6d' : '#e9e3d6';
-  ctx.beginPath(); ctx.roundRect(CABIN.backLeft + 12, 130, 94, 44, 3); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.fillStyle = flash ? '#ffffff' : INK;
+  const flash = over && !flipped && Math.floor(c.time * 4) % 2 === 0;
+  ctx.save();
+  ctx.translate(CABIN.backLeft + 59, 152);
+  ctx.scale(1, Math.max(0.04, Math.abs(Math.cos(flip * Math.PI))));
+  ctx.fillStyle = flipped ? '#1b1b1f' : flash ? '#ff4d6d' : '#e9e3d6';
+  ctx.beginPath(); ctx.roundRect(-47, -22, 94, 44, 3); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = flipped ? '#ffe27a' : flash ? '#ffffff' : INK;
   ctx.font = '900 10px Impact, "Arial Black", sans-serif';
-  ctx.fillText(`MAX ${maxPersons} PERSONS`, CABIN.backLeft + 59, 148);
+  ctx.fillText(flipped ? 'MAX CAPACITY' : `MAX ${maxPersons} PERSONS`, 0, -4);
   ctx.font = '900 14px Impact, "Arial Black", sans-serif';
-  ctx.fillText(`ON BOARD: ${persons}`, CABIN.backLeft + 59, 166);
+  ctx.fillText(flipped ? '69 · NICE' : `ON BOARD: ${persons}`, 0, 14, 84);
+  ctx.restore();
   ctx.restore();
 }
 

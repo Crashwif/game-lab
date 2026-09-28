@@ -55,6 +55,8 @@ export interface Trader {
   lid: Spring;
   shades: Spring;
   sweat: number;
+  /** The jump in his chair when she is on the stairs: kicked negative (up), rings back down. */
+  jolt: Spring;
 }
 
 export interface TraderDrive {
@@ -65,7 +67,7 @@ export interface TraderDrive {
 }
 
 export function createTrader(): Trader {
-  return { mode: 'hunch', modeAge: 0, x: DESK.x, y: DESK.y, lid: spring(0.06), shades: spring(0), sweat: 0 };
+  return { mode: 'hunch', modeAge: 0, x: DESK.x, y: DESK.y, lid: spring(0.06), shades: spring(0), sweat: 0, jolt: spring(0) };
 }
 
 export function resetTrader(t: Trader): void {
@@ -78,6 +80,8 @@ export function resetTrader(t: Trader): void {
   t.shades.x = 0;
   t.shades.v = 0;
   t.sweat = 0;
+  t.jolt.x = 0;
+  t.jolt.v = 0;
 }
 
 /** Snaps to an end pose the scene did not see him reach: upstairs after a cash-out, or caught at the desk. */
@@ -88,6 +92,8 @@ export function snapTrader(t: Trader, where: 'upstairs' | 'caught'): void {
   t.lid.v = 0;
   t.shades.x = where === 'upstairs' ? 1 : 0;
   t.shades.v = 0;
+  t.jolt.x = 0;
+  t.jolt.v = 0;
   if (where === 'upstairs') {
     t.x = 890;
     t.y = 118;
@@ -95,6 +101,11 @@ export function snapTrader(t: Trader, where: 'upstairs' | 'caught'): void {
     t.x = DESK.x;
     t.y = DESK.y;
   }
+}
+
+/** The caught frame: he leaves the chair for a moment and lands back in it. */
+export function joltTrader(t: Trader): void {
+  t.jolt.v = -16;
 }
 
 function moveToward(value: number, target: number, speed: number, dt: number): number {
@@ -110,6 +121,7 @@ export function stepTrader(t: Trader, drive: TraderDrive, dt: number): void {
     t.modeAge = 0;
   }
   t.modeAge += dt;
+  stepSpring(t.jolt, 0, 12, 0.4, dt);
   const open = t.mode === 'hunch' || t.mode === 'caught';
   stepSpring(t.lid, open ? 0.05 : 1, 9, 0.72, dt);
   stepSpring(t.shades, t.mode === 'sneak' || t.mode === 'upstairs' ? 1 : 0, 14, 0.55, dt);
@@ -171,7 +183,7 @@ export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'gree
   const bob = typing ? Math.sin(time * (5 + fear * 8)) * (2 + fear * 3) : Math.sin(t.modeAge * 14) * 2;
   const twitch = t.mode === 'caught' ? 0 : fear > 0.55 && noise(Math.floor(time * 9)) > 0.72 ? 1.6 : 0;
   ctx.save();
-  ctx.translate(t.x, t.y + bob);
+  ctx.translate(t.x, t.y + bob + t.jolt.x * 12);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   if (t.mode === 'sneak') ctx.rotate(-0.55);

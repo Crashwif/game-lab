@@ -31,13 +31,15 @@ export interface CraneState {
   swing: number;
   swingV: number;
   holding: boolean;
+  /** The counterweight's swing on its chains (radians): lightly damped, so every jolt keeps it going. */
+  weight: Spring;
   /** What the last released block carried into the stack. */
   drop: { offset: number; velocity: number };
   events: { release: boolean; touchdown: boolean; pickup: boolean };
 }
 
 export function createCrane(): CraneState {
-  return { phase: 0, trolley: spring(PILE_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
+  return { phase: 0, trolley: spring(PILE_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, weight: spring(0), drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
 }
 
 export function resetCrane(c: CraneState): void {
@@ -47,7 +49,13 @@ export function resetCrane(c: CraneState): void {
   c.swing = 0;
   c.swingV = 0;
   c.holding = false;
+  settleSpring(c.weight, 0);
   c.events = { release: false, touchdown: false, pickup: false };
+}
+
+/** A jolt to the counterweight: a landed floor, a pickup, the collapse. */
+export function jolt(c: CraneState, strength: number): void {
+  c.weight.v += strength;
 }
 
 /** The jib stays a fixed clearance above the stack. */
@@ -86,13 +94,15 @@ export function settleCrane(c: CraneState, phase: number, topY: number): void {
   c.holding = u >= 0.25;
   c.swing = 0;
   c.swingV = 0;
+  settleSpring(c.weight, 0);
 }
 
 /**
  * Advances the cycle to `phase` (the continuous floor count while running;
  * held still otherwise). `topY` is the current top surface the block lands on.
+ * `tension` (0..1) is how hard the counterweight answers the wind and the trolley.
  */
-export function stepCrane(c: CraneState, phase: number, topY: number, wind: number, dt: number): void {
+export function stepCrane(c: CraneState, phase: number, topY: number, wind: number, dt: number, tension = 0): void {
   const before = c.phase;
   c.phase = phase;
   const u0 = fract(before);
@@ -125,6 +135,11 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
     c.holding = false;
     c.swingV *= 0.3;
   }
+  // The counterweight hangs on short chains: the wind leans it, the trolley's starts and stops kick it, and
+  // with the tension it swings ever wider, barely damped, until it is throwing itself about up there.
+  c.weight.v += (-accel * 0.0025) * (0.1 + tension * 1.2) * dt * 8;
+  stepSpring(c.weight, wind * 0.0012 * (0.15 + tension * 1.85), 5, 0.06, dt);
+  c.weight.x = clamp(c.weight.x, -0.55, 0.55);
 }
 
 /** World position of the hanging block's centre and its angle. */
@@ -180,16 +195,24 @@ export function drawCrane(ctx: CanvasRenderingContext2D, c: CraneState): void {
   ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(CRANE_X - 26, GROUND_Y - 12, 52, 16, 3); ctx.fill(); ctx.stroke();
   lattice(ctx, CRANE_X, GROUND_Y - 10, CRANE_X, jibY + 6, 11, 22);
-  // Counter-jib with its weight, the main jib, and the apex ties.
+  // Counter-jib with its weight on two chains, the main jib, and the apex ties.
   lattice(ctx, CRANE_X - 100, jibY - 6, JIB_TIP, jibY - 6, 6, 24);
+  ctx.save();
+  ctx.translate(CRANE_X - 87, jibY - 2);
+  ctx.rotate(c.weight.x);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-12, 10); ctx.moveTo(12, 0); ctx.lineTo(12, 10); ctx.stroke();
   ctx.fillStyle = '#6f757d';
-  ctx.beginPath(); ctx.roundRect(CRANE_X - 104, jibY - 2, 34, 22, 3); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-17, 10, 34, 22, 3); ctx.fill(); ctx.stroke();
   // What really holds the jib up.
   ctx.fillStyle = YELLOW;
   ctx.font = '900 13px Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('100X', CRANE_X - 87, jibY + 9.5, 30);
+  ctx.fillText('100X', 0, 21.5, 30);
+  ctx.restore();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1.5;
   ctx.beginPath();

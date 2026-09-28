@@ -31,10 +31,23 @@ export interface Stream {
   eyeOpen: Spring;
   hair: Spring;
   static: number;
+  /** The bags squash when another lands on the pile. */
+  bagBounce: Spring;
+  /** The second monitor jolts each time her short grows. */
+  monitor: Spring;
+  /** Her short on her own coin, on the monitor she forgot to angle away: closed in profit at the reveal, with a flash that fades. */
+  shortClosed: boolean;
+  shortFlash: number;
+  /** A green flash on the LED strips for an accepted exit. */
+  cash: number;
+  /** The freeze frame: the picture holds for a beat before the feed cuts. */
+  hold: boolean;
+  /** The door's rattle in its frame near the top. */
+  rattle: number;
 }
 
 export function createStream(): Stream {
-  return { time: 0, bounce: spring(0), wave: spring(0), kiss: spring(0), glance: spring(0), handle: spring(0), shock: spring(0), bags: 0, hearts: [], ended: false, endAge: 0, boyfriendX: spring(760), blinkAt: 2, eyeOpen: spring(1), hair: spring(0), static: 0 };
+  return { time: 0, bounce: spring(0), wave: spring(0), kiss: spring(0), glance: spring(0), handle: spring(0), shock: spring(0), bags: 0, hearts: [], ended: false, endAge: 0, boyfriendX: spring(760), blinkAt: 2, eyeOpen: spring(1), hair: spring(0), static: 0, bagBounce: spring(0), monitor: spring(0), shortClosed: false, shortFlash: 0, cash: 0, hold: false, rattle: 0 };
 }
 
 export function resetStream(s: Stream): void {
@@ -50,14 +63,28 @@ export function resetStream(s: Stream): void {
   s.endAge = 0;
   settleSpring(s.boyfriendX, 760);
   s.static = 0;
+  settleSpring(s.bagBounce, 0);
+  settleSpring(s.monitor, 0);
+  s.shortClosed = false;
+  s.shortFlash = 0;
+  s.cash = 0;
+  s.hold = false;
+  s.rattle = 0;
 }
 
-/** A milestone was reached: a bounce, a wave or a kiss, another bag. */
+/** A milestone was reached: a bounce, a wave or a kiss, another bag, and the short on the monitor grows. */
 export function celebrate(s: Stream, index: number): void {
   s.bounce.v += 14;
   if (index % 2) s.kiss.v += 10; else s.wave.v += 12;
   s.bags = Math.min(9, s.bags + 1);
   s.hair.v += 6;
+  s.bagBounce.v += 12;
+  s.monitor.v += 9;
+}
+
+/** An accepted exit: the LED strips flash green. */
+export function cashFlash(s: Stream): void {
+  s.cash = 1;
 }
 
 /** The boyfriend reveal. `quiet` skips the effects for a crash that already happened. */
@@ -66,35 +93,110 @@ export function endStream(s: Stream, seed: number, quiet: boolean): void {
   s.ended = true;
   s.endAge = quiet ? 10 : 0;
   s.hearts = [];
+  s.shortClosed = true;
+  s.shortFlash = quiet ? 0 : 1;
   if (quiet) { settleSpring(s.boyfriendX, 470); settleSpring(s.shock, 1); return; }
   const rng = mulberry32(seed);
   s.static = 0.4 + rng() * 0.3;
   s.shock.v += 6;
+  s.monitor.v += 14;
 }
 
 export interface StreamDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
 
 export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
-  s.time += dt;
-  stepSpring(s.bounce, 0, 10, 0.4, dt);
-  stepSpring(s.wave, 0, 6, 0.5, dt);
-  stepSpring(s.kiss, 0, 6, 0.5, dt);
-  stepSpring(s.hair, 0, 12, 0.3, dt);
+  // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
+  s.hold = s.ended && !drive.reduced && s.endAge > 0.72 && s.endAge < 0.9;
+  const sdt = s.hold ? 0 : dt;
+  s.time += sdt;
+  stepSpring(s.bounce, 0, 10, 0.4, sdt);
+  stepSpring(s.wave, 0, 6, 0.5, sdt);
+  stepSpring(s.kiss, 0, 6, 0.5, sdt);
+  stepSpring(s.hair, 0, 12, 0.3, sdt);
+  stepSpring(s.bagBounce, 0, 14, 0.35, sdt);
+  stepSpring(s.monitor, 0, 12, 0.4, sdt);
+  s.shortFlash = Math.max(0, s.shortFlash - dt / 1.2);
+  s.cash = Math.max(0, s.cash - dt / 0.8);
   const glanceOn = drive.running && drive.tension > 0.55 && !s.ended && Math.floor(s.time * 0.8) % 3 === 0;
-  stepSpring(s.glance, s.ended ? 1 : glanceOn ? 1 : 0, 8, 0.8, dt);
-  stepSpring(s.handle, s.ended ? 1 : drive.running && drive.tension > 0.7 ? 0.5 + 0.5 * Math.sin(s.time * 2) : 0, 5, 0.7, dt);
+  stepSpring(s.glance, s.ended ? 1 : glanceOn ? 1 : 0, 8, 0.8, sdt);
+  stepSpring(s.handle, s.ended ? 1 : drive.running && drive.tension > 0.7 ? 0.5 + 0.5 * Math.sin(s.time * 2) : 0, 5, 0.7, sdt);
+  // Anticipation: the door rattles in its frame as the handle works, harder the higher it goes. Not under reduced motion.
+  s.rattle = drive.running && !s.ended && !drive.reduced && drive.tension > 0.6 ? Math.sin(s.time * 38) * 1.8 * (drive.tension - 0.6) / 0.4 : 0;
   const blinking = s.time > s.blinkAt && s.time < s.blinkAt + 0.12;
   if (s.time >= s.blinkAt + 0.12) s.blinkAt = s.time + 2 + 3 * noise(s.blinkAt);
-  stepSpring(s.eyeOpen, blinking ? 0.08 : s.kiss.x > 0.4 ? 0.2 : 1, 24, 0.9, dt);
+  stepSpring(s.eyeOpen, blinking ? 0.08 : s.kiss.x > 0.4 ? 0.2 : 1, 24, 0.9, sdt);
   if (s.ended) {
     s.endAge += dt;
-    stepSpring(s.boyfriendX, 470, 4, 0.9, dt);
-    stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, dt);
+    stepSpring(s.boyfriendX, 470, 4, 0.9, sdt);
+    stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, sdt);
   } else if (drive.running && drive.tension > 0.2 && noise(Math.floor(s.time * 8)) > 0.7 - 0.3 * drive.tension && s.hearts.length < 40) {
     s.hearts.push({ x: 60 + noise(s.time * 13) * 500, y: VIDEO.h - 60, vx: (noise(s.time * 7) - 0.5) * 30, age: 0, life: 2.2 + noise(s.time) * 1, size: 6 + noise(s.time * 3) * 8 });
   }
-  for (const h of s.hearts) { h.age += dt; h.x += h.vx * dt; h.y -= 70 * dt; }
+  for (const h of s.hearts) { h.age += sdt; h.x += h.vx * sdt; h.y -= 70 * sdt; }
   s.hearts = s.hearts.filter((h) => h.age < h.life);
+}
+
+const withCommas = (n: number): string => n.toLocaleString('en-US');
+/** Millions, or billions past a thousand of them. */
+const millions = (n: number): string => (n < 1000 ? `${n.toFixed(1)}M` : `${(n / 1000).toFixed(2)}B`);
+
+/** The second monitor she forgot to angle away: her short on her own coin, growing with the number, closed in profit at the reveal. */
+function drawMonitor(ctx: CanvasRenderingContext2D, s: Stream, multiplier: number): void {
+  // Between the ring light and her arm on the desk.
+  const box = { x: 132, y: 282, w: 80, h: 66 };
+  const k = clamp(s.monitor.x, -1, 1);
+  ctx.save();
+  ctx.translate(box.x + box.w / 2, box.y + box.h);
+  ctx.rotate(k * 0.04);
+  ctx.scale(1 + 0.05 * k, 1 + 0.05 * k);
+  ctx.translate(-(box.x + box.w / 2), -(box.y + box.h));
+  // Stand and bezel.
+  ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(box.x + box.w / 2 - 14, box.y + box.h, 28, 12, 3); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8, 5); ctx.fill(); ctx.stroke();
+  const flash = clamp(s.shortFlash, 0, 1);
+  ctx.fillStyle = s.shortClosed ? `rgb(${Math.round(mix(16, 40, flash))}, ${Math.round(mix(40, 150, flash))}, ${Math.round(mix(28, 70, flash))})` : '#101822';
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  // The chart: her coin going up, which is her short going under, until the reveal rugs it.
+  const growth = Math.log2(Math.max(1, multiplier));
+  const fill = 1 - Math.exp(-growth / 2.2);
+  ctx.strokeStyle = s.shortClosed ? '#ff4d6d' : '#7cf67c'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i <= 10; i += 1) {
+    const t = i / 10;
+    const y = box.y + box.h - 8 - (box.h - 34) * fill * t * t - noise(i * 2.3) * 4 * t;
+    if (i === 0) ctx.moveTo(box.x + 6, y); else ctx.lineTo(box.x + 6 + (box.w - 12) * t, y);
+  }
+  if (s.shortClosed) ctx.lineTo(box.x + box.w - 6, box.y + box.h - 8);
+  ctx.stroke();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ff9db0'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  ctx.fillText('$QUEEN SHORT 69x', box.x + 5, box.y + 12, box.w - 10);
+  if (s.shortClosed) {
+    ctx.fillStyle = '#7cf67c'; ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.fillText('CLOSED · TP HIT', box.x + 5, box.y + 29, box.w - 10);
+    ctx.font = '900 14px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`+${withCommas(Math.round(420 * multiplier * 10))} SOL`, box.x + 5, box.y + 47, box.w - 10);
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+    ctx.fillText('GG EZ · NFA', box.x + 5, box.y + 61, box.w - 10);
+  } else {
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`SIZE ${millions(4.2 * Math.pow(multiplier, 1.6))}`, box.x + 5, box.y + 29, box.w - 10);
+    ctx.fillStyle = '#ff4d6d'; ctx.font = '900 14px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`-${withCommas(Math.round(69 * (multiplier - 1) * 10))} SOL`, box.x + 5, box.y + 47, box.w - 10);
+    ctx.fillStyle = '#ffe27a'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+    ctx.fillText('LIQ PRICE: NEVER', box.x + 5, box.y + 61, box.w - 10);
+  }
+  // The sticky note she meant to take off.
+  ctx.save();
+  ctx.translate(box.x + 6, box.y - 2);
+  ctx.rotate(-0.18);
+  ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.fillRect(-14, -10, 28, 20); ctx.strokeRect(-14, -10, 28, 20);
+  ctx.fillStyle = INK; ctx.font = '900 8px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('HIDE', 0, -1); ctx.fillText('THIS', 0, 7);
+  ctx.restore();
+  ctx.restore();
 }
 
 function heart(ctx: CanvasRenderingContext2D, x: number, y: number, sz: number, colour: string): void {
@@ -148,10 +250,10 @@ function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, 
 }
 
 /** The whole video feed, clipped to its frame. */
-export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean): void {
+export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean, multiplier: number): void {
   ctx.save();
   ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
-  // Room: dark wall lit by LED strips that pulse with the hype.
+  // Room: dark wall lit by LED strips that pulse with the hype, and flash green for an accepted exit.
   const pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(s.time * (2 + 6 * tension));
   ctx.fillStyle = '#2a1f3d';
   ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
@@ -163,6 +265,14 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.fillRect(0, 0, VIDEO.w, 14);
   ctx.fillRect(0, 0, 14, VIDEO.h);
   ctx.fillRect(VIDEO.w - 14, 0, 14, VIDEO.h);
+  if (s.cash > 0.01) {
+    ctx.fillStyle = `rgba(124, 246, 124, ${0.8 * s.cash})`;
+    ctx.fillRect(0, 0, VIDEO.w, 14);
+    ctx.fillRect(0, 0, 14, VIDEO.h);
+    ctx.fillRect(VIDEO.w - 14, 0, 14, VIDEO.h);
+    ctx.fillStyle = `rgba(124, 246, 124, ${0.12 * s.cash})`;
+    ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+  }
   ctx.fillStyle = 'rgba(255, 80, 200, 0.08)';
   ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
   // Shelf with plushies and a GM poster.
@@ -173,8 +283,10 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.beginPath(); ctx.roundRect(60, 24, 90, 70, 3); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffe27a'; ctx.font = '900 30px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('GM', 105, 70);
-  // The door behind her, its handle, and the shadow under it.
+  // The door behind her, its handle, and the shadow under it; it rattles in its frame near the top.
   const door = { x: 400, y: 60, w: 130, h: 300 };
+  ctx.save();
+  ctx.translate(s.rattle, 0);
   ctx.fillStyle = '#5a4470'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
   const open = s.ended ? smoothstep(0, 0.6, s.endAge) : 0;
   if (open > 0.02) {
@@ -199,17 +311,25 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   }
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.strokeRect(door.x, door.y, door.w, door.h);
-  // Desk, the money bags stacking up.
+  ctx.restore();
+  // Desk, the money bags stacking up (the pile squashes as each one lands), and the second monitor.
   ctx.fillStyle = '#3d2c52'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(120, 360, 420, 80, 6); ctx.fill(); ctx.stroke();
+  const squash = clamp(s.bagBounce.x, -0.6, 1);
   for (let i = 0; i < s.bags; i += 1) {
     const bx = 430 + (i % 3) * 34;
     const by = 356 - Math.floor(i / 3) * 30;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.scale(1 + 0.14 * squash, 1 - 0.16 * squash);
+    ctx.translate(-bx, -by);
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(bx - 10, by - 26); ctx.quadraticCurveTo(bx - 18, by, bx, by); ctx.quadraticCurveTo(bx + 18, by, bx + 10, by - 26); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#7cf67c'; ctx.font = '900 13px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('$', bx, by - 7);
+    ctx.restore();
   }
+  drawMonitor(ctx, s, multiplier);
   // Ring light.
   ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * pulse})`; ctx.lineWidth = 10;
   ctx.beginPath(); ctx.arc(80, 300, 44, 0, Math.PI * 2); ctx.stroke();
@@ -218,8 +338,12 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   drawQueen(ctx, s, tension);
   for (const h of s.hearts) { ctx.globalAlpha = 1 - h.age / h.life; heart(ctx, h.x, h.y, h.size, '#ff4d6d'); }
   ctx.globalAlpha = 1;
-  // The end: static, then the card.
+  // The end: a freeze frame, a hard cut to static, then the card.
   if (s.ended) {
+    if (s.hold) {
+      for (let i = 0; i < 3; i += 1) { ctx.fillStyle = `rgba(160, 255, 255, ${0.16 + 0.08 * i})`; ctx.fillRect(0, noise(i * 4.1 + 2) * VIDEO.h, VIDEO.w, 3 + i * 2); }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+    }
     const k = smoothstep(0.9, 1.6, s.endAge);
     if (s.endAge > 0.9 && s.endAge < 1.6 && !reduced) {
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
@@ -236,6 +360,8 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
       ctx.font = '900 20px Impact, "Arial Black", sans-serif';
       ctx.fillStyle = '#ff9db0';
       ctx.fillText('thanks for the sol frens', VIDEO.w / 2, VIDEO.h / 2 + 30);
+      ctx.fillStyle = '#7cf67c'; ctx.font = '900 17px Impact, "Arial Black", sans-serif';
+      ctx.fillText(`HER SHORT JUST CLOSED · +${withCommas(Math.round(420 * multiplier * 10))} SOL`, VIDEO.w / 2, VIDEO.h / 2 - 62);
       ctx.globalAlpha = 1;
     }
   }

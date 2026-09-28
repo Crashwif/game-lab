@@ -3,7 +3,10 @@
  * meter and the HUD. Motion is stepped with the real frame time. Nothing
  * drawn here changes the committed outcome.
  */
+import { pageAudio } from './audio';
 import {
+  cashBurst,
+  clickSell,
   crashKitchen,
   createKitchen,
   drawFront,
@@ -20,7 +23,7 @@ import {
   visibleMugs,
 } from './kitchen';
 import { clamp, spring, stepSpring } from './motion';
-import { createTrader, drawTrader, resetTrader, snapTrader, stepTrader, type Trader } from './trader';
+import { createTrader, drawTrader, joltTrader, resetTrader, snapTrader, stepTrader, type Trader } from './trader';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -38,7 +41,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake and the clock flicker is left as a steady colon. */
+  /** Drops the screen shake, the hit-stop and the punch-in; the clock flicker is left as a steady colon. */
   reducedMotion?: boolean;
 }
 
@@ -49,6 +52,14 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
+/** The multipliers the caption ladder steps at: each is a milestone ding, the third onward an airhorn. */
+const RUNGS = [1.35, 1.8, 2.6, 4, 6.5, 9, 14, 22];
+/** The caught frame: a short freeze, then she comes down the first stairs at a third speed before time catches up. */
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
+/** Where the camera punches in: the laptop and the man frozen over it. */
+const PUNCH_AT = { x: 420, y: 330 } as const;
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -82,11 +93,15 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  // Lo-fi beats to lose the house to. The crash is the slam of her hand on the table.
+  const audio = pageAudio({ style: 'lofi', crash: 'slam' });
   const kitchen: Kitchen = createKitchen();
   const trader: Trader = createTrader();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch into the caught frame. */
+  const punch = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -94,32 +109,71 @@ export function createScene(options: SceneOptions = {}): Scene {
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
+  let freeze = 0;
+  let slow = 0;
+  /** True from a crash met late until the next round: the aftermath is shown, not replayed, so no cues play for it. */
+  let muted = false;
 
   function beginCrash(view: SceneView, quiet: boolean): void {
     const harmless = secured !== null || trader.mode === 'upstairs' || trader.mode === 'sneak' || trader.mode === 'closing';
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
     if (harmless) snapTrader(trader, 'upstairs');
-    else snapTrader(trader, quiet ? 'caught' : 'caught');
+    else snapTrader(trader, 'caught');
     if (!quiet && !harmless) trader.modeAge = 0;
     crashKitchen(kitchen, view.currentX100, quiet, harmless);
-    if (quiet) pop.x = 1;
-    else {
-      shake = 1;
-      pop.v = 16;
+    if (quiet) {
+      pop.x = 1;
+      muted = true;
+      audio.crash('slam', true);
+      return;
     }
+    pop.v = 16;
+    if (harmless) {
+      // He is already upstairs: she checks the kitchen and goes back up. A soft beat, no slam.
+      shake = reduced ? 0 : 0.2;
+      audio.crash('thud');
+      return;
+    }
+    shake = 1;
+    joltTrader(trader);
+    punch.v = 8;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    audio.crash('slam');
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the caught frame for a few frames, then she comes down slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += reduced ? dt * 0.25 : dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const fear = clamp((Math.log2(multiplier) - 0.2) / 3.2, 0, 1);
+    const tension = 1 - Math.exp(-Math.log2(multiplier) / 2.2);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const fresh = previous === null;
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      // Seen land while the round runs: the cursor finally clicks SELL, gold spills from the case, the register rings.
+      if (running && !fresh && !kitchen.crashed) {
+        clickSell(kitchen);
+        cashBurst(kitchen);
+        audio.cashout();
+      }
+    }
 
-    if (previous === null) {
+    if (fresh) {
       // A fresh scene can open on a round already under way (a page load mid-round, or a round first seen
       // after its betting window), so it settles into the round as it stands instead of playing out what it
       // missed: a cash-out has already sent him upstairs, and a crash is the quiet aftermath.
@@ -129,6 +183,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         if (secured) {
           snapTrader(trader, 'upstairs');
           badge.x = 1;
+          kitchen.sell = 'clicked';
         }
       }
       if (crashed) beginCrash(view, true);
@@ -140,16 +195,34 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = null;
         secured = null;
         shake = 0;
+        freeze = slow = 0;
+        muted = false;
       }
       previous = view.phase;
     }
+    audio.update(view.phase, tension);
     if (secured && running && !kitchen.crashed && trader.mode === 'hunch') holdMeter(kitchen);
 
     stepTrader(trader, { running, fear, leaving: secured !== null && running && !kitchen.crashed, time }, dt);
-    stepKitchen(kitchen, { running, multiplier, fear, time, traderGone: trader.mode !== 'hunch' && trader.mode !== 'caught' }, dt);
-    if (kitchen.events.thump && !reduced) shake = Math.max(shake, 0.28);
+    stepKitchen(kitchen, { running, multiplier, fear, time, traderGone: trader.mode !== 'hunch' && trader.mode !== 'caught', reduced }, dt);
+    const ev = kitchen.events;
+    if (ev.thump && !reduced) shake = Math.max(shake, 0.28);
+    if (!fresh && !muted) {
+      // The kitchen's own events, each a cue: her texts, the ceiling, the mug, the stairs, the ring, the fridge, the door.
+      if (ev.text) audio.fx('notify', 0.8);
+      if (ev.thump) audio.fx('stomp', 0.55 + 0.45 * fear);
+      if (ev.step) audio.fx('stomp', 0.9);
+      if (ev.mugHit) audio.fx('shatter', 0.7);
+      if (ev.peek) audio.fx('creak', 0.8);
+      if (ev.ring) audio.fx('coin', 1);
+      if (ev.letter) audio.fx('clang', 0.35);
+      if (ev.photo) audio.fx('thud', 0.6);
+      if (ev.door) audio.fx('door', 1);
+      if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, trader, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -160,10 +233,17 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 8 * shake, Math.cos(time * 70) * 5 * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the man caught at the laptop and eases back out.
+      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
+      ctx.scale(k, k);
+      ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
+    }
     const glow = trader.lid.x > 0.8 ? 'off' : kitchen.chartDead ? 'red' : 'green';
     drawRoom(ctx, kitchen, reduced ? 0 : time);
     drawTrader(ctx, trader, glow, time, fear);
-    drawLaptop(ctx, trader.lid.x, kitchen.chartDead, kitchen.crashT, time, fear);
+    drawLaptop(ctx, kitchen, trader.lid.x, time, fear);
     drawMid(ctx, kitchen, multiplier, time);
     drawFront(ctx, kitchen, time);
     drawGlow(ctx, trader.lid.x, kitchen.chartDead);

@@ -2,6 +2,7 @@
  * Composes Not Financial Advice: the video, the chrome, the desktop it
  * minimises onto, and the HUD. Nothing drawn here changes the outcome.
  */
+import { pageAudio } from './audio';
 import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
 import {
   createOverlay,
@@ -15,7 +16,7 @@ import {
   unfollow,
   type Overlay,
 } from './overlay';
-import { VIDEO_H, VIDEO_W, createStudio, drawStudio, endStudio, resetStudio, settleStudio, stepStudio, type Studio } from './studio';
+import { VIDEO_H, VIDEO_W, createStudio, drawStudio, endStudio, resetStudio, screenshot, settleStudio, stepStudio, type Studio } from './studio';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -28,7 +29,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake and the tow-light strobe stays on one colour. */
+  /** Drops the screen shake, the freeze frame and the punch-in; the tow-light strobe stays on one colour. */
   reducedMotion?: boolean;
 }
 
@@ -39,6 +40,14 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
+/** The caption ladder's steps: a milestone ding each, an airhorn from the third, and a sponsor read at every one. */
+const RUNGS = [1.35, 1.8, 2.6, 4, 6, 9, 14, 22];
+/** The reveal: the frame freezes on SOLD (the record scratch), the cloth starts to fall at a third speed, then time catches up. */
+const FREEZE_S = 0.09;
+const SLOW_S = 0.3;
+const SLOW_RATE = 0.3;
+/** Where the camera punches in: between the wallet and the man about to be exposed. */
+const PUNCH_AT = { x: 210, y: 250 } as const;
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -89,12 +98,16 @@ function drawDesktop(ctx: CanvasRenderingContext2D): void {
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  // Trap for the shill, and the crash is the record scratch of the reveal.
+  const audio = pageAudio({ style: 'trap', crash: 'scratch' });
   const studio: Studio = createStudio();
   const overlay: Overlay = createOverlay();
   const win = spring(0);
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch into the reveal. */
+  const punch = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -102,10 +115,18 @@ export function createScene(options: SceneOptions = {}): Scene {
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
+  let freeze = 0;
+  let slow = 0;
+  /** Seconds until the chat turns on him; -1 with no boo due. */
+  let booIn = -1;
+  let minimised = false;
+  let discPx = 16;
+  /** True from a crash met late until the next round: the aftermath is shown, not replayed, so no cues play for it. */
+  let muted = false;
 
   /** Jumps the props to the multiplier, for a stretch of the round this scene did not draw. */
   function settle(multiplier: number, tension: number): void {
-    settleStudio(studio, tension);
+    settleStudio(studio, tension, RUNGS.filter((r) => multiplier >= r).length);
     settleOverlay(overlay, multiplier);
   }
 
@@ -113,32 +134,65 @@ export function createScene(options: SceneOptions = {}): Scene {
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
     endStudio(studio, quiet);
     floodOverlay(overlay, quiet);
-    if (quiet) pop.x = 1;
-    else {
-      shake = 1;
-      pop.v = 14;
+    if (quiet) {
+      pop.x = 1;
+      muted = true;
+      audio.crash('scratch', true);
+      return;
     }
+    shake = 1;
+    pop.v = 14;
+    if (!secured) {
+      // The full reveal, watched: the freeze on SOLD, the cloth in slow motion, the camera in on his face.
+      punch.v = 8;
+      if (!reduced) {
+        freeze = FREEZE_S;
+        slow = SLOW_S;
+      }
+    }
+    booIn = 0.7;
+    audio.crash('scratch');
+    audio.fx('engine', 0.8);
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The freeze frame holds the picture, then the cloth falls slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = clamp(Math.log2(multiplier) / 3.4, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
+    const fresh = previous === null;
     // A cash-out this scene did not watch land (it opened after it, or the tab was hidden through the rest of
     // the run) is shown as done: the video already minimised, the badge up and your subscriber gone.
-    const cashedOffScreen = secured === null && view.cashoutX100 !== null && (previous === null || !running);
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const cashedOffScreen = secured === null && view.cashoutX100 !== null && (fresh || !running);
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (!cashedOffScreen) {
+        // Your subscriber's screenshot, then the register: the exit, watched.
+        screenshot(studio);
+        audio.fx('camera', 1);
+        audio.cashout();
+      }
+    }
     if (cashedOffScreen) {
       settleSpring(win, 1);
       settleSpring(badge, 1);
       unfollow(overlay, true);
+      minimised = true;
     }
 
-    if (previous === null) {
+    if (fresh) {
       // A fresh scene can open on any phase (the shell makes one for a round it first meets after betting), so
       // the props start where the multiplier has them and a crash opens on its aftermath.
       previous = view.phase;
@@ -159,17 +213,43 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = null;
         secured = null;
         shake = 0;
+        freeze = slow = 0;
+        booIn = -1;
+        minimised = false;
+        muted = false;
       }
       previous = view.phase;
     }
+    audio.update(view.phase, tension);
     if (secured && running && !overlay.leaving) unfollow(overlay);
 
     const shownTime = reduced ? 0 : time;
-    stepStudio(studio, { running, tension, time: shownTime }, dt);
+    const reads = RUNGS.filter((r) => multiplier >= r).length;
+    stepStudio(studio, { running, tension, time: shownTime, reads }, dt);
     stepOverlay(overlay, { running, multiplier, tension }, dt);
+    if (!fresh && !muted) {
+      // The set's own events as cues: a sell queued, the read, the truck, its reversing, the disclosure's next step down.
+      const ev = studio.events;
+      if (ev.pending) audio.fx('notify', 0.7);
+      if (ev.read) audio.fx('kaching', 0.6);
+      if (ev.truck) audio.fx('engine', 0.7);
+      if (ev.beep) audio.fx('beep', 0.7);
+      if (running && overlay.discSize < discPx) audio.fx('tick', 0.6);
+      if (running) audio.milestone(reads);
+    }
+    discPx = overlay.discSize;
+    if (booIn >= 0) {
+      booIn -= real;
+      if (booIn < 0) audio.fx('boo', 1);
+    }
     stepSpring(win, secured ? 1 : 0, 7, 0.8, dt);
+    if (!minimised && win.x > 0.5) {
+      minimised = true;
+      if (!muted) audio.fx('whoosh', 0.8);
+    }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const next = captionFor(view, multiplier, outcome, secured);
     if (next !== caption) {
       caption = next;
@@ -186,6 +266,13 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 80) * 7 * shake, Math.cos(time * 60) * 4 * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the reveal and eases back out.
+      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
+      ctx.scale(k, k);
+      ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
+    }
     const scale = mix(1, 0.34, win.x);
     const vx = mix(20, 28, win.x);
     const vy = mix(72, 300, win.x);
@@ -221,12 +308,13 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (outcome && pop.x > 0.02 && win.x < 0.65) {
       ctx.save();
-      ctx.translate(310, 250);
+      // Above the sponsor card and below the chyron, so the reveal's word and its sponsor both read.
+      ctx.translate(280, 170);
       ctx.rotate(-0.06);
       const k = clamp(pop.x, 0, 1.2);
       ctx.scale(k, k);
       const word = outcome === 'called' ? 'DYOR' : outcome === 'rekt' ? 'RUGGED' : 'DEV SOLD';
-      memeText(ctx, word, 0, 0, 84, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      memeText(ctx, word, 0, 0, 76, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 360);
       ctx.restore();
     }
     ctx.restore();

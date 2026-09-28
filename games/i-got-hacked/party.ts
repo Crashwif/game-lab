@@ -35,7 +35,12 @@ export interface Party {
   corks: Cork[];
   you: { mode: FanMode; x: number; modeAge: number; towel: Spring };
   followers: Spring;
+  /** Seconds since the post landed on the party, for the staggered jump of shock; -1 before it, or for a crash met late. */
+  shock: number;
 }
+
+/** Corks and confetti in the air at once, at most. */
+const CORK_CAP = 90;
 
 const FAN_SLOTS: Array<{ x: number; y: number; inPool: boolean }> = [];
 {
@@ -48,7 +53,7 @@ const FAN_SLOTS: Array<{ x: number; y: number; inPool: boolean }> = [];
 }
 
 export function createParty(): Party {
-  return { time: 0, fans: [], wanted: 3, popIndex: 0, nextPop: POPS[0]!, fill: spring(0), water: spring(1), lean: spring(0), drained: false, cheer: spring(0), sulk: spring(0), corks: [], you: { mode: 'partying', x: 480, modeAge: 0, towel: spring(0) }, followers: spring(12_400) };
+  return { time: 0, fans: [], wanted: 3, popIndex: 0, nextPop: POPS[0]!, fill: spring(0), water: spring(1), lean: spring(0), drained: false, cheer: spring(0), sulk: spring(0), corks: [], you: { mode: 'partying', x: 480, modeAge: 0, towel: spring(0) }, followers: spring(12_400), shock: -1 };
 }
 
 export function resetParty(p: Party): void {
@@ -65,6 +70,7 @@ export function resetParty(p: Party): void {
   p.corks = [];
   p.you = { mode: 'partying', x: 480, modeAge: 0, towel: spring(0) };
   settleSpring(p.followers, 12_400);
+  p.shock = -1;
 }
 
 /** Jumps the party to where a multiplier already is. */
@@ -91,11 +97,16 @@ function arrive(p: Party, age: number): void {
   p.fans.push({ x: slot.x, y: slot.y, seed: p.fans.length, inPool: slot.inPool, arrive: age, scale: slot.inPool ? 0.5 : 0.6 });
 }
 
-/** Your fan leaves the party. `gone` skips the walk for a cash-out made before this scene started. */
-export function leaveParty(p: Party, gone = false): void {
+/** Your fan leaves the party. `gone` skips the walk for a cash-out made before this scene started; the confetti is skipped under reduced motion. */
+export function leaveParty(p: Party, gone = false, reduced = false): void {
   if (p.you.mode !== 'partying') return;
   if (gone) { p.you = { mode: 'gone', x: STAGE.w + 60, modeAge: 10, towel: spring(1) }; return; }
   p.you.mode = 'towel'; p.you.modeAge = 0;
+  if (reduced) return;
+  // A small burst of confetti over your fan: the only one at this party who got out.
+  const rng = mulberry32(77);
+  for (let i = 0; i < 32; i += 1) p.corks.push({ x: 480 + (rng() - 0.5) * 30, y: POOL.y + POOL.h - 50, vx: (rng() - 0.5) * 300, vy: -140 - rng() * 200, age: 0, life: 1 + rng() * 0.7, colour: ['#7cf67c', '#ffe27a', '#ffffff'][i % 3]!, size: 2.5 + rng() * 3.5 });
+  if (p.corks.length > CORK_CAP) p.corks.splice(0, p.corks.length - CORK_CAP);
 }
 
 /** The pool drains. `quiet` skips the effects for a crash that already happened. */
@@ -103,6 +114,7 @@ export function drainParty(p: Party, seed: number, cheerful: boolean, quiet: boo
   p.drained = true;
   if (cheerful) settleSpring(p.cheer, 1); else settleSpring(p.sulk, 1);
   if (quiet) { settleSpring(p.water, 0); return; }
+  p.shock = 0;
   const rng = mulberry32(seed);
   for (let i = 0; i < 12; i += 1) p.corks.push({ x: POOL.x + rng() * POOL.w, y: POOL.y + 20, vx: (rng() - 0.5) * 80, vy: -60 - rng() * 80, age: 0, life: 1.2 + rng() * 0.6, colour: '#8fd3ff', size: 3 + rng() * 4 });
 }
@@ -113,6 +125,7 @@ function pop(p: Party, index: number, reduced: boolean): void {
   const rng = mulberry32(index * 131 + 7);
   const x = POOL.x + rng() * POOL.w;
   for (let i = 0; i < 18; i += 1) p.corks.push({ x, y: POOL.y - 10, vx: (rng() - 0.5) * 240, vy: -160 - rng() * 160, age: 0, life: 1 + rng() * 0.8, colour: ['#ffe27a', '#ffffff', '#ff9db0', '#7cf67c'][i % 4]!, size: 2 + rng() * 4 });
+  if (p.corks.length > CORK_CAP) p.corks.splice(0, p.corks.length - CORK_CAP);
 }
 
 export interface PartyDrive { running: boolean; multiplier: number; tension: number; reduced: boolean }
@@ -138,6 +151,7 @@ export function stepParty(p: Party, drive: PartyDrive, dt: number): boolean {
   stepSpring(p.followers, p.drained ? p.followers.x * (1 - dt * 0.4) : followersFor(drive.multiplier), 4, 1, dt);
   for (const c of p.corks) { c.age += dt; c.x += c.vx * dt; c.vy += 420 * dt; c.y += c.vy * dt; }
   p.corks = p.corks.filter((c) => c.age < c.life);
+  if (p.shock >= 0) p.shock += dt;
   const y = p.you;
   y.modeAge += dt;
   if (y.mode === 'towel' && y.modeAge > 0.9) { y.mode = 'walking'; y.modeAge = 0; }
@@ -289,7 +303,9 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
   const lean = clamp(p.lean.x, 0, 1);
   for (const f of p.fans) {
     const k = smoothstep(0, 0.5, f.arrive);
-    const bob = reduced ? 0 : Math.max(0, Math.sin(p.time * (3 + 6 * cheer) + f.seed * 0.9)) * 7 * cheer + (finished && cheerful ? Math.max(0, Math.sin(p.time * 10 + f.seed)) * 10 : 0);
+    // The post lands on the party a fan at a time: a jump of shock that ripples back through the crowd.
+    const hop = !reduced && p.shock >= 0 ? Math.sin(Math.PI * clamp((p.shock - 0.1 - noise(f.seed * 2.7) * 0.35) / 0.4, 0, 1)) * 16 : 0;
+    const bob = hop + (reduced ? 0 : Math.max(0, Math.sin(p.time * (3 + 6 * cheer) + f.seed * 0.9)) * 7 * cheer + (finished && cheerful ? Math.max(0, Math.sin(p.time * 10 + f.seed)) * 10 : 0));
     const mood: Mood = finished ? (cheerful ? 'hype' : p.sulk.x > 0.5 ? 'sulk' : 'shock') : cheer > 0.7 ? 'hype' : 'calm';
     const inWater = f.inPool ? water : 0;
     const y = f.inPool ? f.y + (1 - water) * 18 : f.y;

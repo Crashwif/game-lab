@@ -49,6 +49,12 @@ export function skyColour(altitude: number): string {
   return `rgb(${Math.round(mix(c0[0], c1[0], t))}, ${Math.round(mix(c0[1], c1[1], t))}, ${Math.round(mix(c0[2], c1[2], t))})`;
 }
 
+/** The moon's screen position and radius for a multiplier this far along: it grows as the token gets closer. */
+export function moonAt(growth: number): { x: number; y: number; r: number } {
+  const near = clamp((growth - 1) / 5, 0, 1);
+  return { x: 820 - 200 * near, y: 110 + 40 * near, r: 34 + 150 * near };
+}
+
 export function drawSky(ctx: CanvasRenderingContext2D, cam: Camera, time: number, growth: number, reduced: boolean): void {
   const altitudeAt = (sy: number): number => cam.y + (300 - sy);
   const sky = ctx.createLinearGradient(0, 0, 0, 540);
@@ -67,10 +73,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, cam: Camera, time: number
     ctx.globalAlpha = 1;
   }
   // The moon grows as the token gets closer to it.
-  const near = clamp((growth - 1) / 5, 0, 1);
-  const r = 34 + 150 * near;
-  const mx = 820 - 200 * near;
-  const my = 110 + 40 * near;
+  const { x: mx, y: my, r } = moonAt(growth);
   const glow = ctx.createRadialGradient(mx, my, r * 0.8, mx, my, r * 2.2);
   glow.addColorStop(0, 'rgba(255, 244, 214, 0.32)');
   glow.addColorStop(1, 'rgba(255, 244, 214, 0)');
