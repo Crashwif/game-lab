@@ -4,7 +4,9 @@
  * reflection, the shatter, then the HUD. All motion is stepped here with the
  * real frame time, and nothing drawn here changes the committed outcome.
  */
-import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawBagholders, drawCracks, drawIce, drawShatter, drawThinning, resetIce, shatterIce, spawnCrack, stepIce } from './ice';
+import { pageAudio } from './audio';
+import { type EngineDrive, type EngineState, createEngine, drawEngine, engineLine, settleEngine, stepEngine } from './engine';
+import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawBagholders, drawCracks, drawIce, drawShatter, drawThinning, resetIce, shatterIce, spawnCrack, stepBagholders, stepIce } from './ice';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { type SkaterDrive, type SkaterState, createSkater, drawSkater, footScreen, headForShore, iceBroke, iceScale, iceY, resetSkater, settleSkater, stepScarf, stepSkater } from './skater';
 
@@ -43,10 +45,21 @@ const READOUT_MAX_WIDTH = 300;
 const HUD_GAP = 24;
 /** How far past the spot where she climbs out the exit sign stands, in world px. */
 const EXIT_AHEAD = 66;
+/** The multipliers a milestone stinger plays at: the caption ladder. */
+const RUNGS = [1.3, 1.7, 2.5, 4, 7, 12, 25];
+/**
+ * The break's choreography: the ice snaps round her with a creak, gives way a few frames later (the fuse), the
+ * picture holds for a hit-stop, and the plunge runs slow before time catches up.
+ */
+const FUSE_S = 0.14;
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
+const CONFETTI = ['#ff4d6d', '#7cf67c', '#8fd3ff', '#ffe27a', '#c084fc'];
 type Outcome = 'rekt' | 'called' | 'crack';
 type Secured = { x100: number; payout: number | null };
 type Flake = { x: number; y: number; r: number; k: number };
-interface Particle { kind: 'spray' | 'breath' | 'splash' | 'bubble'; x: number; y: number; vx: number; vy: number; r: number; age: number; life: number }
+interface Particle { kind: 'spray' | 'breath' | 'splash' | 'bubble' | 'confetti'; x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour?: string }
 
 /** The width of the black border memeText strokes round lettering of this size; half of it shows outside the glyphs. */
 const border = (size: number): number => Math.max(3, size * 0.13);
@@ -230,13 +243,17 @@ function drawCaption(ctx: CanvasRenderingContext2D, caption: string, scale: numb
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'synthwave', crash: 'shatter' });
   const ice: IceState = createIce();
   const skater: SkaterState = createSkater();
+  const engine: EngineState = createEngine();
   const camera = spring(-SKATER_SCREEN_X);
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
   const exitSign = spring(0);
+  /** The camera's punch into the hole. */
+  const punch = spring(0);
   const stars: Flake[] = Array.from({ length: 60 }, (_, i) => ({ x: noise(i * 3.1) * W, y: 6 + noise(i * 7.7) * 150, r: 0.6 + noise(i * 1.3) * 1.4, k: 1 + noise(i * 5.9) * 2 }));
   const flakes: Flake[] = Array.from({ length: 90 }, (_, i) => ({ x: noise(i * 2.3) * W, y: noise(i * 4.1) * H, r: 1 + noise(i * 6.7) * 2, k: 0.5 + noise(i * 8.9) }));
   let particles: Particle[] = [];
@@ -250,15 +267,54 @@ export function createScene(options: SceneOptions = {}): Scene {
   let breathClock = 0;
   /** World x of the exit sign, set where she climbs onto the bank. */
   let exitAt: number | null = null;
+  /** Seconds until the ice gives after it snaps; -1 with no break pending. */
+  let fuse = -1;
+  let freeze = 0;
+  let slow = 0;
+  /** Sound gates: the splash once she is in, the bubbles, the whistle for the bank, the survivors' gasp, the drone's siren. */
+  let splashed = false;
+  let bubbleClock = 0;
+  let onBank = false;
+  let gasped = false;
+  let sirenIn = -1;
+  let scarfPlaced = false;
 
   function emit(p: Particle): void {
     if (particles.length > 500) particles.shift();
     particles.push(p);
   }
 
+  /** The ice goes: the hole, the floes, the outcome, and the beats round it. */
+  function shatter(view: SceneView): void {
+    const depth = clamp(skater.depth.x, 0, 1);
+    const onIce = skater.mode === 'skating' || skater.mode === 'idle' || (skater.mode === 'toShore' && depth < 0.95);
+    const at: Point = onIce ? { x: skater.x, y: iceY(depth) } : skater.lastIce;
+    shatterIce(ice, at.x, at.y, view.currentX100, false);
+    outcome = view.stake === null ? 'crack' : secured ? 'called' : 'rekt';
+    iceBroke(skater);
+    shake = 1;
+    pop.v = 16;
+    punch.v = 8;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    audio.crash('shatter');
+    sirenIn = 0.8;
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the plunge runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
@@ -266,7 +322,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
     const drive: SkaterDrive = { speed: running ? 120 + 220 * (1 - Math.exp(-growth / 2)) : 0, strideRate: 0.7 + 1.1 * (1 - Math.exp(-growth / 2)), fear };
 
     // Phase edges: joining late, the break, and a fresh lake for the next round.
@@ -283,36 +342,41 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (skater.mode === 'shore') {
         exitAt = skater.x + EXIT_AHEAD;
         settleSpring(exitSign, 1);
+        onBank = true;
       }
+      settleEngine(engine, { running, crashed: false, tension, safe: skater.mode === 'shore' || skater.mode === 'toShore', holeX: null, line: engineLine(crashed ? 'running' : view.phase, multiplier, secured !== null, null) });
       previous = crashed ? 'running' : view.phase;
     }
     if (view.phase !== previous) {
-      if (crashed && !ice.shattered) {
+      if (crashed && !ice.shattered && fuse < 0) {
         const quiet = view.crashAge > 1500;
         // An exit accepted while no running frame was drawn (a hidden tab) still gets her off the ice.
         if (secured) headForShore(skater);
         const onIce = skater.mode === 'skating' || skater.mode === 'idle' || (skater.mode === 'toShore' && skater.depth.x < 0.95);
         const at: Point = onIce ? { x: skater.x, y: iceY(skater.depth.x) } : skater.lastIce;
-        shatterIce(ice, at.x, at.y, view.currentX100, quiet);
-        outcome = view.stake === null ? 'crack' : secured ? 'called' : 'rekt';
-        iceBroke(skater);
         if (quiet) {
+          shatterIce(ice, at.x, at.y, view.currentX100, true);
+          outcome = view.stake === null ? 'crack' : secured ? 'called' : 'rekt';
+          iceBroke(skater);
           pop.x = 1;
           if (skater.mode === 'plunge') { skater.mode = 'swimming'; skater.plunge = 58; }
           if (skater.mode === 'shore' && exitAt === null) {
             exitAt = skater.x + EXIT_AHEAD;
             settleSpring(exitSign, 1);
           }
+          splashed = true;
+          onBank = skater.mode === 'shore';
+          gasped = true;
+          audio.crash('shatter', true);
         } else {
-          shake = 1;
-          pop.v = 16;
-          if (skater.mode === 'plunge') {
-            for (let i = 0; i < 26; i += 1) {
-              const a = -Math.PI * (0.2 + noise(i * 1.7) * 0.6);
-              const s = 120 + noise(i * 2.3) * 260;
-              emit({ kind: 'splash', x: at.x + (noise(i * 3.1) - 0.5) * 40, y: at.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: 2 + noise(i * 4.7) * 3, age: 0, life: 0.7 + noise(i) * 0.4 });
-            }
+          // The ice snaps all round her first: a ring of cracks and a creak, then it gives a few frames later.
+          fuse = FUSE_S;
+          for (let i = 0; i < 7; i += 1) {
+            const a = (i / 7) * Math.PI * 2;
+            spawnCrack(ice, at.x + Math.cos(a) * 34, at.y + Math.sin(a) * 34 * FORESHORTEN, 1, view.currentX100 * 0.01 + i * 3);
           }
+          for (const c of ice.cracks.slice(-14)) c.growth = Math.max(c.growth, 0.4);
+          audio.fx('creak', 1.5);
         }
       }
       if (view.phase === 'betting') {
@@ -323,10 +387,22 @@ export function createScene(options: SceneOptions = {}): Scene {
         secured = null;
         exitAt = null;
         settleSpring(exitSign, 0);
+        fuse = -1;
+        freeze = slow = 0;
+        splashed = false;
+        onBank = false;
+        gasped = false;
+        sirenIn = -1;
       }
       if (view.phase === 'running' && skater.mode === 'idle') skater.mode = 'skating';
       previous = view.phase;
     }
+    if (fuse >= 0) {
+      fuse -= real;
+      if (fuse < 0 && !ice.shattered) shatter(view);
+    }
+    audio.update(view.phase, tension);
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     if (secured && running && (skater.mode === 'skating' || skater.mode === 'idle')) headForShore(skater);
 
     stepSkater(skater, drive, dt);
@@ -337,6 +413,34 @@ export function createScene(options: SceneOptions = {}): Scene {
     const depth = clamp(skater.depth.x, 0, 1);
     const place = { x: skater.x - cameraX, y: iceY(depth) - (skater.mode === 'shore' ? 6 : 0), scale: iceScale(depth) };
     const onIce = skater.mode === 'skating' || skater.mode === 'idle' || (skater.mode === 'toShore' && depth < 0.95);
+    // The bank: a whistle and a burst of confetti as she climbs out, once.
+    if (skater.mode === 'shore' && !onBank) {
+      onBank = true;
+      audio.fx('whistle', 0.9);
+      for (let i = 0; i < 40; i += 1) {
+        const a = -Math.PI * (0.15 + noise(i * 1.9) * 0.7);
+        const sp = 90 + noise(i * 2.7) * 200;
+        emit({ kind: 'confetti', x: skater.x + (noise(i * 3.3) - 0.5) * 30, y: place.y - 40, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 2.5, age: 0, life: 1.3 + noise(i) * 0.6, colour: CONFETTI[i % CONFETTI.length] });
+      }
+    }
+    // The splash lands when she does, a few frames after the ice goes.
+    if (!splashed && skater.mode === 'plunge' && skater.plunge > 16) {
+      splashed = true;
+      audio.fx('splash', 1);
+      const at = { x: skater.x, y: iceY(depth) };
+      for (let i = 0; i < 26; i += 1) {
+        const a = -Math.PI * (0.2 + noise(i * 1.7) * 0.6);
+        const sp = 120 + noise(i * 2.3) * 260;
+        emit({ kind: 'splash', x: at.x + (noise(i * 3.1) - 0.5) * 40, y: at.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 2 + noise(i * 4.7) * 3, age: 0, life: 0.7 + noise(i) * 0.4 });
+      }
+    }
+    // Skates hiss on each push off the back foot.
+    if (running && skater.events.push === 0 && onIce && skater.speed > 40) audio.fx('hiss', 0.25 + 0.4 * tension);
+    bubbleClock -= dt;
+    if (skater.mode === 'swimming' && bubbleClock <= 0) {
+      bubbleClock = 0.9 + noise(time) * 0.5;
+      audio.fx('bubble', 0.5 + noise(time * 3) * 0.6);
+    }
 
     // Trails, spray and breath.
     if (onIce && skater.speed > 20) {
@@ -363,13 +467,14 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const p of particles) {
       p.age += dt;
       if (p.kind === 'spray' || p.kind === 'splash') { p.vy += 500 * dt; p.vx *= Math.exp(-1.5 * dt); }
+      if (p.kind === 'confetti') { p.vy += 260 * dt; p.vx *= Math.exp(-1.2 * dt); }
       if (p.kind === 'breath') { p.r += 6 * dt; p.vy -= 4 * dt; }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
     }
     particles = particles.filter((p) => p.age < p.life);
 
-    // The ice keeps failing around her, or around where she left it.
+    // The ice keeps failing around her, or around where she left it, with a creak each time.
     if (running && !ice.shattered) {
       ice.crackClock += dt;
       const interval = 2.4 - 2.0 * tension;
@@ -378,13 +483,34 @@ export function createScene(options: SceneOptions = {}): Scene {
         const at = onIce ? { x: skater.x, y: iceY(depth) } : skater.lastIce;
         const count = 1 + Math.floor(tension * 2);
         for (let i = 0; i < count; i += 1) spawnCrack(ice, at.x + (noise(time * 5 + i) - 0.5) * 70, at.y + (noise(time * 9 + i) - 0.5) * 26, tension, time * 31 + i * 7);
+        audio.fx('creak', 0.35 + 0.7 * tension);
       }
     }
+    // The bagholders she passes thaw and reach; after the break a few come up on the floes.
+    if (running && onIce) stepBagholders(ice, cameraX, skater.x, tension, dt);
     stepIce(ice, cameraX, dt);
+    if (ice.events.surfaced && !gasped) {
+      gasped = true;
+      audio.fx('gasp', 0.8);
+    }
+    // The liquidation engine: it closes in with the tension, backs off when she is safe, and hovers over the hole.
+    const engineDrive: EngineDrive = {
+      running, crashed: ice.shattered, tension: running ? tension : 0, safe: skater.mode === 'shore' || skater.mode === 'toShore',
+      holeX: ice.shattered ? ice.shatterAt.x - cameraX : null,
+      line: engineLine(fuse >= 0 ? 'running' : view.phase, multiplier, secured !== null, outcome),
+    };
+    if (stepEngine(engine, engineDrive, dt) && (running || crashed)) audio.fx('beep', outcome ? 0.6 : 0.8 + 0.5 * tension);
+    if (sirenIn >= 0) {
+      sirenIn -= real;
+      if (sirenIn < 0) audio.fx('siren', 0.45);
+    }
 
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    stepSpring(punch, 0, 9, 0.5, dt);
+    // Through the fuse the round is over but she is still up: the HUD keeps reading as running until the ice goes.
+    const shown: SceneView = fuse >= 0 ? { ...view, phase: 'running' } : view;
+    const nextCaption = captionFor(shown, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
       captionPop.v = 6;
@@ -394,12 +520,21 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (!reduced && punch.x > 0.005 && ice.shattered) {
+      // The camera punches in on the hole and eases back out.
+      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      const px = clamp(ice.shatterAt.x - cameraX, 0, W);
+      const py = ice.shatterAt.y;
+      ctx.translate(px, py);
+      ctx.scale(k, k);
+      ctx.translate(-px, -py);
+    }
     drawSky(ctx, time, stars, reduced);
     drawMountains(ctx, cameraX);
     drawShore(ctx, cameraX);
     if (exitAt !== null && exitSign.x > 0.02) drawExitSign(ctx, exitAt - cameraX, clamp(exitSign.x, 0, 1.3));
     drawIce(ctx, ice, cameraX, time);
-    drawBagholders(ctx, cameraX);
+    drawBagholders(ctx, ice, cameraX, time, running || fuse >= 0 ? tension : 0);
     const thinAt = onIce ? { x: place.x, y: place.y } : { x: skater.lastIce.x - cameraX, y: skater.lastIce.y };
     if (running && !ice.shattered) drawThinning(ctx, thinAt.x, thinAt.y, tension, time);
     drawCracks(ctx, ice, cameraX);
@@ -435,16 +570,27 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(place.x, place.y + 4 * place.scale, 30 * place.scale, 9 * place.scale, 0, 0, Math.PI * 2); ctx.stroke();
     }
-    stepScarf(skater, neck, dt);
+    // The scarf is placed on the first frame and then only stepped with real time, so a hit-stop holds it too.
+    if (!scarfPlaced || dt > 0) {
+      stepScarf(skater, neck, scarfPlaced ? dt : 0);
+      scarfPlaced = true;
+    }
     for (const p of particles) {
       const k = 1 - p.age / p.life;
       const sx = p.x - cameraX;
       if (p.kind === 'breath') { ctx.globalAlpha = k * 0.45; ctx.fillStyle = '#ffffff'; }
       else if (p.kind === 'bubble') { ctx.globalAlpha = k * 0.8; ctx.fillStyle = '#dff1ff'; }
+      else if (p.kind === 'confetti') {
+        ctx.globalAlpha = Math.min(1, k * 1.8);
+        ctx.fillStyle = p.colour ?? '#ffffff';
+        ctx.save(); ctx.translate(sx, p.y); ctx.rotate(p.age * 9 + p.x); ctx.fillRect(-3, -2, 6, 4); ctx.restore();
+        continue;
+      }
       else { ctx.globalAlpha = Math.min(1, k * 1.5); ctx.fillStyle = p.kind === 'splash' ? '#bfe0ff' : '#ffffff'; }
       ctx.beginPath(); ctx.arc(sx, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+    drawEngine(ctx, engine, engineDrive, reduced);
     // Snow in screen space, drifting against the skating direction.
     ctx.fillStyle = '#ffffff';
     for (const f of flakes) {
@@ -456,8 +602,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.globalAlpha = 1;
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      // Above the break when there is room, below it when the break is up by the bank.
-      ctx.translate(clamp(ice.shatterAt.x - cameraX, 160, 800), ice.shatterAt.y < 340 ? ice.shatterAt.y + 150 : ice.shatterAt.y - 120);
+      // Above the break when there is room (clear of the survivors' signs), below it when the break is up by the bank.
+      ctx.translate(clamp(ice.shatterAt.x - cameraX, 160, 800), ice.shatterAt.y < 350 ? ice.shatterAt.y + 150 : ice.shatterAt.y - 140);
       ctx.rotate(-0.12);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
@@ -479,7 +625,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    drawReadout(ctx, view, readout, outcome !== null);
+    drawReadout(ctx, shown, readout, outcome !== null);
     memeText(ctx, `${Math.round(skater.x / 10)} M`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     void FORESHORTEN;
   }

@@ -3,9 +3,11 @@
  * bagholders frozen in it, a crack network that spreads around the skater as
  * the tension rises, skate trails, and the shatter: at the crash the ice
  * around her breaks along seeded rays and rings into floes that tilt, bob and
- * drift apart on open water.
+ * drift apart on open water. The bagholders thaw as she passes and reach up
+ * through the ice for her ankles with the tension; at the shatter a few of
+ * them surface on the floes, still holding their signs.
  */
-import { clamp, mix, mulberry32, noise } from './motion';
+import { type Spring, clamp, mix, mulberry32, noise, spring, stepSpring } from './motion';
 
 /** Screen y of the far edge of the ice (the shore line) and the near edge. */
 export const ICE_FAR_Y = 236;
@@ -36,6 +38,9 @@ export interface Floe {
 
 export interface Ripple { age: number; life: number; r: number }
 
+/** A bagholder who came up with the break, on a floe, sign first. */
+export interface Surfacer { floe: number; sign: [string, string]; up: Spring; delay: number; tone: number; flip: boolean }
+
 export interface IceState {
   cracks: Crack[];
   trails: Point[][];
@@ -47,10 +52,14 @@ export interface IceState {
   sheen: number;
   crackClock: number;
   rippleClock: number;
+  /** How far each frozen bagholder (by index) has woken: 0 frozen solid, 1 hand out of the ice. Only ever rises. */
+  thaw: Map<number, number>;
+  surfacers: Surfacer[];
+  events: { surfaced: number };
 }
 
 export function createIce(): IceState {
-  return { cracks: [], trails: [[], []], floes: [], ripples: [], shattered: false, shatterAt: { x: 0, y: 0 }, shatterAge: 0, sheen: 0, crackClock: 0, rippleClock: 0 };
+  return { cracks: [], trails: [[], []], floes: [], ripples: [], shattered: false, shatterAt: { x: 0, y: 0 }, shatterAge: 0, sheen: 0, crackClock: 0, rippleClock: 0, thaw: new Map(), surfacers: [], events: { surfaced: 0 } };
 }
 
 export function resetIce(ice: IceState): void {
@@ -60,7 +69,11 @@ export function resetIce(ice: IceState): void {
   ice.ripples = [];
   ice.shattered = false;
   ice.shatterAge = 0;
+  ice.thaw = new Map();
+  ice.surfacers = [];
 }
+
+const SIGNS: [string, string][] = [['BUY', 'THE DIP'], ['STILL', 'EARLY'], ['DCA', 'BABY'], ["IT'S A", 'FEATURE'], ['WAGMI', '(2021)'], ['NOT', 'SELLING']];
 
 /** A seeded random walk with one branch, starting near a point on the ice. */
 export function spawnCrack(ice: IceState, x: number, y: number, tension: number, seed: number): void {
@@ -96,11 +109,20 @@ export function addTrail(ice: IceState, which: 0 | 1, p: Point): void {
 
 export function stepIce(ice: IceState, cameraX: number, dt: number): void {
   ice.sheen += dt;
+  ice.events = { surfaced: 0 };
   for (const c of ice.cracks) c.growth = Math.min(1, c.growth + dt * 1.6);
   ice.cracks = ice.cracks.filter((c) => c.points[0]!.x > cameraX - 300);
   for (const t of ice.trails) while (t.length && t[0]!.x < cameraX - 200) t.shift();
   if (!ice.shattered) return;
   ice.shatterAge += dt;
+  for (const s of ice.surfacers) {
+    if (s.delay > 0) {
+      s.delay -= dt;
+      if (s.delay <= 0) ice.events.surfaced += 1;
+      continue;
+    }
+    stepSpring(s.up, 1, 9, 0.4, dt);
+  }
   const open = clamp(ice.shatterAge / 0.9, 0, 1);
   for (const f of ice.floes) {
     const spread = 14 * (1 - Math.exp(-ice.shatterAge / 1.4)) * f.sink;
@@ -146,6 +168,21 @@ export function shatterIce(ice: IceState, x: number, y: number, seed: number, qu
   }
   // Nearby cracks are now part of the break.
   ice.cracks = ice.cracks.filter((c) => Math.hypot(c.points[0]!.x - x, (c.points[0]!.y - y) / FORESHORTEN) > 240);
+  // Three of the bagholders come up with it, on middle-ring floes to the sides of the hole (the REKT lands
+  // above or below it), each with a sign and the same advice they went down with.
+  ice.surfacers = [];
+  const indexed = ice.floes.map((f, i) => ({ f, i }));
+  const side = (ring: [number, number], dir: number, flat: number) => indexed.filter(({ f }) => f.sink > ring[0] && f.sink < ring[1] && f.drift.x * dir > flat);
+  // One each side on the middle ring, and a third further out on a near-horizontal floe, so their signs never sit
+  // over each other.
+  const seats = [side([0.5, 0.6], -1, 0.55), side([0.5, 0.6], 1, 0.55), side([0.2, 0.3], rng() < 0.5 ? -1 : 1, 0.85)];
+  const first = Math.floor(rng() * SIGNS.length);
+  for (const [k, seat] of seats.entries()) {
+    if (!seat.length) continue;
+    const pick = seat[Math.floor(rng() * seat.length)]!;
+    const up = spring(quiet ? 1 : 0);
+    ice.surfacers.push({ floe: pick.i, sign: SIGNS[(first + k * 2) % SIGNS.length]!, up, delay: quiet ? 0 : 0.7 + k * 0.3, tone: rng(), flip: pick.f.drift.x < 0 });
+  }
 }
 
 export function drawIce(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: number, time: number): void {
@@ -223,22 +260,88 @@ function bagholderPath(ctx: CanvasRenderingContext2D, pose: number): void {
   }
 }
 
+/** The nth bagholder's world x, screen y and size. */
+function bagholder(i: number): { wx: number; y: number; scale: number } {
+  const wx = BAG_FIRST + i * BAG_EVERY + (noise(i * 3.7) - 0.5) * 150;
+  const y = ICE_FAR_Y + 40 + noise(i * 5.3 + 1) * (ICE_NEAR_Y - ICE_FAR_Y - 64);
+  return { wx, y, scale: 1.2 * (0.58 + 0.42 * (y - ICE_FAR_Y) / (ICE_NEAR_Y - ICE_FAR_Y)) };
+}
+
 /**
- * The lake is full of bagholders, frozen where they went through: pale ghosts under the surface, seeded by index at
- * fixed world positions so the ice carries them past. Sad or X-eyed, each in its own pose and tilt.
+ * The bagholders wake as she passes: the closer she skates and the higher the leverage, the faster one thaws,
+ * and a thawed one never freezes back. Old ones far behind the camera are forgotten.
  */
-export function drawBagholders(ctx: CanvasRenderingContext2D, cameraX: number): void {
+export function stepBagholders(ice: IceState, cameraX: number, skaterX: number, tension: number, dt: number): void {
+  if (ice.shattered || tension <= 0.02) return;
   const first = Math.floor((cameraX - 300 - BAG_FIRST) / BAG_EVERY);
   for (let i = first; i <= first + 3; i += 1) {
-    const x = BAG_FIRST + i * BAG_EVERY + (noise(i * 3.7) - 0.5) * 150 - cameraX;
+    const near = clamp(1 - Math.abs(bagholder(i).wx - skaterX) / 300, 0, 1);
+    if (near <= 0) continue;
+    const level = ice.thaw.get(i) ?? 0;
+    ice.thaw.set(i, Math.min(1, level + dt * near * (0.25 + 1.4 * tension)));
+  }
+  for (const i of ice.thaw.keys()) if (i < first - 1) ice.thaw.delete(i);
+}
+
+/** A hand up through the ice, from the surface at the origin, `reach` px high, with a jagged hole round the wrist. */
+function drawHand(ctx: CanvasRenderingContext2D, reach: number, wobble: number, scale: number): void {
+  ctx.save();
+  ctx.scale(scale, scale);
+  ctx.fillStyle = 'rgba(30, 60, 110, 0.55)';
+  ctx.beginPath();
+  for (let k = 0; k < 8; k += 1) {
+    const a = (k / 8) * Math.PI * 2;
+    const r = 9 + (k % 2) * 4;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r * FORESHORTEN;
+    if (k === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(40, 60, 90, 0.7)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 7.5;
+  ctx.beginPath(); ctx.moveTo(0, 2); ctx.quadraticCurveTo(wobble * 0.5, -reach * 0.5, wobble, -reach); ctx.stroke();
+  ctx.strokeStyle = '#9fc2e6';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(wobble, -reach);
+  ctx.rotate(wobble * 0.04);
+  ctx.fillStyle = '#9fc2e6';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.ellipse(0, -2, 5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 2.4;
+  for (const [fx, fy] of [[-5, -9], [-1.5, -11.5], [2.5, -11], [5.5, -7]] as const) { ctx.beginPath(); ctx.moveTo(fx * 0.5, -5); ctx.lineTo(fx, fy); ctx.stroke(); }
+  ctx.strokeStyle = '#9fc2e6';
+  ctx.lineWidth = 1.2;
+  for (const [fx, fy] of [[-5, -9], [-1.5, -11.5], [2.5, -11], [5.5, -7]] as const) { ctx.beginPath(); ctx.moveTo(fx * 0.5, -5); ctx.lineTo(fx, fy); ctx.stroke(); }
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * The lake is full of bagholders, frozen where they went through: pale ghosts under the surface, seeded by index at
+ * fixed world positions so the ice carries them past. Sad or X-eyed, each in its own pose and tilt. A thawing one
+ * darkens, opens its eyes and gets a hand up through the ice, higher the more leverage she is on.
+ */
+export function drawBagholders(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: number, time: number, tension: number): void {
+  const first = Math.floor((cameraX - 300 - BAG_FIRST) / BAG_EVERY);
+  for (let i = first; i <= first + 3; i += 1) {
+    const { wx, y, scale } = bagholder(i);
+    const x = wx - cameraX;
     if (x < -90 || x > 1050) continue;
-    const y = ICE_FAR_Y + 40 + noise(i * 5.3 + 1) * (ICE_NEAR_Y - ICE_FAR_Y - 64);
-    const scale = 1.2 * (0.58 + 0.42 * (y - ICE_FAR_Y) / (ICE_NEAR_Y - ICE_FAR_Y));
     const pose = ((i % 3) + 3) % 3;
-    const dazed = noise(i * 6.1 + 2) > 0.55;
+    const thaw = ice.shattered ? 0 : (ice.thaw.get(i) ?? 0);
+    const dazed = noise(i * 6.1 + 2) > 0.55 && thaw < 0.5;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate((noise(i * 4.3 + 3) - 0.5) * 1.1);
+    ctx.rotate((noise(i * 4.3 + 3) - 0.5) * 1.1 * (1 - 0.6 * thaw));
     ctx.scale(scale * (noise(i * 8.1) > 0.5 ? -1 : 1), scale * 0.8);
     // Lit from above through the ice: a pale copy up and to the left shows as a rim round the body.
     ctx.translate(-1.5, -1.5);
@@ -247,7 +350,7 @@ export function drawBagholders(ctx: CanvasRenderingContext2D, cameraX: number): 
     ctx.fill();
     ctx.translate(1.5, 1.5);
     bagholderPath(ctx, pose);
-    ctx.fillStyle = BAG_BODY;
+    ctx.fillStyle = thaw > 0 ? `rgba(78, 122, 170, ${0.3 + 0.35 * thaw})` : BAG_BODY;
     ctx.fill();
     ctx.strokeStyle = BAG_FACE;
     ctx.fillStyle = BAG_FACE;
@@ -267,7 +370,7 @@ export function drawBagholders(ctx: CanvasRenderingContext2D, cameraX: number): 
     }
     ctx.stroke();
     if (!dazed) {
-      for (const ex of [-6.5, 6.5]) { ctx.beginPath(); ctx.arc(ex, -33, 1.8, 0, Math.PI * 2); ctx.fill(); }
+      for (const ex of [-6.5, 6.5]) { ctx.beginPath(); ctx.arc(ex, -33, 1.8 + 1.4 * thaw, 0, Math.PI * 2); ctx.fill(); }
     }
     if (pose === 1) {
       ctx.font = '900 17px Impact, "Arial Black", sans-serif';
@@ -282,7 +385,74 @@ export function drawBagholders(ctx: CanvasRenderingContext2D, cameraX: number): 
       ctx.beginPath(); ctx.arc(10 + b * 6 - noise(i + b) * 8, -56 - b * 11, 2 + b * 0.8, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
+    if (thaw > 0.08) {
+      // The hand comes up beside the body, feeling about for an ankle, higher with the leverage.
+      const reach = thaw * (16 + 42 * tension) + 4 * Math.sin(time * 2.2 + i);
+      const wobble = Math.sin(time * 3.1 + i * 1.7) * (3 + 7 * tension) * thaw;
+      ctx.save();
+      ctx.translate(x + 18 * scale, y + 6 * scale);
+      drawHand(ctx, reach, wobble, scale * 1.15);
+      ctx.restore();
+    }
   }
+}
+
+/** A surfaced bagholder on a floe, in the floe's frame: soaked, shivering, and still holding the sign. */
+function drawSurfacer(ctx: CanvasRenderingContext2D, s: Surfacer, time: number): void {
+  const up = clamp(s.up.x, 0, 1.25);
+  if (up < 0.03) return;
+  const shiver = Math.sin(time * 26 + s.tone * 9) * 1.2;
+  ctx.save();
+  ctx.scale(s.flip ? -1 : 1, up);
+  ctx.translate(shiver, 0);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Sign on a stick in the far hand.
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(14, -18); ctx.lineTo(20, -62); ctx.stroke();
+  ctx.strokeStyle = '#8a5a2b';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.fillStyle = '#f4e7c3';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-4, -84, 50, 28, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  if (s.flip) { ctx.translate(21, -70); ctx.scale(-1, 1); ctx.translate(-21, 70); }
+  ctx.fillText(s.sign[0], 21, -76, 44);
+  ctx.fillText(s.sign[1], 21, -64, 44);
+  ctx.restore();
+  // Shoulders in a soaked jacket, the head with wet hair and blue lips.
+  ctx.fillStyle = s.tone > 0.5 ? '#2b3a55' : '#4a2f6b';
+  ctx.beginPath(); ctx.roundRect(-13, -22, 26, 22, 5); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(10, -18); ctx.lineTo(15, -26); ctx.stroke();
+  ctx.strokeStyle = '#9fc2e6'; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.fillStyle = '#c9dcf0';
+  ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -32, 10.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#26364a';
+  ctx.beginPath(); ctx.ellipse(-1, -40, 10, 5, -0.1, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = INK;
+  for (const ex of [-4, 4]) { ctx.beginPath(); ctx.arc(ex, -33, 1.4, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-7, -38); ctx.lineTo(-2, -39.5); ctx.moveTo(7, -38); ctx.lineTo(2, -39.5); ctx.stroke();
+  ctx.strokeStyle = '#3b5bdb'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-3.5, -26); ctx.quadraticCurveTo(0, -28.5, 3.5, -26); ctx.stroke();
+  // Drips.
+  ctx.fillStyle = '#bfe0ff';
+  for (const [dx, k] of [[-9, 0.3], [8, 0.7]] as const) {
+    const p = (time * 0.9 + k) % 1;
+    ctx.globalAlpha = 1 - p;
+    ctx.beginPath(); ctx.arc(dx, -20 + p * 22, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 export function drawCracks(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: number): void {
@@ -374,6 +544,16 @@ export function drawShatter(ctx: CanvasRenderingContext2D, ice: IceState, camera
     ctx.strokeStyle = 'rgba(30, 50, 80, 0.6)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    ctx.restore();
+  }
+  for (const s of ice.surfacers) {
+    const f = ice.floes[s.floe];
+    if (!f) continue;
+    const bob = Math.sin(time * 2 + f.phase) * 0.06 * f.sink;
+    ctx.save();
+    ctx.translate(f.cx - cameraX + f.offset.x, f.cy + f.offset.y + f.sink * 3 * open);
+    ctx.rotate((f.tilt * 0.35 + bob) * open);
+    drawSurfacer(ctx, s, time);
     ctx.restore();
   }
 }
