@@ -405,8 +405,8 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   }
   memeSmall(ctx, 'THE EXCHANGE', mq.x + mq.w / 2, mq.y + 44, 34, '#ff5d9e');
   const flicker = c.flicker;
-  const signText = flicker === 2 ? (c.crashed ? 'DELISTED' : 'DELISTING') : flicker === 1 ? (c.crashed ? 'LISTED' : 'LISTING') : 'LISTING SOON';
-  const signColour = flicker === 2 ? '#ff4d6d' : flicker === 1 ? '#7cf67c' : '#8fd3ff';
+  const signText = c.crashed ? 'DELISTED' : flicker === 2 ? 'DELISTING' : flicker === 1 ? 'LISTING' : 'LISTING SOON';
+  const signColour = c.crashed || flicker === 2 ? '#ff4d6d' : flicker === 1 ? '#7cf67c' : '#8fd3ff';
   memeSmall(ctx, signText, mq.x + mq.w / 2, mq.y + 76, 22, signColour);
   ctx.restore();
   // Hype meter under the marquee.
@@ -536,7 +536,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
 /** Suits walking along the front, the taxi, the strobe: drawn over the queue. */
 export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club, reduced: boolean): void {
   for (const s of c.suits) {
-    if (s.entering) { if (s.depth === 0) drawSuit(ctx, s.x, GROUND + 26, c.time * 10 + s.seed, false, s.seed, 0.66); }
+    if (s.entering) { if (s.depth === 0) drawSuit(ctx, s.x, GROUND + 52, c.time * 10 + s.seed, false, s.seed, 0.66); }
     else drawSuit(ctx, s.x, GROUND + 34, c.time * 14 + s.seed, s.bag, s.seed, 0.7, -1);
   }
   if (c.taxi || c.taxiX.x < W + 200) drawTaxi(ctx, c.taxiX.x, c.time, Math.abs(c.taxiX.v) > 8);

@@ -133,7 +133,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawTracker(ctx, multiplier, tension, rally.crashed, rally.crashT, rally.leaving, shown);
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(400, 250);
+      ctx.translate(400, 340);
       ctx.rotate(-0.06);
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);

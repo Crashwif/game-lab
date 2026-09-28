@@ -160,10 +160,10 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (caption) {
       ctx.save();
-      ctx.translate(WARD.w / 2, 56);
-      const k = 1 + 0.1 * captionPop.x;
+      ctx.translate(WARD.w / 2, 42);
+      const k = 1 + 0.08 * captionPop.x;
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 42, '#ffffff', 'center', 580);
+      memeText(ctx, caption, 0, 0, 28, '#ffffff', 'center', 520);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
