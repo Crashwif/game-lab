@@ -147,9 +147,27 @@ export function drawBurn(ctx: CanvasRenderingContext2D, o: Overlay, multiplier: 
   ctx.font = '900 20px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'right';
   ctx.fillStyle = '#fff';
-  ctx.fillText(formatFollowers(o.follower.x), 520, 28);
+  const count = formatFollowers(o.follower.x);
+  ctx.fillText(count, 520, 28);
   ctx.font = '700 11px system-ui, sans-serif';
   ctx.fillText('FOLLOWING', 520, 44);
+  // The bots in the count: one shows up, then more, then the crash says how many.
+  const bots = o.flooded ? 3 : tension > 0.75 ? 3 : tension > 0.5 ? 2 : tension > 0.25 ? 1 : 0;
+  ctx.font = '900 20px Impact, "Arial Black", sans-serif';
+  const countW = ctx.measureText(count).width;
+  for (let i = 0; i < bots; i += 1) drawBot(ctx, 520 - countW - 16 - i * 15, 22, time + i);
+  if (o.flooded) {
+    ctx.strokeStyle = '#ff4d6d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(520 - countW - 4, 22);
+    ctx.lineTo(524, 22);
+    ctx.stroke();
+    ctx.fillStyle = '#ff4d6d';
+    ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('98% BOTS', 520, 58);
+  }
   // The thumbnail arrow nobody asked for.
   const bounce = Math.sin(time * 5) * (4 + tension * 6);
   ctx.save();
@@ -199,6 +217,28 @@ export function drawBurn(ctx: CanvasRenderingContext2D, o: Overlay, multiplier: 
     ctx.fillText('not financial advice', 150, 300);
     ctx.globalAlpha = 1;
   }
+  ctx.restore();
+}
+
+/** A little robot head, about its centre, blinking. */
+function drawBot(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#9aa3ad';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(-6, -5, 12, 10, 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -5);
+  ctx.lineTo(0, -9);
+  ctx.stroke();
+  const blink = Math.sin(time * 7) > 0.7;
+  ctx.fillStyle = blink ? '#4a4f58' : '#ff4d6d';
+  ctx.fillRect(-4, -2, 3, 3);
+  ctx.fillRect(1, -2, 3, 3);
   ctx.restore();
 }
 

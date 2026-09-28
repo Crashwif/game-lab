@@ -3,8 +3,8 @@
  * and stick, the hive with its lure sign, the swarm and the beekeeper (the
  * dev) who leaves with it.
  */
-import { JAR, surfaceY, tracked } from './jar';
-import { clamp, settleSpring, spring, stepSpring, type Spring } from './motion';
+import { AUDIT_AT, JAR, surfaceY, tracked } from './jar';
+import { clamp, mix, mulberry32, noise, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 const FUR = '#8d5a32';
@@ -29,6 +29,38 @@ export interface Guest {
 }
 
 interface Bee { angle: number; orbit: number; speed: number; size: number; }
+/** A honey drop flung off the freed paw. */
+interface Drop { x: number; y: number; vx: number; vy: number; age: number; life: number; r: number; }
+
+export type FoxMode = 'away' | 'in' | 'stamping' | 'out' | 'gone';
+
+/** The auditor: a fox in a suit who walks in before 3×, stamps the jar at 3× and leaves. */
+export interface Fox {
+  mode: FoxMode;
+  x: number;
+  /** The stamp arm along its path: 0 hanging, 1 raised (the wind-up), 2 on the glass. */
+  arm: Spring;
+  age: number;
+  stamped: boolean;
+  stride: number;
+}
+
+/** The dev's texts to the bear's phone, by multiplier. */
+export const TEXTS: { at: number; text: string }[] = [
+  { at: 4, text: 'DEV: trust me bro' },
+  { at: 6, text: 'DEV: the lid is a feature' },
+  { at: 9, text: 'DEV: sell tax is love' },
+  { at: 14, text: 'DEV: wen? soon™' },
+];
+const LAST_TEXT = 'DEV left the chat';
+/** Where the fox stands to reach the jar, and where he waits off screen. */
+const FOX_STAND = 655;
+const FOX_OFF = 1040;
+/** He walks in from this multiplier, stamps from this one, and leaves at this one. */
+const FOX_IN = 2.4;
+const FOX_STAMP = 3;
+const FOX_OUT = 3.6;
+const DROP_CAP = 30;
 
 export interface Picnic {
   bear: Bear;
@@ -38,6 +70,11 @@ export interface Picnic {
   hiveX: number;
   leaving: boolean;
   puddle: number;
+  fox: Fox;
+  phone: { shake: Spring; count: number; age: number; last: boolean };
+  drops: Drop[];
+  flies: number;
+  events: { stamp: boolean; msg: boolean; pawFree: boolean; guest: boolean };
 }
 
 export function createPicnic(): Picnic {
@@ -58,18 +95,16 @@ export function createPicnic(): Picnic {
     hiveX: 168,
     leaving: false,
     puddle: 0.2,
+    fox: { mode: 'away', x: FOX_OFF, arm: spring(0), age: 0, stamped: false, stride: 0 },
+    phone: { shake: spring(0), count: 0, age: 9, last: false },
+    drops: [],
+    flies: 0,
+    events: { stamp: false, msg: false, pawFree: false, guest: false },
   };
 }
 
 export function resetPicnic(p: Picnic): void {
-  const fresh = createPicnic();
-  p.bear = fresh.bear;
-  p.guests = fresh.guests;
-  p.bees = fresh.bees;
-  p.keeperX = fresh.keeperX;
-  p.hiveX = fresh.hiveX;
-  p.leaving = false;
-  p.puddle = 0.2;
+  Object.assign(p, createPicnic());
 }
 
 /** The bear who got out: paw free, shades on, off the blanket. */
@@ -91,10 +126,19 @@ export function trapPicnic(p: Picnic, quiet: boolean, escaped: boolean): void {
   p.leaving = true;
   if (!escaped && p.bear.mode !== 'gone' && p.bear.mode !== 'walking') p.bear.mode = 'trapped';
   for (const guest of p.guests) if (guest.lean.x > 0.35) guest.stuck = true;
+  // The auditor, if he is still here, remembers another appointment.
+  if (p.fox.mode === 'in' || p.fox.mode === 'stamping') p.fox.mode = 'out';
+  p.flies = 5;
+  // The last text.
+  p.phone.last = true;
+  p.phone.age = quiet ? 9 : 0;
+  if (!quiet) p.phone.shake.v = 8;
   if (quiet) {
     p.keeperX = 1040;
     p.hiveX = 1000;
     p.puddle = 1;
+    p.fox.mode = 'gone';
+    p.fox.x = FOX_OFF;
     if (escaped) leaveBear(p.bear);
   }
 }
@@ -108,6 +152,28 @@ export function settlePicnic(p: Picnic, multiplier: number, tension: number, sec
   // The tension climbs in step with time, so on average the puddle has spread at the rate for half the tension it has now.
   p.puddle = clamp(0.2 + seconds * (0.04 + tension * 0.04), 0.2, 1);
   if (escaped) leaveBear(p.bear);
+  // The auditor where the multiplier has him: not yet, standing by, stamped, or gone.
+  const fox = p.fox;
+  if (multiplier >= FOX_OUT) {
+    fox.mode = 'gone';
+    fox.x = FOX_OFF;
+    fox.stamped = true;
+  } else if (multiplier >= FOX_STAMP) {
+    fox.mode = 'stamping';
+    fox.x = FOX_STAND;
+    fox.stamped = true;
+    fox.age = 3;
+  } else if (multiplier >= FOX_IN) {
+    fox.mode = 'in';
+    fox.x = FOX_STAND;
+  }
+  p.phone.count = TEXTS.filter((t) => multiplier >= t.at).length;
+  p.phone.age = 9;
+}
+
+/** Whether the jar already carries the auditor's mark, for a round met late. */
+export function auditDone(p: Picnic): boolean {
+  return p.fox.stamped;
 }
 
 /** `reduced` (prefers-reduced-motion) slows the swarm. */
@@ -121,14 +187,18 @@ export function pawPoint(p: Picnic, level: number): { x: number; y: number } {
 }
 
 export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
+  p.events = { stamp: false, msg: false, pawFree: false, guest: false };
   const bear = p.bear;
   bear.age += dt;
   stepSpring(bear.shades, bear.mode === 'walking' || bear.mode === 'gone' ? 1 : 0, 12, 0.6, dt);
   if (bear.mode === 'pulling') {
-    bear.paw = Math.min(1, bear.paw + dt * 0.9);
+    // The pull eases in, so the paw tears free with a snap rather than sliding out.
+    bear.paw = Math.min(1, bear.paw + dt * (0.5 + bear.paw * 1.2));
     if (bear.paw >= 1) {
       bear.mode = 'walking';
       bear.age = 0;
+      p.events.pawFree = true;
+      flingHoney(p, pawPoint(p, drive.level));
     }
   }
   if (bear.mode === 'walking') {
@@ -138,13 +208,84 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
   if (bear.mode === 'trapped') bear.paw = Math.max(0, bear.paw - dt);
   for (const guest of p.guests) {
     const want = drive.multiplier >= guest.at ? 1 : 0.05;
+    const was = guest.lean.x > 0.5;
     stepSpring(guest.lean, guest.stuck ? 1 : want, 4, 0.8, dt);
+    if (!was && guest.lean.x > 0.5 && drive.running) p.events.guest = true;
   }
   p.puddle = clamp(p.puddle + dt * (drive.running ? 0.04 + drive.tension * 0.08 : 0), 0.2, 1);
   for (const bee of p.bees) bee.angle += dt * bee.speed * (p.leaving ? 3 : 1 + drive.tension * 2) * (drive.reduced ? 0.2 : 1);
   if (p.leaving) {
     p.keeperX += 70 * dt;
     p.hiveX += (p.keeperX + 30 - p.hiveX) * clamp(dt * 3, 0, 1);
+  }
+  stepFox(p, drive, dt);
+  // The phone: a text from the dev at each of its multipliers, the phone buzzing on the blanket.
+  const phone = p.phone;
+  phone.age += dt;
+  const count = TEXTS.filter((t) => drive.multiplier >= t.at).length;
+  if (drive.running && !p.leaving && count > phone.count) {
+    phone.count = count;
+    phone.age = 0;
+    phone.shake.v = 8;
+    p.events.msg = true;
+  }
+  stepSpring(phone.shake, 0, 30, 0.2, dt);
+  for (const d of p.drops) {
+    d.age += dt;
+    d.vy += 900 * dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+  }
+  p.drops = p.drops.filter((d) => d.age < d.life);
+}
+
+/** Honey off the freed paw, a capped handful of drops. */
+function flingHoney(p: Picnic, at: { x: number; y: number }): void {
+  const rand = mulberry32(11);
+  for (let i = 0; i < DROP_CAP; i += 1) {
+    const a = -Math.PI * 0.9 + rand() * Math.PI * 0.8;
+    const speed = 120 + rand() * 260;
+    p.drops.push({ x: at.x, y: at.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, age: 0, life: 0.5 + rand() * 0.5, r: 2 + rand() * 3 });
+  }
+}
+
+/**
+ * The auditor's round: in from the right before 3×, the wind-up (arm raised and held), the slam on the glass at 3×,
+ * the mark, and out to the right at 3.6×. He only ever stamps; nothing he does touches the round.
+ */
+function stepFox(p: Picnic, drive: PicnicDrive, dt: number): void {
+  const fox = p.fox;
+  fox.age += dt;
+  const walking = fox.mode === 'in' && fox.x > FOX_STAND + 1 || fox.mode === 'out';
+  fox.stride = walking ? fox.stride + dt * 11 : 0;
+  if (fox.mode === 'away' && drive.running && drive.multiplier >= FOX_IN) {
+    fox.mode = 'in';
+    fox.age = 0;
+  }
+  if (fox.mode === 'in') {
+    fox.x = Math.max(FOX_STAND, fox.x - 170 * dt);
+    if (fox.x <= FOX_STAND + 1 && drive.running && drive.multiplier >= FOX_STAMP) {
+      fox.mode = 'stamping';
+      fox.age = 0;
+    }
+  }
+  let arm = 0;
+  if (fox.mode === 'stamping') {
+    // Up and held (anticipation), then down hard; the mark lands as the arm reaches the glass.
+    arm = fox.age < 0.5 ? 1 : fox.age < 1.3 ? 2 : 0;
+    if (!fox.stamped && fox.arm.x > 1.82) {
+      fox.stamped = true;
+      p.events.stamp = true;
+    }
+    if (fox.stamped && drive.running && drive.multiplier >= FOX_OUT && fox.age > 1.6) {
+      fox.mode = 'out';
+      fox.age = 0;
+    }
+  }
+  stepSpring(fox.arm, arm, arm === 2 ? 16 : 6, arm === 2 ? 0.45 : 0.7, dt);
+  if (fox.mode === 'out') {
+    fox.x += 220 * dt;
+    if (fox.x > FOX_OFF) fox.mode = 'gone';
   }
 }
 
@@ -403,6 +544,176 @@ function drawGuest(ctx: CanvasRenderingContext2D, guest: Guest, time: number): v
   void time;
 }
 
+/** The auditor at his feet: suit, tie, briefcase, and the stamp arm on its path to the glass. Drawn over the jar, so the stamp lands on the glass rather than behind the honey. */
+export function drawFox(ctx: CanvasRenderingContext2D, p: Picnic): void {
+  const fox = p.fox;
+  if (fox.mode === 'away' || fox.mode === 'gone') return;
+  const x = fox.x;
+  const bob = fox.stride > 0 ? Math.abs(Math.sin(fox.stride)) * 3 : 0;
+  ctx.save();
+  ctx.translate(x, 430 - bob);
+  ink(ctx, 2.5);
+  // Legs in suit trousers.
+  for (const side of [-1, 1]) {
+    const phase = fox.stride + (side > 0 ? Math.PI : 0);
+    const lift = fox.stride > 0 ? Math.max(0, Math.sin(phase)) * 7 : 0;
+    const reach = fox.stride > 0 ? -Math.cos(phase) * 6 : 0;
+    const foot = { x: side * 9 + reach, y: 4 - lift };
+    limb(ctx, { x: side * 6, y: -30 }, foot, 18, 17, foot.y >= -30 ? -side : side, 6, '#3a3f47');
+    ctx.fillStyle = '#1c1f26';
+    ctx.beginPath();
+    ctx.ellipse(foot.x + 2, foot.y + 3, 7, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Jacket, shirt, tie.
+  ctx.fillStyle = '#3a3f47';
+  ctx.beginPath();
+  ctx.roundRect(-17, -76, 34, 50, 7);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#f4f4f4';
+  ctx.beginPath();
+  ctx.moveTo(-6, -76);
+  ctx.lineTo(6, -76);
+  ctx.lineTo(0, -50);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#c0392b';
+  ctx.beginPath();
+  ctx.moveTo(-3, -74);
+  ctx.lineTo(3, -74);
+  ctx.lineTo(1, -52);
+  ctx.lineTo(-1, -52);
+  ctx.closePath();
+  ctx.fill();
+  // Briefcase in the far hand.
+  ctx.fillStyle = '#6b4226';
+  ctx.beginPath();
+  ctx.roundRect(8, -46, 22, 16, 2);
+  ctx.fill();
+  ctx.stroke();
+  tracked(ctx, 'AUDIT', 19, -35, 7, '#f0c14a');
+  // Head: pointed ears, orange, white muzzle, a tiny pair of glasses.
+  ctx.fillStyle = '#e07a2e';
+  ctx.beginPath();
+  ctx.moveTo(-16, -92);
+  ctx.lineTo(-10, -112);
+  ctx.lineTo(-2, -94);
+  ctx.moveTo(16, -92);
+  ctx.lineTo(10, -112);
+  ctx.lineTo(2, -94);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(0, -88, 18, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#f7f1e4';
+  ctx.beginPath();
+  ctx.ellipse(-9, -82, 9, 7, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(-16, -83, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(-4, -92, 4, 0, Math.PI * 2);
+  ctx.moveTo(1, -92);
+  ctx.lineTo(4, -92);
+  ctx.arc(8, -92, 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  // The stamp arm: hanging, raised, or on the glass, in scene coordinates so it reaches the jar.
+  const u = clamp(fox.arm.x, -0.2, 2.25);
+  const shoulder = { x: x - 12, y: 430 - bob - 68 };
+  const hang = { x: x - 26, y: 430 - bob - 34 };
+  const up = { x: x - 44, y: 430 - bob - 132 };
+  const slam = { x: AUDIT_AT.x + 44, y: AUDIT_AT.y };
+  const hand = u < 1 ? { x: mix(hang.x, up.x, u), y: mix(hang.y, up.y, u) } : { x: mix(up.x, slam.x, u - 1), y: mix(up.y, slam.y, u - 1) };
+  const span = Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y);
+  const bone = Math.max(22, span * 0.53);
+  limb(ctx, shoulder, hand, bone, bone, 1, 7, '#3a3f47');
+  // The stamp itself: a handle and a rubber base, angled to the glass.
+  ctx.save();
+  ctx.translate(hand.x, hand.y);
+  ctx.rotate(u < 1 ? -0.4 * u : -0.4 + (u - 1) * 1.2);
+  ctx.fillStyle = '#e07a2e';
+  ink(ctx, 2);
+  ctx.beginPath();
+  ctx.arc(0, 0, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#6b4226';
+  ctx.beginPath();
+  ctx.roundRect(-5, -22, 10, 22, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#2f7a3a';
+  ctx.beginPath();
+  ctx.roundRect(-14, -28, 28, 8, 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** The bear's phone face up on the blanket, buzzing with the dev's texts. */
+function drawPhone(ctx: CanvasRenderingContext2D, p: Picnic): void {
+  const phone = p.phone;
+  const shake = phone.shake.x;
+  ctx.save();
+  ctx.translate(392 + Math.sin(shake * 40) * 2 * Math.min(1, Math.abs(shake)), 484);
+  ctx.rotate(0.35 + shake * 0.08);
+  ctx.fillStyle = '#17191e';
+  ink(ctx, 2);
+  ctx.beginPath();
+  ctx.roundRect(-10, -18, 20, 36, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = phone.age < 0.6 ? '#dff6ff' : '#8fd0ff';
+  ctx.fillRect(-7, -14, 14, 26);
+  ctx.restore();
+  const text = phone.last ? LAST_TEXT : phone.count > 0 ? TEXTS[phone.count - 1]!.text : null;
+  if (text === null) return;
+  const rise = clamp(phone.age / 0.25, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = rise;
+  ctx.translate(392, 452 - (1 - rise) * 8);
+  ctx.font = '700 12px system-ui, sans-serif';
+  const width = Math.min(200, ctx.measureText(text).width + 16);
+  ctx.fillStyle = phone.last ? '#3a3f4a' : '#ffffff';
+  ink(ctx, 1.5);
+  ctx.beginPath();
+  ctx.roundRect(-width / 2, -11, width, 22, 8);
+  ctx.moveTo(-6, 11);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(6, 11);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = phone.last ? '#f4f7fb' : INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, 0, width - 16);
+  ctx.restore();
+}
+
+/** The flies that find the dev once the honey has gone bad. */
+function drawFlies(ctx: CanvasRenderingContext2D, p: Picnic, time: number): void {
+  if (p.flies <= 0 || p.keeperX > 990) return;
+  ctx.fillStyle = '#1c1f26';
+  for (let i = 0; i < p.flies; i += 1) {
+    const a = time * (5 + i) + i * 1.3;
+    const jx = (noise(Math.floor(time * 20) + i * 7) - 0.5) * 8;
+    const jy = (noise(Math.floor(time * 17) + i * 3) - 0.5) * 8;
+    const x = p.keeperX + Math.cos(a) * (18 + i * 5) + jx;
+    const y = 360 + Math.sin(a * 1.3) * 16 + jy;
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time: number, tension: number): void {
   drawBackground(ctx, time);
   // Puddle of honey on the blanket. Guests stick to this, not to each other.
@@ -452,7 +763,17 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
     ctx.restore();
   }
   for (const guest of p.guests) drawGuest(ctx, guest, time);
+  drawPhone(ctx, p);
   drawBear(ctx, p, level, time);
+  // Honey off the paw.
+  ctx.fillStyle = '#f0b030';
+  for (const d of p.drops) {
+    ctx.globalAlpha = clamp(1 - d.age / d.life, 0, 1);
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   ctx.save();
   ctx.translate(p.keeperX, 430);
     ctx.fillStyle = '#f7f7f2';
@@ -471,4 +792,5 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
     ctx.fillStyle = '#222';
     ctx.fillRect(-14, -86, 28, 8);
   ctx.restore();
+  drawFlies(ctx, p, time);
 }

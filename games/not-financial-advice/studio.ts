@@ -17,6 +17,24 @@ const HAULED = 260;
 /** How far the RENTAL sticker has peeled, and where the tow truck waits, at a given tension. */
 const peel = (tension: number): number => clamp(tension * 1.15, 0, 1);
 const towWaiting = (tension: number): number => 640 - tension * 40;
+/** How many PENDING SELL rows the wallet shows at a tension. */
+const pendingRows = (tension: number): number => clamp(Math.floor(tension * 4), 0, 4);
+/** The cousin's row appears in the wallet from here; it dumps harder as the tension climbs. */
+const COUSIN_FROM = 0.4;
+/** How long a sponsor read is held to camera. */
+const READ_S = 2.6;
+
+/** The sponsor reads: one per milestone, each dumber than the last. */
+export const PRODUCTS: { name: string; kind: 'tube' | 'book' | 'can' | 'gloves' | 'vape' | 'tree' | 'candle' | 'kit' }[] = [
+  { name: 'NFT TOOTHPASTE', kind: 'tube' },
+  { name: 'HARDWARE WALLET (A NOTEBOOK)', kind: 'book' },
+  { name: 'AIRDROP ENERGY DRINK', kind: 'can' },
+  { name: 'DIAMOND HANDS GLOVES', kind: 'gloves' },
+  { name: 'HOPIUM VAPE · 0% NICOTINE 100% COPE', kind: 'vape' },
+  { name: 'LAMBO AIR FRESHENER (RENTAL SCENT)', kind: 'tree' },
+  { name: 'GENERATIONAL WEALTH CANDLE', kind: 'candle' },
+  { name: 'SEED PHRASE TATTOO KIT', kind: 'kit' },
+];
 
 export interface Studio {
   tear: number;
@@ -28,12 +46,24 @@ export interface Studio {
   crashed: boolean;
   crashT: number;
   soldFlash: number;
+  /** The sponsor read held to camera: which product, how far up (a spring), and for how long. */
+  read: { index: number; hold: Spring; age: number };
+  readsShown: number;
+  pending: number;
+  /** Your subscriber's screenshot: a shutter flash over the video. */
+  flash: number;
+  truckIn: boolean;
+  beepClock: number;
+  beeps: number;
+  events: { pending: boolean; read: boolean; truck: boolean; beep: boolean };
 }
 
 export interface StudioDrive {
   running: boolean;
   tension: number;
   time: number;
+  /** How many milestones the round has passed: each one is a sponsor read. */
+  reads: number;
 }
 
 export function createStudio(): Studio {
@@ -47,6 +77,14 @@ export function createStudio(): Studio {
     crashed: false,
     crashT: 0,
     soldFlash: 0,
+    read: { index: -1, hold: spring(0), age: 0 },
+    readsShown: 0,
+    pending: 0,
+    flash: 0,
+    truckIn: false,
+    beepClock: 0,
+    beeps: 0,
+    events: { pending: false, read: false, truck: false, beep: false },
   };
 }
 
@@ -64,13 +102,30 @@ export function resetStudio(s: Studio): void {
   s.crashed = false;
   s.crashT = 0;
   s.soldFlash = 0;
+  s.read = { index: -1, hold: spring(0), age: 0 };
+  s.readsShown = 0;
+  s.pending = 0;
+  s.flash = 0;
+  s.truckIn = false;
+  s.beepClock = 0;
+  s.beeps = 0;
+  s.events = { pending: false, read: false, truck: false, beep: false };
+}
+
+/** The cash-out beat: your subscriber's screenshot flashes the video. */
+export function screenshot(s: Studio): void {
+  s.flash = 1;
 }
 
 /** Jumps the props to where the tension has them, for a stretch of the round the scene did not draw. */
-export function settleStudio(s: Studio, tension: number): void {
+export function settleStudio(s: Studio, tension: number, reads: number): void {
   s.tear = tension;
   settleSpring(s.sticker, peel(tension));
   settleSpring(s.truck, towWaiting(tension));
+  s.truckIn = towWaiting(tension) < 630;
+  s.pending = pendingRows(tension);
+  // The reads so far were read; none is held up now.
+  s.readsShown = reads;
 }
 
 /** The reveal. `quiet` (a crash that happened off screen) opens on its aftermath: no SOLD flash, nothing moving. */
@@ -84,23 +139,54 @@ export function endStudio(s: Studio, quiet: boolean): void {
     settleSpring(s.truck, TOW_PARKED);
     s.pull = HAULED;
     settleSpring(s.sponsor, 1);
+    s.beeps = 9;
   } else {
     s.soldFlash = 1;
     s.fall.v = 2;
     s.sponsor.v = 6;
+    // Whatever he was holding up gets dropped.
+    s.read.age = READ_S;
   }
 }
 
 export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
+  s.events = { pending: false, read: false, truck: false, beep: false };
   s.crashT += s.crashed ? dt : 0;
   s.soldFlash = Math.max(0, s.soldFlash - dt * 1.4);
+  s.flash = Math.max(0, s.flash - dt * 3);
   s.tear = drive.tension;
   stepSpring(s.sticker, peel(drive.tension), 5, 0.8, dt);
   stepSpring(s.fall, s.crashed ? 1 : 0, 3.2, 0.85, dt);
   const truckTarget = s.crashed ? TOW_PARKED : towWaiting(drive.tension);
   stepSpring(s.truck, truckTarget, s.crashed ? 4 : 6, 0.9, dt);
+  if (!s.truckIn && s.truck.x < 630) {
+    s.truckIn = true;
+    s.events.truck = true;
+  }
+  if (s.crashed && s.truck.x > TOW_PARKED + 6 && s.beeps < 6) {
+    // Reversing beeps while it backs in, a few, not a siren.
+    s.beepClock += dt;
+    if (s.beepClock > 0.42) {
+      s.beepClock = 0;
+      s.beeps += 1;
+      s.events.beep = true;
+    }
+  }
   if (s.crashed && s.truck.x < 430) s.pull = Math.min(HAULED, s.pull + 90 * dt);
   stepSpring(s.sponsor, s.crashed ? 1 : 0, 10, 0.55, dt);
+  const pending = pendingRows(drive.tension);
+  if (drive.running && pending > s.pending) s.events.pending = true;
+  if (drive.running || s.crashed) s.pending = pending;
+  // A sponsor read at every milestone: the product springs up to camera, wobbles, and is held for a moment.
+  if (drive.running && !s.crashed && drive.reads > s.readsShown) {
+    s.readsShown = drive.reads;
+    s.read.index = (drive.reads - 1) % PRODUCTS.length;
+    s.read.age = 0;
+    s.read.hold.v += 4;
+    s.events.read = true;
+  }
+  s.read.age += dt;
+  stepSpring(s.read.hold, s.read.index >= 0 && s.read.age < READ_S && !s.crashed ? 1 : 0, 11, 0.5, dt);
 }
 
 type Point = { x: number; y: number };
@@ -274,6 +360,164 @@ function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number): v
   ctx.restore();
 }
 
+/** The product of the moment, held up to camera about its centre, the label on a chyron across the top of the video. */
+function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
+  const hold = clamp(s.read.hold.x, 0, 1.2);
+  if (hold < 0.03 || s.read.index < 0) return;
+  const product = PRODUCTS[s.read.index]!;
+  // Overshoot in, a wobble that dies, then the drop.
+  const wobble = Math.sin(s.read.age * 11) * 0.22 * Math.exp(-s.read.age * 2.5);
+  ctx.save();
+  ctx.translate(318, 240 - hold * 30);
+  ctx.rotate(-0.15 + wobble);
+  ctx.scale(hold, hold);
+  ink(ctx, 2.5);
+  switch (product.kind) {
+    case 'tube':
+      ctx.fillStyle = '#f4f1e6';
+      ctx.beginPath();
+      ctx.roundRect(-11, -18, 22, 38, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#3b7cff';
+      ctx.beginPath();
+      ctx.roundRect(-7, -26, 14, 10, 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#c0392b';
+      ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('NFT', 0, 4);
+      break;
+    case 'book':
+      ctx.fillStyle = '#8a5a2b';
+      ctx.beginPath();
+      ctx.roundRect(-16, -22, 32, 44, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#5c3a1c';
+      ctx.fillRect(-16, -22, 6, 44);
+      ctx.fillStyle = '#ffe27a';
+      ctx.font = '900 12px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('$', 3, 4);
+      break;
+    case 'can':
+      ctx.fillStyle = '#d5fb6d';
+      ctx.beginPath();
+      ctx.roundRect(-12, -22, 24, 44, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(-12, -6, 24, 12);
+      ctx.fillStyle = '#9aa3ad';
+      ctx.fillRect(-10, -26, 20, 5);
+      break;
+    case 'gloves':
+      ctx.fillStyle = '#8fd0ff';
+      ctx.beginPath();
+      ctx.roundRect(-13, -14, 26, 34, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(-15, -4, 6, 9, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(6, -2);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(-6, -2);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'vape':
+      ctx.fillStyle = '#22262e';
+      ctx.beginPath();
+      ctx.roundRect(-5, -24, 10, 48, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ff7a3b';
+      ctx.fillRect(-3, 18, 6, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath();
+      ctx.arc(0, -32, 6, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'tree':
+      ctx.fillStyle = '#2f7a3a';
+      ctx.beginPath();
+      ctx.moveTo(0, -26);
+      ctx.lineTo(16, 6);
+      ctx.lineTo(6, 6);
+      ctx.lineTo(14, 22);
+      ctx.lineTo(-14, 22);
+      ctx.lineTo(-6, 6);
+      ctx.lineTo(-16, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#f4f1e6';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -26);
+      ctx.lineTo(0, -36);
+      ctx.stroke();
+      break;
+    case 'candle':
+      ctx.fillStyle = '#f4f1e6';
+      ctx.beginPath();
+      ctx.roundRect(-12, -12, 24, 34, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffb347';
+      ctx.beginPath();
+      ctx.ellipse(0, -20, 4, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe27a';
+      ctx.beginPath();
+      ctx.ellipse(0, -18, 2, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    default:
+      ctx.fillStyle = '#9aa3ad';
+      ctx.beginPath();
+      ctx.roundRect(-16, -8, 32, 18, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-8, 10);
+      ctx.lineTo(-8, 26);
+      ctx.stroke();
+      ctx.fillStyle = '#c0392b';
+      ctx.font = '900 8px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SEED', 0, 4);
+  }
+  ctx.restore();
+  // The chyron.
+  ctx.save();
+  ctx.globalAlpha = clamp(hold, 0, 1);
+  ctx.translate(0, (1 - clamp(hold, 0, 1)) * -12);
+  ctx.fillStyle = 'rgba(12, 14, 18, 0.9)';
+  ctx.beginPath();
+  ctx.roundRect(112, 38, 328, 24, 4);
+  ctx.fill();
+  ctx.fillStyle = '#d5fb6d';
+  ctx.font = '900 12px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SPONSOR', 120, 50);
+  const labelW = ctx.measureText('SPONSOR').width;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 11px system-ui, sans-serif';
+  ctx.fillText(product.name, 120 + labelW + 10, 50, 310 - labelW);
+  ctx.restore();
+}
+
 function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: number, crashed: boolean): void {
   const flap = Math.abs(Math.sin(time * (5 + tension * 22)));
   const nod = Math.sin(time * (2 + tension * 3)) * (2 + tension * 3);
@@ -354,13 +598,23 @@ function drawMonitor(ctx: CanvasRenderingContext2D, tension: number, crashed: bo
   ctx.stroke();
   ctx.fillStyle = '#07140c';
   ctx.fillRect(6, 6, 138, 78);
-  const pending = clamp(Math.floor(tension * 4), 0, 4);
+  const pending = pendingRows(tension);
+  const cousin = tension >= COUSIN_FROM || crashed;
   for (let i = 0; i < 4; i += 1) {
     const sold = crashed;
     const pendingRow = !sold && i >= 4 - pending && pending > 0;
-    ctx.fillStyle = sold ? '#ff4d6d' : pendingRow ? '#ffe08a' : '#39ff8a';
     ctx.font = '700 11px ui-monospace, monospace';
     ctx.textAlign = 'left';
+    if (i === 0 && cousin) {
+      // The cousin (the dev) dumping on everyone, the bar growing with the tension.
+      ctx.fillStyle = '#ff7a3b';
+      ctx.fillText(sold ? 'COUSIN SOLD' : 'COUSIN SELL', 12, 24);
+      const dump = sold ? 1 : clamp((tension - COUSIN_FROM) / (1 - COUSIN_FROM), 0.08, 1);
+      ctx.fillStyle = '#ff4d6d';
+      ctx.fillRect(96, 16, 42 * dump, 8);
+      continue;
+    }
+    ctx.fillStyle = sold ? '#ff4d6d' : pendingRow ? '#ffe08a' : '#39ff8a';
     const label = sold ? 'SOLD' : pendingRow ? 'PENDING SELL' : `BUY  +${(0.4 + i * 0.3).toFixed(2)}`;
     ctx.fillText(label, 12, 24 + i * 16);
   }
@@ -434,6 +688,7 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
   drawLambo(ctx, 400 + s.pull, s.sticker.x);
   if (s.crashed || s.truck.x < 630) drawTow(ctx, s.truck.x, time);
   drawInfluencer(ctx, tension, time, s.crashed);
+  drawProduct(ctx, s);
   drawMonitor(ctx, tension, s.crashed, s.soldFlash);
   if (s.sponsor.x > 0.04) {
     ctx.save();
@@ -459,5 +714,22 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
   // Scanlines.
   ctx.fillStyle = 'rgba(0,0,0,0.13)';
   for (let y = 0; y < VIDEO_H; y += 4) ctx.fillRect(0, y, VIDEO_W, 1);
+  if (s.flash > 0.02) {
+    // The screenshot: a white shutter with the frame's corners.
+    ctx.globalAlpha = s.flash * 0.8;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, VIDEO_W, VIDEO_H);
+    ctx.globalAlpha = Math.min(1, s.flash * 1.6);
+    ctx.strokeStyle = '#d5fb6d';
+    ctx.lineWidth = 4;
+    for (const [cx, cy, dx, dy] of [[8, 8, 1, 1], [VIDEO_W - 8, 8, -1, 1], [8, VIDEO_H - 8, 1, -1], [VIDEO_W - 8, VIDEO_H - 8, -1, -1]] as const) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + dy * 26);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + dx * 26, cy);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
 }
