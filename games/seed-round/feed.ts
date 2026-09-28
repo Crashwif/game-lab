@@ -7,7 +7,7 @@
 import { memeText, W } from './hud';
 import { mulberry32 } from './motion';
 
-const HANDLES = ['7xKp…q2F', 'jeetmaxxer', 'exitliq.sol', '4Rfz…9aB', 'paperhands69', 'devmom.sol', 'gm_ser', 'Hq3v…Lm1', 'rugdoctor', 'ngmi.sol', 'wifhat_whale', 'Cx8e…T7d', 'copytrader', 'bagholder.sol', 'fomo_andy'];
+const HANDLES = ['7xKp…q2F', 'jeetmaxxer', 'exitliq.sol', '4Rfz…9aB', 'paperhands69', 'devmom.sol', 'gm_ser', 'Hq3v…Lm1', 'rugdoctor', 'ngmi.sol', 'wifhat_whale', 'Cx8e…T7d', 'loadmaxxer', 'bagholder.sol', 'swimteam.sol'];
 const ROWS = 5;
 
 interface Trade { text: string; kind: 'buy' | 'sell' | 'news'; age: number }

@@ -184,6 +184,25 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
   p.whaleFlash = pool.whale.active && pool.whale.t < 1.5 ? 1 : Math.max(0, p.whaleFlash - dt * 1.5);
 }
 
+/**
+ * A speech bubble whose tail points down at (x, y). The box stays on the canvas, so near an edge the tail
+ * slides along its bottom instead of the box running off.
+ */
+function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, alpha: number): void {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = '700 12px system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 18;
+  const left = clamp(x - w / 2, 8, 952 - w);
+  const tail = clamp(x, left + 12, left + w - 12);
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(left, y - 24, w, 24, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tail - 6, y); ctx.lineTo(tail, y + 8); ctx.lineTo(tail + 6, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, left + w / 2, y - 8);
+  ctx.restore();
+}
+
 /** The dev's wrist, where the chain ends. */
 export function devWrist(p: PartyState): { x: number; y: number } {
   const d = p.dev;
@@ -340,6 +359,8 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.font = '900 11px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('$', d.x + 30, devY + 14);
+    // He gloats from the moment the bag is in his hand until his head is off the right edge.
+    if (d.x < 960 + 16) bubble(ctx, d.x - 4, devY - 50, 'thx for the liquidity', clamp((d.mode === 'standing' ? d.modeAge : 1) / 0.2, 0, 1));
   }
   if (p.whaleFlash > 0) {
     ctx.globalAlpha = Math.min(1, p.whaleFlash);

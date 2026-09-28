@@ -50,29 +50,29 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'FINISHED EARLY' : outcome === 'called' ? 'CALLED IT' : 'GG';
+  if (outcome) return outcome === 'rekt' ? 'FINISHED EARLY' : outcome === 'called' ? 'SOLD BEFORE THE FINISH' : 'GG';
   if (view.phase !== 'running') return 'GM CHAMP';
   if (secured) return 'DEAL WITH IT';
   if (multiplier < 1.3) return 'HE HAS BEGUN';
-  if (multiplier < 1.7) return 'NUMBER GO UP';
-  if (multiplier < 2.5) return 'HODL';
+  if (multiplier < 1.7) return 'ENTERING THE POSITION';
+  if (multiplier < 2.5) return 'NO PULLBACKS';
   if (multiplier < 4) return "HE'S GOT LEGS";
-  if (multiplier < 6) return 'DIAMOND HANDS';
+  if (multiplier < 6) return 'MAXIMUM LEVERAGE';
   if (multiplier < 10) return 'HISTORIC PACE';
   if (multiplier < 20) return 'LEGENDARY';
-  return 'THIS IS FINE';
+  return 'CALL AN AMBULANCE';
 }
 
 function boothLine(view: SceneView, multiplier: number, finished: boolean, legendary: boolean): string {
-  if (finished) return legendary ? 'ONE FOR THE RECORD BOOKS' : 'AND THAT IS THAT, FOLKS';
+  if (finished) return legendary ? 'ONE FOR THE RECORD BOOKS' : "THAT'S A SHORT POSITION";
   if (view.phase !== 'running') return 'WELCOME BACK TO THE MAIN EVENT';
-  if (multiplier < 1.4) return 'ROUND ONE, FOLKS';
-  if (multiplier < 2) return 'STEADY RHYTHM SO FAR';
-  if (multiplier < 3) return 'HE IS LOCKED IN';
+  if (multiplier < 1.4) return "HE'S ENTERED THE MARKET";
+  if (multiplier < 2) return 'TEXTBOOK UPTREND';
+  if (multiplier < 3) return 'NO STOP LOSS ON THIS MAN';
   if (multiplier < 5) return 'THE CROWD IS ON ITS FEET';
-  if (multiplier < 8) return 'UNPRECEDENTED STAMINA';
+  if (multiplier < 8) return 'THE BED FRAME IS SELLING';
   if (multiplier < 14) return 'CALL THE RECORD BOOKS';
-  return 'IS HE OKAY?';
+  return 'SOMEONE CHECK HIS PULSE';
 }
 
 function drawFireBrigade(ctx: CanvasRenderingContext2D, time: number, k: number): void {

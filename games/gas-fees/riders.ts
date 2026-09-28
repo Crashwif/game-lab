@@ -4,9 +4,10 @@
  * whole body trembles with the multiplier. The passengers squeeze in at
  * milestones from a fixed roster, glance at him as the air changes, and at
  * the crash react in their own ways: the pug faints, the wig lifts, the
- * nun crosses herself, the whale blows. Nothing here changes the outcome.
+ * nun crosses herself, the whale blows. Each says a line on the way in, and
+ * up to four speak up after the release. Nothing here changes the outcome.
  */
-import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export type Point = { x: number; y: number };
 export const INK = '#1c1f26';
@@ -49,6 +50,22 @@ export interface Passenger {
   spout: Spring;
 }
 
+/** What each of them says on the way in, and when the air goes. */
+const ARRIVAL_LINES: Record<Kind, string> = {
+  chad: 'smells like gains', grandma: 'is this the bingo floor', wif: 'wif', karen: 'i need your manager', bro: "chat we're live",
+  nun: 'bless this lift', whale: 'make room, i am the market', bride: "i'm late for my wedding", pizza: 'pizza for floor 69?',
+};
+const CRASH_LINES: Record<Kind, string> = {
+  chad: 'bro WHAT', grandma: 'my wig!!', wif: '...wif?', karen: 'MANAGER!!!', bro: 'chat did u smell that',
+  nun: 'lord have mercy', whale: 'i got liquidated', bride: 'ON MY DRESS', pizza: 'extra cheese??',
+};
+/** How high above the feet each kind's head (hat, veil or blowhole included) reaches, in rider space. */
+const HEAD_TOP: Record<Kind, number> = { chad: -192, grandma: -206, wif: -218, karen: -200, bro: -202, nun: -208, whale: -242, bride: -204, pizza: -200 };
+const LINE_LIFE = 2.2;
+
+/** A speech bubble: `delay` counts down before it shows, then `age` runs to LINE_LIFE. Its place is fixed the first time it is drawn. */
+export interface Line { who: Passenger; text: string; delay: number; age: number; box: { dx: number; dy: number; w: number } | null }
+
 export interface Crowd {
   list: Passenger[];
   next: number;
@@ -56,11 +73,12 @@ export interface Crowd {
   squeeze: Spring;
   /** Seconds the doors stay open after an arrival. */
   doorTimer: number;
+  lines: Line[];
   events: { arrived: Kind | null };
 }
 
 export function createCrowd(): Crowd {
-  return { list: [], next: 0, squeeze: spring(0), doorTimer: 0, events: { arrived: null } };
+  return { list: [], next: 0, squeeze: spring(0), doorTimer: 0, lines: [], events: { arrived: null } };
 }
 
 export function resetCrowd(c: Crowd): void {
@@ -68,6 +86,21 @@ export function resetCrowd(c: Crowd): void {
   c.next = 0;
   settleSpring(c.squeeze, 0);
   c.doorTimer = 0;
+  c.lines = [];
+}
+
+/**
+ * The release, seen live: up to four of the riders already in the cabin, picked from the crash seed, speak up
+ * one after another, 0.3 to 1.2 s apart.
+ */
+export function crashLines(c: Crowd, seed: number): void {
+  const rng = mulberry32(seed * 31 + 7);
+  const inside = c.list.filter((p) => p.depth <= 1).map((p) => ({ p, k: rng() })).sort((a, b) => a.k - b.k).slice(0, 4);
+  let at = 0;
+  for (const { p } of inside) {
+    at += 0.3 + 0.9 * rng();
+    c.lines.push({ who: p, text: CRASH_LINES[p.kind], delay: at, age: 0, box: null });
+  }
 }
 
 export const persons = (c: Crowd): number => c.list.length + 1;
@@ -93,8 +126,9 @@ export function settleCrowd(c: Crowd, multiplier: number): void {
   for (const p of c.list) p.x = placeX(p, c.squeeze.x);
 }
 
-/** Jumps everyone's crash reaction to where it ends, for a crash that already happened. */
+/** Jumps everyone's crash reaction to where it ends, for a crash that already happened. Nobody is still talking. */
 export function settleCrash(c: Crowd): void {
+  c.lines = [];
   for (const p of c.list) {
     if (p.kind === 'grandma') { settleSpring(p.wig, 1); settleSpring(p.faint, 1); }
     if (p.kind === 'whale') settleSpring(p.spout, 1);
@@ -108,7 +142,11 @@ export function stepCrowd(c: Crowd, drive: CrowdDrive, dt: number): void {
   if (drive.running && c.next < ROSTER.length && drive.multiplier >= ROSTER[c.next]!.at && c.doorTimer <= 0) {
     admit(c, ROSTER[c.next]!.kind, false);
     c.next += 1;
+    if (c.events.arrived) c.lines.push({ who: c.list[c.list.length - 1]!, text: ARRIVAL_LINES[c.events.arrived], delay: 0, age: 0, box: null });
   }
+  for (const l of c.lines) { if (l.delay > 0) l.delay -= dt; else l.age += dt; }
+  // One bubble per speaker: a line that has started replaces whatever that speaker was still saying.
+  c.lines = c.lines.filter((l) => l.age < LINE_LIFE && !c.lines.some((o) => o !== l && o.who === l.who && o.delay <= 0 && l.delay <= 0 && o.age < l.age));
   c.doorTimer = Math.max(0, c.doorTimer - dt);
   stepSpring(c.squeeze, c.list.some((p) => p.kind === 'whale' && p.progress > 0.6) ? 1 : 0, 4, 0.7, dt);
   const squeeze = clamp(c.squeeze.x, 0, 1);
@@ -648,4 +686,71 @@ export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number): 
   ctx.restore();
   void SKIN_SHADE;
   return { head: { x, y: y - 158 * scale }, visible: true };
+}
+
+export interface Box { x: number; y: number; w: number; h: number }
+
+const overlaps = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** The screen box of a rider's face, which a bubble must not cover: the whale's whole head is his face. */
+function faceBox(x: number, depth: number, whale: boolean): Box {
+  const s = depthScale(depth);
+  const cy = depthFloor(depth) - (whale ? 190 : 158) * s;
+  const rx = (whale ? 70 : 26) * s;
+  const ry = (whale ? 48 : 28) * s;
+  return { x: x - rx, y: cy - ry, w: rx * 2, h: ry * 2 };
+}
+
+/**
+ * The speech bubbles, over the riders and the air. Each sits just above its speaker's head, where drawPassenger
+ * puts it (slot x, depth scale and floor, the cabin's bounce), and on its first frame it steps sideways or up out
+ * of anything it would cover: the other bubbles, the faces, the indicator and plaque, and `avoid` (the outcome
+ * stamp). It stays inside `area` (across the cabin, below the caption band).
+ */
+export function drawLines(ctx: CanvasRenderingContext2D, c: Crowd, suit: Suit, bounce: number, area: { left: number; right: number; top: number }, avoid: Box[]): void {
+  const faces: { who: Passenger | null; box: Box }[] = c.list.map((p) => ({ who: p, box: faceBox(p.x, p.depth, p.kind === 'whale') }));
+  if (suit.mode !== 'gone') faces.push({ who: null, box: faceBox(suit.x, suit.depth, false) });
+  const fixed: Box[] = [{ x: 420, y: 84 + bounce, w: 120, h: 26 }, { x: 262, y: 130 + bounce, w: 94, h: 44 }, ...avoid];
+  const placed: Box[] = [];
+  ctx.save();
+  ctx.font = '700 12px system-ui, sans-serif';
+  ctx.lineJoin = 'round';
+  for (const l of c.lines) {
+    if (l.delay > 0) continue;
+    const p = l.who;
+    const s = depthScale(p.depth);
+    // Above the wig once it has lifted and the spout once it blows, at their full height so the bubble does not ride their springs.
+    const lift = p.kind === 'grandma' && p.wig.x > 0.02 ? -60 : p.kind === 'whale' && p.spout.x > 0.02 ? -56 : 0;
+    const anchor = { x: p.x, y: depthFloor(p.depth) + (HEAD_TOP[p.kind] + lift) * s + bounce };
+    if (anchor.x < 0 || anchor.x > 960 || anchor.y < 0 || anchor.y > 540) continue;
+    if (!l.box) {
+      const w = ctx.measureText(l.text).width + 18;
+      const obstacles = [...placed, ...fixed, ...faces.filter((f) => f.who !== p).map((f) => f.box)];
+      // The nearest clear spot to straight above the head, searching sideways and up; climbing costs a little more than sliding.
+      let best = { left: clamp(anchor.x - w / 2, area.left, area.right - w), bottom: anchor.y - 8 };
+      let bestCost = Infinity;
+      for (let bottom = anchor.y - 8; bottom - 24 >= area.top; bottom -= 14) {
+        for (const dx of [0, -24, 24, -48, 48, -80, 80, -120, 120, -170, 170]) {
+          const left = clamp(anchor.x - w / 2 + dx, area.left, area.right - w);
+          const cost = Math.abs(left + w / 2 - anchor.x) + 1.2 * (anchor.y - 8 - bottom);
+          const room = { x: left - 3, y: bottom - 27, w: w + 6, h: 30 };
+          if (cost < bestCost && !obstacles.some((o) => overlaps(room, o))) { best = { left, bottom }; bestCost = cost; }
+        }
+      }
+      l.box = { dx: best.left - anchor.x, dy: best.bottom - anchor.y, w };
+    }
+    const w = l.box.w;
+    const left = clamp(anchor.x + l.box.dx, area.left, area.right - w);
+    const bottom = Math.max(area.top + 24, anchor.y + l.box.dy);
+    placed.push({ x: left, y: bottom - 24, w, h: 24 });
+    const tail = clamp(anchor.x, left + 12, left + w - 12);
+    ctx.globalAlpha = l.age < 0.2 ? l.age / 0.2 : l.age > LINE_LIFE - 0.4 ? (LINE_LIFE - l.age) / 0.4 : 1;
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(left, bottom - 24, w, 24, 8); ctx.fill(); ctx.stroke();
+    // A short tail toward the speaker, even when the bubble had to move: run all the way down it would be a spike across the crowd.
+    ctx.beginPath(); ctx.moveTo(tail - 6, bottom); ctx.lineTo(tail + clamp((anchor.x - tail) * 0.3, -6, 6), Math.min(anchor.y, bottom + 9)); ctx.lineTo(tail + 6, bottom); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(l.text, left + w / 2, bottom - 8);
+  }
+  ctx.restore();
 }

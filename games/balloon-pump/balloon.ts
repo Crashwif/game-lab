@@ -19,6 +19,9 @@ const DEEP = '#d8306f';
 const THIN = '#ffa8cc';
 const THIN_DEEP = '#f07ab0';
 const LIGHT = '#ffe1ec';
+/** The coin's ticker ink: a darker pink than the rubber, so it reads as printed on it. */
+const TICKER = '#c2185b';
+const TICKER_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 
 interface Shred { x: number; y: number; vx: number; vy: number; angle: number; spin: number; length: number; bend: number; width: number; life: number; age: number; tone: number }
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; age: number }
@@ -274,10 +277,30 @@ export function drawBalloon(ctx: CanvasRenderingContext2D, b: BalloonState): voi
   ctx.strokeStyle = 'rgba(110, 25, 60, 0.55)';
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + 0.3 * b.stretch})`;
+  const shine = `rgba(255, 255, 255, ${0.5 + 0.3 * b.stretch})`;
+  ctx.fillStyle = shine;
   ctx.beginPath(); ctx.ellipse(-rx * 0.42, cy - ry * 0.42, rx * 0.16, ry * 0.3, -0.5, 0, Math.PI * 2); ctx.fill();
+  drawTicker(ctx, b, g, cy);
+  ctx.fillStyle = shine;
   ctx.beginPath(); ctx.arc(-rx * 0.22, cy - ry * 0.68, rx * 0.06, 0, Math.PI * 2); ctx.fill();
   drawFace(ctx, b, rx, ry, cy);
+  ctx.restore();
+}
+
+/**
+ * The coin's ticker printed across the forehead, in the balloon's frame: it grows with the
+ * radius, squashes and stretches with the rubber, and widens as the rubber thins, so a limp balloon wears it small.
+ */
+function drawTicker(ctx: CanvasRenderingContext2D, b: BalloonState, g: BalloonGeometry, cy: number): void {
+  ctx.save();
+  ctx.translate(0, cy - g.ry * 0.52);
+  ctx.scale((g.rx / g.radius) * (0.8 + 0.32 * b.stretch), g.ry / g.radius);
+  ctx.font = `900 ${g.radius * 0.3}px ${TICKER_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = TICKER;
+  ctx.fillText('$HOTAIR', 0, 0);
   ctx.restore();
 }
 

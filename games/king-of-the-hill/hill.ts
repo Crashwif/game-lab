@@ -2,11 +2,24 @@
  * The hill is the bonding curve: its slope steepens as the token climbs.
  * World x runs up the hill; world height comes from integrating the slope.
  * The camera keeps the coin in view, and the sky drains from dawn to space
- * with altitude, the moon growing as it gets closer.
+ * with altitude, the moon growing as it gets closer. Roadside signs are
+ * planted up the slope at fixed world x.
  */
 import { clamp, mix, noise } from './motion';
 
 export interface Point { x: number; y: number }
+
+const INK = '#1c1f26';
+const SIGN_FONT = '900 19px Impact, "Arial Black", sans-serif';
+/** Wooden signs up the curve, at world x, two short lines each. */
+const SIGNS: { x: number; lines: [string, string] }[] = [
+  { x: 420, lines: ['BONDING', 'CURVE →'] },
+  { x: 950, lines: ['NO JEETS', 'PAST HERE'] },
+  { x: 1550, lines: ['DEV HOLDS', '40% LOL'] },
+  { x: 2150, lines: ['LAST EXIT', 'BEFORE RUG'] },
+  { x: 2800, lines: ['THIN AIR', 'THIN LIQ'] },
+  { x: 3500, lines: ['WELCOME TO', 'VALHALLA'] },
+];
 
 const SLOPE_MIN = 0.16;
 const SLOPE_GAIN = 1.6;
@@ -115,4 +128,47 @@ export function drawHill(ctx: CanvasRenderingContext2D, cam: Camera): void {
     const size = 4 + noise(wx) * 7;
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, size, size * 0.6, -slopeAngle(wx), 0, Math.PI * 2); ctx.fill();
   }
+  drawSigns(ctx, cam);
+}
+
+/**
+ * Plank signs on upright posts, each post long enough that the board clears the ground on its uphill side.
+ * A board fades as it slides under the caption band or the market-cap corner, so HUD text never sits on sign text.
+ */
+function drawSigns(ctx: CanvasRenderingContext2D, cam: Camera): void {
+  ctx.save();
+  ctx.font = SIGN_FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  for (const [i, sign] of SIGNS.entries()) {
+    const w = Math.ceil(Math.max(...sign.lines.map((line) => ctx.measureText(line).width))) + 18;
+    const h = 48;
+    const p = toScreen(cam, { x: sign.x, y: heightAt(sign.x) });
+    if (p.x < -w || p.x > 960 + w || p.y < -20) continue;
+    const post = 14 + slopeAt(sign.x) * w * 0.55;
+    const top = p.y + 4 - post - h;
+    if (top > 560) continue;
+    const clearOfCaption = top - 84;
+    const clearOfMcap = Math.hypot(Math.max(0, p.x - w / 2 - 200), Math.max(0, 478 - (top + h)));
+    const alpha = clamp(Math.min(clearOfCaption, clearOfMcap) / 24, 0, 1);
+    if (alpha <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y + 4);
+    ctx.rotate((noise(i * 4.1) - 0.5) * 0.12);
+    ctx.fillStyle = '#8b5e34'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(-3.5, -post - h / 2, 7, post + h / 2); ctx.fill(); ctx.stroke();
+    ctx.translate(0, -post - h / 2);
+    ctx.fillStyle = '#d6a866'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 3); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(120, 72, 30, 0.45)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-w / 2 + 3, 0); ctx.lineTo(w / 2 - 3, 0); ctx.stroke();
+    ctx.fillStyle = INK;
+    for (const nx of [-w / 2 + 5, w / 2 - 5]) { ctx.beginPath(); ctx.arc(nx, -h / 2 + 5, 1.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillText(sign.lines[0], 0, -10);
+    ctx.fillText(sign.lines[1], 0, 12);
+    ctx.restore();
+  }
+  ctx.restore();
 }

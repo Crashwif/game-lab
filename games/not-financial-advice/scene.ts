@@ -55,18 +55,18 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome === 'rekt') return 'RUGGED';
   if (outcome === 'called') return 'DYOR';
-  if (outcome === 'spectator') return 'DEV SOLD';
+  if (outcome === 'spectator') return 'HE WAS THE DEV';
   if (view.phase !== 'running') return 'LIKE AND SUBSCRIBE';
   if (secured) return 'UNFOLLOWED';
   if (multiplier < 1.35) return 'NOT FINANCIAL ADVICE';
-  if (multiplier < 1.8) return 'NUMBER GO UP';
+  if (multiplier < 1.8) return "I'M NOT SELLING (YET)";
   if (multiplier < 2.6) return '1000X GEM';
-  if (multiplier < 4) return 'HODL';
+  if (multiplier < 4) return 'THE DEV IS MY COUSIN';
   if (multiplier < 6) return 'USE MY CODE';
-  if (multiplier < 9) return 'DIAMOND HANDS';
+  if (multiplier < 9) return 'THANKS FOR THE LIQUIDITY';
   if (multiplier < 14) return 'JUST GOT OFF A CALL WITH THE DEV';
   if (multiplier < 22) return 'WHY IS THE LAMBO BEEPING';
-  return 'THIS IS FINE';
+  return 'MY LAWYER SAYS THIS WAS SATIRE';
 }
 
 function drawDesktop(ctx: CanvasRenderingContext2D): void {

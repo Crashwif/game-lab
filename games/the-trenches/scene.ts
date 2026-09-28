@@ -49,16 +49,16 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'kia' ? 'NGMI' : outcome === 'survived' ? 'SURVIVED' : 'NUKED';
+  if (outcome) return outcome === 'kia' ? 'DIED FOR A FROG COIN' : outcome === 'survived' ? 'SURVIVED' : 'NUKED';
   if (view.phase !== 'running') return 'GM SOLDIER';
   if (secured) return 'BACK IN THE TRENCH';
   if (multiplier < 1.3) return 'OVER THE TOP';
-  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 1.9) return 'CHARGE THE CHART';
   if (multiplier < 2.6) return 'HOLD THE LINE';
-  if (multiplier < 3.6) return 'HODL';
+  if (multiplier < 3.6) return 'SNIPERS ON THE RIDGE';
   if (multiplier < 5) return 'DIAMOND HELMETS';
   if (multiplier < 8) return 'IS THAT A WHISTLE';
-  return 'THIS IS FINE';
+  return 'COMMAND IS SELLING';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

@@ -4,9 +4,9 @@
  * motion is stepped here with the real frame time, and nothing drawn here
  * changes the committed outcome.
  */
-import { type Cabin, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, resetCabin, settleCabin, stepCabin } from './cabin';
+import { CABIN, type Cabin, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, resetCabin, settleCabin, stepCabin } from './cabin';
 import { clamp, spring, stepSpring } from './motion';
-import { type Crowd, DOOR, INK, MAX_PERSONS, type Point, type Suit, createCrowd, createSuit, depthFloor, depthScale, drawPassenger, drawSuit, leaveLift, persons, releaseSuit, resetCrowd, resetSuit, settleCrash, settleCrowd, settleSuit, stepCrowd, stepSuit } from './riders';
+import { type Box, type Crowd, DOOR, INK, MAX_PERSONS, type Point, type Suit, crashLines, createCrowd, createSuit, depthFloor, depthScale, drawLines, drawPassenger, drawSuit, leaveLift, persons, releaseSuit, resetCrowd, resetSuit, settleCrash, settleCrowd, settleSuit, stepCrowd, stepSuit } from './riders';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -49,18 +49,18 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'HE WHO SMELT IT' : outcome === 'called' ? 'CALLED IT' : 'DUMPED';
+  if (outcome) return outcome === 'rekt' ? 'HE WHO SMELT IT' : outcome === 'called' ? 'DEALT IT, LEFT IT' : 'NETWORK CONGESTION';
   if (view.phase !== 'running') return 'GOING UP?';
   if (secured) return 'THIS IS MY FLOOR';
   if (multiplier < 1.3) return 'HOLD IT';
   if (multiplier < 1.7) return 'CLENCH';
-  if (multiplier < 2.3) return 'NUMBER GO UP';
-  if (multiplier < 3.2) return 'HODL';
+  if (multiplier < 2.3) return 'CHEEKS ARE STAKED';
+  if (multiplier < 3.2) return 'HODL IT IN';
   if (multiplier < 4.8) return 'DIAMOND CHEEKS';
   if (multiplier < 6.5) return 'WHALE ALERT';
   if (multiplier < 10) return 'SILENT BUT DEADLY';
   if (multiplier < 20) return 'GAS GAS GAS';
-  return 'THIS IS FINE';
+  return 'PRIORITY FEE: MAXIMUM';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -119,7 +119,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         releaseSuit(suit, quiet);
         gasCabin(cabin, view.currentX100, origin, quiet);
         if (quiet) { pop.x = 1; settleCrash(crowd); }
-        else { shake = 1; pop.v = 16; }
+        else { shake = 1; pop.v = 16; crashLines(crowd, view.currentX100); }
       }
       if (view.phase === 'betting') {
         resetCabin(cabin);
@@ -170,14 +170,27 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const r of inside) r.draw();
     ctx.restore();
     drawCabinFront(ctx, cabin);
+    // The bubbles keep out from under the outcome stamp at rest: six slices of it, each as high as the tilt has it there.
+    const stamp = outcome === 'rekt' ? 'RIPPED' : outcome === 'called' ? 'CROP DUSTED' : 'GAS LEAK';
+    const stampSize = outcome === 'called' ? 78 : 96;
+    const stampBoxes: Box[] = [];
+    if (outcome) {
+      ctx.font = `900 ${stampSize}px ${MEME_FONT}`;
+      const half = ctx.measureText(stamp).width / 2 + 6;
+      for (let i = 0; i < 6; i += 1) {
+        const u = -half + (i + 0.5) * (half / 3);
+        const y = 290 - u * Math.sin(0.1);
+        stampBoxes.push({ x: 480 + u - half / 6, y: y - stampSize * 0.8 - 8 - (half / 6) * Math.sin(0.1), w: half / 3, h: stampSize * 0.9 + 16 });
+      }
+    }
+    drawLines(ctx, crowd, suit, cabin.bounce.x, { left: CABIN.left + 6, right: CABIN.right - 6, top: 96 }, stampBoxes);
     if (outcome && pop.x > 0.02) {
       ctx.save();
       ctx.translate(480, 290);
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      const text = outcome === 'rekt' ? 'RIPPED' : outcome === 'called' ? 'CROP DUSTED' : 'GAS LEAK';
-      memeText(ctx, text, 0, 0, outcome === 'called' ? 78 : 96, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      memeText(ctx, stamp, 0, 0, stampSize, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
       ctx.restore();
     }
     ctx.restore();

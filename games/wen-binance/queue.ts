@@ -88,10 +88,15 @@ export function panicQueue(q: Queue, seed: number, quiet: boolean): void {
 export interface QueueDrive { running: boolean; multiplier: number; tension: number; thump: number }
 
 const MUTTER = {
-  calm: ['wen listing', 'gm', 'heard the dev is based', 'is this the line?', 'lfg'],
-  edgy: ['insiders again', 'why is he checking', 'the bass is loud', 'wen listing tho', 'those suits skipped'],
-  scared: ['sell the news?', 'the suits are leaving', 'is that DELISTING', 'my bag is heavy', 'should we go'],
+  calm: ['wen listing', 'gm', 'heard the dev is based', 'is this the line?', 'lfg', 'my cousin works here', 'tier 1 or bust'],
+  edgy: ['insiders again', 'why is he checking', 'the bass is loud', 'wen listing tho', 'those suits skipped', 'listing fee is HOW much', 'did the vc skip us'],
+  scared: ['sell the news?', 'the suits are leaving', 'is that DELISTING', 'my bag is heavy', 'should we go', "they're dumping on us", 'it was priced in'],
 } as const;
+
+/** Wider than the widest mutter's bubble. A new line waits until a bubble that wide could not touch a live one. */
+const BUBBLE_MAX = 184;
+/** Where a bubble that wide sits for coin `i`, pushed off the canvas edge and the bouncer as `bubble` does. */
+const bubbleAt = (q: Queue, i: number): number => clamp(coinX(q, i), BUBBLE_MAX / 2 + 6, BOUNCER_X - 50 - BUBBLE_MAX / 2);
 
 /** Steps the line; returns true when a new suit milestone was reached. */
 export function stepQueue(q: Queue, drive: QueueDrive, dt: number): boolean {
@@ -108,7 +113,8 @@ export function stepQueue(q: Queue, drive: QueueDrive, dt: number): boolean {
     if (slot !== Math.floor((q.time - dt) * 1.5) && noise(slot * 3.3) > 0.45 - 0.2 * drive.tension && q.bubbles.length < 3) {
       const pool = drive.tension > 0.65 ? MUTTER.scared : drive.tension > 0.3 ? MUTTER.edgy : MUTTER.calm;
       const index = Math.floor(noise(slot * 7.7) * COUNT);
-      if (index !== YOU || q.mode === 'queued') q.bubbles.push({ index, text: pool[Math.floor(noise(slot * 5.1) * pool.length)]!, age: 0, life: 2.2 });
+      const room = coinX(q, index) >= 0 && q.bubbles.every((b) => Math.abs(bubbleAt(q, b.index) - bubbleAt(q, index)) >= BUBBLE_MAX + 16);
+      if (room && (index !== YOU || q.mode === 'queued')) q.bubbles.push({ index, text: pool[Math.floor(noise(slot * 5.1) * pool.length)]!, age: 0, life: 2.2 });
     }
   }
   for (const b of q.bubbles) b.age += dt;
@@ -229,11 +235,14 @@ function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: strin
   ctx.globalAlpha = alpha;
   ctx.font = '700 12px system-ui, sans-serif';
   const w = ctx.measureText(text).width + 18;
+  // The box stays between the canvas edge and the bouncer's clipboard; the tail still points at the coin.
+  const cx = clamp(x, w / 2 + 6, BOUNCER_X - 50 - w / 2);
+  const tx = clamp(x, cx - w / 2 + 12, cx + w / 2 - 12);
   ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.roundRect(x - w / 2, y - 24, w, 24, 8); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x - 6, y); ctx.lineTo(x, y + 8); ctx.lineTo(x + 6, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(cx - w / 2, y - 24, w, 24, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tx - 6, y); ctx.lineTo(tx, y + 8); ctx.lineTo(tx + 6, y); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(text, x, y - 8);
+  ctx.fillText(text, cx, y - 8);
   ctx.restore();
 }
 
@@ -296,7 +305,9 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
   for (const b of q.bubbles) {
     if (b.index === YOU && q.mode !== 'queued') continue;
     const alpha = b.age < 0.2 ? b.age / 0.2 : b.age > b.life - 0.4 ? (b.life - b.age) / 0.4 : 1;
-    bubble(ctx, coinX(q, b.index) + Math.sin(q.time * 1.6 + b.index * 1.1) * 3, GROUND - 134, b.text, alpha);
+    const bx = coinX(q, b.index) + Math.sin(q.time * 1.6 + b.index * 1.1) * 3;
+    if (bx < 0) continue;
+    bubble(ctx, bx, GROUND - 134, b.text, alpha);
   }
   // Your coin leaving: steps out in front of the rope and over to the taxi.
   if (q.mode !== 'queued') {

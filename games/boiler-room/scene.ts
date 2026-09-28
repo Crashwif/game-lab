@@ -63,17 +63,17 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SHOULD HAVE DUCKED' : outcome === 'called' ? 'CALLED IT' : 'NOT STONKS';
-  if (view.phase !== 'running') return 'WEN STEAM?';
-  if (secured) return 'DEAL WITH IT';
-  if (multiplier < 1.3) return 'STOKE IT';
-  if (multiplier < 1.7) return 'NUMBER GO UP';
-  if (multiplier < 2.5) return 'HODL';
-  if (multiplier < 4) return 'FULL STEAM AHEAD';
-  if (multiplier < 7) return 'DIAMOND HANDS';
-  if (multiplier < 12) return 'THIS IS FINE';
-  if (multiplier < 25) return 'PRINTER GO BRRR';
-  return 'TO THE MOON';
+  if (outcome) return outcome === 'rekt' ? 'ABSOLUTELY COOKED' : outcome === 'called' ? 'OFFSHORE BEFORE THE RAID' : 'MONEY PRINTER GO BOOM';
+  if (view.phase !== 'running') return 'WEN PRINT?';
+  if (secured) return 'HIDING OFFSHORE';
+  if (multiplier < 1.3) return 'SHOVEL IN THE RETAIL';
+  if (multiplier < 1.7) return 'PRINTER GO BRRR';
+  if (multiplier < 2.5) return 'MORE RETAIL, BOYS';
+  if (multiplier < 4) return 'SELL IT TO GRANDMA';
+  if (multiplier < 7) return 'INFINITE MONEY GLITCH';
+  if (multiplier < 12) return 'COMPLIANCE IS ASLEEP';
+  if (multiplier < 25) return 'PRINTER GO BRRRRRRRR';
+  return 'HYPERINFLATION SPEEDRUN';
 }
 
 function drawRoom(ctx: CanvasRenderingContext2D, e: EngineState, time: number): void {
@@ -100,6 +100,27 @@ function drawRoom(ctx: CanvasRenderingContext2D, e: EngineState, time: number): 
   ctx.strokeStyle = '#2b2f38'; ctx.lineWidth = 3;
   for (const x of [143, 166]) { ctx.beginPath(); ctx.moveTo(x, 112); ctx.lineTo(x, 168); ctx.stroke(); }
   ctx.beginPath(); ctx.moveTo(120, 140); ctx.lineTo(190, 140); ctx.stroke();
+  // The house rules, hung crooked from a nail between the window and the chimney.
+  ctx.save();
+  ctx.translate(238, 124);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-18, 14); ctx.lineTo(0, 0); ctx.lineTo(18, 14); ctx.stroke();
+  ctx.fillStyle = '#2b2f38';
+  ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(-0.05);
+  ctx.fillStyle = '#5a3d24'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-33, 10, 66, 42, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#d6ccb0';
+  ctx.fillRect(-28, 15, 56, 32);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `12px ${MEME_FONT}`;
+  ctx.fillStyle = '#b8323f';
+  ctx.fillText('NO KYC', 0, 29, 52);
+  ctx.font = `10px ${MEME_FONT}`;
+  ctx.fillStyle = INK;
+  ctx.fillText('NO REFUNDS', 0, 42, 52);
+  ctx.restore();
   // The hanging lamp swings with the engine's thumps and lights the wall.
   const swing = e.lamp.x;
   const lx = 770 + Math.sin(swing) * 70;
@@ -135,6 +156,11 @@ function drawRoom(ctx: CanvasRenderingContext2D, e: EngineState, time: number): 
 }
 
 function drawCoalPile(ctx: CanvasRenderingContext2D): void {
+  // A stake driven into the pile's flank, the part in the coal hidden by it.
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(48, 468); ctx.lineTo(34, 418); ctx.stroke();
+  ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 3.5; ctx.stroke();
   ctx.fillStyle = '#1b1b1f';
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.5;
@@ -145,6 +171,22 @@ function drawCoalPile(ctx: CanvasRenderingContext2D): void {
     const y = FLOOR_Y - 6 - noise(i * 2.1) * (40 - Math.abs(x - 110) * 0.35);
     ctx.beginPath(); ctx.arc(x, y, 3 + noise(i * 3.7) * 4, 0, Math.PI * 2); ctx.fill();
   }
+  // What the coal really is: a crude plank on the stake, sprayed through a stencil.
+  ctx.save();
+  ctx.translate(31, 408);
+  ctx.rotate(-0.14);
+  ctx.fillStyle = '#9c7a52'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-25, -10); ctx.lineTo(23, -11); ctx.lineTo(25, 9); ctx.lineTo(-24, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-20, -7); ctx.lineTo(-8, -7.5); ctx.moveTo(10, 6.5); ctx.lineTo(20, 6); ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `14px ${MEME_FONT}`;
+  ctx.fillStyle = 'rgba(27, 27, 31, 0.3)';
+  ctx.fillText('RETAIL', 0.8, 1.3, 42);
+  ctx.fillStyle = '#1b1b1f';
+  ctx.fillText('RETAIL', 0, 0.5, 42);
+  ctx.restore();
 }
 
 function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: string, dead: boolean): void {

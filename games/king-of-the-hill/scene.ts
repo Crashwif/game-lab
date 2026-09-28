@@ -45,6 +45,8 @@ const CAPTION_X = 430;
 /** World px up the hill per doubling of the multiplier. */
 const PX_PER_DOUBLING = 620;
 const TICKER = '$CRASH';
+/** The flash over each holder who bails, by how many have bailed this round. */
+const JEET_LINES = ['JEETED', 'PAPER HANDS', 'SEE YA NERD', 'SOLD FOR A SANDWICH', 'NGMI'];
 type Outcome = 'rekt' | 'called' | 'rugged';
 type Secured = { x100: number; payout: number | null };
 type LamboMode = 'none' | 'arriving' | 'waiting' | 'leaving';
@@ -62,16 +64,16 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'DEV SOLD' : outcome === 'called' ? 'CALLED IT' : 'RUGGED';
+  if (outcome) return outcome === 'rekt' ? 'DEV SOLD ON YOUR HEAD' : outcome === 'called' ? 'GOOD LUCK, COMMUNITY' : 'RUGGED';
   if (view.phase !== 'running') return 'WEN LAUNCH?';
-  if (secured) return 'DEAL WITH IT';
+  if (secured) return "IT'S A CTO NOW";
   if (multiplier < 1.3) return 'PUSH IT';
-  if (multiplier < 1.6) return 'NUMBER GO UP';
+  if (multiplier < 1.6) return 'SISYPHUS BUT DEGEN';
   if (multiplier < 2.5) return 'KING OF THE HILL';
   if (multiplier < 4) return 'WEN GRADUATION';
   if (multiplier < 6) return 'GRADUATED';
-  if (multiplier < 12) return 'TO THE MOON';
-  return 'THIS IS FINE';
+  if (multiplier < 12) return 'DEV IS WATCHING';
+  return "DEV'S FINGER ON SELL";
 }
 
 function formatMcap(multiplier: number): string {
@@ -280,7 +282,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (jeetFlash > 0) {
       const p = toScreen(camera, pose.centre);
       ctx.globalAlpha = Math.min(1, jeetFlash * 1.5);
-      memeText(ctx, 'JEETED', p.x - pose.r - 40, p.y - pose.r - 20 - (1 - jeetFlash) * 30, 22, '#ffe27a', 'center');
+      memeText(ctx, JEET_LINES[clamp(coin.jeeted - 1, 0, JEET_LINES.length - 1)]!, p.x - pose.r - 40, p.y - pose.r - 20 - (1 - jeetFlash) * 30, 22, '#ffe27a', 'center');
       ctx.globalAlpha = 1;
     }
     if (outcome && pop.x > 0.02) {

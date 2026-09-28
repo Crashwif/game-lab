@@ -13,16 +13,22 @@ const LINES = [
   'sent the rent',
   '1000x incoming',
   'mom said no',
-  'code DEGEN tho',
+  'code REKT tho',
   'why is he sweating',
   'that lambo is rented',
   'paid promo lol',
   'just aped the top',
   'few understand',
   'screenshot this',
+  'sold my kidney for this',
+  "wife's bf said buy",
+  'is this the 12th 1000x?',
+  'he bought at 0 lmao',
+  'wen refund',
+  'screenshot for the lawsuit',
 ];
 
-const FLOOD = ['RUG', 'DEV SOLD', 'HE SOLD', 'UNFOLLOW', 'NGMI', 'CLOWN', 'RATIO', 'DYOR'];
+const FLOOD = ['RUG', 'DEV SOLD', 'HE SOLD', 'UNFOLLOW', 'NGMI', 'CLOWN', 'RATIO', 'DYOR', 'LAWSUIT', 'CLASS ACTION', 'SCAMMER', 'EXPOSED'];
 
 interface Comment { text: string; y: number; hot: boolean; }
 
@@ -92,6 +98,8 @@ export function floodOverlay(o: Overlay, quiet: boolean): void {
     o.comments = FLOOD.map((text, i) => ({ text, y: 280 - i * 34, hot: true }));
   } else {
     const rand = mulberry32(o.comments.length + 9);
+    // The queued lines below the column never showed; the flood takes their place instead of landing on them.
+    o.comments = o.comments.filter((c) => c.y <= 324);
     for (let i = 0; i < 6; i += 1) o.comments.push({ text: FLOOD[i % FLOOD.length]!, y: 340 + i * 20, hot: true });
     void rand;
   }
@@ -171,7 +179,7 @@ export function drawBurn(ctx: CanvasRenderingContext2D, o: Overlay, multiplier: 
   ctx.fillStyle = INK;
   ctx.font = '900 14px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('CODE DEGEN', 24 + glitch, 268);
+  ctx.fillText('CODE REKT', 24 + glitch, 268);
   // Disclosure. It is allowed to become a single pixel.
   const size = Math.max(1, o.discSize);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';

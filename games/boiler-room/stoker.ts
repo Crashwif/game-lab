@@ -270,8 +270,8 @@ export function drawShield(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = '#e63946';
   ctx.font = '700 9px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('BLAST', x, SHIELD.top + 52);
-  ctx.fillText('SHIELD', x, SHIELD.top + 63);
+  ctx.fillText('OFF', x, SHIELD.top + 52);
+  ctx.fillText('SHORE', x, SHIELD.top + 63);
 }
 
 function drawShovel(ctx: CanvasRenderingContext2D, grip: Point, blade: Point, tip: number, carrying: boolean): void {

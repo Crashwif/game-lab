@@ -50,18 +50,18 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'TOUCHED GRASS' : 'BOYFRIEND REVEAL';
+  if (outcome) return outcome === 'rekt' ? 'SIMPED TO ZERO' : outcome === 'called' ? 'TOUCHED GRASS' : 'BOYFRIEND REVEAL';
   if (view.phase !== 'running') return 'GM QUEEN';
   if (secured) return 'TOUCH GRASS';
   if (multiplier < 1.4) return 'SIMP HARDER';
-  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 1.9) return 'TIP TO UNLOCK';
   if (multiplier < 2.6) return 'WEN REVEAL';
-  if (multiplier < 3.6) return 'HODL';
-  if (multiplier < 5) return 'DIAMOND HANDS';
+  if (multiplier < 3.6) return 'SENT MY RENT';
+  if (multiplier < 5) return 'SHE SAID GM TO ME';
   if (multiplier < 7.5) return 'MODS ASLEEP';
   if (multiplier < 12) return 'ONE MORE MILESTONE';
   if (multiplier < 20) return 'IS THAT A DOOR';
-  return 'THIS IS FINE';
+  return 'WHOSE SHOES ARE THOSE';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

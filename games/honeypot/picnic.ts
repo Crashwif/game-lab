@@ -1,8 +1,9 @@
 /**
  * The picnic: the bear whose paw is in the jar, the guests who lean in
- * and stick, the hive, the swarm and the beekeeper who leaves with it.
+ * and stick, the hive with its lure sign, the swarm and the beekeeper (the
+ * dev) who leaves with it.
  */
-import { JAR, surfaceY } from './jar';
+import { JAR, surfaceY, tracked } from './jar';
 import { clamp, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
@@ -219,6 +220,34 @@ export function drawBackground(ctx: CanvasRenderingContext2D, time: number): voi
   void time;
 }
 
+/** The lure: a hand-painted board on a stake between the hive's stump and the blanket, under the bees' orbit. */
+function drawLureSign(ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+  ctx.translate(220, 404);
+  ctx.rotate(-0.05);
+  ctx.fillStyle = '#6b4226';
+  ink(ctx, 2);
+  ctx.beginPath();
+  ctx.rect(-3, -54, 6, 58);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#d9a95f';
+  ctx.beginPath();
+  ctx.roundRect(-38, -102, 76, 50, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(107, 66, 38, 0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-34, -77);
+  ctx.lineTo(34, -77);
+  ctx.stroke();
+  tracked(ctx, 'FREE HONEY', 0, -86, 11, '#c0392b');
+  tracked(ctx, 'NO RUG', 0, -72, 11, INK);
+  tracked(ctx, 'TRUST', 0, -58, 11, INK);
+  ctx.restore();
+}
+
 function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time: number): void {
   const bear = p.bear;
   if (bear.mode === 'gone') return;
@@ -397,6 +426,7 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
     ctx.lineTo(p.hiveX + 20, 250 + i * 12);
     ctx.stroke();
   }
+  drawLureSign(ctx);
   const count = Math.round(8 + tension * 20);
   for (let i = 0; i < count; i += 1) {
     const bee = p.bees[i % p.bees.length]!;
@@ -431,6 +461,8 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
     ctx.ellipse(0, -50, 16, 22, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    // The beekeeper is the dev: it is stencilled on the suit.
+    tracked(ctx, 'DEV', 0, -45, 12, '#3a3f47');
     ctx.fillStyle = '#f4f4f4';
     ctx.beginPath();
     ctx.arc(0, -78, 16, Math.PI, 0);

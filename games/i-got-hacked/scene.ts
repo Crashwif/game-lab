@@ -69,13 +69,13 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM FAM';
   if (secured) return 'NOT HACKED';
   if (multiplier < 1.4) return 'MY NEW COIN';
-  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 1.9) return 'NOT A CASH GRAB';
   if (multiplier < 2.6) return 'LOVE MY FANS';
-  if (multiplier < 3.6) return 'HODL';
-  if (multiplier < 5) return 'DIAMOND HANDS';
+  if (multiplier < 3.6) return 'FANS ARE THE LIQUIDITY';
+  if (multiplier < 5) return 'DRAFTING A STATEMENT';
   if (multiplier < 7.5) return 'THE MANAGER IS WHISPERING';
   if (multiplier < 12) return 'WHY IS THE YACHT MOVING';
-  return 'THIS IS FINE';
+  return 'MY ACCOUNT WAS COMPROMISED';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
