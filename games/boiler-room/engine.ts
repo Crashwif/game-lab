@@ -80,6 +80,7 @@ export function settleEngine(e: EngineState, drive: EngineDrive): void {
   e.omega = targetOmega(drive);
   e.leaks = drive.running ? LEAK_AT.filter((m) => drive.multiplier >= m).length : 0;
   e.flame = drive.running ? 0.35 + 0.65 * drive.pressure : 0.15;
+  settleSpring(e.valve, clamp((drive.pressure - 0.7) / 0.3, 0, 1));
 }
 
 function targetOmega(drive: EngineDrive): number {

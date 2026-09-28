@@ -4,7 +4,7 @@
  * frame time, and nothing drawn here changes the committed outcome.
  */
 import { type Chat, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
-import { clamp, spring, stepSpring } from './motion';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { INK, type Stream, VIDEO, celebrate, createStream, drawStream, endStream, resetStream, stepStream } from './stream';
 
 export interface SceneView {
@@ -32,6 +32,8 @@ export interface Scene {
 }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** A longer wait between frames than this (a hidden tab, a throttled frame) is time the scene did not see. */
+const GAP_MS = 1000;
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
@@ -77,7 +79,18 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
+  /**
+   * Puts in place what a stretch the scene did not see left behind: the goal ladder and the bags at
+   * `multiplier`, and your simp already gone, badge up, if you are out.
+   */
+  function settle(multiplier: number): void {
+    settleChat(chat, multiplier);
+    stream.bags = Math.min(9, chat.goalIndex);
+    if (secured) { unsubscribe(chat, true); settleSpring(badge, 1); }
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
+    const gap = last !== null && now - last > GAP_MS;
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     time += dt;
@@ -87,22 +100,26 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const ending: Outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
 
+    // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
+    // round whose betting it missed), so it settles into place instead of playing out what it missed.
     if (previous === null) {
       previous = view.phase;
       resetStream(stream);
       resetChat(chat);
-      if (running || crashed) { settleChat(chat, multiplier); stream.bags = Math.min(9, chat.goalIndex); }
+      if (running || crashed) settle(multiplier);
       if (crashed) {
-        outcome = 'ended';
+        outcome = ending;
         endStream(stream, view.currentX100, true);
-        floodChat(chat, false, true);
+        floodChat(chat, outcome === 'called', true);
         pop.x = 1;
       }
     } else if (view.phase !== previous) {
       if (crashed && !stream.ended) {
         const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        outcome = ending;
+        if (quiet || gap) settle(multiplier);
         endStream(stream, view.currentX100, quiet);
         floodChat(chat, outcome === 'called', quiet);
         if (quiet) pop.x = 1;
@@ -116,7 +133,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
-    if (secured && running) unsubscribe(chat);
+    // Back from a hidden tab mid-round: the ladder jumps to the multiplier rather than celebrating every goal it passed.
+    if (gap && running) settle(multiplier);
+    // An exit that landed with the crash, before a running frame saw it, still closes the tab.
+    if (secured) unsubscribe(chat);
 
     const reached = stepChat(chat, { running, multiplier, tension }, dt);
     if (reached) { celebrate(stream, chat.goalIndex); if (!reduced) shake = Math.max(shake, 0.2); }

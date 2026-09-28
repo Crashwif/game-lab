@@ -48,6 +48,15 @@ export function collectWinnings(c: CrowdState): void {
   if (c.supporter.mode === 'seated') { c.supporter.mode = 'walking'; c.supporter.modeAge = 0; }
 }
 
+/** How loud the crowd is heading for: with the tension while the round runs, murmuring otherwise. */
+const cheerFor = (tension: number, running: boolean): number => (running ? 0.2 + 0.8 * tension : 0.05);
+
+/** Puts the crowd where a round met late leaves it: at the round's pitch, and your supporter already paid if you cashed out. */
+export function settleCrowd(c: CrowdState, tension: number, running: boolean, secured: boolean): void {
+  c.cheer = cheerFor(tension, running);
+  if (secured) c.supporter = { mode: 'done', x: BOOKIE_X - 40, modeAge: 0, shades: spring(1), ticket: true };
+}
+
 /** The champ finished. */
 export function finishCrowd(c: CrowdState, cheerful: boolean, quiet: boolean): void {
   if (cheerful) { c.hype.v += quiet ? 0 : 12; settleSpring(c.hype, 1); }
@@ -57,7 +66,7 @@ export function finishCrowd(c: CrowdState, cheerful: boolean, quiet: boolean): v
 
 export function stepCrowd(c: CrowdState, tension: number, multiplier: number, beat: boolean, running: boolean, dt: number): void {
   c.time += dt;
-  c.cheer += ((running ? 0.2 + 0.8 * tension : 0.05) - c.cheer) * (1 - Math.exp(-dt / 0.8));
+  c.cheer += (cheerFor(tension, running) - c.cheer) * (1 - Math.exp(-dt / 0.8));
   if (running && multiplier >= 3 && c.time > c.waveAt && c.wave < 0) { c.wave = 0; c.waveAt = c.time + 9; }
   if (c.wave >= 0) { c.wave += dt / 1.6; if (c.wave > 1.3) c.wave = -1; }
   stepSpring(c.sulk, c.sulk.x > 0.5 ? 1 : 0, 6, 0.7, dt);

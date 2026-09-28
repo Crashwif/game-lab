@@ -78,10 +78,12 @@ export function frogXs(s: Squad, progress: number): number[] {
   return s.frogs.filter((f) => f.mode === 'marching').map((f) => marchPosition(f, progress, 1).x);
 }
 
-/** Your frog dives back into the trench with the bag. */
-export function diveBack(s: Squad, progress: number): void {
+/** Your frog dives back into the trench with the bag. `quiet` puts it straight back, for a cash-out the scene did not see happen. */
+export function diveBack(s: Squad, progress: number, quiet = false): void {
   const f = s.frogs[YOURS]!;
-  if (f.mode !== 'marching') return;
+  if (f.mode !== 'marching' && f.mode !== 'trench') return;
+  // A frog that never left the trench (the round ran unseen) has nowhere to dive from.
+  if (quiet || f.mode === 'trench') { f.mode = 'safe'; return; }
   const at = marchPosition(f, progress, s.over.x);
   f.mode = 'diving';
   f.diveAge = 0;
@@ -119,6 +121,8 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
   stepSpring(s.whistle, drive.running && s.over.x < 0.9 ? 1 : 0, 10, 0.5, dt);
   const cadence = 3 + 9 * drive.tension;
   for (const f of s.frogs) {
+    // The whistle blows: the squad goes over the top.
+    if (f.mode === 'trench' && drive.running) f.mode = 'marching';
     if (f.mode === 'marching' && drive.running) {
       const before = Math.floor(f.phase);
       f.phase += dt * cadence;
@@ -323,8 +327,8 @@ function bubbleText(ctx: CanvasRenderingContext2D, text: string, x: number, y: n
   ctx.fillText(text, x, y - 4);
 }
 
-/** The squad on the field (marching, diving) between the ground and the trench. */
-export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: number, tension: number): void {
+/** The squad on the field (marching, diving) between the ground and the trench. `enlisted` (a stake in this round) marks your frog. */
+export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: number, tension: number, enlisted: boolean): void {
   const order = [...s.frogs].sort((a, b) => marchPosition(a, progress, s.over.x).y - marchPosition(b, progress, s.over.x).y);
   for (const f of order) {
     if (f.mode === 'marching') {
@@ -333,7 +337,7 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       const stride = f.phase % 1;
       const expression = tension > 0.75 ? 'shock' : tension > 0.35 ? 'grit' : 'hype';
       drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false, mud: tension, phone: f !== s.frogs[YOURS], time: s.time });
-      if (f === s.frogs[YOURS]) {
+      if (enlisted && f === s.frogs[YOURS]) {
         ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
         const ty = at.y - 100 * at.scale - 6 + Math.sin(s.time * 4) * 3;
         ctx.beginPath(); ctx.moveTo(at.x, ty + 10); ctx.lineTo(at.x - 9, ty - 4); ctx.lineTo(at.x + 9, ty - 4); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -361,8 +365,8 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
   }
 }
 
-/** The trench in the foreground: sandbags, the wall, the duckboards, the sergeant and his phone, and the frogs inside it. */
-export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: number): void {
+/** The trench in the foreground: sandbags, the wall, the duckboards, the sergeant and his phone, and the frogs inside it. Your frog is tagged KIA only when `enlisted`. */
+export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: number, enlisted: boolean): void {
   // Wall and floor.
   ctx.fillStyle = '#4a3b28';
   ctx.fillRect(0, TRENCH_Y, W, 540 - TRENCH_Y);
@@ -391,7 +395,7 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
       if (Math.abs(f.clang.v) > 4) { ctx.fillStyle = '#ffffff'; ctx.font = '900 16px Impact, "Arial Black", sans-serif'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText('CLANG', f.x + 40, TRENCH_FLOOR - 74); ctx.fillText('CLANG', f.x + 40, TRENCH_FLOOR - 74); }
     } else if (f.mode === 'dead' && settled) {
       drawFrog(ctx, f.x - 30, TRENCH_FLOOR - 8, 0.9, { stride: 0.5, squash: 0, expression: 'dead', shades: false, cigar: false, bag: false, helmetLift: 0, lying: true });
-      if (yours) { ctx.fillStyle = '#ff4d6d'; ctx.font = '900 14px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText('KIA', f.x + 10, TRENCH_FLOOR + 2); ctx.fillText('KIA', f.x + 10, TRENCH_FLOOR + 2); }
+      if (yours && enlisted) { ctx.fillStyle = '#ff4d6d'; ctx.font = '900 14px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText('KIA', f.x + 10, TRENCH_FLOOR + 2); ctx.fillText('KIA', f.x + 10, TRENCH_FLOOR + 2); }
     }
   }
   // The sergeant and the field phone on the right.

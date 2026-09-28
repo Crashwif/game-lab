@@ -10,7 +10,7 @@ import { drawFallback } from './fallback';
 import { putInstance } from './gl';
 import { H, W, drawCard, drawLabels, drawVignette, grouped, memeText } from './hud';
 import { type Vec3, add, basisFrom, lerp3, lookAt, madd, mat4, normalize, perspective, rotateAbout, sub } from './math3d';
-import { clamp, spring, stepSpring } from './motion';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { EGG_FAR, type Label, WAVES, bankYou, createPack, drawPack, eggDistance, headline, pilePack, resetPack, settlePack, stepPack } from './pack';
 import { borePoint, frameAt } from './path';
 import { type Environment, RING_SPACING, Renderer } from './render';
@@ -37,7 +37,7 @@ export interface SceneOptions {
 
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
-  /** Releases the WebGL context. */
+  /** Releases the WebGL context and stops listening to it; a new scene can be created afterwards. */
   dispose(): void;
 }
 
@@ -75,8 +75,19 @@ function popFor(outcome: Outcome, crashX100: number): [string, string] {
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
   let renderer: Renderer | null = null;
+  /** The WebGL canvas. A lost context (a GPU reset, a phone backgrounding the tab) comes back only on it. */
+  let glCanvas: HTMLCanvasElement | null = null;
+  let restored = false;
+  // Without preventDefault the browser never restores a lost context; the 2D stand-in draws until it does.
+  const onLost = (event: Event): void => event.preventDefault();
+  const onRestored = (): void => {
+    restored = true;
+  };
   try {
     renderer = new Renderer();
+    glCanvas = renderer.canvas;
+    glCanvas.addEventListener('webglcontextlost', onLost);
+    glCanvas.addEventListener('webglcontextrestored', onRestored);
   } catch {
     renderer = null;
   }
@@ -106,6 +117,17 @@ export function createScene(options: SceneOptions = {}): Scene {
   let crashX100 = 100;
   /** The next round's betting opened while the reveal was still playing; it finishes first. */
   let holding = false;
+
+  /** Settles the race for a round met mid-run or after the crash, instead of playing out what came before. */
+  function settleRace(view: SceneView, m: number): void {
+    settlePack(pack, m, view.phase === 'running' ? view.elapsed / 1000 : undefined);
+    settleSpring(orbit, 0);
+    if (view.cashoutX100 !== null) {
+      // Already in the sperm bank: no swerve and no frost, and the badge is up.
+      pack.you.mode = 'banked';
+      settleSpring(badge, 1);
+    }
+  }
 
   /** Back to the start line for a new round. */
   function resetRound(): void {
@@ -203,6 +225,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
+    // Nothing to draw into (a collapsed canvas), and copying a zero-size WebGL frame would throw.
+    if (ctx.canvas.width < 1 || ctx.canvas.height < 1) return;
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.2);
     last = now;
     time += dt;
@@ -210,25 +234,33 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = clamp(Math.log2(multiplier) / 3.5, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    // The shell keeps the stake and the cash-out through the crash, until the next round's betting.
+    const cashed = view.cashoutX100 !== null;
+    const ending: Outcome = view.stake === null ? 'ended' : cashed ? 'called' : 'rekt';
 
     if (previous === null) {
+      // The scene's first frame: a page load, or a fresh scene for a round whose betting was never drawn.
       previous = view.phase;
       resetPack(pack);
       resetCrash(crash);
-      if (running || crashed) settlePack(pack, multiplier);
+      if (running || crashed) settleRace(view, multiplier);
       if (crashed) {
-        outcome = 'ended';
+        outcome = ending;
         crashX100 = view.currentX100;
-        startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, false, true);
+        startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, cashed, true);
         pop.x = 1;
       }
     } else if (view.phase !== previous) {
+      // Still holding the last round's reveal: this round ran while the tab was hidden.
+      if (crashed && holding) resetRound();
       if (crashed && !crash.active) {
         const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        // Settled only for a run that went by out of sight: a 1.00× crash seen live straight from betting plays
+        // out from the start line, the camera swinging round to the chase view.
+        if (previous !== 'running' && quiet) settleRace(view, multiplier);
+        outcome = ending;
         crashX100 = view.currentX100;
-        startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, secured !== null, quiet);
+        startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, cashed, quiet);
         post(feed, 'DEV PULLED 100% LIQUIDITY', 'news');
         if (quiet) pop.x = 1;
       }
@@ -245,6 +277,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
     }
     if (holding && crash.age >= REVEAL_HOLD) resetRound();
+    // After the resets, so none of them drops this round's cash-out; latched, so the badge stays up through a
+    // reveal held into the next round's betting.
+    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
     if (secured && running && pack.you.mode === 'race') bankYou(pack);
 
     stepPack(pack, { racing: running, multiplier, tension, crashed }, dt);
@@ -273,6 +308,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
 
+    if (restored && glCanvas) {
+      // The context is back but empty: upload the programs, meshes and atlas again on the same canvas.
+      restored = false;
+      try {
+        renderer = new Renderer(glCanvas);
+      } catch {
+        renderer = null;
+      }
+    }
     const labels: Label[] = [];
     const r = renderer && !renderer.lost ? renderer : null;
     if (r) {
@@ -360,6 +404,11 @@ export function createScene(options: SceneOptions = {}): Scene {
   return {
     draw,
     dispose() {
+      // Unhooked first: the loss dispose() causes must not be prevented, or the context could come back.
+      glCanvas?.removeEventListener('webglcontextlost', onLost);
+      glCanvas?.removeEventListener('webglcontextrestored', onRestored);
+      glCanvas = null;
+      restored = false;
       renderer?.dispose();
       renderer = null;
     },

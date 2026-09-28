@@ -4,9 +4,10 @@
  * HUD. All motion is stepped here with the real frame time, and nothing
  * drawn here changes the committed outcome.
  */
-import { type CrowdState, collectWinnings, createCrowd, drawBleachers, drawBooth, drawCrowd, finishCrowd, resetCrowd, stepCrowd } from './crowd';
-import { clamp, spring, stepSpring } from './motion';
-import { INK, type RoomState, createRoom, drawBed, drawFloorAndFurniture, drawWall, finishRoom, resetRoom, stepRoom } from './room';
+import { free } from '@crashwif/crash-math';
+import { type CrowdState, collectWinnings, createCrowd, drawBleachers, drawBooth, drawCrowd, finishCrowd, resetCrowd, settleCrowd, stepCrowd } from './crowd';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
+import { INK, type RoomState, createRoom, drawBed, drawFloorAndFurniture, drawWall, finishRoom, resetRoom, settleRoom, stepRoom } from './room';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -110,8 +111,20 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let legendary = false;
 
+  /** The champ finishes: the puff and the shake, or with `quiet` the aftermath, already settled. */
+  function finish(view: SceneView, multiplier: number, quiet: boolean): void {
+    legendary = multiplier >= 5;
+    outcome = view.stake === null ? 'gg' : secured ? 'called' : 'rekt';
+    finishRoom(room, quiet, legendary && !quiet);
+    finishCrowd(crowd, outcome !== 'rekt', quiet);
+    if (quiet) pop.x = 1;
+    else { shake = 1; pop.v = 16; }
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    // Over a second since the last frame: the tab was hidden (or the picture stalled) and the round moved on.
+    const resumed = last !== null && now - last > 1000;
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
@@ -121,26 +134,25 @@ export function createScene(options: SceneOptions = {}): Scene {
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
+    // A round met late settles the room to the number instead of playing out what it missed: a first frame that
+    // lands mid-round or after the crash, a crash missed while the tab was hidden, or the first frame back.
     if (previous === null) {
       previous = view.phase;
       resetRoom(room);
       resetCrowd(crowd);
-      if (crashed) {
-        legendary = multiplier >= 5;
-        finishRoom(room, true, false);
-        finishCrowd(crowd, true, true);
-        outcome = 'gg';
-        pop.x = 1;
+      if (running || crashed) {
+        settleRoom(room, multiplier, running);
+        settleCrowd(crowd, tension, running, secured !== null);
+        settleSpring(brigade, running && multiplier >= 10 ? 1 : 0);
+        settleSpring(badge, secured ? 1 : 0);
       }
+      if (crashed) finish(view, multiplier, true);
     } else if (view.phase !== previous) {
       if (crashed && !room.finished) {
         const quiet = view.crashAge > 1500;
-        legendary = multiplier >= 5;
-        outcome = view.stake === null ? 'gg' : secured ? 'called' : 'rekt';
-        finishRoom(room, quiet, legendary && !quiet);
-        finishCrowd(crowd, outcome !== 'rekt', quiet);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        // Met late, or on the first frame back, the props are still where the last frame left them.
+        if (quiet || resumed) settleRoom(room, multiplier, false);
+        finish(view, multiplier, quiet);
       }
       if (view.phase === 'betting') {
         resetRoom(room);
@@ -151,6 +163,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
+    if (resumed && running) settleRoom(room, multiplier, true);
     if (secured && running) collectWinnings(crowd);
 
     stepRoom(room, growth, running, dt);
@@ -211,7 +224,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!running && !outcome) ctx.globalAlpha = 0.85;
     memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 514, 56, colour, 'right');
     ctx.restore();
-    const seconds = Math.floor(view.elapsed / 1000);
+    // Once crashed, the clock shows how long the curve took to reach the crash point, so a round first met
+    // after the crash reads right too.
+    const seconds = Math.floor((crashed ? Math.log(multiplier) / free.GROWTH_RATE_PER_MS : view.elapsed) / 1000);
     memeText(ctx, `STAMINA ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }
 

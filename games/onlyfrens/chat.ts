@@ -34,6 +34,8 @@ export interface Chat {
 }
 
 const GOALS = [1.5, 2, 3, 5, 8, 13, 21, 34, 55];
+/** The goal at `index`: Infinity once the last one is reached, when the reveal is due any second. */
+const goalAt = (index: number): number => GOALS[index] ?? Infinity;
 
 export function createChat(): Chat {
   return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) }, sulk: spring(0), hype: spring(0) };
@@ -59,20 +61,33 @@ function post(c: Chat, name: string, text: string, tip: number): void {
   if (c.messages.length > 18) c.messages.shift();
 }
 
-/** Jumps the goal ladder to where a multiplier already is. */
+/** How full the tip bar is: the way from the last goal to the next, and full once the last is reached. */
+function goalFill(c: Chat, multiplier: number): number {
+  if (!Number.isFinite(c.goal)) return 1;
+  const previous = c.goalIndex === 0 ? 1 : GOALS[c.goalIndex - 1]!;
+  return clamp((multiplier - previous) / (c.goal - previous), 0, 1);
+}
+
+/** Jumps the goal ladder and the tip bar to where a multiplier already is. */
 export function settleChat(c: Chat, multiplier: number): void {
-  while (c.goalIndex < GOALS.length - 1 && multiplier >= c.goal) { c.goalIndex += 1; c.goal = GOALS[c.goalIndex]!; }
+  while (c.goalIndex < GOALS.length && multiplier >= c.goal) { c.goalIndex += 1; c.goal = goalAt(c.goalIndex); }
+  settleSpring(c.fill, goalFill(c, multiplier));
 }
 
-/** Your simp closes the tab. */
-export function unsubscribe(c: Chat): void {
-  if (c.simp.mode === 'seated') { c.simp.mode = 'closing'; c.simp.modeAge = 0; }
+/** Your simp closes the tab. `gone` is an exit met late: he has already left. */
+export function unsubscribe(c: Chat, gone = false): void {
+  if (gone) { c.simp.mode = 'gone'; settleSpring(c.simp.shades, 1); }
+  else if (c.simp.mode === 'seated') { c.simp.mode = 'closing'; c.simp.modeAge = 0; }
 }
 
+/** The crash floods the chat. `quiet` is a crash met late: the bar is already drained and the flood already posted. */
 export function floodChat(c: Chat, cheerful: boolean, quiet: boolean): void {
   c.flooded = true;
   if (cheerful) settleSpring(c.hype, 1); else settleSpring(c.sulk, 1);
-  if (quiet) for (let i = 0; i < 8; i += 1) post(c, NAMES[i]!, CRASH_LINES[i]!, 0);
+  if (quiet) {
+    settleSpring(c.fill, 0);
+    for (let i = 0; i < 8; i += 1) post(c, NAMES[i]!, CRASH_LINES[i]!, 0);
+  }
 }
 
 export interface ChatDrive { running: boolean; multiplier: number; tension: number }
@@ -92,14 +107,13 @@ export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
     }
   }
   for (const m of c.messages) m.age += dt;
-  if (drive.running && !c.flooded && drive.multiplier >= c.goal && c.goalIndex < GOALS.length - 1) {
+  if (drive.running && !c.flooded && drive.multiplier >= c.goal && c.goalIndex < GOALS.length) {
     c.goalIndex += 1;
-    c.goal = GOALS[c.goalIndex]!;
+    c.goal = goalAt(c.goalIndex);
     reached = true;
-    post(c, 'QUEEN', 'one more milestone frens <3', 0);
+    post(c, 'QUEEN', c.goalIndex < GOALS.length ? 'one more milestone frens <3' : 'ok ok reveal any second frens <3', 0);
   }
-  const previous = c.goalIndex === 0 ? 1 : GOALS[c.goalIndex - 1]!;
-  stepSpring(c.fill, c.flooded ? 0 : clamp((drive.multiplier - previous) / (c.goal - previous), 0, 1), 8, 0.9, dt);
+  stepSpring(c.fill, c.flooded ? 0 : goalFill(c, drive.multiplier), 8, 0.9, dt);
   stepSpring(c.modSleep, drive.running && drive.tension > 0.6 ? 1 : 0, 3, 0.8, dt);
   const s = c.simp;
   s.modeAge += dt;
@@ -163,7 +177,7 @@ export function drawChat(ctx: CanvasRenderingContext2D, c: Chat, multiplier: num
   const fill = clamp(c.fill.x, 0, 1);
   ctx.fillStyle = '#22222b';
   ctx.fillRect(PANEL.x, PANEL.h - 84, PANEL.w, 84);
-  label(ctx, c.flooded ? 'REVEAL CANCELLED' : `REVEAL AT ${c.goal.toFixed(1)}×`, PANEL.x + 14, PANEL.h - 58, 13, c.flooded ? '#ff4d6d' : '#ffffff');
+  label(ctx, c.flooded ? 'REVEAL CANCELLED' : Number.isFinite(c.goal) ? `REVEAL AT ${c.goal.toFixed(1)}×` : 'REVEAL ANY SECOND…', PANEL.x + 14, PANEL.h - 58, 13, c.flooded ? '#ff4d6d' : '#ffffff');
   label(ctx, `${multiplier.toFixed(2)}×`, PANEL.x + PANEL.w - 14, PANEL.h - 58, 13, '#7cf67c', 'right');
   ctx.fillStyle = '#3a3a48';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, PANEL.h - 44, PANEL.w - 28, 18, 9); ctx.fill();

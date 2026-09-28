@@ -70,9 +70,32 @@ export function callHoist(w: WorkerState): void {
   w.cage.speed = 320;
 }
 
-/** The joints let go. */
-export function towerFell(w: WorkerState, tower: TowerState, dir: number): void {
-  if (w.mode === 'top') {
+/** Puts him clear of the site in his shades, as the ride down leaves him: an exit the scene never saw him take. */
+export function settleSafe(w: WorkerState): void {
+  setMode(w, 'safe');
+  // Long enough ago that the cage has parked and the camera has gone back up to the stack.
+  w.modeAge = 2;
+  w.x = SAFE_X;
+  w.y = GROUND_Y;
+  w.cage = { x: TOWER_X + RAIL_DX, y: GROUND_Y, active: false, speed: 260 };
+  settleSpring(w.hop, 0);
+  settleSpring(w.lean, 0);
+  settleSpring(w.arms, 0.05);
+  settleSpring(w.shades, 1);
+  settleSpring(w.duck, 0);
+  w.onLoad = false;
+}
+
+/** The joints let go. `quiet` skips to how it ended, for a collapse the scene did not see happen. */
+export function towerFell(w: WorkerState, tower: TowerState, dir: number, quiet = false): void {
+  if (quiet) {
+    // Flat by the rubble if he was still up there, clear of it if the exit was accepted.
+    if (w.mode === 'top' || w.mode === 'falling') {
+      setMode(w, 'down');
+      w.x = TOWER_X - 40;
+      w.y = GROUND_Y;
+    } else if (w.mode !== 'down') settleSafe(w);
+  } else if (w.mode === 'top') {
     setMode(w, 'falling');
     w.fall = { vx: topVelocity(tower) + dir * 90, vy: -160, angle: 0, spin: dir * 5 };
   } else if (w.mode === 'calling' || w.mode === 'boarding' || w.mode === 'riding') {

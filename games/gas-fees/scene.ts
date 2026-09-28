@@ -4,9 +4,9 @@
  * motion is stepped here with the real frame time, and nothing drawn here
  * changes the committed outcome.
  */
-import { type Cabin, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, resetCabin, stepCabin } from './cabin';
+import { type Cabin, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, resetCabin, settleCabin, stepCabin } from './cabin';
 import { clamp, spring, stepSpring } from './motion';
-import { type Crowd, DOOR, INK, MAX_PERSONS, type Point, type Suit, createCrowd, createSuit, depthFloor, depthScale, drawPassenger, drawSuit, leaveLift, persons, releaseSuit, resetCrowd, resetSuit, settleCrowd, stepCrowd, stepSuit } from './riders';
+import { type Crowd, DOOR, INK, MAX_PERSONS, type Point, type Suit, createCrowd, createSuit, depthFloor, depthScale, drawPassenger, drawSuit, leaveLift, persons, releaseSuit, resetCrowd, resetSuit, settleCrash, settleCrowd, settleSuit, stepCrowd, stepSuit } from './riders';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -96,30 +96,29 @@ export function createScene(options: SceneOptions = {}): Scene {
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
-    if (previous === null) {
-      previous = view.phase;
+    const first = previous === null;
+    if (first) {
       resetCabin(cabin);
       resetCrowd(crowd);
       resetSuit(suit);
       if (running || crashed) {
+        // A round already under way (the page opened mid-round, or missed its betting): the lift, the crowd and
+        // the suit go straight to what the multiplier and the bet call for, with nothing replayed on the way.
         settleCrowd(crowd, multiplier);
-        suit.mode = 'holding';
-        cabin.doors.x = 0;
+        settleSuit(suit, tension, crowd.squeeze.x, secured !== null);
+        settleCabin(cabin, running, tension);
+        if (secured) badge.x = 1;
       }
-      if (crashed) {
-        outcome = 'leak';
-        releaseSuit(suit, true);
-        gasCabin(cabin, view.currentX100, suitOrigin(), true);
-        pop.x = 1;
-      }
-    } else if (view.phase !== previous) {
+    }
+    if (view.phase !== previous) {
       if (crashed && !cabin.gassed) {
-        const quiet = view.crashAge > 1500;
+        // A crash met on the scene's first frame, or seen late, shows its aftermath rather than the burst.
+        const quiet = first || view.crashAge > 1500;
         outcome = view.stake === null ? 'leak' : secured ? 'called' : 'rekt';
         const origin = suitOrigin();
         releaseSuit(suit, quiet);
         gasCabin(cabin, view.currentX100, origin, quiet);
-        if (quiet) pop.x = 1;
+        if (quiet) { pop.x = 1; settleCrash(crowd); }
         else { shake = 1; pop.v = 16; }
       }
       if (view.phase === 'betting') {

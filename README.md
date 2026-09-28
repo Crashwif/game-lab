@@ -4,7 +4,7 @@ Working game references and ideas for creators building beyond the graph. [**Gam
 
 ## Run Balloon Pump
 
-Use Node 24 and npm 11:
+Use Node 24.11 or later within 24.x, and npm 11. CI uses the version in `.nvmrc` (`nvm install` reads it):
 
 ```sh
 git clone https://github.com/Crashwif/game-lab.git
@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html** (or `tower-tension` in place of `balloon-pump`). The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts. Add `?mode=replay` to watch the included recorded example without betting.
+Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting.
 
 | Reference | What to study | Status |
 | --- | --- | --- |
@@ -45,13 +45,37 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 `npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
 
+`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
+
+## The page shell
+
+Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
+
+The shell:
+
+- writes the status line in plain words: the betting window, your bet, a bet queued because the round is full, your cash-out and payout, the crash result, a lost connection and an ended session;
+- shows a readout under it: the seconds left to join, what cashing out is worth now, the credits left (standalone only) and the Space hint;
+- makes Space join during betting and cash out while a round runs, unless another control has focus;
+- shows a room error or a refusal as a notice, and stops offering Cash out when no server frame has arrived for 2 s;
+- framed by the platform, hides Join, keeps Cash out and reports the page's height so the host can size the frame (see [embedded mode](docs/integration.md#embedded-mode));
+- in replay mode, plays `replay.json` by the frame clock, so slow frames and a hidden tab never make the recording drift.
+
 ## Game Lab deploy
 
-Every playable reference carries a `games/<slug>/gallery.json` with the copy the gallery shows: `name`, a one-line `hook` for the page intro, a `tagline`, three `tags`, the `renderer`, the `licence` under which the platform offers it as a remix origin (`open` for the platform's own games, which earn no royalty; `derivatives-royalty` with `royaltyBps` for a contributed game whose author should), and `poster.seconds`, the moment after page load at which its poster is captured from replay mode. The list and order come from `scripts/games.mjs`, which the build, the dev server and the export share.
+Every playable reference carries a `games/<slug>/gallery.json` with the copy the gallery shows: `name`, a one-line `hook` for the page intro, a `tagline`, three `tags`, the `renderer`, the `licence` under which the platform offers it as a remix origin (`open` for the platform's own games, which earn no royalty; `derivatives-royalty` with `royaltyBps` for a contributed game whose author should), and `poster.seconds` (at most 120), the moment after page load at which its poster is captured from replay mode. [Contributing](CONTRIBUTING.md#galleryjson) has the exact rules, and `npm test` checks them. The list and order come from `scripts/games.mjs`, which the build, the dev server, the checks and the export share.
 
-`npm run gallery:export` builds the export the platform serves: `gallery-out/<short-commit>/<slug>/` with the three bundle files and `poster.png`, `gallery-out/sources/<slug>.json` with the game's own source files (a **source pack**: `main.ts` and what it imports, `index.html`, `style.css`, `replay.json`), `manifest.json` for the Game Lab page, and `SOURCE.json` with the source commit and a SHA-256 per file. The platform's Studio starts a remix from a source pack: a creator describes a change, a model edits the files, the platform bundles them against its own SDK and crash maths, and the result publishes as a derivative whose lineage points back at the game here. Posters need Playwright's Chromium (`npm install --no-save playwright && npx playwright install chromium`); pass `--skip-posters` to leave them out. `node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform checkout>` applies an export to the platform repository. It retains earlier versioned asset directories so pages opened before a gallery release can still load their previews; the page manifest, `SOURCE.json`, remix catalog and origin sources describe the active release.
+`npm run gallery:export` builds the export the platform serves: `gallery-out/<short-commit>/<slug>/` with the three bundle files and `poster.png`, `gallery-out/sources/<slug>.json` with the game's own source files, `manifest.json` for the Game Lab page, and `SOURCE.json` with the source commit, each game's poster moment and a SHA-256 per file. A **source pack** holds the game's own `.ts`, `.json`, `.html` and `.css` files, except `gallery.json` (and the README, which is not source). The export reads the packs and each `gallery.json` from the commit, not the working tree, so untracked files and uncommitted edits never reach a pack; the bundles and posters come from `dist/`. Pass `--sources worktree --commit <full SHA>` for a copy without `.git`. The platform's Studio starts a remix from a source pack: a creator describes a change, a model edits the files, the platform bundles them against its own SDK and crash maths, and the result publishes as a derivative whose lineage points back at the game here.
 
-The **Deploy Game Lab** workflow (`.github/workflows/game-lab-deploy.yml`) runs those two steps after CI passes on `main`, or on demand. It opens a pull request on the platform repository with the new bundles, posters, `SOURCE.json`, manifest and source packs (`packages/game-lab` there), waits for the platform's checks, merges it, and the platform's Railway workflow deploys `main`. It needs the repository secret `GAME_LAB_PLATFORM_TOKEN` (a token with contents and pull-request write access to the platform repository) and optionally the variable `GAME_LAB_PLATFORM_REPOSITORY` (default `Crashwif/crashwif`); without the secret it skips with a notice.
+Posters need Playwright's Chromium: Playwright is a dev dependency, so after `npm ci` run `npx playwright install chromium` (CI adds `--with-deps` for the system libraries). A game whose page throws or logs an error while it plays, or whose poster is a single colour, fails the export. `--skip-posters` leaves posters out, keeping any already exported for the same commit.
+
+`node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform checkout>` applies an export to the platform repository. It checks the whole export before it changes anything, and refuses an export without a poster for every game unless you pass `--allow-missing-posters`. A game whose bundle files and poster moment match the previous release reuses that release's poster, so an unchanged game adds nothing new to the platform's history. Earlier versioned asset directories stay so pages opened before a gallery release can still load their previews: every release that was live within the last 7 days (`--keep-days`), never fewer than the last 3 to go live (`--keep-min`), and always the new release and the one it replaces. `apps/web/public/assets/game-lab/releases.json` there lists them, and other release directories are deleted. The first sync with no `releases.json` lists every release directory already there and deletes none, and re-syncing the live release leaves the list unchanged. The page manifest, `SOURCE.json`, remix catalog and origin sources describe the active release.
+
+The **Deploy Game Lab** workflow (`.github/workflows/game-lab-deploy.yml`) runs those steps after CI passes on a push to `main`, or on a manual run from `main`, which may name an earlier `main` commit that passed CI to roll back to. Pull request runs, forks included, never start it. It has two jobs:
+
+- `export` builds every game, captures the posters and uploads the export as an artifact. It holds no secrets and can only read this repository.
+- `publish` applies the artifact to a fresh checkout of the platform repository with `sync-platform.mjs` from the workflow's own commit on `main`. It opens a pull request there with the new bundles, posters, `SOURCE.json`, manifest and source packs (`packages/game-lab` there), or reuses the open one for the same commit. It waits for the platform's checks on the pushed commit, merges it and closes the `game-lab/<short commit>` pull requests it supersedes. The platform's Railway workflow then deploys `main`. `publish` installs no packages and runs no code from the build, and only its last step sees the token.
+
+It needs the repository secret `GAME_LAB_PLATFORM_TOKEN`: a fine-grained personal access token (resource owner Crashwif) or a GitHub App, limited to the platform repository, with Contents read and write, Pull requests read and write, Checks read, Commit statuses read, Actions read and Metadata read, and nothing else. An App's installation token lasts an hour, so it would be minted per run rather than stored. Never use a personal gh CLI token (`gh auth token`) or a classic PAT: those reach every repository their owner can. The optional variable `GAME_LAB_PLATFORM_REPOSITORY` names the platform repository (default `Crashwif/crashwif`). Without the secret the publish job skips with a notice.
 
 ## Repository boundaries
 
@@ -59,6 +83,7 @@ The **Deploy Game Lab** workflow (`.github/workflows/game-lab-deploy.yml`) runs 
 - `packages/game-sdk/`: the shared client, protocol, embedded bridge and replay support.
 - `packages/crash-math/`: the SDK's verification dependency; the platform's outcome implementation.
 - `apps/emulator/`: the local development server. Its development controls are not production endpoints.
+- `scripts/`: the game list, the page shell, the build, the dev server, the checks and the gallery export.
 - `docs/`: integration and design references.
 
 The SDK, maths and emulator are pinned source snapshots from the platform. [UPSTREAM.json](UPSTREAM.json) records the commit and paths. Changes to those packages belong in the platform repository, then are synchronized here. Games develop here independently. The gallery serves a checked-in build of each recorded example, refreshed by the Deploy Game Lab workflow, and links to its source.

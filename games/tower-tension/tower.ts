@@ -186,15 +186,24 @@ export function collapseTower(t: TowerState, seed: number, quiet: boolean): void
     };
   });
   t.floors = [];
-  if (!quiet) return;
-  for (const d of t.debris) {
-    d.released = true;
-    d.resting = true;
-    d.x = TOWER_X + dir * (30 + d.index * 26) + (rng() - 0.5) * 20;
-    d.y = GROUND_Y - FLOOR_H / 2;
-    d.angle = (rng() - 0.5) * 0.2;
-    d.vx = d.vy = d.spin = 0;
-  }
+  if (quiet) for (const d of t.debris) layRubble(t, d);
+}
+
+/** Lays a block flat in the line of rubble on the side the stack fell, where a finished collapse leaves it. */
+function layRubble(t: TowerState, d: Debris): void {
+  d.released = true;
+  d.resting = true;
+  d.x = TOWER_X + t.rod.dir * (30 + d.index * 26) + (t.rng() - 0.5) * 20;
+  d.y = GROUND_Y - FLOOR_H / 2;
+  d.angle = (t.rng() - 0.5) * 0.2;
+  d.vx = d.vy = d.spin = 0;
+}
+
+/** The block still on the crane's hook falls with the stack; `quiet` lays it straight in the rubble with the rest. */
+export function dropLoad(t: TowerState, pose: { x: number; y: number; angle: number }, vx: number, tone: number, quiet: boolean): void {
+  const d: Debris = { x: pose.x, y: pose.y, angle: pose.angle, vx, vy: 0, spin: (t.rng() - 0.5) * 4, tone, index: t.debris.length, released: true, releaseAt: 0, resting: false, hits: 0 };
+  if (quiet) layRubble(t, d);
+  t.debris.push(d);
 }
 
 function stepCollapse(t: TowerState, dt: number): void {

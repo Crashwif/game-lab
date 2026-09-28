@@ -9,6 +9,6 @@ A picnic by a beehive. A bear in a bucket hat has his paw in a jar labelled `$PO
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-The level, the tax and the lid follow the displayed multiplier. Nothing drawn here changes the committed outcome. `prefers-reduced-motion` slows the ambient motion and turns off the shake.
+The level, the tax and the lid follow the displayed multiplier. Nothing drawn here changes the committed outcome. `prefers-reduced-motion` slows the ambient motion (the swarm and the drips too), holds the lid still at a tilt that follows the tension instead of turning it, and turns off the shake.
 
 Run `npm run dev` from the repository root and open the Honeypot URL it prints. Join with 50 local credits, then cash out during a running round to pull the paw. `npm run build` produces the three publishable files in `dist/honeypot/`.

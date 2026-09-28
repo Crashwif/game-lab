@@ -72,9 +72,11 @@ export function resetWard(w: Ward): void {
   w.dead = false; w.deadAge = 0; settleSpring(w.sheet, 0); w.deathX100 = 100; settleSpring(w.shock, 0); w.lights = 0;
 }
 
-/** Jumps the slow states to where a round already is (a reconnect mid-round). */
+/** Jumps the ward to where a running round already is, for a round met late (a reconnect mid-round). */
 export function settleWard(w: Ward, tension: number, doses: number): void {
-  settleSpring(w.level, 1 - clamp(tension, 0, 1) * 0.95);
+  const t = clamp(tension, 0, 1);
+  settleSpring(w.lean, 0.3 + 0.7 * t); settleSpring(w.pupil, t); settleSpring(w.typing, 1); settleSpring(w.doctorLean, 0.5 * t);
+  settleSpring(w.level, 1 - t * 0.95);
   settleSpring(w.wilt, clamp(tension * 1.4 - 0.2, 0, 1));
   w.noteIndex = Math.min(NOTES.length - 1, doses);
   if (tension > 0.55) { w.roommateFlat = true; settleSpring(w.roommateGone, 1); settleSpring(w.curtain, 1); }
@@ -95,7 +97,12 @@ export function discharge(w: Ward): void {
   if (w.patient.mode === 'bed' && !w.dead) { w.patient.mode = 'unplugging'; w.patient.modeAge = 0; }
 }
 
-/** The flatline. `quiet` skips the effects for a crash that already happened. */
+/** An exit accepted before the ward saw it: the patient has already walked out, suit and balloon and all. */
+export function settleDischarge(w: Ward): void {
+  if (!w.dead) w.patient = { mode: 'gone', x: WARD.w + 80, modeAge: 0, suit: spring(1), balloon: spring(1) };
+}
+
+/** The flatline. `quiet`, for a crash that already happened, skips the effects and settles into the aftermath. */
 export function flatline(w: Ward, crashX100: number, quiet: boolean): void {
   if (w.dead) return;
   w.dead = true;
@@ -105,7 +112,11 @@ export function flatline(w: Ward, crashX100: number, quiet: boolean): void {
   w.drops = [];
   const rng = mulberry32(crashX100);
   w.lights = 0.3 + rng() * 0.4;
-  if (quiet) { settleSpring(w.sheet, 1); settleSpring(w.level, 0); settleSpring(w.doctorLean, 1); return; }
+  if (quiet) {
+    settleSpring(w.sheet, 1); settleSpring(w.level, 0); settleSpring(w.doctorLean, 1);
+    settleSpring(w.lean, 0); settleSpring(w.typing, 0); settleSpring(w.pupil, 1); settleSpring(w.eyeOpen, 0.05); settleSpring(w.wilt, 1);
+    return;
+  }
   w.shock.v += 8;
   w.twitch.v += 20;
 }

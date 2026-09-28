@@ -19,7 +19,9 @@ export interface Monitor {
   samples: Float32Array;
   head: number;
   bpm: Spring;
+  /** Doses taken, 0 to DOSES.length. */
   doseIndex: number;
+  /** The multiplier of the next dose; Infinity once every dose is taken. */
   goal: number;
   fill: Spring;
   pulse: Spring;
@@ -50,10 +52,35 @@ export function resetMonitor(m: Monitor): void {
   m.discharged = false;
 }
 
-/** Jumps the dose ladder to where a multiplier already is. */
+/** The heart rate the monitor heads for: resting, or racing with the tension while the round runs. */
+const targetBpm = (running: boolean, tension: number): number => (running ? 72 + 90 * tension + 40 * clamp(tension - 0.7, 0, 1) : 72);
+
+/** Takes every dose the multiplier has passed, the last one included; returns how many. */
+function takeDoses(m: Monitor, multiplier: number): number {
+  let taken = 0;
+  while (m.doseIndex < DOSES.length && multiplier >= m.goal) { m.doseIndex += 1; m.goal = DOSES[m.doseIndex] ?? Infinity; taken += 1; }
+  return taken;
+}
+
+/** How far the multiplier has come from the last dose to the next: full once every dose is taken. */
+function doseProgress(m: Monitor, multiplier: number): number {
+  if (!Number.isFinite(m.goal)) return 1;
+  const previous = m.doseIndex === 0 ? 1 : DOSES[m.doseIndex - 1]!;
+  return clamp((multiplier - previous) / (m.goal - previous), 0, 1);
+}
+
+/**
+ * Jumps the dose ladder, the heart rate and the trace to where a running round already is, for a round met
+ * late: the screen opens on the beat rather than a flat line, and the milestones it missed are not replayed.
+ */
 export function settleMonitor(m: Monitor, multiplier: number): void {
-  while (m.doseIndex < DOSES.length - 1 && multiplier >= m.goal) { m.doseIndex += 1; m.goal = DOSES[m.doseIndex]!; }
-  settleSpring(m.bpm, 72 + 90 * clamp(Math.log2(multiplier) / 3.3, 0, 1));
+  const tension = clamp(Math.log2(multiplier) / 3.3, 0, 1);
+  takeDoses(m, multiplier);
+  settleSpring(m.fill, doseProgress(m, multiplier));
+  settleSpring(m.bpm, targetBpm(true, tension));
+  const speed = 90 + m.bpm.x * 0.6;
+  const head = Math.floor(m.head);
+  for (let i = 0; i < TRACE.w; i += 1) m.samples[(head + i) % TRACE.w] = traceSample(m, tension, speed);
 }
 
 /** The player was discharged: the monitor reads it and stops caring. */
@@ -75,46 +102,49 @@ export function flatlineMonitor(m: Monitor, seed: number, quiet: boolean): void 
 
 export interface MonitorDrive { running: boolean; multiplier: number; tension: number }
 
-/** Returns true on the frame a dose milestone is reached. */
+/** The trace's next column at `speed` pixels a second: the beat, or the scribble and then the flat line. */
+function traceSample(m: Monitor, tension: number, speed: number): number {
+  m.phase += (m.bpm.x / 60) * (1 / speed);
+  const ph = m.phase % 1;
+  let v = 0;
+  if (m.flat) {
+    const s = m.scribble;
+    v = m.flatAge < 0.9 && s.length ? s[Math.floor(noise(m.phase * 91) * s.length)]! * (1 - m.flatAge / 0.9) : 0;
+  } else {
+    // P wave, QRS complex, T wave; taller and sharper with the tension.
+    const amp = 0.5 + 0.5 * tension;
+    if (ph > 0.1 && ph < 0.2) v = Math.sin((ph - 0.1) * Math.PI * 10) * 0.12;
+    else if (ph > 0.26 && ph < 0.3) v = -((ph - 0.26) / 0.04) * 0.18;
+    else if (ph >= 0.3 && ph < 0.34) v = -0.18 + ((ph - 0.3) / 0.04) * (1.18 * amp + 0.18);
+    else if (ph >= 0.34 && ph < 0.38) v = amp - ((ph - 0.34) / 0.04) * (amp + 0.3);
+    else if (ph >= 0.38 && ph < 0.42) v = -0.3 + ((ph - 0.38) / 0.04) * 0.3;
+    else if (ph > 0.55 && ph < 0.72) v = Math.sin((ph - 0.55) * Math.PI / 0.17) * 0.22;
+    v += (noise(m.phase * 37) - 0.5) * 0.05 * tension;
+  }
+  return v;
+}
+
+/**
+ * Returns true on the frame a dose milestone is reached. A jump past several (a tab that was hidden) takes
+ * them all and pulses once.
+ */
 export function stepMonitor(m: Monitor, drive: MonitorDrive, dt: number): boolean {
   m.time += dt;
   let reached = false;
-  const targetBpm = m.flat ? 0 : drive.running ? 72 + 90 * drive.tension + 40 * clamp(drive.tension - 0.7, 0, 1) : 72;
-  stepSpring(m.bpm, targetBpm, 3, 1, dt);
-  if (drive.running && !m.flat && drive.multiplier >= m.goal && m.doseIndex < DOSES.length - 1) {
-    m.doseIndex += 1;
-    m.goal = DOSES[m.doseIndex]!;
+  stepSpring(m.bpm, m.flat ? 0 : targetBpm(drive.running, drive.tension), 3, 1, dt);
+  if (drive.running && !m.flat && takeDoses(m, drive.multiplier) > 0) {
     reached = true;
     m.pulse.v += 12;
   }
-  const previous = m.doseIndex === 0 ? 1 : DOSES[m.doseIndex - 1]!;
-  stepSpring(m.fill, m.flat ? 0 : clamp((drive.multiplier - previous) / (m.goal - previous), 0, 1), 8, 0.9, dt);
+  stepSpring(m.fill, m.flat ? 0 : doseProgress(m, drive.multiplier), 8, 0.9, dt);
   stepSpring(m.pulse, 0, 10, 0.4, dt);
   if (m.flat) m.flatAge += dt;
   // Advance the trace: pixels per second scale with the beat so the shape stays readable.
   const speed = 90 + m.bpm.x * 0.6;
   const columns = speed * dt;
   const whole = Math.floor(columns + (m.head % 1));
-  const beatsPerSecond = m.bpm.x / 60;
   for (let i = 0; i < whole; i += 1) {
-    m.phase += beatsPerSecond * (1 / speed);
-    const ph = m.phase % 1;
-    let v = 0;
-    if (m.flat) {
-      const s = m.scribble;
-      v = m.flatAge < 0.9 && s.length ? s[Math.floor(noise(m.phase * 91) * s.length)]! * (1 - m.flatAge / 0.9) : 0;
-    } else {
-      // P wave, QRS complex, T wave; taller and sharper with the tension.
-      const amp = 0.5 + 0.5 * drive.tension;
-      if (ph > 0.1 && ph < 0.2) v = Math.sin((ph - 0.1) * Math.PI * 10) * 0.12;
-      else if (ph > 0.26 && ph < 0.3) v = -((ph - 0.26) / 0.04) * 0.18;
-      else if (ph >= 0.3 && ph < 0.34) v = -0.18 + ((ph - 0.3) / 0.04) * (1.18 * amp + 0.18);
-      else if (ph >= 0.34 && ph < 0.38) v = amp - ((ph - 0.34) / 0.04) * (amp + 0.3);
-      else if (ph >= 0.38 && ph < 0.42) v = -0.3 + ((ph - 0.38) / 0.04) * 0.3;
-      else if (ph > 0.55 && ph < 0.72) v = Math.sin((ph - 0.55) * Math.PI / 0.17) * 0.22;
-      v += (noise(m.phase * 37) - 0.5) * 0.05 * drive.tension;
-    }
-    m.samples[Math.floor(m.head) % TRACE.w] = v;
+    m.samples[Math.floor(m.head) % TRACE.w] = traceSample(m, drive.tension, speed);
     m.head = (Math.floor(m.head) + 1) % TRACE.w;
   }
   m.head = Math.floor(m.head) + (columns + (m.head % 1)) % 1;
@@ -198,12 +228,12 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   readout(ctx, PANEL.x + 14, 236, 'HEART', m.flat ? '0' : `${bpm}`, 'bpm', m.flat ? '#ff4d6d' : '#7cf67c', unstable || alarm);
   readout(ctx, PANEL.x + 166, 236, 'HOPIUM', `${hopium}`, '%', hopium < 30 ? '#ffe27a' : '#8fd3ff', unstable && hopium < 30);
   readout(ctx, PANEL.x + 14, 310, 'COPE', m.flat ? 'MAX' : `${Math.round(tension * 100)}`, m.flat ? '' : '%', '#ff9db0', false);
-  readout(ctx, PANEL.x + 166, 310, 'DOSES', `${m.doseIndex}`, `/ ${DOSES.length - 1}`, '#c9a2ff', clamp(m.pulse.x, 0, 1) > 0.3);
+  readout(ctx, PANEL.x + 166, 310, 'DOSES', `${m.doseIndex}`, `/ ${DOSES.length}`, '#c9a2ff', clamp(m.pulse.x, 0, 1) > 0.3);
   // Dose ladder.
   const fill = clamp(m.fill.x, 0, 1);
   ctx.fillStyle = '#132027';
   ctx.fillRect(PANEL.x, PANEL.h - 150, PANEL.w, 150);
-  label(ctx, m.flat ? 'DOSE DISCONTINUED' : m.discharged ? 'DISCHARGED · NO MORE DOSES' : `NEXT DOSE AT ${m.goal.toFixed(1)}×`, PANEL.x + 14, PANEL.h - 122, 13, m.flat ? '#ff4d6d' : '#ffffff');
+  label(ctx, m.flat ? 'DOSE DISCONTINUED' : m.discharged ? 'DISCHARGED · NO MORE DOSES' : Number.isFinite(m.goal) ? `NEXT DOSE AT ${m.goal.toFixed(1)}×` : 'MAX DOSE', PANEL.x + 14, PANEL.h - 122, 13, m.flat ? '#ff4d6d' : '#ffffff');
   label(ctx, `${Math.round(fill * 100)}%`, PANEL.x + PANEL.w - 14, PANEL.h - 122, 13, '#7cf67c', 'right', true);
   ctx.fillStyle = '#23343c';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, PANEL.h - 108, PANEL.w - 28, 18, 9); ctx.fill();

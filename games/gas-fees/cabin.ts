@@ -49,13 +49,22 @@ export function resetCabin(c: Cabin): void {
   c.haze = 0;
 }
 
+/** How fast the floors go past once the doors are shut. */
+const cruise = (tension: number): number => 70 + 200 * tension;
+
+/** Jumps to a cabin already on its way, for a first frame mid-round: doors shut and, while running, at speed. */
+export function settleCabin(c: Cabin, running: boolean, tension: number): void {
+  settleSpring(c.doors, 0);
+  settleSpring(c.speed, running ? cruise(tension) : 0);
+}
+
 export interface CabinDrive { running: boolean; tension: number; doorsOpen: boolean; arrived: boolean; reduced: boolean }
 
 export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
   c.time += dt;
   stepSpring(c.doors, drive.doorsOpen ? 1 : 0, 9, 0.85, dt);
   const open = c.doors.x > 0.05;
-  stepSpring(c.speed, drive.running && !open && !c.gassed ? 70 + 200 * drive.tension : 0, 3, 0.9, dt);
+  stepSpring(c.speed, drive.running && !open && !c.gassed ? cruise(drive.tension) : 0, 3, 0.9, dt);
   c.scroll += c.speed.x * dt;
   if (drive.arrived) { c.bounce.v += 26; c.ding.v += 12; }
   stepSpring(c.bounce, 0, c.gassed ? 7 : 12, 0.35, dt);

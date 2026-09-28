@@ -49,6 +49,18 @@ interface Swimmer {
   seed: number;
 }
 
+interface Mote {
+  s: number;
+  rho: number;
+  theta: number;
+  size: number;
+  hue: number;
+  /** Where it floats and which way the path runs there: cached, since they change only when it wraps round. */
+  p: Vec3;
+  tangent: Vec3;
+  colour: [number, number, number, number];
+}
+
 /** A caption pinned to a point in the world; `far` ones stay readable at any distance. */
 export interface Label { text: string; at: Vec3; colour: string; size: number; far?: boolean }
 
@@ -61,7 +73,7 @@ export interface Pack {
   whale: { active: boolean; age: number; rel: number; x: number; y: number; phase: number; jaw: number; next: number };
   blobs: { s: number; theta: number; rho: number; size: number; victim: boolean; spawn: number }[];
   nextBlob: number;
-  motes: { s: number; rho: number; theta: number; size: number; hue: number }[];
+  motes: Mote[];
   you: { mode: 'race' | 'bank' | 'banked'; rel: number; x: number; y: number; phase: number; bank: number; from: [number, number, number] };
   portal: { active: boolean; s: number; theta: number; age: number };
   events: string[];
@@ -108,13 +120,27 @@ export function resetPack(pack: Pack): void {
   pack.blobs = [];
   pack.nextBlob = 0;
   pack.motes = [];
-  for (let i = 0; i < 240; i += 1) pack.motes.push({ s: -10 + random() * 200, rho: Math.sqrt(random()) * 0.92, theta: random() * Math.PI * 2, size: 0.03 + random() * 0.08, hue: random() });
+  for (let i = 0; i < 240; i += 1) pack.motes.push(createMote(-10 + random() * 200, Math.sqrt(random()) * 0.92, random() * Math.PI * 2, 0.03 + random() * 0.08, random()));
   pack.you = { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0] };
   pack.portal.active = false;
   pack.events = [];
   pack.snipersDumped = false;
   pack.wave = 0;
   pack.pileRel = null;
+}
+
+function createMote(s: number, rho: number, theta: number, size: number, hue: number): Mote {
+  const mote: Mote = { s, rho, theta, size, hue, p: [0, 0, 0], tangent: [0, 0, 0], colour: [1, 0.78 + hue * 0.2, 0.84, 0.55] };
+  placeMote(mote);
+  return mote;
+}
+
+/** Works out where a mote floats from its place along the path, once per wrap rather than every frame. */
+function placeMote(mote: Mote): void {
+  const f = frameAt(mote.s);
+  const r = tunnelRadius(mote.s) * mote.rho;
+  mote.p = madd(madd(f.point, f.side, r * Math.cos(mote.theta)), f.up, r * Math.sin(mote.theta));
+  mote.tangent = f.tangent;
 }
 
 const overtake = (m: number): number => 15 * Math.log2(Math.max(1, m));
@@ -125,9 +151,13 @@ function crowdTarget(sw: Swimmer, m: number, raceTime: number): number {
   return sw.rel0 - overtake(m) * sw.drift;
 }
 
-/** Puts the race where it would be at `m` for a viewer who arrives mid-round. */
-export function settlePack(pack: Pack, m: number): void {
-  pack.raceTime = 10;
+/**
+ * Puts the race where it would be at `m` for a viewer who arrives mid-round, `raceTime` seconds after the
+ * launch when that is known. What already happened (the jeet waves, the whale, the SEC's arrival) is not
+ * announced again.
+ */
+export function settlePack(pack: Pack, m: number, raceTime = 10): void {
+  pack.raceTime = raceTime;
   pack.speed = 12;
   for (const sw of pack.swimmers) {
     if (m >= sw.quit) { sw.state = 'gone'; continue; }
@@ -135,6 +165,8 @@ export function settlePack(pack: Pack, m: number): void {
   }
   pack.wave = WAVES.filter((w) => w <= m).length;
   while (pack.whale.next <= m) pack.whale.next *= 2;
+  // The SEC is already in the tunnel: its cells keep coming, without SEC IS HERE.
+  if (m >= 2.4) pack.nextBlob = pack.raceTime;
 }
 
 /** Starts your swimmer's exit to the sperm bank. */
@@ -261,7 +293,7 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   }
   pack.blobs = pack.blobs.filter((b) => b.s - pack.anchor > -16);
 
-  for (const mote of pack.motes) if (mote.s < pack.anchor - 12) mote.s += 200;
+  for (const mote of pack.motes) if (mote.s < pack.anchor - 12) { mote.s += 200; placeMote(mote); }
 
   // You: a weave near the middle of the bore, or the swerve into the sperm bank.
   const you = pack.you;
@@ -288,6 +320,8 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
 }
 
 const PEARL = [1, 1, 1, 1];
+/** Scratch for a mote's streak; Renderer.sprite copies it straight into the batch. */
+const streakVelocity: Vec3 = [0, 0, 0];
 /** Seconds the whale takes to cross in front of the egg. */
 const WHALE_CROSSING = 6.5;
 const WHALE_SCALE = 1.4;
@@ -410,12 +444,13 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
   renderer.drawLit(spheres, membranes, 'alpha', 'back');
 
   // Drifting motes, stretched into streaks at speed.
+  const streak = reduced ? 0 : pack.speed * 0.02;
   for (const mote of pack.motes) {
-    const f = frameAt(mote.s);
-    const r = tunnelRadius(mote.s) * mote.rho;
-    const p = madd(madd(f.point, f.side, r * Math.cos(mote.theta)), f.up, r * Math.sin(mote.theta));
-    const streak = reduced ? 0 : pack.speed * 0.02;
-    renderer.sprite(p, mote.size, [1, 0.78 + mote.hue * 0.2, 0.84, 0.55], 0, [f.tangent[0] * streak, f.tangent[1] * streak, f.tangent[2] * streak]);
+    const t = mote.tangent;
+    streakVelocity[0] = t[0] * streak;
+    streakVelocity[1] = t[1] * streak;
+    streakVelocity[2] = t[2] * streak;
+    renderer.sprite(mote.p, mote.size, mote.colour, 0, streakVelocity);
   }
 
   // The sperm bank's portal.

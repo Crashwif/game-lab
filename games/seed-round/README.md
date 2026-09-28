@@ -12,7 +12,7 @@ The first 3D reference: a sperm race rendered in raw WebGL2, no libraries. Three
 - `crash.ts`: the crash beats (the wall, the pull-out, the reveal and the rug pull), seeded from the crash point so a replay falls the same way. The reveal keeps playing for a few seconds into the next round's betting when that opens sooner.
 - `feed.ts`: the pump.fun-style live trade feed, seeded so a replay prints the same trades.
 - `hud.ts`: meme captions, the coin card and its bonding curve, labels pinned to things in the tunnel, the vignette.
-- `fallback.ts`: a Canvas 2D side view of the same race for browsers without WebGL2, so a round is never blank.
+- `fallback.ts`: a Canvas 2D side view of the same race for browsers without WebGL2, so a round is never blank. It also covers a lost WebGL context (a GPU reset, a phone backgrounding the tab) until the browser restores it and the renderer uploads everything again.
 - `scene.ts`: the camera (an orbit round your swimmer while the round loads, a chase cam once it runs), composition, the HUD and the round-phase logic.
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round (6.90×) used by the gallery.

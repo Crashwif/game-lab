@@ -5,7 +5,7 @@
  * the committed outcome.
  */
 import { type Field, H, INK, W, createField, drawCloud, drawGround, drawNukeFront, drawSky, nuke, resetField, stepField } from './field';
-import { clamp, spring, stepSpring } from './motion';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { type Squad, createSquad, diveBack, drawSquad, drawTrench, frogXs, killSquad, resetSquad, settleSquad, stepSquad } from './squad';
 
 export interface SceneView {
@@ -77,6 +77,18 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let milestones = 0;
 
+  /** The nuke lands. A crash more than 1.5 s old is shown settled, so a nuke missed while the tab was hidden is not replayed late. */
+  function land(view: SceneView, progress: number): void {
+    const quiet = view.crashAge > 1500;
+    outcome = view.stake === null ? 'nuked' : secured ? 'survived' : 'kia';
+    // The cash-out and the crash can reach the same frame: your frog still gets back in the trench.
+    if (secured) diveBack(squad, progress, quiet);
+    nuke(field, view.currentX100, quiet, frogXs(squad, progress));
+    killSquad(squad, quiet, progress);
+    if (quiet) pop.x = 1;
+    else { shake = 1; pop.v = 16; }
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
@@ -90,25 +102,19 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
     if (previous === null) {
+      // A fresh scene can open on any phase (the shell makes one for a round it first meets mid-way): settle
+      // straight to what the view says instead of replaying the round.
       previous = view.phase;
       resetField(field);
       resetSquad(squad);
-      if (running || crashed) settleSquad(squad);
-      if (crashed) {
-        outcome = 'nuked';
-        nuke(field, view.currentX100, true, []);
-        killSquad(squad, true);
-        pop.x = 1;
+      if (running || crashed) {
+        settleSquad(squad);
+        milestones = Math.floor(growth * 2);
+        if (secured) { diveBack(squad, progress, true); settleSpring(badge, 1); }
       }
+      if (crashed) land(view, progress);
     } else if (view.phase !== previous) {
-      if (crashed && !field.nuked) {
-        const quiet = view.crashAge > 1500;
-        outcome = view.stake === null ? 'nuked' : secured ? 'survived' : 'kia';
-        nuke(field, view.currentX100, quiet, frogXs(squad, progress));
-        killSquad(squad, quiet, progress);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
-      }
+      if (crashed && !field.nuked) land(view, progress);
       if (view.phase === 'betting') {
         resetField(field);
         resetSquad(squad);
@@ -137,8 +143,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawSky(ctx, field, tension, multiplier, reduced);
     drawGround(ctx, field, tension, progress);
     drawCloud(ctx, field, tension, reduced);
-    drawSquad(ctx, squad, progress, tension);
-    drawTrench(ctx, squad, tension);
+    drawSquad(ctx, squad, progress, tension, view.stake !== null);
+    drawTrench(ctx, squad, tension, view.stake !== null);
     drawNukeFront(ctx, field, reduced);
     if (outcome && pop.x > 0.02 && field.nukeAge > 0.6) {
       ctx.save();

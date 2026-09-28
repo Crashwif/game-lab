@@ -12,6 +12,8 @@ const SKIN = '#f3dccb';
 const TUBES = ['#ff5d9e', '#7cf67c', '#ffe27a', '#8fd3ff', '#c084fc'];
 export const DEV_LOUNGER = { x: 872, y: POOL.top - 4 };
 export const SAFE_LOUNGER = { x: 78, y: POOL.top - 4 };
+/** How many holders the multiplier has drawn into the pool so far. */
+const crowdFor = (growth: number): number => Math.min(22, 2 + Math.floor(growth * 5));
 
 export type HolderMode = 'jumping' | 'floating' | 'sucked' | 'gone' | 'puddle';
 export interface Holder { x: number; y: number; tube: string; tone: number; phase: number; mode: HolderMode; t: number; fromX: number; toX: number; spin: number; scale: number }
@@ -50,22 +52,44 @@ export function leavePool(p: PartyState): void {
   if (p.avatar.mode === 'floating') { p.avatar.mode = 'paddling'; p.avatar.modeAge = 0; }
 }
 
-/** The plug is out. */
+/** Straight onto the safe lounger, shades on: an exit met late. */
+function lounge(a: PartyState['avatar']): void {
+  a.mode = 'lounging';
+  a.modeAge = 0;
+  a.x = SAFE_LOUNGER.x;
+  a.y = POOL.top - 26;
+  settleSpring(a.shades, 1);
+}
+
+/** A round met late: the crowd the multiplier has drawn so far, already afloat, and the avatar out on the lounger if the exit is in. */
+export function settleParty(p: PartyState, pool: PoolState, growth: number, out: boolean): void {
+  for (let i = 0; i < crowdFor(growth); i += 1) {
+    const x = 230 + p.rng() * 520;
+    p.holders.push({ x, y: surfaceY(pool, x) - 4, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'floating', t: 1, fromX: x, toX: x, spin: 0, scale: 1 });
+  }
+  if (out) lounge(p.avatar);
+}
+
+/** The plug is out. `quiet` is a rug pull met late: everyone lands where the loud one would have left them. */
 export function rugPulled(p: PartyState, quiet: boolean): void {
-  p.dev.mode = 'standing';
-  p.dev.modeAge = 0;
-  p.dev.yank.v += 30;
-  for (const h of p.holders) if (h.mode === 'floating' || h.mode === 'jumping') h.mode = quiet ? 'gone' : 'sucked';
+  const d = p.dev;
+  d.modeAge = 0;
+  if (quiet) { d.mode = 'leaving'; d.x = DEV_LOUNGER.x + 150; }
+  else { d.mode = 'standing'; d.yank.v += 30; }
+  const floating = p.holders.filter((h) => h.mode === 'floating' || h.mode === 'jumping');
+  for (const h of floating) h.mode = quiet ? 'gone' : 'sucked';
+  // Only a floater goes down the drain. Paddling or climbing, the avatar has cashed out and carries on to the lounger.
   const a = p.avatar;
-  if (a.mode === 'floating' || a.mode === 'paddling') { a.mode = quiet ? 'puddle' : 'sucked'; a.modeAge = 0; }
-  else if (a.mode === 'climbing') { a.mode = 'walking'; a.modeAge = 0; a.y = POOL.top - 30; }
-  if (quiet) { a.x = DRAIN.x - 30; a.y = POOL.floor - 6; }
-  else {
-    // Someone is left behind in the puddle: the avatar if he stayed, otherwise a random holder.
-    if (a.mode !== 'sucked') {
-      const stay = p.holders.filter((h) => h.mode === 'sucked');
-      if (stay.length) { const h = stay[Math.floor(p.rng() * stay.length)]!; h.mode = 'puddle'; h.x = DRAIN.x - 40 + p.rng() * 20; }
-    }
+  if (a.mode === 'floating') {
+    a.mode = quiet ? 'puddle' : 'sucked';
+    a.modeAge = 0;
+    if (quiet) { a.x = DRAIN.x - 30; a.y = POOL.floor - 6; }
+  } else if (quiet && a.mode !== 'lounging') lounge(a);
+  // Someone is left behind in the puddle: the avatar if he stayed, otherwise a random holder.
+  if (a.mode !== 'sucked' && a.mode !== 'puddle' && floating.length) {
+    const h = floating[Math.floor(p.rng() * floating.length)]!;
+    h.mode = 'puddle';
+    h.x = DRAIN.x - 40 + p.rng() * 20;
   }
 }
 
@@ -75,7 +99,7 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
   const a = p.avatar;
   a.modeAge += dt;
   a.fear = fear;
-  const want = Math.min(22, 2 + Math.floor(growth * 5));
+  const want = crowdFor(growth);
   if (running && !pool.draining && p.holders.filter((h) => h.mode !== 'gone').length < want && !p.holders.some((h) => h.mode === 'jumping')) {
     p.holders.push({ x: 840, y: POOL.top - 30, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX: 840, toX: 230 + p.rng() * 520, spin: 0, scale: 1 });
   }
@@ -329,5 +353,4 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.globalAlpha = 1;
   }
   void noise;
-  void settleSpring;
 }

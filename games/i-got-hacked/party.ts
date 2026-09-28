@@ -10,6 +10,8 @@ import { INK, STAGE } from './mansion';
 
 export const POOL = { x: 250, y: 372, w: 520, h: 130 } as const;
 export const POPS = [1.4, 1.9, 2.6, 3.6, 5, 7.5, 12, 20, 34];
+/** The follower ticker in the top-right corner; the scene keeps its captions clear of it. */
+export const TICKER = { x: 700, y: 14, w: 246, h: 74 } as const;
 const MEME_FONT = 'Impact, "Arial Black", sans-serif';
 
 export type FanMode = 'partying' | 'towel' | 'walking' | 'gone';
@@ -21,6 +23,7 @@ export interface Party {
   time: number;
   fans: Fan[];
   wanted: number;
+  /** Milestones reached so far, and the next one: Infinity once all of them have popped. */
   popIndex: number;
   nextPop: number;
   fill: Spring;
@@ -66,10 +69,18 @@ export function resetParty(p: Party): void {
 
 /** Jumps the party to where a multiplier already is. */
 export function settleParty(p: Party, multiplier: number): void {
-  while (p.popIndex < POPS.length - 1 && multiplier >= p.nextPop) { p.popIndex += 1; p.nextPop = POPS[p.popIndex]!; }
+  while (p.popIndex < POPS.length && multiplier >= p.nextPop) { p.popIndex += 1; p.nextPop = POPS[p.popIndex] ?? Infinity; }
   p.wanted = fansFor(multiplier);
   while (p.fans.length < p.wanted) arrive(p, 10);
+  settleSpring(p.fill, fillFor(p, multiplier));
   settleSpring(p.followers, followersFor(multiplier));
+}
+
+/** How far the milestone bar is from the last pop to the next; full once every pop has gone. */
+function fillFor(p: Party, multiplier: number): number {
+  if (!Number.isFinite(p.nextPop)) return 1;
+  const previous = p.popIndex === 0 ? 1 : POPS[p.popIndex - 1]!;
+  return clamp((multiplier - previous) / (p.nextPop - previous), 0, 1);
 }
 
 function fansFor(multiplier: number): number { return Math.min(FAN_SLOTS.length, 3 + Math.round(6 * Math.log2(Math.max(1, multiplier)))); }
@@ -80,9 +91,11 @@ function arrive(p: Party, age: number): void {
   p.fans.push({ x: slot.x, y: slot.y, seed: p.fans.length, inPool: slot.inPool, arrive: age, scale: slot.inPool ? 0.5 : 0.6 });
 }
 
-/** Your fan leaves the party. */
-export function leaveParty(p: Party): void {
-  if (p.you.mode === 'partying') { p.you.mode = 'towel'; p.you.modeAge = 0; }
+/** Your fan leaves the party. `gone` skips the walk for a cash-out made before this scene started. */
+export function leaveParty(p: Party, gone = false): void {
+  if (p.you.mode !== 'partying') return;
+  if (gone) { p.you = { mode: 'gone', x: STAGE.w + 60, modeAge: 10, towel: spring(1) }; return; }
+  p.you.mode = 'towel'; p.you.modeAge = 0;
 }
 
 /** The pool drains. `quiet` skips the effects for a crash that already happened. */
@@ -111,16 +124,15 @@ export function stepParty(p: Party, drive: PartyDrive, dt: number): boolean {
   if (drive.running && !p.drained) {
     p.wanted = fansFor(drive.multiplier);
     if (p.fans.length < p.wanted && noise(Math.floor(p.time * 6)) > 0.3) arrive(p, 0);
-    if (drive.multiplier >= p.nextPop && p.popIndex < POPS.length - 1) {
+    if (drive.multiplier >= p.nextPop) {
       p.popIndex += 1;
-      p.nextPop = POPS[p.popIndex]!;
+      p.nextPop = POPS[p.popIndex] ?? Infinity;
       reached = true;
       pop(p, p.popIndex, drive.reduced);
     }
   }
   for (const f of p.fans) f.arrive += dt;
-  const previous = p.popIndex === 0 ? 1 : POPS[p.popIndex - 1]!;
-  stepSpring(p.fill, p.drained ? 0 : clamp((drive.multiplier - previous) / (p.nextPop - previous), 0, 1), 8, 0.9, dt);
+  stepSpring(p.fill, p.drained ? 0 : fillFor(p, drive.multiplier), 8, 0.9, dt);
   stepSpring(p.water, p.drained ? 0 : 1, 1.6, 1, dt);
   stepSpring(p.lean, p.drained ? 0 : drive.running ? drive.tension : 0, 3, 0.8, dt);
   stepSpring(p.followers, p.drained ? p.followers.x * (1 - dt * 0.4) : followersFor(drive.multiplier), 4, 1, dt);
@@ -324,22 +336,24 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
 
 /** The follower ticker and the milestone bar in the top-right corner. */
 export function drawTicker(ctx: CanvasRenderingContext2D, p: Party, multiplier: number): void {
-  const box = { x: 700, y: 14, w: 246, h: 74 };
+  const box = TICKER;
   ctx.save();
   ctx.fillStyle = 'rgba(16, 18, 24, 0.85)'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(box.x, box.y, box.w, box.h, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffd35c'; ctx.beginPath(); ctx.arc(box.x + 22, box.y + 22, 10, 0, Math.PI * 2); ctx.fill();
   label(ctx, 'famous_official', box.x + 40, box.y + 20, 12, '#ffffff');
+  // The count shares rows with the handle, so it never runs back into it (only a wide fallback font gets close).
+  const room = box.w - 52 - ctx.measureText('famous_official').width - 8;
   label(ctx, p.drained ? 'under review' : 'verified', box.x + 40, box.y + 34, 10, p.drained ? '#ff4d6d' : '#8fd3ff');
   const followers = Math.max(0, Math.round(p.followers.x));
-  const text = followers >= 1_000_000 ? `${(followers / 1_000_000).toFixed(2)}M` : followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : `${followers}`;
+  const text = followers >= 1e9 ? `${(followers / 1e9).toFixed(2)}B` : followers >= 1_000_000 ? `${(followers / 1_000_000).toFixed(2)}M` : followers >= 1000 ? `${(followers / 1000).toFixed(1)}K` : `${followers}`;
   ctx.fillStyle = p.drained ? '#ff4d6d' : '#7cf67c'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
   ctx.font = `900 22px ${MEME_FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-  ctx.strokeText(text, box.x + box.w - 12, box.y + 30); ctx.fillText(text, box.x + box.w - 12, box.y + 30);
+  ctx.strokeText(text, box.x + box.w - 12, box.y + 30, room); ctx.fillText(text, box.x + box.w - 12, box.y + 30, room);
   label(ctx, 'followers', box.x + box.w - 12, box.y + 42, 9, '#c9c9d4', 'right');
   // Milestone bar.
   const fill = clamp(p.fill.x, 0, 1);
-  label(ctx, p.drained ? 'PARTY OVER' : `NEXT POP AT ${p.nextPop.toFixed(1)}×`, box.x + 12, box.y + 60, 10, p.drained ? '#ff4d6d' : '#ffffff');
+  label(ctx, p.drained ? 'PARTY OVER' : Number.isFinite(p.nextPop) ? `NEXT POP AT ${p.nextPop.toFixed(1)}×` : 'ALL POPS', box.x + 12, box.y + 60, 10, p.drained ? '#ff4d6d' : '#ffffff');
   label(ctx, `${multiplier.toFixed(2)}×`, box.x + box.w - 12, box.y + 60, 10, '#7cf67c', 'right');
   ctx.fillStyle = '#3a3a48';
   ctx.beginPath(); ctx.roundRect(box.x + 12, box.y + 64, box.w - 24, 6, 3); ctx.fill();

@@ -80,10 +80,25 @@ export function admit(c: Crowd, kind: Kind, quiet: boolean): void {
   if (!quiet) { c.doorTimer = 1.1; c.events.arrived = kind; }
 }
 
+/** Where a passenger stands once in: everyone but the whale is shoved toward the middle by `squeeze`. */
+function placeX(p: Passenger, squeeze: number): number {
+  const s = SLOTS[p.slot]!;
+  return p.kind === 'whale' ? s.x : 480 + (s.x - 480) * mix(1, 0.84, squeeze);
+}
+
 /** Jumps straight to the crowd a multiplier calls for, for a first frame mid-round. */
 export function settleCrowd(c: Crowd, multiplier: number): void {
   while (c.next < ROSTER.length && multiplier >= ROSTER[c.next]!.at) { admit(c, ROSTER[c.next]!.kind, true); c.next += 1; }
   settleSpring(c.squeeze, c.list.some((p) => p.kind === 'whale') ? 1 : 0);
+  for (const p of c.list) p.x = placeX(p, c.squeeze.x);
+}
+
+/** Jumps everyone's crash reaction to where it ends, for a crash that already happened. */
+export function settleCrash(c: Crowd): void {
+  for (const p of c.list) {
+    if (p.kind === 'grandma') { settleSpring(p.wig, 1); settleSpring(p.faint, 1); }
+    if (p.kind === 'whale') settleSpring(p.spout, 1);
+  }
 }
 
 export interface CrowdDrive { running: boolean; multiplier: number; tension: number; suitX: number; gassed: boolean; gasAge: number }
@@ -100,7 +115,7 @@ export function stepCrowd(c: Crowd, drive: CrowdDrive, dt: number): void {
   for (const p of c.list) {
     p.age += dt;
     const s = SLOTS[p.slot]!;
-    const targetX = p.kind === 'whale' ? s.x : 480 + (s.x - 480) * mix(1, 0.84, squeeze);
+    const targetX = placeX(p, squeeze);
     if (p.progress < 1) {
       p.progress = Math.min(1, p.progress + dt / 0.85);
       const k = smoothstep(0, 1, p.progress);
@@ -156,6 +171,21 @@ export function resetSuit(s: Suit): void {
   settleSpring(s.cheeks, 0);
   settleSpring(s.shades, 0);
   settleSpring(s.blush, 0);
+}
+
+/** Jumps straight to the suit a round in progress calls for, for a first frame mid-round: holding it in, or already off at his floor. */
+export function settleSuit(s: Suit, tension: number, squeeze: number, off: boolean): void {
+  if (off) {
+    s.mode = 'gone';
+    s.modeAge = 10;
+    s.x = DOOR.x;
+    s.depth = 1.18;
+    settleSpring(s.shades, 1);
+  } else {
+    s.mode = 'holding';
+    s.x = SUIT_HOME.x - 36 * squeeze;
+    settleSpring(s.cheeks, 0.35 + 0.65 * tension);
+  }
 }
 
 /** The exit was accepted: this is his floor. */

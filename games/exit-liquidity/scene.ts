@@ -4,9 +4,9 @@
  * HUD. All motion is stepped here with the real frame time, and nothing
  * drawn here changes the committed outcome.
  */
-import { clamp, noise, spring, stepSpring } from './motion';
-import { type PartyState, createParty, devWrist, drawDeckProps, drawFigures, drawHoldersBehind, leavePool, resetParty, rugPulled, stepParty } from './party';
-import { INK, POOL, type PoolState, createPool, drawPoolBack, drawPoolFront, drawWater, pullPlug, resetPool, stepPool } from './pool';
+import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
+import { type PartyState, createParty, devWrist, drawDeckProps, drawFigures, drawHoldersBehind, leavePool, resetParty, rugPulled, settleParty, stepParty } from './party';
+import { INK, POOL, type PoolState, createPool, drawPoolBack, drawPoolFront, drawWater, pullPlug, resetPool, settlePool, stepPool } from './pool';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -35,6 +35,10 @@ export interface Scene {
 const W = 960;
 const H = 540;
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The readout's right edge and the widest it gets; past that a long multiplier squeezes rather than grow into the caption. */
+const READOUT_X = 930;
+const READOUT_MAX = 300;
+const CAPTION_X = 430;
 type Outcome = 'rekt' | 'called' | 'rugged';
 type Secured = { x100: number; payout: number | null };
 
@@ -48,6 +52,12 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
+}
+
+/** How wide the readout draws, so the caption can keep clear of it. */
+function readoutWidth(ctx: CanvasRenderingContext2D, text: string): number {
+  ctx.font = `900 66px ${MEME_FONT}`;
+  return Math.min(READOUT_MAX, ctx.measureText(text).width);
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
@@ -141,29 +151,33 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const ending: Outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
 
+    // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
+    // round whose betting was missed), so it settles the pool and the party into place instead of playing out
+    // the arrivals, the exit and the rug pull it missed.
     if (previous === null) {
       previous = view.phase;
       resetParty(party, 11);
       resetPool(pool);
       if (running || crashed) {
-        pool.fill = 0.35 + 0.65 * (1 - Math.exp(-growth / 2));
-        pool.level = POOL.floor - pool.fill * (POOL.floor - 320);
-        for (let i = 0; i < Math.min(22, 2 + Math.floor(growth * 5)); i += 1) {
-          party.holders.push({ x: 230 + party.rng() * 520, y: pool.level, tube: '#7cf67c', tone: party.rng(), phase: party.rng() * 6, mode: 'floating', t: 1, fromX: 0, toX: 0, spin: 0, scale: 1 });
-        }
+        settlePool(pool, growth);
+        settleParty(party, pool, growth, secured !== null);
       }
       if (crashed) {
         pullPlug(pool, view.currentX100, true);
         rugPulled(party, true);
-        outcome = 'rugged';
+        outcome = ending;
         pop.x = 1;
       }
+      settleSpring(badge, secured ? 1 : 0);
     } else if (view.phase !== previous) {
       if (crashed && !pool.draining) {
         const quiet = view.crashAge > 1500;
+        // An exit that landed with the crash, before a running frame saw it, still gets out.
+        if (secured) leavePool(party);
         pullPlug(pool, view.currentX100, quiet);
-        outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
+        outcome = ending;
         rugPulled(party, quiet);
         if (quiet) pop.x = 1;
         else { shake = 1; pop.v = 16; }
@@ -213,12 +227,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
+    // The readout grows leftward with every digit, so the caption gets the width left between them (24 clear),
+    // squeezed to it once drawn so the pop's scale never pushes it wider.
+    const readout = `${multiplier.toFixed(2)}×`;
     if (caption) {
+      const room = Math.min(560, 2 * (READOUT_X - readoutWidth(ctx, readout) - 24 - CAPTION_X));
       ctx.save();
-      ctx.translate(430, 68);
+      ctx.translate(CAPTION_X, 68);
       const k = 1 + 0.1 * captionPop.x;
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
+      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', room / k);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
@@ -234,9 +252,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+    memeText(ctx, readout, READOUT_X, 80, 66, colour, 'right', READOUT_MAX);
     ctx.restore();
-    const holders = party.holders.filter((h) => h.mode === 'floating' || h.mode === 'jumping' || h.mode === 'puddle').length + (party.avatar.mode === 'floating' || party.avatar.mode === 'paddling' || party.avatar.mode === 'puddle' ? 1 : 0);
+    // A paddling avatar has already sold, so only a floater (or the one left in the puddle) still holds.
+    const holders = party.holders.filter((h) => h.mode === 'floating' || h.mode === 'jumping' || h.mode === 'puddle').length + (party.avatar.mode === 'floating' || party.avatar.mode === 'puddle' ? 1 : 0);
     const lp = 12 * Math.pow(multiplier, 1.5) * (pool.draining ? 1 - pool.drained : 1);
     memeText(ctx, `${holders} ${holders === 1 ? 'HOLDER' : 'HOLDERS'} · LP ${lp.toFixed(1)} SOL`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }

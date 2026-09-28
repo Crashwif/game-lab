@@ -84,6 +84,13 @@ export function createPumper(): PumperRig {
   };
 }
 
+/** Jumps to the pose the drive calls for, for a round met late: already on the grass after a burst `fallenFor` seconds ago, shades already on after an exit. */
+export function settlePumper(rig: PumperRig, drive: PumperDrive, fallenFor: number): void {
+  settleSpring(rig.fall, drive.fallen ? 1 : 0);
+  rig.fallenFor = drive.fallen ? fallenFor : 0;
+  settleSpring(rig.shades, drive.smug ? 1 : 0);
+}
+
 export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void {
   rig.time += dt;
   const before = rig.phase;

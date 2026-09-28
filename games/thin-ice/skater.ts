@@ -91,13 +91,21 @@ export function resetSkater(s: SkaterState): void {
   s.lastIce = { x: s.x, y: iceY(HOME_DEPTH) };
 }
 
-/** Jumps to the state a late joiner would see. */
-export function settleSkater(s: SkaterState, running: boolean, crashed: boolean, drive: SkaterDrive): void {
+/**
+ * Jumps to the state a late joiner would see: out on the ice at the asked speed (`out`), or already on the
+ * bank in her shades once her exit was accepted (`safe`). A crash she was out for is then iceBroke's to play.
+ */
+export function settleSkater(s: SkaterState, out: boolean, safe: boolean, drive: SkaterDrive): void {
   resetSkater(s);
-  if (crashed) {
-    setMode(s, 'swimming');
-    s.plunge = 58;
-  } else if (running) {
+  if (safe) {
+    setMode(s, 'shore');
+    s.modeAge = 2.5; // past the wave she gives on reaching the bank
+    settleSpring(s.depth, 1);
+    settleSpring(s.lean, 0);
+    settleSpring(s.shades, 1);
+    settleSpring(s.wave, 0.2);
+    s.lastIce = { x: s.x, y: iceY(0.95) };
+  } else if (out) {
     setMode(s, 'skating');
     s.speed = drive.speed;
     settleSpring(s.lean, 0.1 + 0.3 * clamp(drive.speed / 320, 0, 1));

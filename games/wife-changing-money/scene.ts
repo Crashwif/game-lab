@@ -15,6 +15,7 @@ import {
   drawVignette,
   type Kitchen,
   resetKitchen,
+  settleKitchen,
   stepKitchen,
   visibleMugs,
 } from './kitchen';
@@ -119,7 +120,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
     if (previous === null) {
+      // A fresh scene can open on a round already under way (a page load mid-round, or a round first seen
+      // after its betting window), so it settles into the round as it stands instead of playing out what it
+      // missed: a cash-out has already sent him upstairs, and a crash is the quiet aftermath.
       previous = view.phase;
+      if (running || crashed) {
+        settleKitchen(kitchen, multiplier, fear, secured?.x100 ?? null);
+        if (secured) {
+          snapTrader(trader, 'upstairs');
+          badge.x = 1;
+        }
+      }
       if (crashed) beginCrash(view, true);
     } else if (view.phase !== previous) {
       if (crashed && !kitchen.crashed) beginCrash(view, view.crashAge > 1500);

@@ -96,10 +96,21 @@ export function resetStoker(s: StokerState): void {
   s.soot = 0;
 }
 
-/** Jumps to the state a late joiner would see. */
-export function settleStoker(s: StokerState, running: boolean, crashed: boolean): void {
+/**
+ * Jumps to the state a late joiner would see: stoking with the soot the
+ * pressure has given him, behind the shield once his exit was accepted, or
+ * floored by a blow-out he stayed for.
+ */
+export function settleStoker(s: StokerState, running: boolean, crashed: boolean, sheltered: boolean, pressure: number): void {
   resetStoker(s);
-  if (crashed) {
+  s.soot = clamp(pressure * 0.4, 0, 1);
+  if (sheltered && (running || crashed)) {
+    setMode(s, 'sheltered');
+    s.x = SHIELD.x;
+    s.shovelDropped = true;
+    settleSpring(s.crouch, 1);
+    settleSpring(s.goggles, 1);
+  } else if (crashed) {
     setMode(s, 'floored');
     s.fall = { x: 240, y: FLOOR_Y - 26, vx: 0, vy: 0, angle: -Math.PI / 2, spin: 0 };
     s.soot = 1;

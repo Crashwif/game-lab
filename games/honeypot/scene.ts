@@ -2,18 +2,18 @@
  * Composes Honeypot: picnic, jar, swarm and the HUD. The honey, the tax
  * and the lid follow the displayed multiplier. Nothing here selects it.
  */
-import { clamp, spring, stepSpring } from './motion';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
 import {
   createJar,
   drawJar,
-  honeyLevel,
   resetJar,
   sellTax,
+  settleJar,
   shutJar,
   stepJar,
   type JarState,
 } from './jar';
-import { createPicnic, drawPicnic, pawPoint, pullPaw, resetPicnic, stepPicnic, trapPicnic, type Picnic } from './picnic';
+import { createPicnic, drawPicnic, pawPoint, pullPaw, resetPicnic, settlePicnic, stepPicnic, trapPicnic, type Picnic } from './picnic';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -31,6 +31,9 @@ export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, no
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
+
+/** The round's tension, 0..1: log2 of the multiplier over 3.2, so it climbs in step with the round's time (full at about 9.2×). */
+const tensionAt = (multiplier: number): number => clamp(Math.log2(multiplier) / 3.2, 0, 1);
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.save();
@@ -83,9 +86,19 @@ export function createScene(options: SceneOptions = {}): Scene {
     return secured !== null || picnic.bear.mode === 'walking' || picnic.bear.mode === 'gone' || picnic.bear.mode === 'pulling';
   }
 
-  function beginCrash(view: SceneView, quiet: boolean): void {
+  /** Jumps the jar, the picnic and the badge to where the view's round has them, for a round met late rather than watched. */
+  function settle(view: SceneView, multiplier: number): void {
+    const tension = tensionAt(multiplier);
+    settleJar(jar, multiplier, tension);
+    settlePicnic(picnic, multiplier, tension, view.elapsed / 1000, secured !== null);
+    settleSpring(badge, secured ? 1 : 0);
+  }
+
+  /** `quiet` lands straight on the crash's end pose, for a crash that happened out of sight. */
+  function beginCrash(view: SceneView, multiplier: number, quiet: boolean): void {
     const out = escaped();
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
+    if (quiet) settle(view, multiplier);
     shutJar(jar, quiet);
     trapPicnic(picnic, quiet, out);
     if (!out && quiet) picnic.bear.mode = 'trapped';
@@ -101,17 +114,19 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now;
     time += reduced ? dt * 0.2 : dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 3.2, 0, 1);
+    const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
     if (previous === null) {
+      // The first frame can land anywhere in a round (a page that joins mid-round or on the crash, or a scene made
+      // fresh for a round whose betting it missed), so it settles into the round rather than playing it out.
       previous = view.phase;
-      jar.level.x = honeyLevel(multiplier);
-      if (crashed) beginCrash(view, true);
+      if (crashed) beginCrash(view, multiplier, true);
+      else settle(view, multiplier);
     } else if (view.phase !== previous) {
-      if (crashed && !jar.crashed) beginCrash(view, view.crashAge > 1500);
+      if (crashed && !jar.crashed) beginCrash(view, multiplier, view.crashAge > 1500);
       if (view.phase === 'betting') {
         resetJar(jar);
         resetPicnic(picnic);
@@ -124,8 +139,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running && !jar.crashed) pullPaw(picnic);
 
     const paw = pawPoint(picnic, jar.level.x);
-    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x }, dt);
-    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling', pawX: paw.x, pawY: paw.y }, dt);
+    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x, reduced }, dt);
+    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling', pawX: paw.x, pawY: paw.y, reduced }, dt);
     if (jar.taxFlash > 0.9 && !reduced) shake = Math.max(shake, 0.16);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);

@@ -44,7 +44,7 @@ export function resetTrader(t: Trader): void {
   t.sweat = 0;
 }
 
-/** Snaps to an end pose when a crash was missed while the tab was hidden. */
+/** Snaps to an end pose the scene did not see him reach: upstairs after a cash-out, or caught at the desk. */
 export function snapTrader(t: Trader, where: 'upstairs' | 'caught'): void {
   t.mode = where;
   t.modeAge = 8;

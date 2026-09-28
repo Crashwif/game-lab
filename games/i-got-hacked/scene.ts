@@ -5,8 +5,8 @@
  * the committed outcome.
  */
 import { INK, type Mansion, STAGE, celebrate, createMansion, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
-import { clamp, spring, stepSpring } from './motion';
-import { type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
+import { clamp, settleSpring, spring, stepSpring } from './motion';
+import { TICKER, type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -33,6 +33,11 @@ export interface Scene {
 }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The captions and the badge sit centred over the bay, moved left only as far as keeps them clear of the ticker. */
+const TEXT_X = STAGE.w / 2 + 80;
+const TEXT_RIGHT = TICKER.x - 12;
+/** A caption wider than this goes onto two lines. */
+const CAPTION_WIDTH = 420;
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
@@ -47,6 +52,17 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
 }
+
+/** Splits a caption too wide for one line at the space nearest its middle, measured in the current font. */
+function captionLines(ctx: CanvasRenderingContext2D, text: string): string[] {
+  if (ctx.measureText(text).width <= CAPTION_WIDTH) return [text];
+  let cut = -1;
+  for (let i = text.indexOf(' '); i !== -1; i = text.indexOf(' ', i + 1)) if (cut === -1 || Math.abs(i - text.length / 2) < Math.abs(cut - text.length / 2)) cut = i;
+  return cut === -1 ? [text] : [text.slice(0, cut), text.slice(cut + 1)];
+}
+
+/** Where to centre text `width` wide, drawn at scale `k`. */
+const clearOfTicker = (width: number, k: number): number => Math.min(TEXT_X, TEXT_RIGHT - (width * k) / 2);
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'NOT HACKED' : 'I GOT HACKED';
@@ -89,20 +105,27 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
 
     if (previous === null) {
+      // This scene's first frame, which can land anywhere in a round: settle into it without replaying anything.
       previous = view.phase;
       resetMansion(mansion);
       resetParty(party);
-      if (running || crashed) { settleParty(party, multiplier); settleMansion(mansion, tension, multiplier); }
+      if (running || crashed) {
+        settleParty(party, multiplier);
+        settleMansion(mansion, tension, multiplier);
+        if (secured) { leaveParty(party, true); settleSpring(badge, 1); }
+      }
       if (crashed) {
-        outcome = 'ended';
+        outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
         endMansion(mansion, view.currentX100, true);
-        drainParty(party, view.currentX100, false, true);
+        drainParty(party, view.currentX100, outcome === 'called', true);
         pop.x = 1;
       }
     } else if (view.phase !== previous) {
       if (crashed && !mansion.ended) {
         const quiet = view.crashAge > 1500;
         outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
+        // A cash-out first seen with the crash still walks your fan out, or places them gone if the crash is old.
+        if (secured) leaveParty(party, quiet);
         endMansion(mansion, view.currentX100, quiet);
         drainParty(party, view.currentX100, outcome === 'called', quiet);
         if (quiet) pop.x = 1;
@@ -151,18 +174,22 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (caption) {
       ctx.save();
-      ctx.translate(STAGE.w / 2 + 80, 56);
+      ctx.font = `900 42px ${MEME_FONT}`;
+      const lines = captionLines(ctx, caption);
+      const width = Math.min(CAPTION_WIDTH, Math.max(...lines.map((line) => ctx.measureText(line).width)));
       const k = 1 + 0.1 * captionPop.x;
+      ctx.translate(clearOfTicker(width, k), 56);
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 42, '#ffffff', 'center', 560);
+      lines.forEach((line, i) => memeText(ctx, line, 0, i * 44, 42, '#ffffff', 'center', CAPTION_WIDTH));
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× NOT HACKED`;
       ctx.save();
-      ctx.translate(STAGE.w / 2 + 80, 100 + Math.sin(time * 2) * 3);
-      ctx.rotate(-0.02);
+      ctx.font = `900 28px ${MEME_FONT}`;
       const k = clamp(badge.x, 0, 1.3);
+      ctx.translate(clearOfTicker(ctx.measureText(text).width, k), 100 + Math.sin(time * 2) * 3);
+      ctx.rotate(-0.02);
       ctx.scale(k, k);
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
@@ -172,7 +199,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!running && !outcome) ctx.globalAlpha = 0.85;
     memeText(ctx, `${multiplier.toFixed(2)}×`, STAGE.w - 18, STAGE.h - 18, 52, colour, 'right');
     ctx.restore();
-    memeText(ctx, `${party.popIndex} POPS`, 190, STAGE.h - 18, 24, outcome ? '#ff9db0' : '#ffffff', 'left');
+    memeText(ctx, `${party.popIndex} ${party.popIndex === 1 ? 'POP' : 'POPS'}`, 190, STAGE.h - 18, 24, outcome ? '#ff9db0' : '#ffffff', 'left');
   }
 
   return { draw };

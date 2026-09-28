@@ -4,9 +4,10 @@
  * lasers, the burst text). All motion is stepped here with the real frame time,
  * and nothing drawn here changes the committed outcome.
  */
+import { free } from '@crashwif/crash-math';
 import { TETHER, type BalloonDrive, balloonGeometry, burstBalloon, createBalloon, drawBalloon, drawBalloonShadow, resetBalloon, settleBalloon, stepBalloon } from './balloon';
-import { airPacket, clamp, noise, smoothstep, spring, stepSpring } from './motion';
-import { PUMP, type Point, type PumperDrive, createPumper, drawPumper, stepPumper } from './pumper';
+import { airPacket, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { PUMP, type Point, type PumperDrive, createPumper, drawPumper, settlePumper, stepPumper } from './pumper';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -37,6 +38,12 @@ const H = 540;
 const GROUND = 446;
 const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The readout's right edge, and the widest it draws: a longer multiplier is squeezed to fit rather than run into the caption. */
+const READOUT_X = 930;
+const READOUT_MAX = 300;
+const CAPTION_X = 430;
+/** The chart takes a point every 100 ms of the round, up to this many. */
+const TRAIL_POINTS = 900;
 const HOSE: [Point, Point, Point, Point] = [{ x: PUMP.x - 4, y: 436 }, { x: 420, y: 512 }, { x: 560, y: 502 }, TETHER];
 type Outcome = 'rekt' | 'called' | 'pop';
 type Star = { x: number; y: number; r: number; k: number };
@@ -137,6 +144,16 @@ function drawTrail(ctx: CanvasRenderingContext2D, trail: Point[], dead: boolean)
   ctx.restore();
 }
 
+/** The chart's point `elapsed` ms into the round, at `growth` (log2 of the multiplier). */
+const trailPoint = (elapsed: number, growth: number): Point => ({ x: 80 + 800 * (1 - Math.exp(-elapsed / 32000)), y: 440 - 84 * Math.min(growth, 4.2) });
+
+/** The chart as it stands `elapsed` ms in, for a round met late. The curve is exponential, so growth climbs in step with time. */
+function settleTrail(elapsed: number, growth: number): Point[] {
+  const trail: Point[] = [];
+  for (let at = 0; at <= elapsed && trail.length < TRAIL_POINTS; at += 100) trail.push(trailPoint(at, at > 0 ? (growth * at) / elapsed : 0));
+  return trail;
+}
+
 function drawGround(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = '#5fae76';
   ctx.beginPath();
@@ -221,20 +238,27 @@ function drawBadge(ctx: CanvasRenderingContext2D, secured: Secured, scale: numbe
   ctx.restore();
 }
 
-function drawCaption(ctx: CanvasRenderingContext2D, caption: string, scale: number): void {
+/** The caption, squeezed to at most `width` as drawn, the pop's scale included. */
+function drawCaption(ctx: CanvasRenderingContext2D, caption: string, scale: number, width: number): void {
   if (!caption) return;
   ctx.save();
-  ctx.translate(430, 68);
+  ctx.translate(CAPTION_X, 68);
   ctx.scale(scale, scale);
-  memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
+  memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', width / scale);
   ctx.restore();
 }
 
-function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, multiplier: number, dead: boolean): void {
+/** How wide the readout draws, so the caption can keep clear of it. */
+function readoutWidth(ctx: CanvasRenderingContext2D, text: string): number {
+  ctx.font = `900 66px ${MEME_FONT}`;
+  return Math.min(READOUT_MAX, ctx.measureText(text).width);
+}
+
+function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: string, dead: boolean): void {
   const colour = dead ? '#ff4d6d' : view.phase === 'running' ? '#ffffff' : '#ffe08a';
   ctx.save();
   if (view.phase !== 'running' && !dead) ctx.globalAlpha = 0.85;
-  memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+  memeText(ctx, text, READOUT_X, 80, 66, colour, 'right', READOUT_MAX);
   ctx.restore();
 }
 
@@ -274,21 +298,28 @@ export function createScene(options: SceneOptions = {}): Scene {
       inflow: false,
     };
 
-    // Phase edges: the burst, and a fresh balloon for the next round.
+    const ending: Outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
+
+    // Phase edges: the burst, and a fresh balloon for the next round. A round met late (the first frame, which
+    // may land mid-round or after the crash, or a burst missed while the tab was hidden) settles into place
+    // instead of playing out what it missed.
+    let settle = false;
     if (previous === null) {
       previous = view.phase;
+      settle = true;
       settleBalloon(balloon, balloonDrive);
       if (crashed) {
         burstBalloon(balloon, view.currentX100, true);
-        outcome = 'pop';
+        outcome = ending;
         pop.x = 1;
       }
     } else if (view.phase !== previous) {
       if (crashed && balloon.alive) {
-        const quiet = view.crashAge > 1500;
-        burstBalloon(balloon, view.currentX100, quiet);
-        outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
-        if (quiet) pop.x = 1;
+        settle = view.crashAge > 1500;
+        if (settle) settleBalloon(balloon, balloonDrive);
+        burstBalloon(balloon, view.currentX100, settle);
+        outcome = ending;
+        if (settle) pop.x = 1;
         else { shake = 1; pop.v = 16; }
       }
       if (view.phase === 'betting') {
@@ -299,6 +330,12 @@ export function createScene(options: SceneOptions = {}): Scene {
         trailAt = -1;
       }
       previous = view.phase;
+    }
+    if (settle && (running || crashed)) {
+      // The chart as far as the number has come: the crash point's time comes from the curve.
+      const elapsed = running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS;
+      trail = settleTrail(elapsed, growth);
+      trailAt = Math.floor(elapsed / 100);
     }
 
     // Step the rig, then the balloon it feeds, then the meme layer's springs.
@@ -313,12 +350,18 @@ export function createScene(options: SceneOptions = {}): Scene {
       gauge: 1 - Math.exp(-growth / 2.4),
       gaze: TETHER,
     };
+    const lasers = running && balloon.alive ? smoothstep(1, 2.6, growth) : 0;
+    if (settle) {
+      settlePumper(pumper, pumperDrive, view.crashAge / 1000);
+      settleSpring(badge, secured ? 1 : 0);
+      settleSpring(laser, lasers);
+    }
     stepPumper(pumper, pumperDrive, dt);
     balloonDrive.inflow = running && pumper.events.bottom;
     stepBalloon(balloon, balloonDrive, dt);
     const geometry = balloonGeometry(balloon);
     pumperDrive.gaze = balloon.alive ? geometry.centre : { x: TETHER.x, y: TETHER.y - 80 };
-    stepSpring(laser, running && balloon.alive ? smoothstep(1, 2.6, growth) : 0, 8, 1, dt);
+    stepSpring(laser, lasers, 8, 1, dt);
     pumperDrive.laser = clamp(laser.x, 0, 1);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
@@ -331,9 +374,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
     if (running) {
       const at = Math.floor(view.elapsed / 100);
-      if (at !== trailAt && trail.length < 900) {
+      if (at !== trailAt && trail.length < TRAIL_POINTS) {
         trailAt = at;
-        trail.push({ x: 80 + 800 * (1 - Math.exp(-view.elapsed / 32000)), y: 440 - 84 * Math.min(growth, 4.2) });
+        trail.push(trailPoint(view.elapsed, growth));
       }
     }
 
@@ -350,8 +393,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (outcome && pop.x > 0.02) drawPop(ctx, balloon.burstAt, outcome === 'rekt' ? 'REKT' : 'POP!', clamp(pop.x, 0, 1.3));
     if (secured && badge.x > 0.02) drawBadge(ctx, secured, clamp(badge.x, 0, 1.3), time);
     ctx.restore();
-    drawCaption(ctx, caption, 1 + 0.1 * captionPop.x);
-    drawReadout(ctx, view, multiplier, outcome !== null);
+    // The readout grows leftward with every digit, so the caption gets the width left between them, 24 units clear.
+    const readout = `${multiplier.toFixed(2)}×`;
+    drawCaption(ctx, caption, 1 + 0.1 * captionPop.x, Math.min(560, 2 * (READOUT_X - readoutWidth(ctx, readout) - 24 - CAPTION_X)));
+    drawReadout(ctx, view, readout, outcome !== null);
   }
 
   return { draw };

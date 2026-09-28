@@ -169,7 +169,7 @@ export function crashKitchen(k: Kitchen, seed: number, quiet: boolean, harmless:
   const rand = mulberry32(seed);
   if (quiet) {
     k.crashT = 4;
-    k.light.x = 0;
+    k.light.x = harmless ? 0 : 1;
     if (harmless) {
       k.wifeMode = 'back';
       k.wifeY.x = 20;
@@ -193,6 +193,55 @@ export function crashKitchen(k: Kitchen, seed: number, quiet: boolean, harmless:
   k.wifeMode = 'down';
   k.wifeAge = 0;
   if (!harmless) burst(k, 800, 120, 10, '#d9d0c4', 80, rand);
+}
+
+/** At 4x his elbow sends the red mug off the counter. */
+function knockMug(k: Kitchen): void {
+  k.knocked = true;
+  const mug = k.mugs[1]!;
+  mug.fallen = true;
+  mug.vx = -40;
+  mug.vy = -120;
+  mug.vr = 6;
+}
+
+/** Drops, bounces and rolls any knocked mug until it rests on the floor. */
+function dropMugs(k: Kitchen, dt: number): void {
+  for (let i = 0; i < k.mugs.length; i += 1) {
+    const mug = k.mugs[i]!;
+    if (!mug.fallen) continue;
+    mug.vy += 980 * dt;
+    mug.x += mug.vx * dt;
+    mug.y += mug.vy * dt;
+    mug.rot += mug.vr * dt;
+    if (mug.y > 508) {
+      mug.y = 508;
+      mug.vy *= -0.28;
+      mug.vx *= 0.7;
+      mug.vr *= 0.5;
+    }
+  }
+}
+
+/**
+ * Settles a fresh kitchen into a round that is already running, or over, at `multiplier`, for a scene that
+ * missed the start: the texts so far are already read, the knocked mug lies on the floor, and the meter and
+ * the stair light stand where the round has them. `heldX100` is the cash-out the meter froze at, if any.
+ */
+export function settleKitchen(k: Kitchen, multiplier: number, fear: number, heldX100: number | null): void {
+  k.holding = heldX100 !== null;
+  k.meter.x = meterTarget(heldX100 === null ? multiplier : heldX100 / 100);
+  k.light.x = fear > 0.38 ? 1 : 0;
+  while (k.nextLine < LINES.length && multiplier >= LINES[k.nextLine]!.at) {
+    const line = LINES[k.nextLine]!;
+    // As in stepKitchen: once he has cashed out and gone up, her last text is never sent.
+    if (!(heldX100 !== null && line.at * 100 > heldX100 && line.her && line.at >= 10)) k.bubbles.push({ text: line.text, her: line.her, age: 1 });
+    k.nextLine += 1;
+  }
+  if (multiplier >= 4) {
+    knockMug(k);
+    for (let i = 0; i < 240; i += 1) dropMugs(k, 1 / 60);
+  }
 }
 
 export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
@@ -225,28 +274,8 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
   }
   for (const b of k.bubbles) b.age += dt;
 
-  if (drive.running && !k.knocked && drive.multiplier >= 4) {
-    k.knocked = true;
-    const mug = k.mugs[1]!;
-    mug.fallen = true;
-    mug.vx = -40;
-    mug.vy = -120;
-    mug.vr = 6;
-  }
-  for (let i = 0; i < k.mugs.length; i += 1) {
-    const mug = k.mugs[i]!;
-    if (!mug.fallen) continue;
-    mug.vy += 980 * dt;
-    mug.x += mug.vx * dt;
-    mug.y += mug.vy * dt;
-    mug.rot += mug.vr * dt;
-    if (mug.y > 508) {
-      mug.y = 508;
-      mug.vy *= -0.28;
-      mug.vx *= 0.7;
-      mug.vr *= 0.5;
-    }
-  }
+  if (drive.running && !k.knocked && drive.multiplier >= 4) knockMug(k);
+  dropMugs(k, dt);
 
   // Wife, suitcase, ring, card, cat, dog.
   const wifeTarget = k.wifeMode === 'down' || k.wifeMode === 'floor' ? 448 : k.wifeMode === 'back' ? 16 : 86;

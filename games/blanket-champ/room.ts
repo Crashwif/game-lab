@@ -7,12 +7,26 @@
  * neighbour's fist, the buckling bed legs, and finally the arm that flops
  * out with a thumbs-up.
  */
+import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
 import { drawFeet, drawReaction, drawSleepers, type SleeperPose } from './sleepers';
 
 export const FLOOR_Y = 470;
 export const BED = { left: 210, right: 700, top: 362, headX: 214, footX: 690 };
 export const INK = '#1c1f26';
+/** Where the glass starts on the nightstand, and past where it goes over the edge. */
+const GLASS_X = 158;
+const GLASS_EDGE = 190;
+/** Where the cat sits on the dresser, where it is out of the picture, and how fast it leaves (from 2×). */
+const CAT_X = 806;
+const CAT_GONE = 1000;
+const CAT_SPEED = 140;
+
+/** Beats per second of the quilt at `growth` (log2 of the multiplier). */
+const tempoAt = (growth: number): number => 0.8 + 2.2 * (1 - Math.exp(-growth / 2));
+/** How far the glass walks on one beat. */
+const walkPerBeat = (tension: number): number => 1.5 + 3 * tension;
+const cracksAt = (multiplier: number): number => clamp((multiplier - 1.5) / 6, 0, 1);
 
 export interface Puff { kind: 'puff' | 'confetti'; x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour: string }
 
@@ -41,7 +55,7 @@ export interface RoomState {
 }
 
 export function createRoom(): RoomState {
-  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassX: 158, glassFallen: false, glassFall: { y: 0, vy: 0, done: false }, catX: 806, catGone: false, fist: spring(0), legs: spring(0), wallCracks: 0, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), puffs: [], events: { beat: false, glassFell: false, catLeft: false, fist: false } };
+  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassX: GLASS_X, glassFallen: false, glassFall: { y: 0, vy: 0, done: false }, catX: CAT_X, catGone: false, fist: spring(0), legs: spring(0), wallCracks: 0, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), puffs: [], events: { beat: false, glassFell: false, catLeft: false, fist: false } };
 }
 
 export function resetRoom(r: RoomState): void {
@@ -49,10 +63,10 @@ export function resetRoom(r: RoomState): void {
   settleSpring(r.lump, 0.6);
   settleSpring(r.headboard, 0);
   settleSpring(r.lamp, 0);
-  r.glassX = 158;
+  r.glassX = GLASS_X;
   r.glassFallen = false;
   r.glassFall = { y: 0, vy: 0, done: false };
-  r.catX = 806;
+  r.catX = CAT_X;
   r.catGone = false;
   settleSpring(r.fist, 0);
   settleSpring(r.legs, 0);
@@ -69,7 +83,7 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
   r.events = { beat: false, glassFell: false, catLeft: false, fist: false };
   const multiplier = Math.pow(2, growth);
   r.tension = clamp(growth / 3.3, 0, 1);
-  r.tempo = running && !r.finished ? 0.8 + 2.2 * (1 - Math.exp(-growth / 2)) : 0;
+  r.tempo = running && !r.finished ? tempoAt(growth) : 0;
   if (r.tempo > 0) {
     const before = r.beatPhase;
     r.beatPhase += r.tempo * dt;
@@ -77,7 +91,7 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
       r.events.beat = true;
       r.headboard.v += 3 + 6 * r.tension;
       r.lamp.v += (Math.floor(r.beatPhase) % 2 ? 1 : -1) * (0.6 + 1.6 * r.tension);
-      if (!r.glassFallen) r.glassX += 1.5 + 3 * r.tension;
+      if (!r.glassFallen) r.glassX += walkPerBeat(r.tension);
       if (multiplier >= 4) r.fist.v += 40;
     }
   }
@@ -88,8 +102,8 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
   stepSpring(r.lamp, 0, 5, 0.12, dt);
   stepSpring(r.fist, running && multiplier >= 4 ? 12 : 0, 6, 0.6, dt);
   stepSpring(r.legs, running && multiplier >= 6 ? 1 : 0, 3, 0.6, dt);
-  r.wallCracks = running ? clamp((multiplier - 1.5) / 6, 0, 1) : r.wallCracks;
-  if (!r.glassFallen && r.glassX > 190) {
+  r.wallCracks = running ? cracksAt(multiplier) : r.wallCracks;
+  if (!r.glassFallen && r.glassX > GLASS_EDGE) {
     r.glassFallen = true;
     r.events.glassFell = true;
     r.glassFall = { y: 0, vy: 0, done: false };
@@ -100,8 +114,8 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
     if (r.glassFall.y > 70) { r.glassFall.y = 70; r.glassFall.done = true; }
   }
   if (running && multiplier >= 2 && !r.catGone) {
-    r.catX += 140 * dt;
-    if (r.catX > 1000) { r.catGone = true; r.events.catLeft = true; }
+    r.catX += CAT_SPEED * dt;
+    if (r.catX > CAT_GONE) { r.catGone = true; r.events.catLeft = true; }
   }
   if (r.finished) {
     r.finishAge += dt;
@@ -114,6 +128,35 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
     else p.vy += 30 * dt;
   }
   r.puffs = r.puffs.filter((p) => p.age < p.life);
+}
+
+/**
+ * Puts the props where a round that has reached `multiplier` leaves them, for a round met late: a fresh scene
+ * mid-round or after the crash, or a frame after the tab was hidden. The glass and the cat only move on, so a
+ * round already drawn keeps what it showed. Nothing fires: no beat, no falling glass, no shake.
+ */
+export function settleRoom(r: RoomState, multiplier: number, running: boolean): void {
+  const ms = Math.log(Math.max(1, multiplier)) / free.GROWTH_RATE_PER_MS;
+  // The glass walks a step on each beat: count the beats along the curve, a tenth of a second at a time.
+  let beats = 0;
+  let x = GLASS_X;
+  for (let t = 0; t < ms && x <= GLASS_EDGE; t += 100) {
+    const growth = (t * free.GROWTH_RATE_PER_MS) / Math.LN2;
+    const before = beats;
+    beats += tempoAt(growth) * 0.1;
+    if (Math.floor(beats) > Math.floor(before)) x += walkPerBeat(clamp(growth / 3.3, 0, 1));
+  }
+  if (!r.glassFallen && x > GLASS_EDGE) {
+    r.glassFallen = true;
+    r.glassFall = { y: 70, vy: 0, done: true };
+  } else if (!r.glassFallen) r.glassX = Math.max(r.glassX, x);
+  // The cat heads for the door once the number passes 2×.
+  const catX = CAT_X + (CAT_SPEED * Math.max(0, ms - Math.log(2) / free.GROWTH_RATE_PER_MS)) / 1000;
+  if (catX > CAT_GONE) r.catGone = true;
+  else r.catX = Math.max(r.catX, catX);
+  r.wallCracks = Math.max(r.wallCracks, cracksAt(multiplier));
+  settleSpring(r.fist, running && multiplier >= 4 ? 12 : 0);
+  settleSpring(r.legs, running && multiplier >= 6 ? 1 : 0);
 }
 
 /** The champ finishes. */

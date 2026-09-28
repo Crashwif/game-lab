@@ -3,7 +3,7 @@
  * shut, honey strings, and the sell-tax label. The level follows the
  * displayed multiplier. It does not decide the crash.
  */
-import { clamp, mix, spring, stepSpring, type Spring } from './motion';
+import { clamp, mix, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 export const JAR = { cx: 548, top: 132, w: 188, h: 252 };
@@ -28,6 +28,9 @@ export function honeyLevel(multiplier: number): number {
 export function surfaceY(level: number): number {
   return JAR.top + JAR.h - 18 - level * (JAR.h - 40);
 }
+
+/** How far toward shut (0..1) the lid screws itself while the round is still open: it creeps with the tension. */
+const lidCreep = (tension: number): number => clamp(tension * 0.35, 0, 0.35);
 
 export interface StringBit { x: number; y: number; life: number; age: number; }
 
@@ -68,18 +71,30 @@ export function shutJar(j: JarState, quiet: boolean): void {
   if (quiet) {
     j.shut.x = 1;
     j.glue.x = 1;
-    j.level.x = Math.max(j.level.x, 0.86);
     j.angle = 0.2;
   } else j.shut.v = 3;
 }
 
-export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; }
+/** Jumps the jar to where a round at this multiplier has it (the level, the label's tax, the lid's creep), for a round met late. */
+export function settleJar(j: JarState, multiplier: number, tension: number): void {
+  settleSpring(j.level, honeyLevel(multiplier));
+  settleSpring(j.shut, lidCreep(tension));
+  j.tax = sellTax(multiplier);
+  j.taxFlash = 0;
+}
+
+/** `reduced` (prefers-reduced-motion) holds the lid still at a tilt that follows the tension and slows the drips. */
+export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; reduced: boolean; }
 
 export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
   stepSpring(j.level, j.crashed ? Math.max(j.level.x, honeyLevel(drive.multiplier)) : honeyLevel(drive.multiplier), 4, 0.9, dt);
-  if (!j.crashed && drive.running) j.angle += dt * (0.5 + drive.tension * 7);
-  if (j.crashed) j.angle += dt * 14 * (1 - j.shut.x);
-  stepSpring(j.shut, j.crashed ? 1 : clamp(drive.tension * 0.35, 0, 0.35), 6, 0.7, dt);
+  // The lid is drawn turned by angle * (1 - shut), so the still tilt straightens as the crash screws it down.
+  if (drive.reduced) j.angle = drive.tension;
+  else {
+    if (!j.crashed && drive.running) j.angle += dt * (0.5 + drive.tension * 7);
+    if (j.crashed) j.angle += dt * 14 * (1 - j.shut.x);
+  }
+  stepSpring(j.shut, j.crashed ? 1 : lidCreep(drive.tension), 6, 0.7, dt);
   stepSpring(j.glue, j.crashed ? 1 : 0, 2.4, 0.9, dt);
   const tax = sellTax(drive.multiplier);
   if (tax !== j.tax) {
@@ -87,7 +102,7 @@ export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
     j.taxFlash = 1;
   }
   j.taxFlash = Math.max(0, j.taxFlash - dt * 1.6);
-  j.drip += dt * (0.4 + drive.tension);
+  j.drip += dt * (0.4 + drive.tension) * (drive.reduced ? 0.2 : 1);
   if (drive.pulling) {
     j.strings.push({ x: drive.pawX, y: drive.pawY, life: 0.45, age: 0 });
     if (j.strings.length > 18) j.strings.shift();

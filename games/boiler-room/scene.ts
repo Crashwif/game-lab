@@ -7,7 +7,7 @@
 import { DOME, type EngineDrive, type EngineState, blowEngine, createEngine, drawBoiler, drawMachine, resetEngine, settleEngine, stepEngine } from './engine';
 import { clamp, noise, smoothstep, spring, stepSpring } from './motion';
 import { type Particles, createParticles, drawParticles, emit, sparks, stepParticles } from './particles';
-import type { Sound } from './sound';
+import { type Sound, pageSound } from './sound';
 import { type StokerState, bladePoint, blastStoker, callShield, createStoker, drawShield, drawShovelOnFloor, drawStoker, resetStoker, settleStoker, stepStoker } from './stoker';
 
 export interface SceneView {
@@ -26,8 +26,9 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake, vibration and flicker. */
+  /** Drops the screen shake and vibration and softens the blow-out whiteout. */
   reducedMotion?: boolean;
+  /** The sound to play; by default the page's own, which the Sound button turns on. */
   sound?: Sound;
 }
 
@@ -40,6 +41,11 @@ const H = 540;
 const FLOOR_Y = 470;
 const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The multiplier readout's right edge, and the width past which it is squeezed rather than run into the caption. */
+const READOUT_X = 930;
+const READOUT_MAX = 300;
+/** The centre line of the caption and the secured badge. */
+const CAPTION_X = 430;
 type Outcome = 'rekt' | 'called' | 'kaboom';
 type Secured = { x100: number; payout: number | null };
 
@@ -141,17 +147,17 @@ function drawCoalPile(ctx: CanvasRenderingContext2D): void {
   }
 }
 
-function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, multiplier: number, dead: boolean): void {
+function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: string, dead: boolean): void {
   const colour = dead ? '#ff4d6d' : view.phase === 'running' ? '#ffffff' : '#ffe08a';
   ctx.save();
   if (view.phase !== 'running' && !dead) ctx.globalAlpha = 0.85;
-  memeText(ctx, `${multiplier.toFixed(2)}×`, 930, 80, 66, colour, 'right');
+  memeText(ctx, text, READOUT_X, 80, 66, colour, 'right', READOUT_MAX);
   ctx.restore();
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
-  const sound = options.sound;
+  const sound = options.sound ?? pageSound();
   const engine: EngineState = createEngine();
   const ps: Particles = createParticles();
   const stoker: StokerState = createStoker();
@@ -179,29 +185,35 @@ export function createScene(options: SceneOptions = {}): Scene {
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
     const drive: EngineDrive = { running, crashed, pressure: running || crashed ? pressure : 0, multiplier };
+    const verdict: Outcome = view.stake === null ? 'kaboom' : secured ? 'called' : 'rekt';
 
     // Phase edges: joining late, the blow-out, and a fresh fire for the next round.
     if (previous === null) {
+      // A fresh scene (the page joining, or a round first seen after its betting phase) settles into the round
+      // as it stands: a crash is the quiet aftermath, and an exit already taken has him behind the shield.
       previous = view.phase;
       settleEngine(engine, drive);
-      settleStoker(stoker, running, crashed);
+      settleStoker(stoker, running, crashed, secured !== null, drive.pressure);
       if (crashed) {
         blowEngine(engine, ps, view.currentX100, true);
-        outcome = 'kaboom';
+        outcome = verdict;
         pop.x = 1;
       }
+      if (secured) badge.x = 1;
     } else if (view.phase !== previous) {
       if (crashed && !engine.blown) {
         const quiet = view.crashAge > 1500;
         blowEngine(engine, ps, view.currentX100, quiet);
-        outcome = view.stake === null ? 'kaboom' : secured ? 'called' : 'rekt';
+        outcome = verdict;
+        // An exit this scene never drew (the tab was hidden) still gets him behind the shield.
+        if (secured) callShield(stoker);
         blastStoker(stoker, quiet);
         if (quiet) pop.x = 1;
         else {
           shake = 1;
           pop.v = 16;
           whiteAge = 0;
-          sound?.blast();
+          sound.blast();
         }
       }
       if (view.phase === 'betting') {
@@ -218,9 +230,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && (stoker.mode === 'stoking' || stoker.mode === 'idle') && running) callShield(stoker);
 
     stepEngine(engine, drive, ps, dt);
-    if (engine.events.reversal) sound?.chuff(running ? 0.4 + engine.pressure : 0.25);
+    if (engine.events.reversal) sound.chuff(running ? 0.4 + engine.pressure : 0.25);
     if (engine.events.leak >= 0) {
-      sound?.ping();
+      sound.ping();
       if (!reduced) shake = Math.max(shake, 0.25);
     }
     const rate = running ? 0.5 + 1.1 * (1 - Math.exp(-growth / 2)) : 0;
@@ -234,19 +246,21 @@ export function createScene(options: SceneOptions = {}): Scene {
       engine.flame = Math.min(1.3, engine.flame + 0.3);
     }
     stepParticles(ps, dt, -4 + 6 * Math.sin(time * 0.3));
-    sound?.update(engine.pressure, running);
+    sound.update(engine.pressure, running);
 
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
+      if (caption) captionPop.v = 6;
       caption = nextCaption;
-      captionPop.v = 6;
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.6);
     if (whiteAge >= 0) whiteAge += dt;
-    const white = whiteAge < 0 ? 0 : 0.82 * smoothstep(0, 0.1, whiteAge) * Math.exp(-Math.max(0, whiteAge - 0.1) / 2.2);
+    // Reduced motion keeps the blow-out cue but softens it: a lower peak and a slower rise.
+    const rise = reduced ? 0.5 : 0.1;
+    const white = whiteAge < 0 ? 0 : (reduced ? 0.3 : 0.82) * smoothstep(0, rise, whiteAge) * Math.exp(-Math.max(0, whiteAge - rise) / 2.2);
     const vibration = reduced || engine.blown ? 0 : engine.pressure * engine.pressure * 1.8;
 
     ctx.save();
@@ -276,26 +290,29 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
-    // HUD in screen space.
+    // HUD in screen space. The readout is measured first so the centred caption stays 24 units clear of it.
+    const readout = `${multiplier.toFixed(2)}×`;
+    ctx.font = `900 66px ${MEME_FONT}`;
+    const readoutWidth = Math.min(READOUT_MAX, ctx.measureText(readout).width);
     if (caption) {
       ctx.save();
-      ctx.translate(430, 68);
+      ctx.translate(CAPTION_X, 68);
       const k = 1 + 0.1 * captionPop.x;
       ctx.scale(k, k);
-      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', 560);
+      memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', Math.min(560, 2 * (READOUT_X - readoutWidth - 24 - CAPTION_X)) / k);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
-      ctx.translate(430, 114 + Math.sin(time * 2) * 3);
+      ctx.translate(CAPTION_X, 114 + Math.sin(time * 2) * 3);
       ctx.rotate(-0.03);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    drawReadout(ctx, view, multiplier, outcome !== null);
+    drawReadout(ctx, view, readout, outcome !== null);
     memeText(ctx, `${Math.round(clamp(engine.pressure, 0, 1) * 100)} PSI`, 26, 514, 26, engine.pressure > 0.7 ? '#ff9db0' : '#e7f4f0', 'left');
   }
 

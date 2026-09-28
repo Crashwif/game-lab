@@ -3,7 +3,7 @@
  * balances and the crowd follow the displayed multiplier. The dump is the
  * crash the server already committed.
  */
-import { cannonCount, createRally, drawRally, dumpRally, leaveSeat, resetRally, stepRally, type Rally } from './rally';
+import { cannonCount, createRally, drawRally, dumpRally, leaveSeat, resetRally, settleRally, stepRally, type Rally, type RallyDrive } from './rally';
 import { clamp, spring, stepSpring } from './motion';
 import { drawTracker, totalBalance } from './tracker';
 
@@ -72,9 +72,11 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
 
-  function beginCrash(view: SceneView, quiet: boolean): void {
+  function beginCrash(view: SceneView, drive: RallyDrive, quiet: boolean): void {
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
-    dumpRally(rally, view.currentX100, quiet);
+    // A crash that already happened settles the rally to it rather than playing the milestones it missed.
+    if (quiet) settleRally(rally, drive, secured !== null);
+    dumpRally(rally, view.currentX100, quiet, reduced);
     if (quiet) pop.x = 1;
     else {
       shake = 1;
@@ -91,12 +93,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    const drive: RallyDrive = { running, multiplier, tension, reduced };
 
     if (previous === null) {
+      // A fresh scene can open mid-round or on the crash (a page that joins late, or a tab that missed the
+      // betting window): it settles into the round as it stands rather than replaying what it never saw.
       previous = view.phase;
-      if (crashed) beginCrash(view, true);
+      if (crashed) beginCrash(view, drive, true);
+      else settleRally(rally, drive, secured !== null);
     } else if (view.phase !== previous) {
-      if (crashed && !rally.crashed) beginCrash(view, view.crashAge > 1500);
+      if (crashed && !rally.crashed) beginCrash(view, drive, view.crashAge > 1500);
       if (view.phase === 'betting') {
         resetRally(rally);
         outcome = null;
@@ -105,9 +111,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
-    if (secured && running) leaveSeat(rally);
+    // Not only while running: a cash-out first seen on the crash (the tab was hidden) still means you left.
+    if (secured) leaveSeat(rally);
 
-    stepRally(rally, { running, multiplier, tension, reduced }, dt);
+    stepRally(rally, drive, dt);
     if (rally.cannons > 0 && rally.bits.length > 40 && !reduced) shake = Math.max(shake, 0.08);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
