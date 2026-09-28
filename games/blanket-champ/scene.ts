@@ -1,13 +1,16 @@
 /**
  * Composes Blanket Champ from the room state: the bedroom and its props,
- * the bleachers and the crowd, the commentary booth, the duvet, then the
- * HUD. All motion is stepped here with the real frame time, and nothing
- * drawn here changes the committed outcome.
+ * the bleachers and the crowd, the bookie's board, the commentary booth, the
+ * duvet, then the HUD. All motion is stepped here with the real frame time,
+ * and nothing drawn here changes the committed outcome. The sound is the
+ * shared page audio: a phonk set that climbs with the tempo, cues from the
+ * room's own events, and a sad trombone (or a roar) at the finish.
  */
 import { free } from '@crashwif/crash-math';
-import { type CrowdState, collectWinnings, createCrowd, drawBleachers, drawBooth, drawCrowd, finishCrowd, resetCrowd, settleCrowd, stepCrowd } from './crowd';
+import { pageAudio } from './audio';
+import { type CrowdState, collectWinnings, createCrowd, drawBleachers, drawBooth, drawConfetti, drawCrowd, drawOddsBoard, finishCrowd, resetCrowd, settleCrowd, stepCrowd } from './crowd';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
-import { INK, type RoomState, createRoom, drawBed, drawFloorAndFurniture, drawWall, finishRoom, resetRoom, settleRoom, stepRoom } from './room';
+import { INK, type RoomState, createRoom, drawBed, drawFloorAndFurniture, drawWall, finishRoom, resetRoom, setHeadline, settleRoom, stepRoom } from './room';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -25,7 +28,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake. */
+  /** Drops the screen shake, the hit-stop, the punch-in and the champ's tremble. */
   reducedMotion?: boolean;
 }
 
@@ -34,8 +37,15 @@ export interface Scene {
 }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The caption ladder's thresholds, for the milestone dings. */
+const RUNGS = [1.3, 1.7, 2.5, 4, 6, 10, 20];
+/** The finish: the picture holds, then the collapse runs slow before time catches up. */
+const FREEZE_S = 0.08;
+const SLOW_S = 0.35;
+const SLOW_RATE = 0.3;
 type Outcome = 'rekt' | 'called' | 'gg';
 type Secured = { x100: number; payout: number | null };
+type Headline = [string, string];
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -75,6 +85,21 @@ function boothLine(view: SceneView, multiplier: number, finished: boolean, legen
   return 'SOMEONE CHECK HIS PULSE';
 }
 
+/** What DEGEN NEWS is running on the wall TV. */
+function headlineFor(view: SceneView, multiplier: number, secured: Secured | null, catGone: boolean, outcome: Outcome | null, legendary: boolean): Headline {
+  if (outcome) return legendary ? ['RECORD BOOKS', 'UPDATED'] : outcome === 'rekt' ? ['BREAKING:', "IT'S OVER (?)"] : outcome === 'called' ? ['BREAKING:', 'HE IS DONE'] : ['BREAKING:', "IT'S OVER"];
+  if (view.phase !== 'running') return ['TONIGHT:', 'THE MAIN EVENT'];
+  if (secured) return ['INSIDER SOLD', 'BEFORE THE TOP'];
+  if (multiplier < 1.3) return ['BREAKING:', 'HE HAS BEGUN'];
+  if (multiplier < 1.7) return ['SOURCES SAY', 'STILL GOING'];
+  if (multiplier < 2.5) return ['ANALYSTS:', 'NO PULLBACK'];
+  if (multiplier < 4) return catGone ? ['CAT FLEES', 'THE BUILDING'] : ['NEIGHBOURS', 'FILE COMPLAINT'];
+  if (multiplier < 6) return ['BED FRAME', 'RATED JUNK'];
+  if (multiplier < 10) return ['CROWD ON', 'ITS FEET'];
+  if (multiplier < 20) return ['FIRE BRIGADE', 'EN ROUTE'];
+  return ['PULSE STATUS:', 'UNKNOWN'];
+}
+
 function drawFireBrigade(ctx: CanvasRenderingContext2D, time: number, k: number): void {
   // A helmet and a ladder top at the window once things get out of hand.
   ctx.save();
@@ -96,12 +121,15 @@ function drawFireBrigade(ctx: CanvasRenderingContext2D, time: number, k: number)
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
-  const room: RoomState = createRoom();
+  const audio = pageAudio({ style: 'phonk', crash: 'trombone' });
+  const room: RoomState = createRoom(reduced ? 0 : 1);
   const crowd: CrowdState = createCrowd();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
   const brigade = spring(0);
+  /** The camera's punch toward the quilt at the finish. */
+  const punch = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -110,40 +138,72 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let legendary = false;
+  let freeze = 0;
+  let slow = 0;
+  let brigadeOn = false;
+  /** A headline that jumps the queue for a few seconds: the glass, the fist. */
+  let bulletin: { lines: Headline; until: number } | null = null;
 
-  /** The champ finishes: the puff and the shake, or with `quiet` the aftermath, already settled. */
+  /** The champ finishes: the puff, the shake, the hit-stop and the stinger, or with `quiet` the aftermath, already settled. */
   function finish(view: SceneView, multiplier: number, quiet: boolean): void {
     legendary = multiplier >= 5;
     outcome = view.stake === null ? 'gg' : secured ? 'called' : 'rekt';
-    finishRoom(room, quiet, legendary && !quiet);
+    // The cat's verdict on its way back in.
+    const sign = outcome === 'called' ? 'PAPER' : outcome === 'gg' && legendary ? 'GG' : 'NGMI';
+    finishRoom(room, quiet, legendary && !quiet, sign);
     finishCrowd(crowd, outcome !== 'rekt', quiet);
-    if (quiet) pop.x = 1;
-    else { shake = 1; pop.v = 16; }
+    if (quiet) {
+      pop.x = 1;
+      audio.crash('trombone', true);
+      return;
+    }
+    shake = 1;
+    pop.v = 16;
+    punch.v = 7;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    audio.crash(outcome === 'rekt' ? 'trombone' : 'crowd');
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     // Over a second since the last frame: the tab was hidden (or the picture stalled) and the round moved on.
     const resumed = last !== null && now - last > 1000;
     last = now;
+    // The hit-stop holds the picture for a few frames, then the collapse runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
 
     // A round met late settles the room to the number instead of playing out what it missed: a first frame that
     // lands mid-round or after the crash, a crash missed while the tab was hidden, or the first frame back.
-    if (previous === null) {
+    const first = previous === null;
+    if (first) {
       previous = view.phase;
       resetRoom(room);
       resetCrowd(crowd);
       if (running || crashed) {
         settleRoom(room, multiplier, running);
-        settleCrowd(crowd, tension, running, secured !== null);
+        settleCrowd(crowd, tension, multiplier, running, secured !== null);
         settleSpring(brigade, running && multiplier >= 10 ? 1 : 0);
+        brigadeOn = brigade.x > 0.5;
         settleSpring(badge, secured ? 1 : 0);
       }
       if (crashed) finish(view, multiplier, true);
@@ -160,19 +220,40 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = null;
         secured = null;
         legendary = false;
+        freeze = slow = 0;
+        bulletin = null;
       }
       previous = view.phase;
     }
     if (resumed && running) settleRoom(room, multiplier, true);
     if (secured && running) collectWinnings(crowd);
+    audio.update(view.phase, tension);
 
     stepRoom(room, growth, running, dt);
     stepCrowd(crowd, tension, multiplier, room.events.beat, running, dt);
     if (room.events.beat && !reduced) shake = Math.max(shake, 0.06 + 0.18 * tension);
     if ((room.events.glassFell || room.events.fist) && !reduced) shake = Math.max(shake, 0.2);
+    // Cues from the room's and the crowd's own events.
+    if (room.events.beat && running) audio.fx('thud', 0.45 + 0.5 * tension);
+    if (room.events.glassFell) { audio.fx('shatter', 0.8); bulletin = { lines: ['GLASS OF H2O', 'DELISTED'], until: time + 3 }; }
+    if (room.events.fist) { audio.fx('punch', 0.9); bulletin = { lines: ['WALL BREACHED', 'BY A FIST'], until: time + 3 }; }
+    if (room.events.catBack) audio.fx('squeak', 0.7);
+    if (crowd.events.wave) audio.fx('cheer', 0.5);
+    if (crowd.events.collected) audio.fx('coin', 1);
     stepSpring(brigade, running && multiplier >= 10 ? 1 : 0, 4, 0.8, dt);
+    const brigadeUp = brigade.x > 0.5;
+    if (brigadeUp && !brigadeOn) audio.fx('siren', 0.8);
+    brigadeOn = brigadeUp;
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    // The TV: the bulletin of the moment, else the stage the number has reached.
+    const lines = bulletin && time < bulletin.until ? bulletin.lines : headlineFor(view, multiplier, secured, room.catGone, outcome, legendary);
+    if (setHeadline(room, lines)) {
+      if (first) settleSpring(room.slide, 1);
+      else audio.fx('notify', 0.5);
+    }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -183,11 +264,20 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the quilt and eases back out.
+      const k = 1 + 0.05 * clamp(punch.x, 0, 1.2);
+      ctx.translate(470, 310);
+      ctx.scale(k, k);
+      ctx.translate(-470, -310);
+    }
     drawWall(ctx, room);
     if (brigade.x > 0.02) drawFireBrigade(ctx, time, clamp(brigade.x, 0, 1));
     drawBleachers(ctx);
     drawCrowd(ctx, crowd, room.finished, outcome !== 'rekt');
+    drawOddsBoard(ctx, crowd, multiplier, running, room.finished);
     drawBooth(ctx, crowd, boothLine(view, multiplier, room.finished, legendary));
+    drawConfetti(ctx, crowd);
     drawFloorAndFurniture(ctx, room);
     drawBed(ctx, room);
     if (outcome && pop.x > 0.02) {

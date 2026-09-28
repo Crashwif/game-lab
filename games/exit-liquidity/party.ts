@@ -1,40 +1,63 @@
 /**
  * The party: holders who cannonball in and bob on tubes, your degen on the
- * flamingo, the DJ, and the dev on his lounger with the chain round his
- * wrist. An accepted exit paddles you to the ladder and onto a lounger with
- * a towel and shades; the rug pull spins everyone still floating down the
- * drain and leaves one sad Wojak in the puddle.
+ * flamingo, the DJ, the dev on his lounger with the chain round his wrist,
+ * and the AIRDROP helicopter that tips fresh degens into the pool at the
+ * milestones. An accepted exit paddles you to the ladder and onto a lounger
+ * with a towel and shades, to a burst of confetti; the rug pull spins everyone
+ * still floating down the drain, leaves one sad Wojak in the puddle, and the
+ * dev takes a selfie with the empty pool before he strolls off with the bag.
+ * An empty lifeguard chair on the near deck has warned everyone: NO LIFEGUARD
+ * (HE SOLD).
  */
-import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
+import { type Spring, clamp, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { DRAIN, INK, LADDER_X, POOL, type PoolState, drainPull, splash, surfaceY } from './pool';
 
 const SKIN = '#f3dccb';
 const TUBES = ['#ff5d9e', '#7cf67c', '#ffe27a', '#8fd3ff', '#c084fc'];
 export const DEV_LOUNGER = { x: 872, y: POOL.top - 4 };
 export const SAFE_LOUNGER = { x: 78, y: POOL.top - 4 };
-/** How many holders the multiplier has drawn into the pool so far. */
+/** The lifeguard chair on the near deck, left of the pool. */
+const CHAIR = { x: 76, top: 322, seat: 352, foot: 478 };
+/** The helicopter's height, speed, run and the x at which it tips each degen out. */
+export const HELI = { y: 152, speed: 225, from: -170, to: 1130, drops: [345, 485, 625] };
+/** How many holders the multiplier has drawn into the pool so far, and the most the pool takes with the airdrops. */
 const crowdFor = (growth: number): number => Math.min(22, 2 + Math.floor(growth * 5));
+const MAX_HOLDERS = 30;
+const CONFETTI = 36;
+const leanFor = (growth: number): number => smoothstep(0.3, 0.9, clamp(growth / 3.3, 0, 1));
 
 export type HolderMode = 'jumping' | 'floating' | 'sucked' | 'gone' | 'puddle';
-export interface Holder { x: number; y: number; tube: string; tone: number; phase: number; mode: HolderMode; t: number; fromX: number; toX: number; spin: number; scale: number }
+export interface Holder { x: number; y: number; tube: string; tone: number; phase: number; mode: HolderMode; t: number; fromX: number; toX: number; fromY: number; spin: number; scale: number; airdropped: boolean }
 export type AvatarMode = 'floating' | 'paddling' | 'climbing' | 'walking' | 'lounging' | 'sucked' | 'puddle';
-export type DevMode = 'lounging' | 'standing' | 'leaving';
+export type DevMode = 'lounging' | 'standing' | 'selfie' | 'leaving';
+export interface Confetti { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour: string; spin: number }
 
 export interface PartyState {
   time: number;
+  tension: number;
   holders: Holder[];
   avatar: { mode: AvatarMode; x: number; y: number; modeAge: number; spin: number; scale: number; shades: Spring; fear: number };
-  dev: { mode: DevMode; x: number; modeAge: number; grin: Spring; yank: Spring };
+  /** The dev: `lean` sits him up with the chain in his fist as the tension grows; `phone` raises the selfie stick after the drain. */
+  dev: { mode: DevMode; x: number; modeAge: number; grin: Spring; yank: Spring; lean: Spring; phone: Spring; flash: number; snapped: boolean };
+  /** The AIRDROP helicopter: crossing while active, with the passes it still owes. */
+  heli: { active: boolean; x: number; drops: number; pending: number };
+  /** The NO LIFEGUARD sign's swing, in radians. */
+  sign: Spring;
+  confetti: Confetti[];
   whaleFlash: number;
+  /** 1, or 0 under reduced motion: scales the dev's tremble and the phone's flash. */
+  motion: number;
   rng: () => number;
-  events: { splash: { x: number; y: number } | null };
+  events: { splash: { x: number; y: number; big: boolean } | null; heli: boolean; drop: boolean; shutter: boolean };
 }
 
-export function createParty(): PartyState {
+const freshDev = (): PartyState['dev'] => ({ mode: 'lounging', x: DEV_LOUNGER.x, modeAge: 0, grin: spring(0), yank: spring(0), lean: spring(0), phone: spring(0), flash: 0, snapped: false });
+
+export function createParty(motion = 1): PartyState {
   return {
-    time: 0, holders: [], avatar: { mode: 'floating', x: 480, y: 420, modeAge: 0, spin: 0, scale: 1, shades: spring(0), fear: 0 },
-    dev: { mode: 'lounging', x: DEV_LOUNGER.x, modeAge: 0, grin: spring(0), yank: spring(0) }, whaleFlash: 0,
-    rng: () => 0.5, events: { splash: null },
+    time: 0, tension: 0, holders: [], avatar: { mode: 'floating', x: 480, y: 420, modeAge: 0, spin: 0, scale: 1, shades: spring(0), fear: 0 },
+    dev: freshDev(), heli: { active: false, x: HELI.from, drops: 0, pending: 0 }, sign: spring(0), confetti: [], whaleFlash: 0, motion,
+    rng: () => 0.5, events: { splash: null, heli: false, drop: false, shutter: false },
   };
 }
 
@@ -43,13 +66,28 @@ export function resetParty(p: PartyState, seed: number): void {
   p.rng = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
   p.holders = [];
   p.avatar = { mode: 'floating', x: 480, y: 420, modeAge: 0, spin: 0, scale: 1, shades: spring(0), fear: 0 };
-  p.dev = { mode: 'lounging', x: DEV_LOUNGER.x, modeAge: 0, grin: spring(0), yank: spring(0) };
+  p.dev = freshDev();
+  p.heli = { active: false, x: HELI.from, drops: 0, pending: 0 };
+  settleSpring(p.sign, 0);
+  p.confetti = [];
   p.whaleFlash = 0;
 }
 
 /** The exit was accepted: paddle for the ladder. */
 export function leavePool(p: PartyState): void {
   if (p.avatar.mode === 'floating') { p.avatar.mode = 'paddling'; p.avatar.modeAge = 0; }
+}
+
+/** A burst of confetti (capped) from a point: the cash-out's beat. */
+export function celebrate(p: PartyState, x: number, y: number): void {
+  for (let i = 0; i < CONFETTI; i += 1) {
+    p.confetti.push({ x, y, vx: (p.rng() - 0.5) * 300, vy: -140 - p.rng() * 220, r: 2 + p.rng() * 3, age: 0, life: 1.1 + p.rng() * 0.7, colour: ['#7cf67c', '#ffe27a', '#ff5d9e', '#8fd3ff'][i % 4]!, spin: p.rng() * 6 });
+  }
+}
+
+/** A milestone: the helicopter owes the pool a pass (it launches on the next step, once any pass under way is over). */
+export function airdrop(p: PartyState): void {
+  p.heli.pending += 1;
 }
 
 /** Straight onto the safe lounger, shades on: an exit met late. */
@@ -61,21 +99,31 @@ function lounge(a: PartyState['avatar']): void {
   settleSpring(a.shades, 1);
 }
 
-/** A round met late: the crowd the multiplier has drawn so far, already afloat, and the avatar out on the lounger if the exit is in. */
+/** A round met late: the crowd the multiplier has drawn so far, already afloat, the dev sat up to match, and the avatar out on the lounger if the exit is in. */
 export function settleParty(p: PartyState, pool: PoolState, growth: number, out: boolean): void {
   for (let i = 0; i < crowdFor(growth); i += 1) {
     const x = 230 + p.rng() * 520;
-    p.holders.push({ x, y: surfaceY(pool, x) - 4, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'floating', t: 1, fromX: x, toX: x, spin: 0, scale: 1 });
+    p.holders.push({ x, y: surfaceY(pool, x) - 4, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'floating', t: 1, fromX: x, toX: x, fromY: 0, spin: 0, scale: 1, airdropped: false });
   }
+  settleSpring(p.dev.lean, leanFor(growth));
+  settleSpring(p.dev.grin, clamp(growth / 3.3, 0, 1));
   if (out) lounge(p.avatar);
+}
+
+/** The crash frame: the dev is on his feet yanking the chain before the plug gives (the pull lands a few frames later). */
+export function devYank(p: PartyState): void {
+  const d = p.dev;
+  if (d.mode !== 'lounging') return;
+  d.mode = 'standing';
+  d.modeAge = 0;
+  d.yank.v += 30;
 }
 
 /** The plug is out. `quiet` is a rug pull met late: everyone lands where the loud one would have left them. */
 export function rugPulled(p: PartyState, quiet: boolean): void {
   const d = p.dev;
-  d.modeAge = 0;
-  if (quiet) { d.mode = 'leaving'; d.x = DEV_LOUNGER.x + 150; }
-  else { d.mode = 'standing'; d.yank.v += 30; }
+  if (quiet) { d.mode = 'leaving'; d.modeAge = 0; d.x = DEV_LOUNGER.x + 150; d.snapped = true; }
+  else devYank(p);
   const floating = p.holders.filter((h) => h.mode === 'floating' || h.mode === 'jumping');
   for (const h of floating) h.mode = quiet ? 'gone' : 'sucked';
   // Only a floater goes down the drain. Paddling or climbing, the avatar has cashed out and carries on to the lounger.
@@ -91,44 +139,79 @@ export function rugPulled(p: PartyState, quiet: boolean): void {
     h.mode = 'puddle';
     h.x = DRAIN.x - 40 + p.rng() * 20;
   }
+  p.heli.pending = 0;
 }
 
 export function stepParty(p: PartyState, pool: PoolState, growth: number, running: boolean, fear: number, dt: number): void {
   p.time += dt;
+  p.tension = clamp(growth / 3.3, 0, 1);
   p.events.splash = null;
+  p.events.heli = p.events.drop = p.events.shutter = false;
   const a = p.avatar;
   a.modeAge += dt;
   a.fear = fear;
   const want = crowdFor(growth);
-  if (running && !pool.draining && p.holders.filter((h) => h.mode !== 'gone').length < want && !p.holders.some((h) => h.mode === 'jumping')) {
-    p.holders.push({ x: 840, y: POOL.top - 30, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX: 840, toX: 230 + p.rng() * 520, spin: 0, scale: 1 });
+  if (running && !pool.draining && p.holders.filter((h) => !h.airdropped && h.mode !== 'gone').length < want && !p.holders.some((h) => h.mode === 'jumping' && !h.airdropped)) {
+    p.holders.push({ x: 840, y: POOL.top - 30, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX: 840, toX: 230 + p.rng() * 520, fromY: POOL.top - 30, spin: 0, scale: 1, airdropped: false });
   }
-  for (const h of p.holders) {
-    switch (h.mode) {
+  // The helicopter: launches a pass it owes, tips a degen out at each drop mark, and leaves off the right.
+  const h = p.heli;
+  if (!h.active && h.pending > 0 && running && !pool.draining) {
+    h.active = true;
+    h.x = HELI.from;
+    h.drops = 0;
+    h.pending -= 1;
+    p.events.heli = true;
+  }
+  if (h.active) {
+    // Once the plug is out the pilot wants no part of it and leaves at full throttle.
+    h.x += HELI.speed * (pool.draining ? 2.6 : 1) * dt;
+    if (h.drops < HELI.drops.length && h.x >= HELI.drops[h.drops]!) {
+      if (running && !pool.draining && p.holders.filter((k) => k.mode !== 'gone').length < MAX_HOLDERS) {
+        const fromX = h.x + 8;
+        p.holders.push({ x: fromX, y: HELI.y + 24, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX, toX: clamp(fromX + (p.rng() - 0.5) * 60, POOL.left + 40, POOL.right - 40), fromY: HELI.y + 24, spin: 0, scale: 1, airdropped: true });
+        if (h.drops === 0) p.events.drop = true;
+      }
+      h.drops += 1;
+    }
+    if (h.x > HELI.to) h.active = false;
+  }
+  for (const k of p.holders) {
+    switch (k.mode) {
       case 'jumping': {
-        h.t += dt / 0.9;
-        const t = clamp(h.t, 0, 1);
-        h.x = mix(h.fromX, h.toX, t);
-        h.y = mix(POOL.top - 30, surfaceY(pool, h.toX) - 4, t) - Math.sin(t * Math.PI) * 110;
-        if (h.t >= 1) { h.mode = 'floating'; splash(pool, h.x, surfaceY(pool, h.x), 12, 200); p.events.splash = { x: h.x, y: h.y }; }
+        if (k.airdropped) {
+          // Straight down out of the helicopter, flailing, into a bigger splash.
+          k.t += dt / 0.8;
+          const t = clamp(k.t, 0, 1);
+          k.x = mix(k.fromX, k.toX, t);
+          k.y = mix(k.fromY, surfaceY(pool, k.toX) - 4, t * t);
+          k.spin = t * 6.3 * (k.toX > k.fromX ? 1 : -1);
+          if (k.t >= 1) { k.mode = 'floating'; k.spin = 0; splash(pool, k.x, surfaceY(pool, k.x), 18, 280); p.events.splash = { x: k.x, y: k.y, big: true }; }
+        } else {
+          k.t += dt / 0.9;
+          const t = clamp(k.t, 0, 1);
+          k.x = mix(k.fromX, k.toX, t);
+          k.y = mix(POOL.top - 30, surfaceY(pool, k.toX) - 4, t) - Math.sin(t * Math.PI) * 110;
+          if (k.t >= 1) { k.mode = 'floating'; splash(pool, k.x, surfaceY(pool, k.x), 12, 200); p.events.splash = { x: k.x, y: k.y, big: false }; }
+        }
         break;
       }
       case 'floating':
-        h.x += Math.sin(p.time * 0.5 + h.phase) * 6 * dt;
-        h.x = clamp(h.x, POOL.left + 30, POOL.right - 30);
-        h.y = surfaceY(pool, h.x) - 4 + Math.sin(p.time * 2 + h.phase) * 2;
+        k.x += Math.sin(p.time * 0.5 + k.phase) * 6 * dt;
+        k.x = clamp(k.x, POOL.left + 30, POOL.right - 30);
+        k.y = surfaceY(pool, k.x) - 4 + Math.sin(p.time * 2 + k.phase) * 2;
         break;
       case 'sucked': {
-        const pull = drainPull(pool, h.x);
-        h.x += (DRAIN.x - h.x) * pull * 2.2 * dt;
-        h.y = surfaceY(pool, h.x) - 4;
-        h.spin += pull * 9 * dt;
-        if (Math.abs(h.x - DRAIN.x) < 40 && pool.drained > 0.2) h.scale = Math.max(0, h.scale - dt * 1.6);
-        if (h.scale <= 0.02) h.mode = 'gone';
+        const pull = drainPull(pool, k.x);
+        k.x += (DRAIN.x - k.x) * pull * 2.2 * dt;
+        k.y = surfaceY(pool, k.x) - 4;
+        k.spin += pull * 9 * dt;
+        if (Math.abs(k.x - DRAIN.x) < 40 && pool.drained > 0.2) k.scale = Math.max(0, k.scale - dt * 1.6);
+        if (k.scale <= 0.02) k.mode = 'gone';
         break;
       }
       case 'puddle':
-        h.y = POOL.floor - 6;
+        k.y = POOL.floor - 6;
         break;
       case 'gone':
         break;
@@ -175,13 +258,34 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
       a.y = POOL.floor - 6;
       break;
   }
+  // The dev: sits up with the chain wound round his fist as the number climbs (the wind-up the pull pays off),
+  // yanks it, then steps to the rim for a selfie with the empty pool before he strolls off with the bag.
   const d = p.dev;
   d.modeAge += dt;
-  stepSpring(d.grin, d.mode === 'lounging' ? clamp(growth / 3.3, 0, 1) : 1, 3, 0.8, dt);
+  stepSpring(d.lean, d.mode === 'lounging' && running ? leanFor(growth) : 0, 3, 0.7, dt);
+  stepSpring(d.grin, d.mode === 'lounging' ? p.tension : 1, 3, 0.8, dt);
   stepSpring(d.yank, 0, 8, 0.5, dt);
-  if (d.mode === 'standing' && d.modeAge > 0.9) { d.mode = 'leaving'; d.modeAge = 0; }
+  if (d.mode === 'standing' && d.modeAge > 0.9) { d.mode = 'selfie'; d.modeAge = 0; }
+  if (d.mode === 'selfie') {
+    d.x += (DEV_LOUNGER.x - 30 - d.x) * (1 - Math.exp(-dt * 6));
+    stepSpring(d.phone, d.modeAge > 0.15 ? 1 : 0, 9, 0.45, dt);
+    if (d.modeAge >= 0.95 && !d.snapped) { d.snapped = true; d.flash = 1; p.events.shutter = true; }
+    if (d.modeAge > 1.8) { d.mode = 'leaving'; d.modeAge = 0; }
+  } else stepSpring(d.phone, 0, 9, 0.6, dt);
+  d.flash = Math.max(0, d.flash - dt / 0.35);
   if (d.mode === 'leaving') d.x += 150 * dt;
   p.whaleFlash = pool.whale.active && pool.whale.t < 1.5 ? 1 : Math.max(0, p.whaleFlash - dt * 1.5);
+  // The lifeguard sign swings with the breeze and gets knocked by every splash.
+  if (p.events.splash) p.sign.v += (p.events.splash.big ? 2.4 : 1.2) * (p.rng() > 0.5 ? 1 : -1);
+  stepSpring(p.sign, gust(p.time, 2) * 0.05 * (0.3 + p.tension), 6, 0.2, dt);
+  for (const c of p.confetti) {
+    c.age += dt;
+    c.vy += 420 * dt;
+    c.vx *= Math.exp(-1.5 * dt);
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+  }
+  p.confetti = p.confetti.filter((c) => c.age < c.life);
 }
 
 /**
@@ -203,10 +307,11 @@ function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: strin
   ctx.restore();
 }
 
-/** The dev's wrist, where the chain ends. */
+/** The dev's wrist, where the chain ends: it comes up and in as he sits up with the tension. */
 export function devWrist(p: PartyState): { x: number; y: number } {
   const d = p.dev;
-  if (d.mode === 'lounging') return { x: d.x - 34, y: DEV_LOUNGER.y - 28 + d.yank.x * 0 };
+  const lean = clamp(d.lean.x, 0, 1);
+  if (d.mode === 'lounging') return { x: d.x - 36 - 22 * lean, y: DEV_LOUNGER.y - 28 - 34 * lean };
   return { x: d.x - 26, y: DEV_LOUNGER.y - 62 - clamp(d.yank.x, 0, 30) };
 }
 
@@ -286,6 +391,48 @@ function drawLounger(ctx: CanvasRenderingContext2D, x: number, y: number, colour
   for (const dx of [-36, 36]) { ctx.beginPath(); ctx.moveTo(x + dx, y - 4); ctx.lineTo(x + dx, y + 6); ctx.stroke(); }
 }
 
+/** The empty lifeguard chair on the near deck, with its sign swinging under the seat. */
+function drawLifeguardChair(ctx: CanvasRenderingContext2D, p: PartyState): void {
+  const { x, top, seat, foot } = CHAIR;
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // Posts, braces and the little ladder up the right post.
+  ctx.strokeStyle = INK; ctx.lineWidth = 7;
+  for (const dx of [-26, 26]) { ctx.beginPath(); ctx.moveTo(x + dx, foot); ctx.lineTo(x + dx, seat); ctx.stroke(); }
+  ctx.strokeStyle = '#f4f1ea'; ctx.lineWidth = 4;
+  for (const dx of [-26, 26]) { ctx.beginPath(); ctx.moveTo(x + dx, foot); ctx.lineTo(x + dx, seat); ctx.stroke(); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x - 26, foot - 30); ctx.lineTo(x + 26, seat + 40); ctx.moveTo(x + 26, foot - 30); ctx.lineTo(x - 26, seat + 40); ctx.stroke();
+  for (let y = seat + 30; y < foot - 8; y += 16) { ctx.beginPath(); ctx.moveTo(x + 26, y); ctx.lineTo(x + 44, y); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x + 44, seat + 22); ctx.lineTo(x + 44, foot); ctx.stroke();
+  // The seat with its red and white stripe, and the backrest.
+  ctx.fillStyle = '#e63946'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(x - 32, seat - 2, 64, 20, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x - 28, seat + 4, 56, 7);
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.roundRect(x - 30, top, 60, seat - top + 2, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('LIFEGUARD', x, (top + seat) / 2 + 1, 54);
+  // The sign hangs from the seat on two strings and swings about the seat's underside.
+  ctx.translate(x, seat + 18);
+  ctx.rotate(clamp(p.sign.x, -0.35, 0.35));
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-30, 16); ctx.moveTo(22, 0); ctx.lineTo(30, 16); ctx.stroke();
+  ctx.fillStyle = '#fbf8f1'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-38, 16, 76, 34, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e63946';
+  ctx.font = '900 12px Impact, "Arial Black", sans-serif';
+  ctx.fillText('NO LIFEGUARD', 0, 27, 70);
+  ctx.fillStyle = INK;
+  ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+  ctx.fillText('(HE SOLD)', 0, 41, 70);
+  ctx.restore();
+}
+
 export function drawDeckProps(ctx: CanvasRenderingContext2D, p: PartyState, beat: number): void {
   // DJ booth at the back of the pool with pulsing speakers.
   const DJ_X = 485;
@@ -305,9 +452,63 @@ export function drawDeckProps(ctx: CanvasRenderingContext2D, p: PartyState, beat
   drawWojakBust(ctx, DJ_X, POOL.top - 66 + Math.sin(p.time * 8) * 2 * (0.3 + beat), { tone: 0.5, mood: 'smug', shades: 1, scale: 1, spin: 0 }, 1);
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.arc(DJ_X, POOL.top - 88, 13, Math.PI, Math.PI * 2); ctx.stroke();
-  // Loungers: the dev's and the safe one.
+  // Loungers: the dev's and the safe one, and the lifeguard chair nobody is in.
   drawLounger(ctx, DEV_LOUNGER.x, DEV_LOUNGER.y, '#f2c14e');
   drawLounger(ctx, SAFE_LOUNGER.x, SAFE_LOUNGER.y, '#8fd3ff');
+  drawLifeguardChair(ctx, p);
+}
+
+/** The AIRDROP helicopter across the sunset, with a degen in the door, drawn between the sky and the pool. */
+export function drawHelicopter(ctx: CanvasRenderingContext2D, p: PartyState): void {
+  const h = p.heli;
+  if (!h.active) return;
+  const y = HELI.y + Math.sin(p.time * 3) * 3;
+  ctx.save();
+  ctx.translate(h.x, y);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // The banner on a rope off the tail, fluttering.
+  const bx = -128;
+  const flutter = Math.sin(p.time * 9) * 3;
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-62, 0); ctx.quadraticCurveTo(-90, 6, bx + 40, 4 + flutter); ctx.stroke();
+  ctx.fillStyle = '#ffe27a'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(bx - 40, -6 - flutter); ctx.lineTo(bx + 40, -6 + flutter); ctx.lineTo(bx + 40, 14 + flutter); ctx.lineTo(bx - 40, 14 - flutter); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.font = '900 13px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('AIRDROP', bx, 4, 72);
+  // Tail boom and its rotor.
+  ctx.fillStyle = '#2b333b'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-70, -6, 52, 11, 4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-66, -6); ctx.lineTo(-62, -20); ctx.lineTo(-54, -6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 3;
+  const tail = p.motion > 0 ? Math.sin(p.time * 41) : 0.4;
+  ctx.beginPath(); ctx.moveTo(-64, -14 - 10 * tail); ctx.lineTo(-64, -14 + 10 * tail); ctx.stroke();
+  // Skids.
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-30, 30); ctx.lineTo(30, 30); ctx.moveTo(-18, 18); ctx.lineTo(-18, 30); ctx.moveTo(18, 18); ctx.lineTo(18, 30); ctx.stroke();
+  // Body, the open door with a degen leaning out, and the cockpit glass.
+  ctx.fillStyle = '#3b82f6'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(0, 2, 38, 21, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1b1b1f';
+  ctx.beginPath(); ctx.roundRect(-16, -8, 22, 24, 3); ctx.fill(); ctx.stroke();
+  drawWojakBust(ctx, -3, 12, { tone: 0.1, mood: 'smug', shades: 1, scale: 0.7, spin: 0 }, 1);
+  ctx.fillStyle = 'rgba(200, 240, 255, 0.85)';
+  ctx.beginPath(); ctx.ellipse(20, -4, 15, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // Mast and the main rotor: a blurred disc, and the blades when motion is on.
+  ctx.strokeStyle = INK; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, -19); ctx.lineTo(0, -30); ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.beginPath(); ctx.ellipse(0, -30, 62, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  if (p.motion > 0) {
+    const b = Math.cos(p.time * 38);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-62 * b, -30); ctx.lineTo(62 * b, -30); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 export function drawHoldersBehind(ctx: CanvasRenderingContext2D, p: PartyState, pool: PoolState): void {
@@ -321,11 +522,25 @@ export function drawHoldersBehind(ctx: CanvasRenderingContext2D, p: PartyState, 
   void pool;
 }
 
+/** The cash-out confetti, over everything in the yard. */
+export function drawConfetti(ctx: CanvasRenderingContext2D, p: PartyState): void {
+  for (const c of p.confetti) {
+    ctx.globalAlpha = clamp(1.5 * (1 - c.age / c.life), 0, 1);
+    ctx.fillStyle = c.colour;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.spin + c.age * 5);
+    ctx.fillRect(-c.r, -c.r * 0.5, c.r * 2, c.r);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: PoolState, fear: number): void {
   const mood = (f: number): WojakLook['mood'] => (f > 0.62 ? 'panic' : f > 0.25 ? 'nervous' : 'calm');
   for (const h of p.holders) {
     if (h.mode === 'gone') continue;
-    const look: WojakLook = { tone: h.tone, mood: h.mode === 'sucked' ? 'shock' : h.mode === 'puddle' ? 'sad' : h.mode === 'jumping' ? 'smug' : mood(fear), shades: 0, scale: h.scale, spin: h.spin };
+    const look: WojakLook = { tone: h.tone, mood: h.mode === 'sucked' ? 'shock' : h.mode === 'puddle' ? 'sad' : h.mode === 'jumping' ? (h.airdropped ? 'panic' : 'smug') : mood(fear), shades: 0, scale: h.scale, spin: h.spin };
     drawWojakBust(ctx, h.x, h.y - 8, look, h.x > 480 ? -1 : 1);
     if (h.mode === 'puddle') {
       ctx.fillStyle = 'rgba(102, 224, 163, 0.6)';
@@ -347,21 +562,61 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.fillStyle = '#8fd3ff';
     ctx.beginPath(); ctx.roundRect(a.x - 40, a.y - 8, 26, 8, 2); ctx.fill(); ctx.stroke();
   }
-  // The dev: lounging with the chain, then standing to yank it, then strolling off with the bag.
+  // The dev: lounging with the chain (sitting up and trembling as the number climbs), standing to yank it, the
+  // selfie with the empty pool, then strolling off with the bag.
   const d = p.dev;
   const grin = clamp(d.grin.x, 0, 1);
-  const devY = d.mode === 'lounging' ? DEV_LOUNGER.y - 26 : DEV_LOUNGER.y - 44;
-  drawWojakBust(ctx, d.x, devY, { tone: 0.2, mood: d.mode === 'lounging' ? (grin > 0.5 ? 'smug' : 'calm') : 'smug', shades: 1, scale: 1.15, spin: d.mode === 'lounging' ? -0.25 : 0 }, -1);
-  if (d.mode !== 'lounging') {
+  const lean = clamp(d.lean.x, 0, 1);
+  const lounging = d.mode === 'lounging';
+  const tremble = lounging ? lean * lean * smoothstep(0.7, 1, p.tension) * p.motion : 0;
+  const jx = (noise(Math.floor(p.time * 31)) - 0.5) * 4 * tremble;
+  const jy = (noise(Math.floor(p.time * 29) + 7) - 0.5) * 3 * tremble;
+  const devY = (lounging ? DEV_LOUNGER.y - 26 - 20 * lean : DEV_LOUNGER.y - 44) + jy;
+  const selfie = d.mode === 'selfie';
+  drawWojakBust(ctx, d.x + jx, devY, { tone: 0.2, mood: lounging ? (grin > 0.5 ? 'smug' : 'calm') : 'smug', shades: 1, scale: 1.15, spin: lounging ? -0.25 + 0.5 * lean : 0 }, selfie ? 1 : -1);
+  // The fist the chain is wound round.
+  const wrist = devWrist(p);
+  ctx.fillStyle = SKIN; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(wrist.x + jx, wrist.y + jy, 5.5 + 1.5 * lean, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (selfie) {
+    // The bag on the deck, the selfie stick out to the right, and the flash.
+    ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(d.x - 56, devY + 8); ctx.quadraticCurveTo(d.x - 30, devY + 2, d.x - 30, devY + 28); ctx.quadraticCurveTo(d.x - 40, devY + 40, d.x - 54, devY + 30); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7cf67c';
+    ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('$', d.x - 42, devY + 26);
+    const k = clamp(d.phone.x, 0, 1.2);
+    const px = d.x + 18 + 30 * k;
+    const py = devY - 8 - 26 * k;
+    ctx.strokeStyle = INK; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(d.x + 12, devY + 2); ctx.lineTo(px - 4, py + 8); ctx.stroke();
+    ctx.strokeStyle = SKIN; ctx.lineWidth = 5; ctx.stroke();
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(-0.35);
+    ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(-6, -12, 12, 24, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = d.flash > 0.5 ? '#ffffff' : '#8fd3ff';
+    ctx.fillRect(-4, -9, 8, 16);
+    ctx.restore();
+    if (d.flash > 0.02 && p.motion > 0) {
+      const g = ctx.createRadialGradient(px, py, 4, px, py, 110);
+      g.addColorStop(0, `rgba(255, 255, 255, ${0.9 * d.flash * d.flash})`);
+      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(px - 110, py - 110, 220, 220);
+    }
+  } else if (!lounging) {
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(d.x + 14, devY - 2); ctx.quadraticCurveTo(d.x + 40, devY - 8, d.x + 40, devY + 18); ctx.quadraticCurveTo(d.x + 30, devY + 30, d.x + 16, devY + 20); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#7cf67c';
     ctx.font = '900 11px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('$', d.x + 30, devY + 14);
-    // He gloats from the moment the bag is in his hand until his head is off the right edge.
-    if (d.x < 960 + 16) bubble(ctx, d.x - 4, devY - 50, 'thx for the liquidity', clamp((d.mode === 'standing' ? d.modeAge : 1) / 0.2, 0, 1));
   }
+  // He gloats from the moment he is on his feet until his head is off the right edge.
+  if (!lounging && d.x < 960 + 16) bubble(ctx, d.x - 4, devY - 50, selfie ? 'say RUGGED' : 'thx for the liquidity', clamp((d.mode === 'standing' ? d.modeAge : 1) / 0.2, 0, 1));
   if (p.whaleFlash > 0) {
     ctx.globalAlpha = Math.min(1, p.whaleFlash);
     ctx.font = '900 30px Impact, "Arial Black", sans-serif';
@@ -373,5 +628,4 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.fillText('WHALE ALERT', pool.whale.x, pool.level - 90);
     ctx.globalAlpha = 1;
   }
-  void noise;
 }

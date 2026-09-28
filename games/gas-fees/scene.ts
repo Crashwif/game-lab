@@ -2,9 +2,12 @@
  * Composes Gas Fees from the room state: the shaft, the cabin, whoever is
  * in the lobby, the doors, the riders inside, the air, then the HUD. All
  * motion is stepped here with the real frame time, and nothing drawn here
- * changes the committed outcome.
+ * changes the committed outcome. The sound is the shared page audio: lift
+ * muzak that speeds up with the number, cues from the cabin's own events,
+ * and a trombone at the release.
  */
-import { CABIN, type Cabin, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, resetCabin, settleCabin, stepCabin } from './cabin';
+import { pageAudio } from './audio';
+import { CABIN, CAGE_BOX, type Cabin, PPM_ALARMS, PPM_BOX, createCabin, drawCabinBack, drawCabinFront, drawDoors, drawShaft, gasCabin, ppmFor, resetCabin, settleCabin, stepCabin } from './cabin';
 import { clamp, spring, stepSpring } from './motion';
 import { type Box, type Crowd, DOOR, INK, MAX_PERSONS, type Point, type Suit, crashLines, createCrowd, createSuit, depthFloor, depthScale, drawLines, drawPassenger, drawSuit, leaveLift, persons, releaseSuit, resetCrowd, resetSuit, settleCrash, settleCrowd, settleSuit, stepCrowd, stepSuit } from './riders';
 
@@ -24,7 +27,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake and the light flicker. */
+  /** Drops the screen shake, the light flicker, the readout's flashing, the hit-stop and the punch-in. */
   reducedMotion?: boolean;
 }
 
@@ -33,6 +36,12 @@ export interface Scene {
 }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The caption ladder's thresholds, for the milestone dings. */
+const RUNGS = [1.3, 1.7, 2.3, 3.2, 4.8, 6.5, 10, 20];
+/** The release: the picture holds, then the cloud opens in slow motion before time catches up. */
+const FREEZE_S = 0.07;
+const SLOW_S = 0.35;
+const SLOW_RATE = 0.3;
 type Outcome = 'rekt' | 'called' | 'leak';
 type Secured = { x100: number; payout: number | null };
 
@@ -58,19 +67,23 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (multiplier < 3.2) return 'HODL IT IN';
   if (multiplier < 4.8) return 'DIAMOND CHEEKS';
   if (multiplier < 6.5) return 'WHALE ALERT';
-  if (multiplier < 10) return 'SILENT BUT DEADLY';
+  if (multiplier < 10) return 'THE CANARY KNOWS';
   if (multiplier < 20) return 'GAS GAS GAS';
   return 'PRIORITY FEE: MAXIMUM';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
-  const cabin: Cabin = createCabin();
+  const audio = pageAudio({ style: 'elevator', crash: 'trombone' });
+  const cabin: Cabin = createCabin(reduced ? 0 : 1);
   const crowd: Crowd = createCrowd();
   const suit: Suit = createSuit();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch toward the suit at the release. */
+  const punch = spring(0);
+  let punchAt: Point = { x: 480, y: 300 };
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -78,6 +91,12 @@ export function createScene(options: SceneOptions = {}): Scene {
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
+  let freeze = 0;
+  let slow = 0;
+  let notches = 0;
+  let alarms = 0;
+  let gasped = false;
+  let whistled = false;
 
   function suitOrigin(): Point {
     if (suit.mode === 'gone' || suit.mode === 'leaving') return { x: DOOR.x, y: DOOR.y - 10 };
@@ -86,15 +105,27 @@ export function createScene(options: SceneOptions = {}): Scene {
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the cloud opens slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) audio.cashout();
+    }
 
     const first = previous === null;
     if (first) {
@@ -106,7 +137,9 @@ export function createScene(options: SceneOptions = {}): Scene {
         // the suit go straight to what the multiplier and the bet call for, with nothing replayed on the way.
         settleCrowd(crowd, multiplier);
         settleSuit(suit, tension, crowd.squeeze.x, secured !== null);
-        settleCabin(cabin, running, tension);
+        settleCabin(cabin, running, tension, multiplier);
+        notches = Math.floor(tension * 5);
+        alarms = PPM_ALARMS.filter((a) => ppmFor(multiplier) >= a).length;
         if (secured) badge.x = 1;
       }
     }
@@ -118,8 +151,24 @@ export function createScene(options: SceneOptions = {}): Scene {
         const origin = suitOrigin();
         releaseSuit(suit, quiet);
         gasCabin(cabin, view.currentX100, origin, quiet);
-        if (quiet) { pop.x = 1; settleCrash(crowd); }
-        else { shake = 1; pop.v = 16; crashLines(crowd, view.currentX100); }
+        if (quiet) {
+          pop.x = 1;
+          settleCrash(crowd);
+          gasped = whistled = true;
+          audio.crash('trombone', true);
+        } else {
+          shake = 1;
+          pop.v = 16;
+          punch.v = 8;
+          punchAt = origin;
+          if (!reduced) {
+            freeze = FREEZE_S;
+            slow = SLOW_S;
+          }
+          crashLines(crowd, view.currentX100);
+          audio.crash('trombone');
+          audio.fx('hiss', 1);
+        }
       }
       if (view.phase === 'betting') {
         resetCabin(cabin);
@@ -127,21 +176,42 @@ export function createScene(options: SceneOptions = {}): Scene {
         resetSuit(suit);
         outcome = null;
         secured = null;
+        freeze = slow = 0;
+        notches = 0;
+        alarms = 0;
+        gasped = whistled = false;
       }
       previous = view.phase;
     }
     const wasLeaving = suit.mode === 'leaving' || suit.mode === 'gone';
     if (secured && running) leaveLift(suit);
+    audio.update(view.phase, tension);
 
     stepCrowd(crowd, { running, multiplier, tension, suitX: suit.x, gassed: cabin.gassed, gasAge: cabin.gasAge }, dt);
     stepSuit(suit, { running, tension, squeeze: clamp(crowd.squeeze.x, 0, 1) }, dt);
     const justLeft = !wasLeaving && suit.mode === 'leaving';
     const suitDoors = suit.mode === 'leaving' || (suit.mode === 'gone' && suit.modeAge < 1.3);
     const doorsOpen = !running && !crashed ? true : crowd.doorTimer > 0 || suitDoors;
-    stepCabin(cabin, { running, tension, doorsOpen, arrived: crowd.events.arrived !== null || justLeft, reduced }, dt);
+    stepCabin(cabin, { running, tension, multiplier, doorsOpen, arrived: crowd.events.arrived !== null || justLeft, reduced }, dt);
     if ((crowd.events.arrived || justLeft) && !reduced) shake = Math.max(shake, 0.25);
+    // Cues from the cabin's own events: the bell, the cable, the readout's alarm, the release and its aftermath.
+    if (crowd.events.arrived) audio.fx('bell', 0.8);
+    if (justLeft) { audio.fx('bell', 1); audio.fx('door', 0.8); }
+    if (running) {
+      const notch = Math.floor(tension * 5);
+      if (notch > notches) audio.fx('creak', 0.4 + 0.5 * tension);
+      notches = Math.max(notches, notch);
+      const alarm = PPM_ALARMS.filter((a) => ppmFor(multiplier) >= a).length;
+      if (alarm > alarms) audio.fx('beep', 0.55 + 0.2 * alarm);
+      alarms = Math.max(alarms, alarm);
+      audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    }
+    if (cabin.events.canaryDrop) audio.fx('thud', 0.35);
+    if (cabin.gassed && !gasped && cabin.gasAge > 0.4) { gasped = true; audio.fx('gasp', 0.9); }
+    if (suit.mode === 'released' && !whistled && suit.modeAge > 0.9) { whistled = true; audio.fx('whistle', 0.7); }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -152,6 +222,13 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the culprit and eases back out.
+      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      ctx.translate(punchAt.x, punchAt.y);
+      ctx.scale(k, k);
+      ctx.translate(-punchAt.x, -punchAt.y);
+    }
     drawShaft(ctx, cabin);
     drawCabinBack(ctx, cabin);
     // Whoever is still in the lobby: arriving passengers and the suit once he is out.
@@ -160,8 +237,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const p of crowd.list) if (p.depth > 1) drawPassenger(ctx, p, suit.x, time);
     if (suit.depth > 1) drawSuit(ctx, suit, time);
     ctx.restore();
-    const indicator = crashed ? 'DUMPED' : running ? `${multiplier.toFixed(2)}× UP` : 'GOING UP?';
-    drawDoors(ctx, cabin, indicator, crashed, persons(crowd) - (suit.mode === 'gone' ? 1 : 0), MAX_PERSONS);
+    const yourFloor = secured !== null && suitDoors;
+    const indicator = crashed ? 'DUMPED' : yourFloor ? 'YOUR FLOOR' : running ? `${multiplier.toFixed(2)}× UP` : 'GOING UP?';
+    drawDoors(ctx, cabin, indicator, crashed, persons(crowd) - (suit.mode === 'gone' ? 1 : 0), MAX_PERSONS, yourFloor);
     ctx.save();
     ctx.translate(0, cabin.bounce.x);
     const inside = crowd.list.filter((p) => p.depth <= 1).map((p) => ({ depth: p.depth, draw: () => drawPassenger(ctx, p, suit.x, time) }));
@@ -173,17 +251,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The bubbles keep out from under the outcome stamp at rest: six slices of it, each as high as the tilt has it there.
     const stamp = outcome === 'rekt' ? 'RIPPED' : outcome === 'called' ? 'CROP DUSTED' : 'GAS LEAK';
     const stampSize = outcome === 'called' ? 78 : 96;
-    const stampBoxes: Box[] = [];
+    const avoid: Box[] = [{ ...CAGE_BOX, y: CAGE_BOX.y + cabin.bounce.x }, { ...PPM_BOX, y: PPM_BOX.y + cabin.bounce.x }];
     if (outcome) {
       ctx.font = `900 ${stampSize}px ${MEME_FONT}`;
       const half = ctx.measureText(stamp).width / 2 + 6;
       for (let i = 0; i < 6; i += 1) {
         const u = -half + (i + 0.5) * (half / 3);
         const y = 290 - u * Math.sin(0.1);
-        stampBoxes.push({ x: 480 + u - half / 6, y: y - stampSize * 0.8 - 8 - (half / 6) * Math.sin(0.1), w: half / 3, h: stampSize * 0.9 + 16 });
+        avoid.push({ x: 480 + u - half / 6, y: y - stampSize * 0.8 - 8 - (half / 6) * Math.sin(0.1), w: half / 3, h: stampSize * 0.9 + 16 });
       }
     }
-    drawLines(ctx, crowd, suit, cabin.bounce.x, { left: CABIN.left + 6, right: CABIN.right - 6, top: 96 }, stampBoxes);
+    drawLines(ctx, crowd, suit, cabin.bounce.x, { left: CABIN.left + 6, right: CABIN.right - 6, top: 96 }, avoid);
     if (outcome && pop.x > 0.02) {
       ctx.save();
       ctx.translate(480, 290);

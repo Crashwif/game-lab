@@ -1,12 +1,15 @@
 /**
- * Composes Exit Liquidity from the room state: the sunset yard, the pool
- * and its water, the party, the dev and his chain, the rug pull, then the
- * HUD. All motion is stepped here with the real frame time, and nothing
- * drawn here changes the committed outcome.
+ * Composes Exit Liquidity from the room state: the sunset yard, the
+ * helicopter, the pool and its water, the party, the dev and his chain, the
+ * rug pull, then the HUD. All motion is stepped here with the real frame
+ * time, and nothing drawn here changes the committed outcome. The sound is
+ * the shared page audio: a eurodance set from the LP booth that tightens
+ * with the number, cues from the party's own events, and a splash stinger.
  */
+import { pageAudio } from './audio';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
-import { type PartyState, createParty, devWrist, drawDeckProps, drawFigures, drawHoldersBehind, leavePool, resetParty, rugPulled, settleParty, stepParty } from './party';
-import { INK, POOL, type PoolState, createPool, drawPoolBack, drawPoolFront, drawWater, pullPlug, resetPool, settlePool, stepPool } from './pool';
+import { type PartyState, airdrop, celebrate, createParty, devWrist, devYank, drawConfetti, drawDeckProps, drawFigures, drawHelicopter, drawHoldersBehind, leavePool, resetParty, rugPulled, settleParty, stepParty } from './party';
+import { DRAIN, INK, POOL, type PoolState, createPool, drawPoolBack, drawPoolFront, drawWater, pullPlug, resetPool, settlePool, stepPool } from './pool';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -24,7 +27,7 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake and flicker. */
+  /** Drops the screen shake, the hit-stop, the punch-in, the dev's tremble and the camera flash. */
   reducedMotion?: boolean;
 }
 
@@ -39,6 +42,14 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 const READOUT_X = 930;
 const READOUT_MAX = 300;
 const CAPTION_X = 430;
+/** The caption ladder's thresholds: the milestone dings, and from the third the helicopter's passes. */
+const RUNGS = [1.3, 1.6, 2.5, 4, 6, 10, 20];
+const AIRDROP_FROM = 3;
+/** The rug pull's choreography: the dev yanks, the plug holds for a fuse, then the picture freezes and runs slow. */
+const FUSE_S = 0.16;
+const FREEZE_S = 0.07;
+const SLOW_S = 0.4;
+const SLOW_RATE = 0.3;
 type Outcome = 'rekt' | 'called' | 'rugged';
 type Secured = { x100: number; payout: number | null };
 
@@ -67,7 +78,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (multiplier < 1.3) return 'CANNONBALL, DEGENS';
   if (multiplier < 1.6) return 'THE WATER IS FINE';
   if (multiplier < 2.5) return 'WHO PEED IN THE LP';
-  if (multiplier < 4) return 'WAGMI';
+  if (multiplier < 4) return 'AIRDROP INCOMING';
   if (multiplier < 6) return 'DEV IS SMILING';
   if (multiplier < 10) return 'A WHALE GOT IN';
   if (multiplier < 20) return 'WHY IS THE CHAIN TAUT';
@@ -154,11 +165,14 @@ function drawYard(ctx: CanvasRenderingContext2D, time: number): void {
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  const audio = pageAudio({ style: 'eurodance', crash: 'splash' });
   const pool: PoolState = createPool();
-  const party: PartyState = createParty();
+  const party: PartyState = createParty(reduced ? 0 : 1);
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  /** The camera's punch toward the drain. */
+  const punch = spring(0);
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -167,17 +181,61 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let round = 1;
+  /** Seconds until the plug gives after the dev's yank; -1 with no pull under way. */
+  let fuse = -1;
+  let freeze = 0;
+  let slow = 0;
+  let rung = 0;
+  let notches = 0;
+  let whaleUp = false;
+  let glugAt = 0;
+
+  /** The plug comes out: the drain, the outcome, the stamp, and (loud) the shake, the hit-stop, the punch-in and the stinger. */
+  function rug(view: SceneView, ending: Outcome, quiet: boolean): void {
+    pullPlug(pool, view.currentX100, quiet);
+    outcome = ending;
+    rugPulled(party, quiet);
+    if (quiet) {
+      pop.x = 1;
+      audio.crash('splash', true);
+      return;
+    }
+    shake = 1;
+    pop.v = 16;
+    punch.v = 8;
+    if (!reduced) {
+      freeze = FREEZE_S;
+      slow = SLOW_S;
+    }
+    audio.crash('splash');
+  }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The hit-stop holds the picture for a few frames, then the drain opens in slow motion before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) {
+        audio.cashout();
+        celebrate(party, party.avatar.x, party.avatar.y - 30);
+      }
+    }
     const ending: Outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
 
     // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
@@ -190,24 +248,23 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (running || crashed) {
         settlePool(pool, growth);
         settleParty(party, pool, growth, secured !== null);
+        rung = RUNGS.filter((r) => multiplier >= r).length;
+        notches = Math.floor(tension * 4);
       }
-      if (crashed) {
-        pullPlug(pool, view.currentX100, true);
-        rugPulled(party, true);
-        outcome = ending;
-        pop.x = 1;
-      }
+      if (crashed) rug(view, ending, true);
       settleSpring(badge, secured ? 1 : 0);
     } else if (view.phase !== previous) {
-      if (crashed && !pool.draining) {
+      if (crashed && !pool.draining && fuse < 0) {
         const quiet = view.crashAge > 1500;
         // An exit that landed with the crash, before a running frame saw it, still gets out.
         if (secured) leavePool(party);
-        pullPlug(pool, view.currentX100, quiet);
-        outcome = ending;
-        rugPulled(party, quiet);
-        if (quiet) pop.x = 1;
-        else { shake = 1; pop.v = 16; }
+        if (quiet) rug(view, ending, true);
+        else {
+          // The dev is on his feet and yanking; the plug gives a few frames later.
+          devYank(party);
+          fuse = FUSE_S;
+          audio.fx('yeet', 1);
+        }
       }
       if (view.phase === 'betting') {
         round += 1;
@@ -215,16 +272,51 @@ export function createScene(options: SceneOptions = {}): Scene {
         resetParty(party, round * 977);
         outcome = null;
         secured = null;
+        fuse = -1;
+        freeze = slow = 0;
+        rung = 0;
+        notches = 0;
+        whaleUp = false;
       }
       previous = view.phase;
     }
+    if (fuse >= 0) {
+      fuse -= real;
+      if (fuse < 0 && !pool.draining) rug(view, ending, false);
+    }
     if (secured && running) leavePool(party);
+    audio.update(view.phase, tension);
 
     stepPool(pool, growth, running, dt);
     stepParty(party, pool, growth, running, fear, dt);
-    if (party.events.splash && !reduced) shake = Math.max(shake, 0.12);
+    // Cues from the party's own events: landings, the helicopter, the whale, the chain, the drain and the selfie.
+    if (party.events.splash) {
+      if (!reduced) shake = Math.max(shake, party.events.splash.big ? 0.2 : 0.12);
+      if (running) audio.fx('splash', party.events.splash.big ? 1 : 0.6);
+    }
+    if (party.events.heli) audio.fx('whoosh', 0.9);
+    if (party.events.drop) audio.fx('scream', 0.7);
+    if (party.events.shutter) audio.fx('camera', 1);
+    if (running) {
+      const index = RUNGS.filter((r) => multiplier >= r).length;
+      audio.milestone(index);
+      if (index > rung) {
+        if (index >= AIRDROP_FROM) airdrop(party);
+        rung = index;
+      }
+      const notch = Math.floor(tension * 4);
+      if (notch > notches) audio.fx('creak', 0.5 + 0.4 * tension);
+      notches = Math.max(notches, notch);
+      if (pool.whale.active && !whaleUp) audio.fx('airhorn', 0.7);
+      whaleUp = pool.whale.active;
+    }
+    if (pool.draining && pool.drained < 1 && pool.drainAge < 3 && time > glugAt) {
+      glugAt = time + 0.38;
+      audio.fx('glug', 0.6 + 0.4 * (1 - pool.drained));
+    }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
+    stepSpring(punch, 0, 9, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -236,13 +328,22 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (!reduced && punch.x > 0.005) {
+      // The camera punches in on the drain and eases back out.
+      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      ctx.translate(DRAIN.x, pool.level);
+      ctx.scale(k, k);
+      ctx.translate(-DRAIN.x, -pool.level);
+    }
     drawYard(ctx, time);
+    drawHelicopter(ctx, party);
     drawPoolBack(ctx);
     drawHoldersBehind(ctx, party, pool);
     drawWater(ctx, pool);
     drawDeckProps(ctx, party, beat);
     drawPoolFront(ctx, pool, devWrist(party));
     drawFigures(ctx, party, pool, fear);
+    drawConfetti(ctx, party);
     if (outcome && pop.x > 0.02) {
       ctx.save();
       ctx.translate(480, 250);
