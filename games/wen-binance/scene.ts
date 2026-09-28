@@ -142,8 +142,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      const text = outcome === 'rekt' ? 'DELISTED' : outcome === 'called' ? 'CALLED IT' : 'LISTED';
-      memeText(ctx, text, 0, 0, 92, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      const text = outcome === 'called' ? 'CALLED IT' : 'DELISTED';
+      memeText(ctx, text, 0, 0, 92, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center');
       ctx.restore();
     }
     ctx.restore();

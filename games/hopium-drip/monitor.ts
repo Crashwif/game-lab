@@ -184,7 +184,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
     ctx.font = '900 30px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
     ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeText('FLATLINE', TRACE.x + TRACE.w / 2, TRACE.y + 44);
     ctx.fillStyle = '#ff4d6d'; ctx.fillText('FLATLINE', TRACE.x + TRACE.w / 2, TRACE.y + 44);
-    label(ctx, 'beeeeeeeeeeeeeeeeeeeeeeeeeeeeep', TRACE.x + TRACE.w / 2, TRACE.y + TRACE.h - 10, 10, '#ff9db0', 'center', true);
+    label(ctx, 'beeeeep', TRACE.x + TRACE.w / 2, TRACE.y + TRACE.h - 16, 12, '#ff9db0', 'center', true);
   }
   // Scanline flicker.
   if (!reduced) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(TRACE.x, TRACE.y + ((m.time * 60) % TRACE.h), TRACE.w, 3); }

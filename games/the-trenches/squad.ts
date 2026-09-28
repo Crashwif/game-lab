@@ -390,13 +390,14 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
       ctx.fillText('SURVIVED THE TRENCHES', f.x, TRENCH_FLOOR + 37);
       if (Math.abs(f.clang.v) > 4) { ctx.fillStyle = '#ffffff'; ctx.font = '900 16px Impact, "Arial Black", sans-serif'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText('CLANG', f.x + 40, TRENCH_FLOOR - 74); ctx.fillText('CLANG', f.x + 40, TRENCH_FLOOR - 74); }
     } else if (f.mode === 'dead' && settled) {
-      drawFrog(ctx, f.x - 30, TRENCH_FLOOR + 34, 0.9, { stride: 0.5, squash: 0, expression: 'dead', shades: false, cigar: false, bag: false, helmetLift: 0, lying: true });
+      drawFrog(ctx, f.x - 30, TRENCH_FLOOR - 8, 0.9, { stride: 0.5, squash: 0, expression: 'dead', shades: false, cigar: false, bag: false, helmetLift: 0, lying: true });
       if (yours) { ctx.fillStyle = '#ff4d6d'; ctx.font = '900 14px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText('KIA', f.x + 10, TRENCH_FLOOR + 2); ctx.fillText('KIA', f.x + 10, TRENCH_FLOOR + 2); }
     }
   }
   // The sergeant and the field phone on the right.
   const sx = 880;
-  drawFrog(ctx, sx, TRENCH_FLOOR + 8, 1.05, { stride: s.dead ? 0 : s.time * 1.3, squash: 0, expression: s.dead ? (s.deadAge > 1.05 ? 'dead' : 'shock') : tension > 0.6 ? 'shock' : 'grit', shades: false, cigar: !s.dead, bag: false, helmetLift: 0, lying: s.dead && s.deadAge > 1.05, whistle: s.whistle.x > 0.15 && !s.dead, time: s.time });
+  const sergeantDown = s.dead && s.deadAge > 1.05;
+  drawFrog(ctx, sx, sergeantDown ? TRENCH_FLOOR - 14 : TRENCH_FLOOR + 8, 1.05, { stride: s.dead ? 0 : s.time * 1.3, squash: 0, expression: s.dead ? (sergeantDown ? 'dead' : 'shock') : tension > 0.6 ? 'shock' : 'grit', shades: false, cigar: !s.dead, bag: false, helmetLift: 0, lying: sergeantDown, whistle: s.whistle.x > 0.15 && !s.dead, time: s.time });
   ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sx - 34, TRENCH_FLOOR - 40); ctx.lineTo(sx - 20, TRENCH_FLOOR - 44); ctx.lineTo(sx - 20, TRENCH_FLOOR - 34); ctx.lineTo(sx - 34, TRENCH_FLOOR - 32); ctx.closePath(); ctx.fill(); ctx.stroke();
   const px = 800;

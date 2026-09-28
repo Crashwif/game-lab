@@ -261,14 +261,14 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     ctx.fill();
     ctx.stroke();
     const sign = { x, y: y - 28 };
-    const crowded = sign.x < 90 || sign.x > 600 || signs.some((other) => Math.hypot(other.x - sign.x, other.y - sign.y) < 48);
+    const crowded = sign.x < 150 || sign.x > 590 || signs.some((other) => Math.hypot(other.x - sign.x, other.y - sign.y) < 56);
     if (i % 7 === 0 && !crowded) signs.push(sign);
   }
   for (const sign of signs) {
     ctx.fillStyle = crashed ? '#ff4d6d' : '#f7f4ea';
     ink(ctx, 1.5);
     ctx.beginPath();
-    ctx.roundRect(sign.x - 20, sign.y - 2, 40, 14, 3);
+    ctx.roundRect(sign.x - 28, sign.y - 2, 56, 14, 3);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = INK;
