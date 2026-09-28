@@ -8,6 +8,8 @@ const CORAL = '#ed6174';
 export interface SleeperPose {
   time: number;
   beat: number;
+  /** The quilt's spring displacement from its resting height. */
+  lift: number;
   tension: number;
   active: boolean;
   finished: boolean;
@@ -15,6 +17,9 @@ export interface SleeperPose {
   /** 0..1: how hard the champ shakes near the top (already 0 under reduced motion). */
   tremble: number;
 }
+
+/** Heads and the quilt's shoulder tucks rise and settle together. */
+export const sleeperBob = (pose: SleeperPose, partner: boolean): number => -pose.lift * (partner ? 14 : 10);
 
 function pillow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number): void {
   ctx.save();
@@ -37,15 +42,14 @@ function sweat(ctx: CanvasRenderingContext2D, x: number, y: number, size: number
 }
 
 function head(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean): void {
-  const beat = Math.sin(pose.beat + (partner ? 0.7 : 0));
-  const bob = pose.active ? beat * (1.5 + pose.tension * 3) : Math.sin(pose.time * 1.4) * 0.5;
+  const bob = sleeperBob(pose, partner);
   // The champ trembles near the top: a small hash jitter, the wind-up the finish pays off.
   const tremble = partner ? 0 : pose.tremble;
   const jx = (noise(Math.floor(pose.time * 31)) - 0.5) * 4 * tremble;
   const jy = (noise(Math.floor(pose.time * 29) + 7) - 0.5) * 3 * tremble;
   ctx.save();
-  ctx.translate((partner ? 334 : 271) + jx, (partner ? 295 : 324) + bob + pose.rest * 7 + jy);
-  ctx.rotate((partner ? 0.13 : -0.13) + (pose.active ? beat * 0.035 : 0) + pose.rest * (partner ? 0.1 : -0.16));
+  ctx.translate((partner ? 334 : 271) + jx, (partner ? 295 : 324) + bob + jy);
+  ctx.rotate((partner ? 0.13 : -0.13) + pose.lift * (partner ? -0.07 : 0.05) + pose.rest * (partner ? 0.1 : -0.16));
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2.8; ctx.strokeStyle = INK;
   const skin = partner ? PARTNER_SKIN : SKIN;
   // A bun and a little hair silhouette distinguish the partner at small sizes.
@@ -140,24 +144,45 @@ export function drawSleepers(ctx: CanvasRenderingContext2D, pose: SleeperPose): 
   head(ctx, pose, false);
 }
 
-function foot(ctx: CanvasRenderingContext2D, pose: SleeperPose, x: number, y: number, index: number, sock: boolean): void {
-  const beat = Math.sin(pose.beat + index * 0.85);
-  const kick = pose.active ? Math.max(0, beat) * (3 + pose.tension * 9) : 0;
+export interface SleeperFoot {
+  x: number;
+  y: number;
+  angle: number;
+  kick: number;
+  sock: boolean;
+  /** The quilt meets the ankle here, using the same transform as the foot. */
+  tuck: { x: number; y: number };
+}
+
+export function sleeperFeet(pose: SleeperPose): SleeperFoot[] {
+  return ([[645, 326, true], [680, 338, true], [670, 359, false], [711, 371, false]] as const).map(([x, y, sock], index) => {
+    const beat = Math.sin(pose.beat + (index % 2) * 0.35);
+    const kick = Math.max(0, pose.lift) * (5 + pose.tension * 5);
+    const angle = -0.12 + (pose.active ? beat * (0.07 + pose.tension * 0.12) : 0) + pose.rest * 0.55;
+    const footY = y - pose.lift * 6 - kick + pose.rest * 5;
+    return {
+      x, y: footY, angle, kick, sock,
+      tuck: { x: x - 14 * Math.cos(angle) + 8 * Math.sin(angle), y: footY - 14 * Math.sin(angle) - 8 * Math.cos(angle) },
+    };
+  });
+}
+
+function foot(ctx: CanvasRenderingContext2D, { x, y, angle, kick, sock }: SleeperFoot): void {
   ctx.save();
-  ctx.translate(x, y - kick + pose.rest * 5);
-  ctx.rotate(-0.12 + (pose.active ? beat * (0.07 + pose.tension * 0.12) : 0) + pose.rest * 0.55);
+  ctx.translate(x, y);
+  ctx.rotate(angle);
   ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.fillStyle = sock ? CORAL : PARTNER_SKIN;
   // An ankle, heel, arch and an upturned toe: a foot silhouette, not an oval.
-  ctx.beginPath(); ctx.moveTo(-36, -5); ctx.lineTo(-12, -5);
+  ctx.beginPath(); ctx.moveTo(-18, -5); ctx.lineTo(-12, -5);
   ctx.bezierCurveTo(-7, -12, -9, -26, -3, -32);
   ctx.bezierCurveTo(2, -40, 16, -37, 18, -29);
   ctx.bezierCurveTo(24, -12, 17, 8, 8, 11);
-  ctx.quadraticCurveTo(-4, 15, -13, 7); ctx.lineTo(-36, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.quadraticCurveTo(-4, 15, -13, 7); ctx.lineTo(-18, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
   if (sock) {
     ctx.save(); ctx.clip();
     ctx.fillStyle = '#fff3df';
-    ctx.fillRect(-30, -10, 5, 24); ctx.fillRect(-21, -10, 5, 24);
+    ctx.fillRect(-17, -10, 3, 24); ctx.fillRect(-10, -10, 3, 24);
     ctx.fillStyle = '#b33859';
     ctx.beginPath(); ctx.ellipse(7, -32, 13, 8, 0.15, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(10, 7, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
@@ -174,18 +199,15 @@ function foot(ctx: CanvasRenderingContext2D, pose: SleeperPose, x: number, y: nu
     ctx.beginPath(); ctx.moveTo(8, -14); ctx.quadraticCurveTo(3, -4, 4, 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-9, 3); ctx.quadraticCurveTo(-3, 1, 0, 5); ctx.stroke();
   }
-  if (pose.active && kick > 6) {
+  if (kick > 6) {
     ctx.strokeStyle = '#fff0c4'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(25, -25); ctx.lineTo(32, -30); ctx.moveTo(28, -15); ctx.lineTo(37, -17); ctx.stroke();
   }
   ctx.restore();
 }
 
-export function drawFeet(ctx: CanvasRenderingContext2D, pose: SleeperPose): void {
-  foot(ctx, pose, 645, 326, 0, true);
-  foot(ctx, pose, 680, 338, 1, true);
-  foot(ctx, pose, 670, 359, 2, false);
-  foot(ctx, pose, 711, 371, 3, false);
+export function drawFeet(ctx: CanvasRenderingContext2D, feet: SleeperFoot[]): void {
+  for (const pose of feet) foot(ctx, pose);
 }
 
 /** A small in-world punchline that leaves the faces unobscured. */

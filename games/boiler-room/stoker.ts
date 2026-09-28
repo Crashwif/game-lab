@@ -336,6 +336,11 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
     ctx.fillStyle = '#3b2a1e'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.roundRect(foot.x - 12, foot.y - 6, 34, 12, [5, 7, 7, 5]); ctx.fill(); ctx.stroke();
   }
+  function hand(point: Point, radius: number, colour: string) {
+    ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = colour; ctx.fill();
+  }
   // Legs, boots, back arm target decided by the mode.
   limb({ x: hip.x - 8, y: hip.y }, footL, 50, 50, -1, 22, '#2f343d');
   boot(footL);
@@ -373,6 +378,8 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
   }
   const backShoulder = { x: shoulder.x - 10, y: shoulder.y + 6 };
   limb(backShoulder, backHand, 56, 60, 1, 15, SKIN_SHADE);
+  // Keep the back hand behind the body, with its arm.
+  hand(backHand, 8.5, SKIN_SHADE);
   // Torso, shirt and braces.
   segment(hip, shoulder, 58, INK);
   segment({ x: hip.x + (shoulder.x - hip.x) * 0.05, y: hip.y + (shoulder.y - hip.y) * 0.05 }, shoulder, 52, SHIRT);
@@ -460,11 +467,7 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
   const elbow = limb(frontShoulder, frontHand, 56, 60, 1, 17, SKIN);
   segment(frontShoulder, lerp(frontShoulder, elbow, 0.3), 24, INK);
   segment(frontShoulder, lerp(frontShoulder, elbow, 0.3), 20, SHIRT);
-  for (const [hand, r, colour] of [[backHand, 8.5, SKIN_SHADE], [frontHand, 9.5, SKIN]] as const) {
-    ctx.beginPath(); ctx.arc(hand.x, hand.y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = colour; ctx.fill();
-  }
+  hand(frontHand, 9.5, SKIN);
   ctx.restore();
   void toWorld;
 }
