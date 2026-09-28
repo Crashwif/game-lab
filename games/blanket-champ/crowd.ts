@@ -8,7 +8,7 @@
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
 
 const INK = '#1c1f26';
-const SIGNS = ['HODL', 'DIAMOND HANDS', "DON'T PULL OUT EARLY", 'WAGMI', 'GM CHAMP', 'LFG', 'NUMBER GO UP', 'BUILT DIFFERENT'];
+const SIGNS = ['LONG ONLY', 'HARD CAP', "DON'T PULL OUT EARLY", 'BLOW-OFF TOP', 'GM CHAMP', 'DEEP LIQUIDITY', 'UP ONLY', 'NO SOFT RUGS'];
 const ROWS = [{ y: 262, scale: 1, count: 12 }, { y: 218, scale: 0.86, count: 13 }, { y: 180, scale: 0.74, count: 14 }];
 export const SUPPORTER = { row: 0, index: 5 };
 const BOOKIE_X = 904;

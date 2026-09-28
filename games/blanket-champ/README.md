@@ -4,7 +4,7 @@ A stamina crash game starring a couple tucked under a quilt. Two expressive head
 
 - `motion.ts`: the shared toolkit: exact damped springs, easing, deterministic noise, a seeded generator.
 - `room.ts`: the bedroom, quilt with moving seams and a hanging hem, character layering, connected headboard grip, lamp, glass, cat, fist, cracks, buckling legs, the finish, puffs and confetti.
-- `sleepers.ts`: pillows, expressive faces, sweatband, sweat drops, staggered socked and bare-foot kicks, and changing speech bubbles ("socks stay ON.", "bro is buffering", "gg. need a nap.").
+- `sleepers.ts`: pillows, expressive faces, sweatband, sweat drops, staggered socked and bare-foot kicks, and changing speech bubbles ("socks stay ON.", "bro is buffering", "was that it?").
 - `crowd.ts`: the bleachers, the fans (bob, wave, hype, sulk), your supporter's walk to the bookie, the bookie and the bag, the commentary booth.
 - `scene.ts`: composition, the fire brigade, the HUD (captions, commentary line, multiplier, stamina clock, the secured badge) and the round-phase logic.
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.

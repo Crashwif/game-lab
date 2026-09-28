@@ -49,13 +49,13 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM PATRIOTS';
   if (secured) return 'LEFT EARLY';
   if (multiplier < 1.35) return 'MAKE BAGS GREAT AGAIN';
-  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 1.9) return 'FOR THE UNBANKED';
   if (multiplier < 2.8) return "THE PEOPLE'S COIN";
-  if (multiplier < 4.2) return 'HODL';
-  if (multiplier < 6.5) return 'DIAMOND HANDS';
+  if (multiplier < 4.2) return 'COUSIN BOUGHT EARLY';
+  if (multiplier < 6.5) return 'NOT INSIDER TRADING';
   if (multiplier < 10) return 'INSIDERS PENDING';
   if (multiplier < 16) return 'IS THAT A HELICOPTER';
-  return 'THIS IS FINE';
+  return 'THE HELICOPTER IS RUNNING';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

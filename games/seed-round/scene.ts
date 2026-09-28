@@ -57,13 +57,13 @@ function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured
   if (event) return event;
   if (m < 1.3) return 'FAIR LAUNCH';
   if (m < 1.8) return 'SWIM FASTER';
-  if (m < 2.4) return 'NUMBER GO UP';
-  if (m < 3.3) return 'HODL';
+  if (m < 2.4) return 'RAW DOGGING THE CHART';
+  if (m < 3.3) return 'NO PULLING OUT';
   if (m < 4.6) return 'DIAMOND TAILS';
   if (m < 6.9) return 'KING OF THE HILL';
   if (m < 7.3) return 'NICE';
   if (m < 10) return 'WEN EGG';
-  return 'THIS IS FINE';
+  return 'THE EGG IS BIDDING';
 }
 
 function popFor(outcome: Outcome, crashX100: number): [string, string] {

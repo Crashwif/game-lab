@@ -8,14 +8,14 @@ import { clamp } from './motion';
 export const INK = '#1c1f26';
 
 export const ROWS: { name: string; salt: number; pending: number }[] = [
-  { name: 'INSIDER 1', salt: 1.15, pending: 0.28 },
-  { name: 'INSIDER 2', salt: 1.4, pending: 0.34 },
-  { name: 'INSIDER 3', salt: 1.7, pending: 0.4 },
-  { name: 'INSIDER 4', salt: 2.05, pending: 0.48 },
-  { name: 'INSIDER 5', salt: 2.4, pending: 0.54 },
-  { name: 'INSIDER 6', salt: 2.9, pending: 0.6 },
-  { name: 'INSIDER 7', salt: 3.4, pending: 0.66 },
-  { name: 'INSIDER 8', salt: 4.1, pending: 0.72 },
+  { name: 'COUSIN', salt: 1.15, pending: 0.28 },
+  { name: 'DONOR #1', salt: 1.4, pending: 0.34 },
+  { name: 'GOLF BUDDY', salt: 1.7, pending: 0.4 },
+  { name: 'LOBBYIST', salt: 2.05, pending: 0.48 },
+  { name: 'BARBER', salt: 2.4, pending: 0.54 },
+  { name: 'DOG WALKER', salt: 2.9, pending: 0.6 },
+  { name: 'ANON.SOL', salt: 3.4, pending: 0.66 },
+  { name: 'TREASURER', salt: 4.1, pending: 0.72 },
 ];
 
 export function rowBalance(multiplier: number, salt: number): number {

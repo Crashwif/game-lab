@@ -12,8 +12,8 @@ import { INK, VIDEO } from './stream';
 export const PANEL = { x: 620, y: 0, w: 340, h: 540 } as const;
 export const ROW_Y = 528;
 const NAMES = ['xX_simp_Xx', 'wagmi_wojak', 'diamond_dan', 'sol_maxi', 'bagholder69', 'gm_andy', 'trench_tom', 'exit_liq', 'moon_boi', 'paper_pete', 'chad_not', 'ser_hodl'];
-const LINES = ['queen <3', 'take my money', 'wen reveal', 'gm queen', 'simping harder', 'she noticed me', 'to the moon', 'wagmi', 'mods asleep', 'is that a door', 'ONE MORE MILESTONE', 'ape in', 'number go up', 'my rent money', 'so real for this'];
-const CRASH_LINES = ['RUGGED', 'NGMI', 'who was that', 'STREAM ENDED??', 'it was a boyfriend', 'my bags', 'exit liquidity', 'rugged again', 'F', 'cope'];
+const LINES = ['queen <3', 'take my money', 'wen reveal', 'gm queen', 'simping harder', 'she noticed me', 'to the moon', 'wagmi', 'mods asleep', 'is that a door', 'ONE MORE MILESTONE', 'ape in', 'number go up', 'my rent money', 'so real for this', 'sent my rent, worth it', 'wife doesnt know', 'tipped my car payment', 'is she single', 'her bf is a whale fr', 'reveal = tokenomics?', 'rug me queen', 'pls step on my bags', 'refinancing for this', 'she said gm to ME'];
+const CRASH_LINES = ['RUGGED', 'NGMI', 'who was that', 'STREAM ENDED??', 'it was a boyfriend', 'my bags', 'exit liquidity', 'rugged again', 'F', 'cope', 'bf had 40% of supply', 'the reveal was a rug', 'i tipped for THIS', 'the bf is the dev', 'refund??'];
 
 export interface Message { name: string; text: string; tip: number; y: number; age: number; seed: number }
 
@@ -36,6 +36,8 @@ export interface Chat {
 const GOALS = [1.5, 2, 3, 5, 8, 13, 21, 34, 55];
 /** The goal at `index`: Infinity once the last one is reached, when the reveal is due any second. */
 const goalAt = (index: number): number => GOALS[index] ?? Infinity;
+/** What the queen posts as each goal is reached; the last is for the final goal, when the reveal is due any second. */
+const QUEEN_POSTS = ['one more milestone frens <3', 'ur all so generous omg', 'my bf... i mean my brother says hi', 'almost there babes', 'one more and the hoodie comes off', 'ok ok the reveal is SO close', 'ok ok reveal any second frens <3'];
 
 export function createChat(): Chat {
   return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) }, sulk: spring(0), hype: spring(0) };
@@ -111,7 +113,7 @@ export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
     c.goalIndex += 1;
     c.goal = goalAt(c.goalIndex);
     reached = true;
-    post(c, 'QUEEN', c.goalIndex < GOALS.length ? 'one more milestone frens <3' : 'ok ok reveal any second frens <3', 0);
+    post(c, 'QUEEN', QUEEN_POSTS[c.goalIndex < GOALS.length ? Math.min(c.goalIndex - 1, QUEEN_POSTS.length - 2) : QUEEN_POSTS.length - 1]!, 0);
   }
   stepSpring(c.fill, c.flooded ? 0 : goalFill(c, drive.multiplier), 8, 0.9, dt);
   stepSpring(c.modSleep, drive.running && drive.tension > 0.6 ? 1 : 0, 3, 0.8, dt);

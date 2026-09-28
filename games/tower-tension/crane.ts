@@ -184,6 +184,12 @@ export function drawCrane(ctx: CanvasRenderingContext2D, c: CraneState): void {
   lattice(ctx, CRANE_X - 100, jibY - 6, JIB_TIP, jibY - 6, 6, 24);
   ctx.fillStyle = '#6f757d';
   ctx.beginPath(); ctx.roundRect(CRANE_X - 104, jibY - 2, 34, 22, 3); ctx.fill(); ctx.stroke();
+  // What really holds the jib up.
+  ctx.fillStyle = YELLOW;
+  ctx.font = '900 13px Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('100X', CRANE_X - 87, jibY + 9.5, 30);
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1.5;
   ctx.beginPath();

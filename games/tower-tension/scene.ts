@@ -74,17 +74,17 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SHOULD HAVE TAKEN THE LIFT' : outcome === 'called' ? 'CALLED IT' : 'NOT STONKS';
-  if (view.phase !== 'running') return 'WEN BUILD?';
-  if (secured) return 'DEAL WITH IT';
-  if (multiplier < 1.3) return 'BREAKING GROUND';
-  if (multiplier < 1.7) return 'NUMBER GO UP';
-  if (multiplier < 2.5) return 'HODL';
-  if (multiplier < 4) return 'SKY IS THE LIMIT';
+  if (outcome) return outcome === 'rekt' ? 'THERE IS NO FLOOR' : outcome === 'called' ? 'SOLD THE PENTHOUSE' : 'BAILOUT DENIED';
+  if (view.phase !== 'running') return 'WEN PRESALE?';
+  if (secured) return 'SOLD TO THE NEXT GUY';
+  if (multiplier < 1.3) return 'PRESALE IS LIVE';
+  if (multiplier < 1.7) return 'FLOOR PRICE UP';
+  if (multiplier < 2.5) return 'BUILT ON VIBES';
+  if (multiplier < 4) return 'PONZI BUT VERTICAL';
   if (multiplier < 7) return 'WEN PENTHOUSE';
-  if (multiplier < 12) return 'DIAMOND HANDS';
-  if (multiplier < 25) return 'TO THE MOON';
-  return 'THIS IS FINE';
+  if (multiplier < 12) return 'INSPECTOR WAS PAID';
+  if (multiplier < 25) return 'LEVERAGED THE BASEMENT';
+  return 'TOO BIG TO FAIL';
 }
 
 /** World to screen for a layer: parallax below 1 makes it scroll slower than the tower. */
@@ -162,6 +162,27 @@ function drawGround(ctx: CanvasRenderingContext2D): void {
   ctx.setLineDash([26, 22]);
   ctx.beginPath(); ctx.moveTo(-1200, GROUND_Y + 62); ctx.lineTo(2200, GROUND_Y + 62); ctx.stroke();
   ctx.setLineDash([]);
+  // The developer's billboard, up on posts behind the site fence.
+  ctx.fillStyle = '#9aa0a8';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  for (const x of [48, 172]) { ctx.beginPath(); ctx.rect(x - 3, GROUND_Y - 50, 6, 50); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle = '#1f2a4d';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(10, GROUND_Y - 118, 200, 70, 4); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#d4a93a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(15, GROUND_Y - 113, 190, 60, 2); ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#f4c542';
+  ctx.font = `900 28px ${MEME_FONT}`;
+  ctx.fillText('PONZI TOWERS', 110, GROUND_Y - 80, 176);
+  ctx.fillStyle = '#d4a93a';
+  ctx.fillRect(40, GROUND_Y - 74, 140, 1.5);
+  ctx.fillStyle = '#f4f1e8';
+  ctx.font = `900 11px ${MEME_FONT}`;
+  ctx.fillText('LUXURY CONDOS · PAY IN $FLOOR', 110, GROUND_Y - 59, 176);
   // Site fence on the left, a cone and a barrier on the right.
   ctx.strokeStyle = '#c9d1d9';
   ctx.lineWidth = 3;
@@ -398,8 +419,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     drawReadout(ctx, view, readout, outcome !== null);
-    const floors = tower.collapsed ? tower.debris.length : floorCount(tower);
-    memeText(ctx, `${floors} ${floors === 1 ? 'FLOOR' : 'FLOORS'}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    // The floor count is the floor price, and a collapsed tower has none.
+    memeText(ctx, `FLOOR PRICE: ${tower.collapsed ? 0 : floorCount(tower)}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left', 260);
   }
 
   return { draw };

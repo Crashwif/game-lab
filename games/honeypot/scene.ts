@@ -59,12 +59,12 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM BEAR';
   if (secured) return 'PULL THE PAW';
   if (multiplier < 1.4) return 'SWEET GAINS';
-  if (multiplier < 2) return 'NUMBER GO UP';
-  if (multiplier < 3) return 'HODL';
+  if (multiplier < 2) return 'BUY TAX 0%, LFG';
+  if (multiplier < 3) return 'LIQUIDITY IS LOCKED';
   if (multiplier < 5) return 'DIAMOND PAWS';
   if (multiplier < 8) return 'WHY IS THE LID MOVING';
   if (multiplier < 14) return 'SELL TAX RISING';
-  return 'THIS IS FINE';
+  return 'SELL TAX OVER 100%?';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

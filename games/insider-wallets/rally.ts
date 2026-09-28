@@ -8,6 +8,8 @@ import { clamp, mulberry32, noise, settleSpring, spring, stepSpring, type Spring
 export const INK = '#1c1f26';
 const SKIN = '#f3dccb';
 const MARKS = [1.5, 2.2, 3.2, 4.8, 7, 10, 14, 20];
+/** One per sign holder, in the order they join the crowd. */
+const SIGNS = ['SEND IT', 'WAGMI', 'BUY HIGH', 'LFG', 'HE CARES', 'MY RENT', 'TRUST ME', 'NO KYC'];
 
 interface Bit { x: number; y: number; vx: number; vy: number; age: number; life: number; color: string; rot: number; vr: number; }
 
@@ -147,14 +149,14 @@ function spawn(r: Rally, x: number, y: number, rand: () => number): void {
 }
 
 /** Two lines that fit the podium screen. A character slice was cutting words in half. */
-export function prompter(multiplier: number, crashed: boolean, tension: number): readonly [string, string] {
-  if (crashed || tension > 0.82) return ['NEVER HEARD', 'OF THIS COIN'];
+export function prompter(multiplier: number, crashed: boolean): readonly [string, string] {
+  if (crashed || multiplier >= 13) return ['NEVER HEARD', 'OF THIS COIN'];
   if (multiplier < 1.4) return ['GM', 'PATRIOTS'];
   if (multiplier < 2.1) return ["THE PEOPLE'S", 'COIN'];
   if (multiplier < 3.2) return ['NUMBER ONLY', 'GOES UP'];
   if (multiplier < 5) return ['TREMENDOUS', 'BAGS'];
-  if (multiplier < 8) return ['BUY', 'THE DIP'];
-  return ['I LOVE', 'THE UNBANKED'];
+  if (multiplier < 8) return ['MY FRIENDS', 'BOUGHT EARLY'];
+  return ['I DO NOT OWN', 'ANY OF IT'];
 }
 
 type Point = { x: number; y: number };
@@ -304,7 +306,7 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
 function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: number, crashed: boolean): void {
   const growth = Math.log2(Math.max(1, multiplier));
   const shown = clamp(Math.round(10 + growth * 18), 10, 70);
-  const signs: { x: number; y: number }[] = [];
+  const signs: { x: number; y: number; text: string }[] = [];
   for (let i = 0; i < shown; i += 1) {
     const col = i % 14;
     const row = Math.floor(i / 14);
@@ -317,9 +319,11 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    const sign = { x, y: y - 28 };
+    // Two holders on the even rows and one between them on the odd rows: a full crowd raises all eight signs.
+    const holds = row % 2 === 0 ? col === 4 || col === 11 : col === 7;
+    const sign = { x, y: y - 28, text: SIGNS[signs.length % SIGNS.length]! };
     const crowded = sign.x < 150 || sign.x > 590 || signs.some((other) => Math.hypot(other.x - sign.x, other.y - sign.y) < 56);
-    if (i % 7 === 0 && !crowded) signs.push(sign);
+    if (holds && !crowded) signs.push(sign);
   }
   for (const sign of signs) {
     ctx.fillStyle = crashed ? '#ff4d6d' : '#f7f4ea';
@@ -331,7 +335,7 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     ctx.fillStyle = INK;
     ctx.font = '700 8px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(crashed ? 'RUGGED' : 'SEND IT', sign.x, sign.y + 8);
+    ctx.fillText(crashed ? 'RUGGED' : sign.text, sign.x, sign.y + 8);
   }
 }
 
@@ -446,7 +450,7 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.fillRect(-64, -22, 128, 36);
   ctx.fillStyle = '#39ff8a';
   ctx.font = '700 11px ui-monospace, monospace';
-  const [topLine, bottomLine] = prompter(multiplier, r.crashed, tension);
+  const [topLine, bottomLine] = prompter(multiplier, r.crashed);
   ctx.fillText(topLine, 0, -4);
   ctx.fillText(bottomLine, 0, 10);
   ctx.restore();

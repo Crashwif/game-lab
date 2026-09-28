@@ -16,6 +16,9 @@ const IRON_DARK = '#33363f';
 const IRON_LIGHT = '#6a6f7a';
 const BRASS = '#c9a44a';
 const BRASS_DARK = '#8f6f23';
+const PLATE_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+/** The maker's plate: on the first barrel panel, clear of the seams, the gauge and the leak spots. */
+const PLATE = { x: 346, y: 188, w: 66, h: 40 };
 
 /** Multipliers at which another seam gives way. */
 export const LEAK_AT = [1.6, 2.4, 3.5, 5, 7.5, 11, 16];
@@ -238,6 +241,29 @@ function drawGauge(ctx: CanvasRenderingContext2D, e: EngineState): void {
   ctx.beginPath(); ctx.ellipse(cx - 12, cy - 16, 14, 8, -0.6, 0, Math.PI * 2); ctx.fill();
 }
 
+/** The riveted brass maker's plate: what this boiler really is. */
+function drawNameplate(ctx: CanvasRenderingContext2D): void {
+  const { x, y, w, h } = PLATE;
+  ctx.fillStyle = BRASS; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 240, 190, 0.55)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + 4, y + 2.5); ctx.lineTo(x + w - 4, y + 2.5); ctx.stroke();
+  ctx.fillStyle = BRASS_DARK;
+  for (const [rx, ry] of [[x + 4.5, y + 5], [x + w - 4.5, y + 5], [x + 4.5, y + h - 5], [x + w - 4.5, y + h - 5]] as const) {
+    ctx.beginPath(); ctx.arc(rx, ry, 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#3b2c0c';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `9.5px ${PLATE_FONT}`;
+  ctx.fillText('MONEY PRINTER', x + w / 2, y + 19, w - 6);
+  ctx.fillStyle = BRASS_DARK;
+  ctx.fillRect(x + 12, y + 23, w - 24, 1);
+  ctx.fillStyle = '#3b2c0c';
+  ctx.font = `6.3px ${PLATE_FONT}`;
+  ctx.fillText('MODEL BRRR-3000', x + w / 2, y + 33, w - 16);
+}
+
 function drawFire(ctx: CanvasRenderingContext2D, e: EngineState): void {
   const { x, y } = DOOR;
   const flame = clamp(e.flame, 0, 1.2);
@@ -311,6 +337,7 @@ export function drawBoiler(ctx: CanvasRenderingContext2D, e: EngineState): void 
   for (const x of [340, 420, 500, 580]) { ctx.beginPath(); ctx.moveTo(x, 178); ctx.lineTo(x, 322); ctx.stroke(); rivets(ctx, x, 186, x, 314, 16); }
   rivets(ctx, 300, 182, 610, 182, 24);
   rivets(ctx, 300, 318, 610, 318, 24);
+  drawNameplate(ctx);
   // Steam dome and the safety valve.
   ctx.fillStyle = IRON;
   ctx.strokeStyle = INK;

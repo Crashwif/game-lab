@@ -15,8 +15,8 @@ export function sellTax(multiplier: number): number {
   if (multiplier < 5.5) return 28;
   if (multiplier < 8) return 49;
   if (multiplier < 12) return 69;
-  if (multiplier < 18) return 86;
-  return 99;
+  if (multiplier < 18) return 99;
+  return 420;
 }
 
 export function honeyLevel(multiplier: number): number {
@@ -119,7 +119,7 @@ function ink(ctx: CanvasRenderingContext2D, width = 3): void {
 }
 
 /** Impact's sidebearings are narrower than the ink, so the label needs tracking. */
-function tracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, font = `900 ${size}px Impact, "Arial Black", sans-serif`): void {
+export function tracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, font = `900 ${size}px Impact, "Arial Black", sans-serif`): void {
   ctx.save();
   ctx.font = font;
   ctx.letterSpacing = `${Math.max(1, Math.round(size * 0.14))}px`;

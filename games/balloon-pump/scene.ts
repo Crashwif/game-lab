@@ -72,16 +72,16 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SHOULD HAVE SOLD' : outcome === 'called' ? 'CALLED IT' : 'NOT STONKS';
+  if (outcome) return outcome === 'rekt' ? 'BLEW UP IN MY FACE' : outcome === 'called' ? 'HAVE FUN STAYING POOR' : 'IT WAS ALL HOT AIR';
   if (view.phase !== 'running') return 'WEN PUMP?';
   if (secured) return 'DEAL WITH IT';
   if (multiplier < 1.5) return 'PUMP IT';
-  if (multiplier < 2) return 'NUMBER GO UP';
-  if (multiplier < 3) return 'HODL';
-  if (multiplier < 5) return 'WEN LAMBO';
-  if (multiplier < 10) return 'DIAMOND HANDS';
-  if (multiplier < 25) return 'TO THE MOON';
-  return 'THIS IS FINE';
+  if (multiplier < 2) return 'UP ONLY';
+  if (multiplier < 3) return 'BACKED BY HOT AIR';
+  if (multiplier < 5) return 'INFLATION IS TRANSITORY';
+  if (multiplier < 10) return 'NO JEETS ALLOWED';
+  if (multiplier < 25) return 'MY LUNGS ARE LEVERAGED';
+  return 'SEND IT TO VALHALLA';
 }
 
 function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], reduced: boolean): void {

@@ -61,17 +61,43 @@ function readoutWidth(ctx: CanvasRenderingContext2D, text: string): number {
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'EXIT LIQUIDITY' : outcome === 'called' ? 'CALLED IT' : 'RUG PULL';
+  if (outcome) return outcome === 'rekt' ? 'YOU ARE THE LIQUIDITY' : outcome === 'called' ? 'DRY AND RICH' : 'DOWN THE DRAIN';
   if (view.phase !== 'running') return 'WEN POOL PARTY?';
-  if (secured) return 'DEAL WITH IT';
-  if (multiplier < 1.3) return 'APE IN';
-  if (multiplier < 1.6) return 'NUMBER GO UP';
-  if (multiplier < 2.5) return 'HODL';
+  if (secured) return 'OUT BEFORE THE DRAIN';
+  if (multiplier < 1.3) return 'CANNONBALL, DEGENS';
+  if (multiplier < 1.6) return 'THE WATER IS FINE';
+  if (multiplier < 2.5) return 'WHO PEED IN THE LP';
   if (multiplier < 4) return 'WAGMI';
-  if (multiplier < 6) return 'DIAMOND HANDS';
-  if (multiplier < 10) return 'BIG IF TRUE';
-  if (multiplier < 20) return 'TO THE MOON';
-  return 'THIS IS FINE';
+  if (multiplier < 6) return 'DEV IS SMILING';
+  if (multiplier < 10) return 'A WHALE GOT IN';
+  if (multiplier < 20) return 'WHY IS THE CHAIN TAUT';
+  return 'HAND ON THE PLUG';
+}
+
+/** The house rules, screwed to the fence between the left palm and the DJ, clear of where the stamp lands. */
+function drawPoolRules(ctx: CanvasRenderingContext2D): void {
+  const x = 180;
+  const y = 196;
+  const w = 128;
+  const h = 76;
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#fbf8f1'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.roundRect(x + 5, y + 5, w - 10, 19, 2); ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 15px Impact, "Arial Black", sans-serif';
+  ctx.fillText('POOL RULES', x + w / 2, y + 15, w - 16);
+  ctx.fillStyle = INK;
+  ctx.font = '900 12px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'left';
+  for (const [i, line] of ['1. NO SELLING', '2. NO LIFEGUARD', '3. DEV MAY PULL PLUG'].entries()) ctx.fillText(line, x + 9, y + 36 + i * 14, w - 18);
+  ctx.fillStyle = '#9aa3ad';
+  for (const [sx, sy] of [[x + 4, y + h - 4], [x + w - 4, y + h - 4]] as const) { ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
 }
 
 function drawYard(ctx: CanvasRenderingContext2D, time: number): void {
@@ -107,6 +133,7 @@ function drawYard(ctx: CanvasRenderingContext2D, time: number): void {
       ctx.fill();
     }
   }
+  drawPoolRules(ctx);
   ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(150, 40); ctx.quadraticCurveTo(480, 110, 810, 40); ctx.stroke();
   for (let i = 0; i < 12; i += 1) {

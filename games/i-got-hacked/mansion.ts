@@ -309,14 +309,17 @@ function drawManager(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY
   ctx.restore();
   // Whisper bubble.
   if (lean > 0.5) {
-    const lines = ['sell before they do', 'the yacht is fuelled', 'say you got hacked', 'PR is on the way', 'one more post then we go'];
+    const lines = [
+      'sell before they do', 'the yacht is fuelled', 'say you got hacked', 'PR is on the way', 'one more post then we go',
+      'delete the old posts', 'the lawyer says run', 'blame the intern', 'act surprised', 'the fans are the liquidity',
+    ];
     const text = lines[Math.floor(noise(Math.floor(m.whisperAt * 7)) * lines.length)]!;
     ctx.save();
     ctx.globalAlpha = smoothstep(0.5, 0.9, lean);
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.roundRect(x + 20, footY - 156, 214, 28, 8); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x + 34, footY - 128); ctx.lineTo(x + 16, footY - 116); ctx.lineTo(x + 48, footY - 128); ctx.closePath(); ctx.fill(); ctx.stroke();
-    label(ctx, `psst: ${text}`, x + 127, footY - 137, 11, INK, 'center');
+    label(ctx, `psst: ${text}`, x + 127, footY - 137, 11, INK, 'center', 200);
     ctx.restore();
   }
 }
@@ -558,7 +561,7 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
   const ticker = ctx.measureText('$FAMOUS').width;
   label(ctx, `${multiplier.toFixed(2)}×`, p.x + p.w - 18, p.y + 33, 12, m.posted ? '#ff4d6d' : '#7cf67c', 'right', p.w - 36 - ticker - 8);
   // The chart.
-  const cx = p.x + 14; const cy = p.y + 52; const cw = p.w - 28; const ch = 56;
+  const cx = p.x + 14; const cy = p.y + 48; const cw = p.w - 28; const ch = 52;
   ctx.strokeStyle = '#2b2f40'; ctx.lineWidth = 1;
   for (let i = 0; i <= 3; i += 1) { ctx.beginPath(); ctx.moveTo(cx, cy + i * ch / 3); ctx.lineTo(cx + cw, cy + i * ch / 3); ctx.stroke(); }
   const pts = m.chart;
@@ -573,28 +576,28 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
     ctx.lineTo(mix(lastX, cx + cw, drop), mix(cy, cy + ch, drop));
   }
   ctx.stroke();
-  // The post box.
+  // The post box and the button, tucked up so the button sits inside the screen.
   const draft = clamp(m.draft.x, 0, 1);
   ctx.fillStyle = '#1f2230';
-  ctx.beginPath(); ctx.roundRect(p.x + 14, p.y + 118, p.w - 28, 56, 6); ctx.fill();
-  ctx.fillStyle = '#ffd35c'; ctx.beginPath(); ctx.arc(p.x + 26, p.y + 132, 7, 0, Math.PI * 2); ctx.fill();
-  label(ctx, 'famous_official', p.x + 38, p.y + 136, 9, '#c9c9d4');
+  ctx.beginPath(); ctx.roundRect(p.x + 14, p.y + 106, p.w - 28, 56, 6); ctx.fill();
+  ctx.fillStyle = '#ffd35c'; ctx.beginPath(); ctx.arc(p.x + 26, p.y + 120, 7, 0, Math.PI * 2); ctx.fill();
+  label(ctx, 'famous_official', p.x + 38, p.y + 124, 9, '#c9c9d4');
   if (m.posted) {
-    label(ctx, 'i got hacked. that', p.x + 20, p.y + 152, 10, '#ffffff');
-    label(ctx, 'coin was never me', p.x + 20, p.y + 165, 10, '#ffffff');
+    label(ctx, 'i got hacked. that', p.x + 20, p.y + 140, 10, '#ffffff');
+    label(ctx, 'coin was never me', p.x + 20, p.y + 153, 10, '#ffffff');
   } else if (draft > 0.05) {
     const text = 'i got hacked';
     const shown = text.slice(0, Math.floor(draft * text.length));
-    label(ctx, 'draft:', p.x + 20, p.y + 152, 9, '#9a9aa8');
-    label(ctx, `${shown}${Math.floor(m.time * 3) % 2 ? '|' : ''}`, p.x + 20, p.y + 166, 11, '#ff9db0');
+    label(ctx, 'draft:', p.x + 20, p.y + 140, 9, '#9a9aa8');
+    label(ctx, `${shown}${Math.floor(m.time * 3) % 2 ? '|' : ''}`, p.x + 20, p.y + 154, 11, '#ff9db0');
   } else {
-    label(ctx, 'new coin $FAMOUS', p.x + 20, p.y + 152, 10, '#ffffff');
-    label(ctx, 'is LIVE. love u all', p.x + 20, p.y + 165, 10, '#ffffff');
+    label(ctx, 'new coin $FAMOUS', p.x + 20, p.y + 140, 10, '#ffffff');
+    label(ctx, 'is LIVE. love u all', p.x + 20, p.y + 153, 10, '#ffffff');
   }
   // Post button.
   ctx.fillStyle = m.posted ? '#ff4d6d' : draft > 0.5 ? '#ffb36b' : '#3b82f6';
-  ctx.beginPath(); ctx.roundRect(p.x + 14, p.y + 180, p.w - 28, 20, 10); ctx.fill();
-  label(ctx, m.posted ? 'POSTED' : draft > 0.5 ? 'POST?' : 'POSTED', p.x + p.w / 2, p.y + 194, 10, '#ffffff', 'center');
+  ctx.beginPath(); ctx.roundRect(p.x + 14, p.y + 168, p.w - 28, 18, 9); ctx.fill();
+  label(ctx, m.posted ? 'POSTED' : draft > 0.5 ? 'POST?' : 'POST', p.x + p.w / 2, p.y + 181, 10, '#ffffff', 'center');
   ctx.restore();
   // Camera notch.
   ctx.fillStyle = INK; ctx.beginPath(); ctx.roundRect(p.x + p.w / 2 - 18, p.y + 6, 36, 6, 3); ctx.fill();

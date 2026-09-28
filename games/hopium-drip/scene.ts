@@ -52,13 +52,13 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM PATIENT';
   if (secured) return 'DISCHARGED';
   if (multiplier < 1.4) return 'TAKE YOUR MEDS';
-  if (multiplier < 1.9) return 'NUMBER GO UP';
+  if (multiplier < 1.9) return 'HOPIUM IS KICKING IN';
   if (multiplier < 2.6) return 'ONE MORE DOSE';
-  if (multiplier < 3.6) return 'HODL';
-  if (multiplier < 5) return 'DIAMOND HANDS';
-  if (multiplier < 7.5) return 'VITALS UNSTABLE';
-  if (multiplier < 12) return 'NURSE THE COPIUM';
-  return 'THIS IS FINE';
+  if (multiplier < 3.6) return 'ROOMMATE WAS LEVERAGED';
+  if (multiplier < 5) return 'NURSE, MORE HOPIUM';
+  if (multiplier < 7.5) return 'ON COPIUM NOW';
+  if (multiplier < 12) return 'VITALS UNSTABLE';
+  return 'HE SEES GOD CANDLES';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

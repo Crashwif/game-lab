@@ -11,12 +11,16 @@ export const LAPTOP = { x: 300, y: 352, w: 156, h: 108 };
 
 const LINES: { at: number; text: string; her: boolean }[] = [
   { at: 1.15, text: 'honey?', her: true },
-  { at: 1.55, text: 'one more trade', her: false },
-  { at: 2.05, text: 'are you coming to bed', her: true },
-  { at: 2.8, text: 'it is 3am', her: true },
-  { at: 3.8, text: 'i can hear the fan', her: true },
-  { at: 5.2, text: 'the light is still on', her: true },
+  { at: 1.4, text: 'one more trade', her: false },
+  { at: 1.8, text: 'are you coming to bed', her: true },
+  { at: 2.2, text: 'it is 3am', her: true },
+  { at: 2.6, text: 'kyle says come to bed', her: true },
+  { at: 2.9, text: 'who is kyle', her: false },
+  { at: 3.8, text: 'did you sell the car??', her: true },
+  { at: 4.6, text: 'leased. technically', her: false },
+  { at: 5.8, text: 'the light is still on', her: true },
   { at: 7.5, text: 'the cat is judging you', her: true },
+  { at: 8.7, text: 'babe lambo tmrw', her: false },
   { at: 10, text: 'i am coming down', her: true },
 ];
 
@@ -234,8 +238,8 @@ export function settleKitchen(k: Kitchen, multiplier: number, fear: number, held
   k.light.x = fear > 0.38 ? 1 : 0;
   while (k.nextLine < LINES.length && multiplier >= LINES[k.nextLine]!.at) {
     const line = LINES[k.nextLine]!;
-    // As in stepKitchen: once he has cashed out and gone up, her last text is never sent.
-    if (!(heldX100 !== null && line.at * 100 > heldX100 && line.her && line.at >= 10)) k.bubbles.push({ text: line.text, her: line.her, age: 1 });
+    // As in stepKitchen: once he has cashed out and gone up, he sends no more replies and her last text is never sent.
+    if (!(heldX100 !== null && line.at * 100 > heldX100 && (!line.her || line.at >= 10))) k.bubbles.push({ text: line.text, her: line.her, age: 1 });
     k.nextLine += 1;
   }
   if (multiplier >= 4) {
@@ -268,7 +272,7 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
 
   while (k.nextLine < LINES.length && drive.multiplier >= LINES[k.nextLine]!.at && (drive.running || k.crashed)) {
     const line = LINES[k.nextLine]!;
-    if (!(k.holding && line.her && line.at >= 10)) k.bubbles.push({ text: line.text, her: line.her, age: 0 });
+    if (!(k.holding && (!line.her || line.at >= 10))) k.bubbles.push({ text: line.text, her: line.her, age: 0 });
     k.nextLine += 1;
     k.events.text = true;
   }

@@ -55,12 +55,12 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM DEGENS';
   if (secured) return 'LEFT THE QUEUE';
   if (multiplier < 1.5) return 'WEN LISTING';
-  if (multiplier < 2.2) return 'NUMBER GO UP';
-  if (multiplier < 3.2) return 'HODL';
-  if (multiplier < 4.8) return 'DIAMOND HANDS';
+  if (multiplier < 2.2) return 'PAID THE LISTING FEE';
+  if (multiplier < 3.2) return 'VCS SKIP THE LINE';
+  if (multiplier < 4.8) return 'CEX OR BUST';
   if (multiplier < 7) return 'BOUNCER IS CHECKING';
   if (multiplier < 11) return 'THE SUITS ARE LEAVING';
-  return 'THIS IS FINE';
+  return 'PRICED IN';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

@@ -413,6 +413,11 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   ctx.fillStyle = '#f9f1e6';
   ctx.beginPath(); ctx.roundRect(PUMP.x - 15, PUMP.barrelTop + 34, 30, 10, 2); ctx.fill();
   ctx.fillStyle = INK;
+  ctx.font = '900 8px Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PUMP', PUMP.x, PUMP.barrelTop + 39.5, 26);
+  ctx.fillStyle = INK;
   ctx.beginPath(); ctx.roundRect(PUMP.x - 19, PUMP.barrelTop - 6, 38, 12, 4); ctx.fill();
   drawGauge(ctx, { x: PUMP.x + 30, y: PUMP.barrelTop + 22 }, drive.gauge, t);
   segment({ x: PUMP.x, y: PUMP.barrelTop }, { x: PUMP.x, y: handleY }, 12, INK);

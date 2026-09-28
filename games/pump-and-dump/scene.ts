@@ -36,7 +36,7 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'dumped';
 type Secured = { x100: number; payout: number | null };
-const HECKLES = ['GYATT', 'OILED UP', 'SHEEEESH', "HE'S HIM", 'LIGHT WEIGHT', 'BUILT DIFFERENT', 'GO BRO'];
+const HECKLES = ['GO BRO', 'OILED UP', 'SHEEEESH', "HE'S HIM", 'GYATT', 'EGO LIFT', 'ALL NATTY?', 'CALL 911'];
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -51,18 +51,18 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SPOTTER SOLD' : outcome === 'called' ? 'CALLED IT' : 'NO SPOTTER NGMI';
+  if (outcome) return outcome === 'rekt' ? 'SPOTTER SOLD' : outcome === 'called' ? 'RACKED AND JACKED' : 'NO SPOTTER NGMI';
   if (view.phase !== 'running') return 'LOAD THE BAR';
   if (secured) return 'RE-RACKED';
   if (multiplier < 1.4) return 'PUMP IT';
   if (multiplier < 1.9) return 'ONE MORE REP';
-  if (multiplier < 2.6) return 'NUMBER GO UP';
+  if (multiplier < 2.6) return 'BENCH PRESSING MY BAGS';
   if (multiplier < 3.5) return 'NO PAIN NO GAINZ';
-  if (multiplier < 5) return 'HODL';
+  if (multiplier < 5) return 'SPOTTER IS SCROLLING';
   if (multiplier < 7.5) return 'LIGHT WEIGHT BABY';
-  if (multiplier < 12) return 'DIAMOND HANDS';
+  if (multiplier < 12) return 'TRT IS KICKING IN';
   if (multiplier < 20) return 'GYATT';
-  return 'THIS IS FINE';
+  return 'HIS SPINE IS RUGGING';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

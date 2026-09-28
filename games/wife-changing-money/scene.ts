@@ -70,14 +70,14 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (trader.mode === 'upstairs') return 'SHE NEVER KNEW';
   if (trader.mode === 'sneak' || trader.mode === 'closing' || secured) return 'CLOSE THE LID';
   if (multiplier < 1.35) return 'JUST ONE MORE TRADE';
-  if (multiplier < 1.8) return 'NUMBER GO UP';
+  if (multiplier < 1.8) return 'MARGIN ON THE MORTGAGE';
   if (multiplier < 2.6) return "SHE'S ASLEEP";
-  if (multiplier < 4) return 'HODL';
-  if (multiplier < 6.5) return 'DIAMOND HANDS';
+  if (multiplier < 4) return 'WHO IS KYLE';
+  if (multiplier < 6.5) return 'THE CAR WAS COLLATERAL';
   if (multiplier < 9) return 'LIFE CHANGING';
   if (multiplier < 14) return 'WIFE CHANGING';
   if (multiplier < 22) return 'IS THAT THE STAIRS';
-  return 'THIS IS FINE';
+  return 'SHE BROUGHT KYLE';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {

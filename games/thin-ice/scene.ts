@@ -4,7 +4,7 @@
  * reflection, the shatter, then the HUD. All motion is stepped here with the
  * real frame time, and nothing drawn here changes the committed outcome.
  */
-import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawCracks, drawIce, drawShatter, drawThinning, resetIce, shatterIce, spawnCrack, stepIce } from './ice';
+import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawBagholders, drawCracks, drawIce, drawShatter, drawThinning, resetIce, shatterIce, spawnCrack, stepIce } from './ice';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { type SkaterDrive, type SkaterState, createSkater, drawSkater, footScreen, headForShore, iceBroke, iceScale, iceY, resetSkater, settleSkater, stepScarf, stepSkater } from './skater';
 
@@ -41,6 +41,8 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 const READOUT_MAX_WIDTH = 300;
 /** Clear space the caption keeps from the readout on its right and from the edge on its left. */
 const HUD_GAP = 24;
+/** How far past the spot where she climbs out the exit sign stands, in world px. */
+const EXIT_AHEAD = 66;
 type Outcome = 'rekt' | 'called' | 'crack';
 type Secured = { x100: number; payout: number | null };
 type Flake = { x: number; y: number; r: number; k: number };
@@ -63,17 +65,17 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SHOULD HAVE SKATED OFF' : outcome === 'called' ? 'CALLED IT' : 'NOT STONKS';
-  if (view.phase !== 'running') return 'WEN SKATE?';
+  if (outcome) return outcome === 'rekt' ? 'LIQUIDATED' : outcome === 'called' ? 'CLOSED THE LONG' : 'ANOTHER ONE FOR THE ICE';
+  if (view.phase !== 'running') return 'WEN LEVERAGE?';
   if (secured) return 'DEAL WITH IT';
-  if (multiplier < 1.3) return 'NICE ICE';
-  if (multiplier < 1.7) return 'NUMBER GO UP';
-  if (multiplier < 2.5) return 'HODL';
-  if (multiplier < 4) return 'THIN ICE';
-  if (multiplier < 7) return 'DIAMOND HANDS';
-  if (multiplier < 12) return 'THIS IS FINE';
-  if (multiplier < 25) return 'TO THE MOON';
-  return 'BUILT DIFFERENT';
+  if (multiplier < 1.3) return 'SKATING ON 100X';
+  if (multiplier < 1.7) return 'LIQUIDITY IS THIN';
+  if (multiplier < 2.5) return 'MARGIN IS VIBES';
+  if (multiplier < 4) return 'THINNER THAN MY MARGIN';
+  if (multiplier < 7) return 'FROZEN ASSETS BELOW';
+  if (multiplier < 12) return 'LIQUIDATION PRICE: HERE';
+  if (multiplier < 25) return 'ADDING MORE LEVERAGE';
+  return 'SHE IS UNLIQUIDATABLE';
 }
 
 function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Flake[], reduced: boolean): void {
@@ -170,6 +172,32 @@ function drawShore(ctx: CanvasRenderingContext2D, cameraX: number): void {
   ctx.beginPath(); ctx.moveTo(0, ICE_FAR_Y + 1); ctx.lineTo(W, ICE_FAR_Y + 1); ctx.stroke();
 }
 
+/** The signpost where she climbs out, at the far shore's scale; `pop` springs it up out of the snow. */
+function drawExitSign(ctx: CanvasRenderingContext2D, x: number, pop: number): void {
+  ctx.save();
+  ctx.translate(x, ICE_FAR_Y - 4);
+  ctx.rotate(-0.05);
+  ctx.scale(0.58 * pop, 0.58 * pop);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -58); ctx.stroke();
+  ctx.strokeStyle = '#7a4a24'; ctx.lineWidth = 5; ctx.stroke();
+  // An arrow-cut plank, pointing on along the shore.
+  ctx.fillStyle = '#9c6b3a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-46, -92); ctx.lineTo(40, -92); ctx.lineTo(56, -70); ctx.lineTo(40, -48); ctx.lineTo(-46, -48); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f4f8fc';
+  ctx.beginPath(); ctx.moveTo(-48, -91); ctx.quadraticCurveTo(-30, -101, -12, -93); ctx.quadraticCurveTo(8, -99, 24, -93); ctx.quadraticCurveTo(34, -97, 41, -91); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff4d6';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `900 18px ${MEME_FONT}`;
+  ctx.fillText('EXIT', -1, -72, 80);
+  ctx.font = `900 16px ${MEME_FONT}`;
+  ctx.fillText('LIQUIDITY', -1, -54, 80);
+  ctx.restore();
+}
+
 /** Where the multiplier readout's lettering starts on the left: it grows leftward from x 930 as the number gets longer. */
 function readoutLeft(ctx: CanvasRenderingContext2D, text: string): number {
   ctx.font = `900 66px ${MEME_FONT}`;
@@ -208,6 +236,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
+  const exitSign = spring(0);
   const stars: Flake[] = Array.from({ length: 60 }, (_, i) => ({ x: noise(i * 3.1) * W, y: 6 + noise(i * 7.7) * 150, r: 0.6 + noise(i * 1.3) * 1.4, k: 1 + noise(i * 5.9) * 2 }));
   const flakes: Flake[] = Array.from({ length: 90 }, (_, i) => ({ x: noise(i * 2.3) * W, y: noise(i * 4.1) * H, r: 1 + noise(i * 6.7) * 2, k: 0.5 + noise(i * 8.9) }));
   let particles: Particle[] = [];
@@ -219,6 +248,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let breathClock = 0;
+  /** World x of the exit sign, set where she climbs onto the bank. */
+  let exitAt: number | null = null;
 
   function emit(p: Particle): void {
     if (particles.length > 500) particles.shift();
@@ -249,6 +280,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       camera.x = skater.x - SKATER_SCREEN_X - (skater.speed * 2) / 3;
       camera.v = skater.speed;
       if (secured) settleSpring(badge, 1);
+      if (skater.mode === 'shore') {
+        exitAt = skater.x + EXIT_AHEAD;
+        settleSpring(exitSign, 1);
+      }
       previous = crashed ? 'running' : view.phase;
     }
     if (view.phase !== previous) {
@@ -264,6 +299,10 @@ export function createScene(options: SceneOptions = {}): Scene {
         if (quiet) {
           pop.x = 1;
           if (skater.mode === 'plunge') { skater.mode = 'swimming'; skater.plunge = 58; }
+          if (skater.mode === 'shore' && exitAt === null) {
+            exitAt = skater.x + EXIT_AHEAD;
+            settleSpring(exitSign, 1);
+          }
         } else {
           shake = 1;
           pop.v = 16;
@@ -282,6 +321,8 @@ export function createScene(options: SceneOptions = {}): Scene {
         particles = [];
         outcome = null;
         secured = null;
+        exitAt = null;
+        settleSpring(exitSign, 0);
       }
       if (view.phase === 'running' && skater.mode === 'idle') skater.mode = 'skating';
       previous = view.phase;
@@ -289,6 +330,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running && (skater.mode === 'skating' || skater.mode === 'idle')) headForShore(skater);
 
     stepSkater(skater, drive, dt);
+    if (skater.mode === 'shore' && exitAt === null) exitAt = skater.x + EXIT_AHEAD;
+    stepSpring(exitSign, exitAt === null ? 0 : 1, 12, 0.45, dt);
     stepSpring(camera, skater.x - SKATER_SCREEN_X, 3, 1, dt);
     const cameraX = camera.x;
     const depth = clamp(skater.depth.x, 0, 1);
@@ -354,7 +397,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawSky(ctx, time, stars, reduced);
     drawMountains(ctx, cameraX);
     drawShore(ctx, cameraX);
+    if (exitAt !== null && exitSign.x > 0.02) drawExitSign(ctx, exitAt - cameraX, clamp(exitSign.x, 0, 1.3));
     drawIce(ctx, ice, cameraX, time);
+    drawBagholders(ctx, cameraX);
     const thinAt = onIce ? { x: place.x, y: place.y } : { x: skater.lastIce.x - cameraX, y: skater.lastIce.y };
     if (running && !ice.shattered) drawThinning(ctx, thinAt.x, thinAt.y, tension, time);
     drawCracks(ctx, ice, cameraX);

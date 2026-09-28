@@ -36,7 +36,7 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'pop';
 type Secured = { x100: number; payout: number | null };
-const HECKLES = ['PEAK', 'SHEEEESH', 'ARMS', 'HE LIFTS', 'GYATT', 'SUNS OUT'];
+const HECKLES = ['SHEEEESH', 'ARMS', 'HE LIFTS', 'PEAK', 'MOG', 'ALL NATTY?', "IT'S PULSING", 'CALL 911'];
 const MILESTONES = [1.5, 2, 3, 4, 6, 8, 12, 20];
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
@@ -52,18 +52,18 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'NOODLE ARM' : outcome === 'called' ? 'SOLD THE PEAK' : 'NGMI';
+  if (outcome) return outcome === 'rekt' ? 'NOODLE ARM' : outcome === 'called' ? 'SOLD THE PEAK' : 'PROTEIN SHAKE';
   if (view.phase !== 'running') return 'WE GO JIM';
   if (secured) return 'CURLS FOR THE GIRLS';
   if (multiplier < 1.3) return 'ONE MORE REP';
-  if (multiplier < 1.7) return 'NUMBER GO UP';
-  if (multiplier < SLEEVE_AT) return 'HODL';
+  if (multiplier < 1.7) return 'PUMP SEASON';
+  if (multiplier < SLEEVE_AT) return 'THE PEAK IS FORMING';
   if (multiplier < 3.2) return 'SLEEVE BUSTED';
   if (multiplier < 4.5) return 'SUNS OUT GUNS OUT';
-  if (multiplier < 6.5) return 'DIAMOND HANDS';
+  if (multiplier < 6.5) return "HE'S NOT NATTY";
   if (multiplier < 10) return 'PEAK IS IN';
   if (multiplier < 16) return 'NEVER SKIP LEG DAY';
-  return 'THIS IS FINE';
+  return 'THE BICEP HAS A TICKER';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -175,12 +175,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const arrow = clamp(legArrow.x, 0, 1);
     if (arrow > 0.02) {
       ctx.save();
-      ctx.translate(560 + Math.sin(time * 4) * 6, 440);
+      // Behind him, clear of the curling arm and the secured badge: the question, then the arrow at the stick legs.
+      ctx.translate(400 + Math.sin(time * 4) * 6, 440);
       ctx.scale(arrow, arrow);
       ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
       ctx.beginPath(); ctx.moveTo(-60, -12); ctx.lineTo(-20, -12); ctx.lineTo(-20, -26); ctx.lineTo(10, 0); ctx.lineTo(-20, 26); ctx.lineTo(-20, 12); ctx.lineTo(-60, 12); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.scale(-1, 1);
-      memeText(ctx, 'LEG DAY?', -68, 6, 20, '#ffffff', 'left');
+      memeText(ctx, 'LEG DAY?', -68, 6, 20, '#ffffff', 'right');
       ctx.restore();
     }
     if (outcome && pop.x > 0.02) {

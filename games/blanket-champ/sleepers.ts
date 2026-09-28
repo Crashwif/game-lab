@@ -183,7 +183,7 @@ export function drawFeet(ctx: CanvasRenderingContext2D, pose: SleeperPose): void
 
 /** A small in-world punchline that leaves the faces unobscured. */
 export function drawReaction(ctx: CanvasRenderingContext2D, pose: SleeperPose): void {
-  const line = pose.finished ? 'gg. need a nap.' : !pose.active ? 'u ready, champ?' : pose.tension > 0.7 ? 'bro is buffering' : pose.tension > 0.3 ? 'cardio is cardio.' : 'socks stay ON.';
+  const line = pose.finished ? 'was that it?' : !pose.active ? 'u ready, champ?' : pose.tension > 0.7 ? 'bro is buffering' : pose.tension > 0.3 ? 'cardio is cardio.' : 'socks stay ON.';
   const width = 150;
   ctx.save();
   ctx.translate(382, 407);
@@ -192,6 +192,6 @@ export function drawReaction(ctx: CanvasRenderingContext2D, pose: SleeperPose): 
   ctx.beginPath(); ctx.moveTo(16, 1); ctx.lineTo(5, -10); ctx.lineTo(34, 1); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#fff8e9'; ctx.fillRect(18, 0, 13, 3);
   ctx.fillStyle = INK; ctx.font = '700 14px "Trebuchet MS", Arial, sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(line, width / 2, 16);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(line, width / 2, 16, width - 16);
   ctx.restore();
 }

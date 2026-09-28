@@ -143,7 +143,10 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
     const ringing = drive.running && drive.tension > 0.45 && Math.floor(s.time * 1.5) % 4 !== 3;
     stepSpring(s.ring, ringing ? 1 : 0, 30, 0.2, dt);
     if (ringing && s.time > s.phoneNext) {
-      const lines = ['BUY THE DIP', 'HOLD THE LINE', 'REINFORCEMENTS SOON', 'DEV IS BASED', 'ITS JUST A DIP'];
+      const lines = [
+        'BUY THE DIP', 'HOLD THE LINE', 'REINFORCEMENTS SOON', 'DEV IS BASED', 'ITS JUST A DIP',
+        'NO RETREAT, NO SELLING', 'THE CABAL IS WITH US', 'LP IS LOCKED (TRUST)', 'HEALTHY PULLBACK', 'COMMAND SAYS HOLD', 'FUNDS ARE SAFU',
+      ];
       s.bubble = lines[Math.floor(noise(s.time * 1.7) * lines.length)]!;
       s.bubbleAge = 0;
       s.phoneNext = s.time + 2.5 + noise(s.time) * 2;
@@ -317,14 +320,16 @@ export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, sc
   ctx.restore();
 }
 
-function bubbleText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, alarm: boolean): void {
+/** The phone's bubble. A long line slides left so the box ends at `right` (clear of the sergeant's face); the tail stays on the phone. */
+function bubbleText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, alarm: boolean, right: number): void {
   ctx.font = '900 13px Impact, "Arial Black", sans-serif';
   const w = ctx.measureText(text).width + 20;
+  const bx = Math.min(x, right - w / 2);
   ctx.fillStyle = alarm ? '#ff4d6d' : '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.roundRect(x - w / 2, y - 22, w, 26, 6); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(bx - w / 2, y - 22, w, 26, 6); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x - 6, y + 4); ctx.lineTo(x + 6, y + 4); ctx.lineTo(x + 2, y + 12); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = alarm ? '#ffffff' : INK; ctx.textAlign = 'center';
-  ctx.fillText(text, x, y - 4);
+  ctx.fillText(text, bx, y - 4);
 }
 
 /** The squad on the field (marching, diving) between the ground and the trench. `enlisted` (a stake in this round) marks your frog. */
@@ -418,7 +423,7 @@ export function drawTrench(ctx: CanvasRenderingContext2D, s: Squad, tension: num
   ctx.fillStyle = '#c9c9d4'; ctx.font = '700 9px system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('FIELD PHONE', 0, 4);
   ctx.restore();
-  if (s.bubbleAge < 2.4 && s.bubble) bubbleText(ctx, s.bubble, px, TRENCH_FLOOR - 58 - (s.bubbleAge < 0.2 ? (0.2 - s.bubbleAge) * 40 : 0), s.dead);
+  if (s.bubbleAge < 2.4 && s.bubble) bubbleText(ctx, s.bubble, px, TRENCH_FLOOR - 58 - (s.bubbleAge < 0.2 ? (0.2 - s.bubbleAge) * 40 : 0), s.dead, sx - 42);
   // The whistle at the start.
   if (s.whistle.x > 0.05) {
     ctx.save(); ctx.globalAlpha = clamp(s.whistle.x, 0, 1);

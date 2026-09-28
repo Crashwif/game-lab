@@ -1,9 +1,9 @@
 /**
- * The frozen lake: a scrolling ice plane seen from the near bank, with a
- * crack network that spreads around the skater as the tension rises, skate
- * trails, and the shatter: at the crash the ice around her breaks along
- * seeded rays and rings into floes that tilt, bob and drift apart on open
- * water.
+ * The frozen lake: a scrolling ice plane seen from the near bank, with the
+ * bagholders frozen in it, a crack network that spreads around the skater as
+ * the tension rises, skate trails, and the shatter: at the crash the ice
+ * around her breaks along seeded rays and rings into floes that tilt, bob and
+ * drift apart on open water.
  */
 import { clamp, mix, mulberry32, noise } from './motion';
 
@@ -185,6 +185,103 @@ export function drawIce(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: n
     ctx.moveTo(trail[0]!.x - cameraX, trail[0]!.y);
     for (const p of trail) ctx.lineTo(p.x - cameraX, p.y);
     ctx.stroke();
+  }
+}
+
+/** Frozen bagholders: the first one's world x, and the average gap to the next (each one is 600–900 px on). */
+const BAG_FIRST = 420;
+const BAG_EVERY = 750;
+const BAG_BODY = 'rgba(78, 122, 170, 0.3)';
+const BAG_RIM = 'rgba(245, 251, 255, 0.55)';
+const BAG_FACE = 'rgba(34, 64, 104, 0.55)';
+
+/** Adds a capsule round a to b as one clockwise subpath, so a single fill unions it with the rest of the figure. */
+function capsule(ctx: CanvasRenderingContext2D, ax: number, ay: number, bx: number, by: number, r: number): void {
+  const a = Math.atan2(by - ay, bx - ax);
+  ctx.moveTo(bx + Math.cos(a - Math.PI / 2) * r, by + Math.sin(a - Math.PI / 2) * r);
+  ctx.arc(bx, by, r, a - Math.PI / 2, a + Math.PI / 2);
+  ctx.arc(ax, ay, r, a + Math.PI / 2, a + Math.PI * 1.5);
+  ctx.closePath();
+}
+
+/** A bagholder's silhouette in its own frame, feet down: arms up to the surface (0), hugging the bag (1) or spread (2). */
+function bagholderPath(ctx: CanvasRenderingContext2D, pose: number): void {
+  ctx.beginPath();
+  ctx.moveTo(16, -30);
+  ctx.ellipse(0, -30, 16, 18, 0, 0, Math.PI * 2);
+  ctx.moveTo(11, 4);
+  ctx.ellipse(0, 4, 11, 15, 0, 0, Math.PI * 2);
+  const spread = pose === 2 ? 5 : 0;
+  capsule(ctx, -5, 14, -8 - spread, 36, 4.5);
+  capsule(ctx, 5, 14, 8 + spread, 36, 4.5);
+  const hands = pose === 0 ? [[-19, -50], [18, -54]] : pose === 1 ? [[-8, 8], [8, 8]] : [[-31, -14], [30, -8]];
+  for (const [side, [hx, hy]] of [[-1, hands[0]!], [1, hands[1]!]] as const) capsule(ctx, side * 8, -8, hx, hy, 4);
+  if (pose === 1) {
+    ctx.moveTo(15, 10);
+    ctx.arc(0, 10, 15, 0, Math.PI * 2);
+    capsule(ctx, -4, -6, 4, -6, 3.5);
+  }
+}
+
+/**
+ * The lake is full of bagholders, frozen where they went through: pale ghosts under the surface, seeded by index at
+ * fixed world positions so the ice carries them past. Sad or X-eyed, each in its own pose and tilt.
+ */
+export function drawBagholders(ctx: CanvasRenderingContext2D, cameraX: number): void {
+  const first = Math.floor((cameraX - 300 - BAG_FIRST) / BAG_EVERY);
+  for (let i = first; i <= first + 3; i += 1) {
+    const x = BAG_FIRST + i * BAG_EVERY + (noise(i * 3.7) - 0.5) * 150 - cameraX;
+    if (x < -90 || x > 1050) continue;
+    const y = ICE_FAR_Y + 40 + noise(i * 5.3 + 1) * (ICE_NEAR_Y - ICE_FAR_Y - 64);
+    const scale = 1.2 * (0.58 + 0.42 * (y - ICE_FAR_Y) / (ICE_NEAR_Y - ICE_FAR_Y));
+    const pose = ((i % 3) + 3) % 3;
+    const dazed = noise(i * 6.1 + 2) > 0.55;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((noise(i * 4.3 + 3) - 0.5) * 1.1);
+    ctx.scale(scale * (noise(i * 8.1) > 0.5 ? -1 : 1), scale * 0.8);
+    // Lit from above through the ice: a pale copy up and to the left shows as a rim round the body.
+    ctx.translate(-1.5, -1.5);
+    bagholderPath(ctx, pose);
+    ctx.fillStyle = BAG_RIM;
+    ctx.fill();
+    ctx.translate(1.5, 1.5);
+    bagholderPath(ctx, pose);
+    ctx.fillStyle = BAG_BODY;
+    ctx.fill();
+    ctx.strokeStyle = BAG_FACE;
+    ctx.fillStyle = BAG_FACE;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (dazed) {
+      for (const ex of [-6, 6]) { ctx.moveTo(ex - 3, -36); ctx.lineTo(ex + 3, -30); ctx.moveTo(ex + 3, -36); ctx.lineTo(ex - 3, -30); }
+      ctx.moveTo(3, -20); ctx.arc(0, -20, 3, 0, Math.PI * 2);
+    } else {
+      // Wojak: brows up in the middle, small sad eyes with bags under them, a nose, the frown.
+      ctx.moveTo(-11, -38); ctx.lineTo(-3, -41); ctx.moveTo(11, -38); ctx.lineTo(3, -41);
+      ctx.moveTo(-9, -29.5); ctx.quadraticCurveTo(-6.5, -27.5, -4, -29.5); ctx.moveTo(4, -29.5); ctx.quadraticCurveTo(6.5, -27.5, 9, -29.5);
+      ctx.moveTo(0, -30); ctx.quadraticCurveTo(-3, -25, 0, -24.5);
+      ctx.moveTo(-6, -16); ctx.quadraticCurveTo(0, -21, 6, -16);
+    }
+    ctx.stroke();
+    if (!dazed) {
+      for (const ex of [-6.5, 6.5]) { ctx.beginPath(); ctx.arc(ex, -33, 1.8, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (pose === 1) {
+      ctx.font = '900 17px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('$', 0, 12);
+    }
+    // Air frozen on its way up.
+    ctx.strokeStyle = BAG_RIM;
+    ctx.lineWidth = 1.2;
+    for (let b = 0; b < 3; b += 1) {
+      ctx.beginPath(); ctx.arc(10 + b * 6 - noise(i + b) * 8, -56 - b * 11, 2 + b * 0.8, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
