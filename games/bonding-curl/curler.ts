@@ -21,6 +21,9 @@ export const SLEEVE_AT = 2.3;
 
 interface Shred { x: number; y: number; vx: number; vy: number; angle: number; spin: number; length: number; width: number; age: number; life: number; tone: number }
 interface Puff { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number }
+/** The protein shaker on the floor: it rattles and hops with the arm's tremble, and goes over at the burst. */
+interface Shaker { hop: Spring; tip: Spring; spill: number; lid: { x: number; y: number; vx: number; vy: number; angle: number; spin: number; flying: boolean; down: boolean } }
+const SHAKER_AT: Point = { x: 322, y: 500 };
 
 export type CurlMode = 'idle' | 'curling' | 'posing';
 
@@ -34,6 +37,8 @@ export interface Curler {
   puff: Spring;
   tension: number;
   stretch: number;
+  /** The displayed multiplier, for the market cap on the cuff. */
+  multiplier: number;
   sleeve: boolean;
   sleeveShreds: Shred[];
   burst: boolean;
@@ -46,11 +51,14 @@ export interface Curler {
   kiss: Spring;
   dumbbell: { x: number; y: number; vy: number; angle: number; dropped: boolean; sunk: number };
   tear: Spring;
-  events: { rep: boolean; sleeve: boolean; dropped: boolean };
+  shaker: Shaker;
+  events: { rep: boolean; sleeve: boolean; dropped: boolean; hop: boolean };
 }
 
+const freshShaker = (): Shaker => ({ hop: spring(0), tip: spring(0), spill: 0, lid: { x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, flying: false, down: false } });
+
 export function createCurler(): Curler {
-  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 }, tear: spring(0), events: { rep: false, sleeve: false, dropped: false } };
+  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, multiplier: 1, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 }, tear: spring(0), shaker: freshShaker(), events: { rep: false, sleeve: false, dropped: false, hop: false } };
 }
 
 export function resetCurler(c: Curler): void {
@@ -61,6 +69,7 @@ export function resetCurler(c: Curler): void {
   settleSpring(c.radius, 16);
   settleSpring(c.puff, 0);
   c.stretch = 0;
+  c.multiplier = 1;
   c.sleeve = true;
   c.sleeveShreds = [];
   c.burst = false;
@@ -72,9 +81,20 @@ export function resetCurler(c: Curler): void {
   settleSpring(c.kiss, 0);
   c.dumbbell = { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 };
   settleSpring(c.tear, 0);
+  c.shaker = freshShaker();
 }
 
 export const radiusFor = (growth: number): number => 16 + 128 * (1 - Math.exp(-growth / 2.6));
+
+/** The market cap the cuff reads: the number squared, in a currency nobody asked about; nothing once it bursts. */
+export function marketCap(multiplier: number, burst: boolean): string {
+  if (burst) return '$0';
+  const n = 69000 * multiplier * multiplier;
+  if (n < 1e6) return `$${(n / 1e3).toFixed(0)}K`;
+  if (n < 1e7) return `$${(n / 1e6).toFixed(2)}M`;
+  if (n < 1e9) return `$${(n / 1e6).toFixed(1)}M`;
+  return `$${(n / 1e9).toFixed(2)}B`;
+}
 
 /**
  * Jumps straight to the state a multiplier calls for, for a round met late. `posed` is for an exit already
@@ -82,6 +102,7 @@ export const radiusFor = (growth: number): number => 16 + 128 * (1 - Math.exp(-g
  */
 export function settleCurler(c: Curler, multiplier: number, growth: number, posed = false): void {
   c.mode = posed ? 'posing' : 'curling';
+  c.multiplier = multiplier;
   settleSpring(c.radius, radiusFor(growth));
   c.sleeve = multiplier < SLEEVE_AT;
   if (!posed) return;
@@ -104,7 +125,9 @@ export function poseCurler(c: Curler): void {
 export function bicepGeometry(c: Curler): { centre: Point; r: number; rx: number; ry: number } {
   const r = Math.max(8, c.radius.x + c.puff.x);
   const mid = { x: mix(SHOULDER.x, ELBOW.x, 0.5) + 6 + r * 0.55, y: mix(SHOULDER.y, ELBOW.y, 0.5) - r * 0.1 };
-  return { centre: mid, r, rx: r * (1 + 0.08 * Math.sin(c.time * 2)), ry: r * 0.86 };
+  // Anticipation: the throb quickens and deepens with the load (about two beats a second at the top).
+  const throb = (0.08 + 0.06 * c.tension) * Math.sin(c.time * (2 + 11 * c.tension * c.tension));
+  return { centre: mid, r, rx: r * (1 + throb), ry: r * 0.86 };
 }
 
 /** The bicep goes. `quiet` skips the effects for a crash that already happened. */
@@ -117,7 +140,15 @@ export function burstBicep(c: Curler, seed: number, quiet: boolean): void {
   c.shreds = [];
   c.puffs = [];
   c.dumbbell.dropped = true;
-  if (quiet) { settleSpring(c.noodle, 1); settleSpring(c.tear, 1); c.dumbbell.sunk = 1; return; }
+  if (quiet) {
+    settleSpring(c.noodle, 1);
+    settleSpring(c.tear, 1);
+    c.dumbbell.sunk = 1;
+    settleSpring(c.shaker.tip, 1);
+    c.shaker.spill = 1;
+    c.shaker.lid = { x: SHAKER_AT.x + 96, y: SHAKER_AT.y - 4, vx: 0, vy: 0, angle: 0.3, spin: 0, flying: true, down: true };
+    return;
+  }
   const rng = mulberry32(seed);
   for (let i = 0; i < 26; i += 1) {
     const a = (i / 26) * Math.PI * 2 + (rng() - 0.5) * 0.3;
@@ -137,12 +168,37 @@ export function stepCurler(c: Curler, drive: CurlerDrive, dt: number): void {
   c.time += dt;
   c.modeAge += dt;
   c.tension = drive.tension;
-  c.events = { rep: false, sleeve: false, dropped: false };
+  c.multiplier = drive.multiplier;
+  c.events = { rep: false, sleeve: false, dropped: false, hop: false };
   if (c.mode === 'idle' && drive.running) { c.mode = 'curling'; c.modeAge = 0; }
   if (c.mode === 'curling' && drive.running && !c.burst) {
     const before = c.phase;
     c.phase += (0.7 + 0.9 * (1 - Math.exp(-drive.growth / 2))) * dt;
-    if (fract(before) < 0.5 && (fract(c.phase) >= 0.5 || Math.floor(c.phase) > Math.floor(before))) { c.events.rep = true; c.puff.v += 40 + 60 * drive.tension; }
+    if (fract(before) < 0.5 && (fract(c.phase) >= 0.5 || Math.floor(c.phase) > Math.floor(before))) {
+      c.events.rep = true;
+      c.puff.v += 40 + 60 * drive.tension;
+      // The shaker on the floor hops with the heavier reps.
+      if (drive.tension > 0.45) { c.shaker.hop.v += 4 + 6 * drive.tension; c.events.hop = true; }
+    }
+  }
+  // The shaker: the hop settles, and after the burst it tips over, loses its lid and spills.
+  const sh = c.shaker;
+  stepSpring(sh.hop, 0, 16, 0.3, dt);
+  stepSpring(sh.tip, c.burst ? 1 : 0, 7, 0.55, dt);
+  if (c.burst && sh.tip.x > 0.6) {
+    if (!sh.lid.flying) sh.lid = { x: SHAKER_AT.x + 52, y: SHAKER_AT.y - 14, vx: 140, vy: -230, angle: 0, spin: 14, flying: true, down: false };
+    sh.spill = Math.min(1, sh.spill + dt / 0.9);
+  }
+  if (sh.lid.flying && !sh.lid.down) {
+    sh.lid.vy += 900 * dt;
+    sh.lid.x += sh.lid.vx * dt;
+    sh.lid.y += sh.lid.vy * dt;
+    sh.lid.angle += sh.lid.spin * dt;
+    if (sh.lid.y > SHAKER_AT.y - 4 && sh.lid.vy > 0) {
+      sh.lid.y = SHAKER_AT.y - 4;
+      if (sh.lid.vy > 120) { sh.lid.vy *= -0.35; sh.lid.vx *= 0.7; sh.lid.spin *= 0.5; }
+      else { sh.lid.down = true; sh.lid.angle = 0.3; }
+    }
   }
   const target = c.mode === 'curling' ? 0.5 - 0.5 * Math.cos(c.phase * Math.PI * 2) : c.mode === 'posing' ? 1 : 0.1;
   stepSpring(c.curl, c.burst ? 0 : target, c.mode === 'curling' ? 30 : 6, 0.9, dt);
@@ -203,8 +259,8 @@ function drawDumbbell(ctx: CanvasRenderingContext2D, at: Point, angle: number, b
   ctx.restore();
 }
 
-/** The gauge on the cuff. */
-function drawCuff(ctx: CanvasRenderingContext2D, at: Point, k: number, time: number): void {
+/** The gauge on the cuff, and the readout under it: the bicep's market cap. */
+function drawCuff(ctx: CanvasRenderingContext2D, at: Point, k: number, time: number, cap: string, dead: boolean): void {
   ctx.save();
   ctx.translate(at.x, at.y);
   ctx.fillStyle = '#6b7a8c'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
@@ -218,7 +274,56 @@ function drawCuff(ctx: CanvasRenderingContext2D, at: Point, k: number, time: num
   ctx.strokeStyle = '#d62839'; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 12, Math.sin(a) * 12); ctx.stroke();
   ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, Math.PI * 2); ctx.fill();
+  // The LCD on a cable below the gauge, hanging where the forearm and the dumbbell never swing.
+  ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, 15); ctx.quadraticCurveTo(-6, 52, 12, 76); ctx.stroke();
+  ctx.fillStyle = dead ? '#3a1420' : '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(4, 74, 74, 20, 3); ctx.fill(); ctx.stroke();
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.fillStyle = dead ? '#ff9db0' : '#8fd3ff'; ctx.font = '900 8px Impact, "Arial Black", sans-serif';
+  ctx.fillText('MCAP', 8, 88);
+  ctx.fillStyle = dead ? '#ff4d6d' : '#7cf67c'; ctx.font = '900 13px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText(dead ? 'RUGGED' : cap, 74, 89, 44);
   ctx.restore();
+}
+
+/** The shaker on the floor beside him: rattling and hopping with the tremble, on its side and spilling after the burst. */
+function drawShaker(ctx: CanvasRenderingContext2D, c: Curler): void {
+  const s = c.shaker;
+  const strain = c.mode === 'curling' && !c.burst ? c.tension : 0;
+  const rattle = Math.sin(c.time * 45) * 2.2 * strain * strain;
+  const hop = Math.max(0, s.hop.x);
+  const tip = clamp(s.tip.x, 0, 1);
+  ctx.save();
+  ctx.lineJoin = 'round';
+  if (s.spill > 0.01) {
+    ctx.fillStyle = 'rgba(248, 248, 244, 0.95)'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(SHAKER_AT.x + 62 + 22 * s.spill, SHAKER_AT.y + 2, 8 + 34 * s.spill, 3 + 6 * s.spill, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.beginPath(); ctx.ellipse(SHAKER_AT.x + 22 * tip, SHAKER_AT.y + 4, 18 + 14 * tip, 5, 0, 0, Math.PI * 2); ctx.fill();
+  // The body pivots on its bottom-right corner as it goes over.
+  ctx.translate(SHAKER_AT.x + 13 + rattle, SHAKER_AT.y - hop * 7);
+  ctx.rotate(tip * Math.PI / 2);
+  ctx.scale(1 + 0.08 * hop, 1 - 0.08 * hop);
+  ctx.fillStyle = '#f2f2f2'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-26, -40, 26, 40, [3, 3, 5, 5]); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; ctx.fillRect(-23, -36, 4, 30);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(-26, -27, 26, 12);
+  ctx.strokeRect(-26, -27, 26, 12);
+  ctx.fillStyle = '#ffffff'; ctx.font = '900 9px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('WHEY', -13, -18);
+  if (!s.lid.flying) { ctx.fillStyle = '#2b2b30'; ctx.beginPath(); ctx.roundRect(-27, -47, 28, 8, 3); ctx.fill(); ctx.stroke(); }
+  ctx.restore();
+  if (s.lid.flying) {
+    ctx.save();
+    ctx.translate(s.lid.x, s.lid.y);
+    ctx.rotate(s.lid.angle);
+    ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(-14, -4, 28, 8, 3); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 export interface CurlerView { head: Point; hand: Point }
@@ -228,6 +333,7 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   const curl = clamp(c.curl.x, -0.1, 1.15);
   const strain = c.mode === 'curling' && !c.burst ? c.tension : 0;
   const tremble = Math.sin(t * 43) * 2.5 * strain * strain;
+  drawShaker(ctx, c);
   ctx.save();
   ctx.translate(tremble, 0);
   ctx.lineJoin = 'round';
@@ -293,11 +399,12 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   const hand = c.burst ? { x: ELBOW.x + 10, y: ELBOW.y + 60 } : { x: ELBOW.x + Math.cos(angle) * forearm, y: ELBOW.y + Math.sin(angle) * forearm };
   const noodle = clamp(c.noodle.x, 0, 1);
   if (noodle > 0.02) {
-    // A limp noodle from the shoulder, wobbling.
+    // A limp noodle from the shoulder, wobbling, the cuff still on it reading nothing.
     ctx.strokeStyle = INK; ctx.lineWidth = 19; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(SHOULDER.x, SHOULDER.y);
     for (let i = 1; i <= 8; i += 1) ctx.lineTo(SHOULDER.x + 10 + Math.sin(t * 3 + i) * 10 * noodle, SHOULDER.y + i * 22 * noodle);
     ctx.stroke(); ctx.strokeStyle = GRAY; ctx.lineWidth = 14; ctx.stroke();
+    drawCuff(ctx, { x: SHOULDER.x + 10 + Math.sin(t * 3 + 3) * 10 * noodle, y: SHOULDER.y + 66 * noodle }, 0, t, '$0', true);
   } else {
     limb(ctx, SHOULDER, ELBOW, 22, GRAY);
     // The bicep: gray going red, veins with the load, a synthol sheen.
@@ -321,7 +428,7 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
     ctx.beginPath(); ctx.ellipse(-g.rx * 0.38, -g.ry * 0.42, g.rx * 0.18, g.ry * 0.3, -0.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (c.sleeve) { ctx.fillStyle = TEE; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(SHOULDER.x - 16, SHOULDER.y - 12); ctx.lineTo(SHOULDER.x + 22 + g.r * 0.4, SHOULDER.y + 4); ctx.lineTo(SHOULDER.x + 14 + g.r * 0.4, SHOULDER.y + 34); ctx.lineTo(SHOULDER.x - 20, SHOULDER.y + 26); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-    drawCuff(ctx, { x: ELBOW.x - 6, y: ELBOW.y - 22 }, 1 - Math.exp(-Math.log2(1 + (g.r - 16) / 20)), t);
+    drawCuff(ctx, { x: ELBOW.x - 6, y: ELBOW.y - 22 }, 1 - Math.exp(-Math.log2(1 + (g.r - 16) / 20)), t, marketCap(c.multiplier, false), false);
     limb(ctx, ELBOW, hand, 18, GRAY);
     ctx.beginPath(); ctx.arc(hand.x, hand.y, 12, 0, Math.PI * 2); ctx.fillStyle = GRAY; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
   }
