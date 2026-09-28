@@ -99,7 +99,9 @@ export function pageAudio(options: AudioOptions = {}): Audio {
   // the user activation autoplay rules want; the button itself is a gesture too.
   const wanted = remembered();
   if (wanted !== 'off') {
-    const arm = async () => {
+    const arm = async (event: Event) => {
+      // A gesture on the button itself is the button's to handle: it toggles once, not twice.
+      if (button && event.target instanceof Node && button.contains(event.target)) return;
       document.removeEventListener('pointerdown', arm, true);
       document.removeEventListener('keydown', arm, true);
       if (audio.mode !== 'off') return;

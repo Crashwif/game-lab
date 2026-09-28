@@ -13,13 +13,13 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting.
+Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting. Every game has a Sound button: music and effects are synthesised on the page, off until you turn them on, and the choice is remembered.
 
 | Reference | What to study | Status |
 | --- | --- | --- |
-| [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a seeded burst, meme captions | Playable |
+| [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a slingshot that winds up with the multiplier, a seeded burst with hit-stop and slow motion, meme captions | Playable |
 | [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook, camera tracking, a seeded collapse | Playable |
-| [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, opt-in procedural sound | Playable |
+| [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, a game's own sounds on the shared audio bus | Playable |
 | [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, a reflection, a seeded shatter into floes | Playable |
 | [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a Lambo pick-up | Playable |
 | [Exit Liquidity](games/exit-liquidity) | A pool that fills with holders, a whale, a drain-plug rug pull | Playable |
@@ -49,7 +49,7 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 ## The page shell
 
-Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
+Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every game's `audio.ts` is the same file too: the page's sound, which the game's scene flavours. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell or the audio drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
 
 The shell:
 
@@ -59,6 +59,8 @@ The shell:
 - shows a room error or a refusal as a notice, and stops offering Cash out when no server frame has arrived for 2 s;
 - framed by the platform, hides Join, keeps Cash out and reports the page's height so the host can size the frame (see [embedded mode](docs/integration.md#embedded-mode));
 - in replay mode, plays `replay.json` by the frame clock, so slow frames and a hidden tab never make the recording drift.
+
+The audio (`audio.ts`) is procedural Web Audio with no files, so a bundle stays self-contained and a source pack stays text. A scene calls `pageAudio({ style, crash })` once, with a genre from fifteen presets (phonk, chiptune, eurodance, trap, lofi, techno, synthwave, dnb, hardstyle, elevator, casino, ambient, military, club, hospital) and the stinger its crash makes, then feeds it the round each frame (`update(phase, tension)`) and its own cues (`fx(name)`, `milestone(index)`, `cashout()`, `crash()`). The music is a step sequencer scheduled ahead of the audio clock: the tempo, the filter, the layers (hats, arpeggio, lead, a riser) and snare rolls follow the tension, betting plays a thinned beat, the first running frame drops, a cash-out ducks the music under a register and a fanfare, and the crash tape-stops it into the stinger. The Sound button cycles off, on and effects only, remembers the choice, and a remembered choice starts with the next click or key (the user activation autoplay rules want). It goes quiet while the page is hidden or the picture is scrolled out of view. A game with its own sounds (Boiler Room's hiss, chuff, ping and blast) builds them on the engine's context and bus, so one button governs everything. `pageAudio` also takes `clips`: recorded music, crash and cash-out clips as data URLs (base64 in a `.json` beside the game) that play instead of the synthesised ones, for a game whose author generates them elsewhere.
 
 ## Game Lab deploy
 
