@@ -4,13 +4,14 @@
  * Canvas 2D. All motion is stepped here with the real frame time, and nothing
  * drawn here changes the committed outcome.
  */
-import { IMPACT, PULL, crashFlash, createCrash, drawOutside, drawWall, outside, outsideCamera, outsideEnvironment, pullBack, resetCrash, rugPulled, startCrash, stepCrash } from './crash';
-import { createFeed, drawFeed, post, resetFeed, stepFeed } from './feed';
+import { pageAudio } from './audio';
+import { IMPACT, OUTSIDE, PULL, RUG_PULL, crashFlash, createCrash, drawOutside, drawWall, outside, outsideCamera, outsideEnvironment, pullBack, resetCrash, rugPulled, startCrash, stepCrash } from './crash';
+import { createFeed, drawFeed, post, resetFeed, settleFeed, stepFeed } from './feed';
 import { drawFallback } from './fallback';
 import { putInstance } from './gl';
 import { H, W, drawCard, drawLabels, drawVignette, grouped, memeText } from './hud';
 import { type Vec3, add, basisFrom, lerp3, lookAt, madd, mat4, normalize, perspective, rotateAbout, sub } from './math3d';
-import { clamp, settleSpring, spring, stepSpring } from './motion';
+import { clamp, mulberry32, settleSpring, spring, stepSpring } from './motion';
 import { EGG_FAR, type Label, WAVES, bankYou, createPack, drawPack, eggDistance, headline, pilePack, resetPack, settlePack, stepPack } from './pack';
 import { borePoint, frameAt } from './path';
 import { type Environment, RING_SPACING, Renderer } from './render';
@@ -48,6 +49,16 @@ const EGG_RADIUS = 9;
 const MAX_PIXEL_RATIO = 1.5;
 /** Seconds of the crash that play out even when the next round's betting opens sooner (the emulator waits 2 s). */
 const REVEAL_HOLD = 5.6;
+/** The multipliers the milestone stingers play at: the caption ladder. */
+const RUNGS = [1.3, 1.8, 2.4, 3.3, 4.6, 6.9, 10];
+/** The pile-up into the wall: a short freeze, then slow motion. */
+const FREEZE_S = 0.07;
+const SLOW_S = 0.35;
+const SLOW_RATE = 0.3;
+/** Seconds of the reveal at which the condom bounces off the bin's rim, and the bin goes over. */
+const RIM_AT = OUTSIDE + 0.62;
+const BIN_AT = RUG_PULL + 0.45;
+type Confetti = { x: number; y: number; vx: number; vy: number; age: number; life: number; colour: string; size: number };
 
 function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured: Secured | null, event: string | null): string {
   if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'FROZEN ASSETS' : 'FUNDS ARE SAFU';
@@ -74,6 +85,8 @@ function popFor(outcome: Outcome, crashX100: number): [string, string] {
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
+  // Drum and bass down the tunnel; the crash is wet.
+  const audio = pageAudio({ style: 'dnb', crash: 'splash' });
   let renderer: Renderer | null = null;
   /** The WebGL canvas. A lost context (a GPU reset, a phone backgrounding the tab) comes back only on it. */
   let glCanvas: HTMLCanvasElement | null = null;
@@ -103,6 +116,14 @@ export function createScene(options: SceneOptions = {}): Scene {
   const badge = spring(0);
   const captionPop = spring(0);
   const launchPop = spring(0);
+  /** The camera's punch into the wall at the impact. */
+  const punch = spring(0);
+  let freeze = 0;
+  let slow = 0;
+  /** The reveal's sounds, fired once each. */
+  let rimHit = false;
+  let binHit = false;
+  let confetti: Confetti[] = [];
   let last: number | null = null;
   let time = 0;
   let beat = 0;
@@ -121,6 +142,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   /** Settles the race for a round met mid-run or after the crash, instead of playing out what came before. */
   function settleRace(view: SceneView, m: number): void {
     settlePack(pack, m, view.phase === 'running' ? view.elapsed / 1000 : undefined);
+    settleFeed(feed, m);
     settleSpring(orbit, 0);
     if (view.cashoutX100 !== null) {
       // Already in the sperm bank: no swerve and no frost, and the badge is up.
@@ -138,6 +160,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     secured = null;
     event = null;
     holding = false;
+    freeze = slow = 0;
+    rimHit = binHit = false;
+    confetti = [];
+  }
+
+  /** The burst over the badge as the bank accepts you. */
+  function celebrate(): void {
+    const rng = mulberry32(0xcafe);
+    for (let i = 0; i < 36; i += 1) confetti.push({ x: W / 2 + (rng() - 0.5) * 40, y: 96, vx: (rng() - 0.5) * 360, vy: -120 - rng() * 220, age: 0, life: 1 + rng() * 0.8, colour: ['#8ff0ff', '#d5fb6d', '#ffffff', '#ffe27a'][i % 4]!, size: 2.5 + rng() * 3.5 });
   }
 
   function setEvent(text: string, seconds: number): void {
@@ -195,7 +226,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const forward = normalize(sub(target, eye));
     const roll = reduced ? 0 : 0.05 * Math.sin(time * 0.4) + 0.08 * tension * Math.sin(time * 1.9);
     lookAt(viewMatrix, eye, target, rotateAbout(frameAt(eyeS).up, forward, roll));
-    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) + 6 * tension;
+    // The lens: wide on the launch and with the tension, punched in on the pile-up.
+    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) + 6 * tension - 9 * clamp(punch.x, 0, 1.2);
     perspective(projMatrix, ((62 + kick) * Math.PI) / 180, W / H, 0.05, 420);
 
     // The egg: far and small at 1×, filling the bore the higher it goes.
@@ -227,8 +259,17 @@ export function createScene(options: SceneOptions = {}): Scene {
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     // Nothing to draw into (a collapsed canvas), and copying a zero-size WebGL frame would throw.
     if (ctx.canvas.width < 1 || ctx.canvas.height < 1) return;
-    const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.2);
+    const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.2);
     last = now;
+    // The hit-stop holds the picture for a few frames as the pack hits the wall, then it runs slow before time catches up.
+    let dt = real;
+    if (freeze > 0) {
+      freeze -= real;
+      dt = 0;
+    } else if (slow > 0) {
+      slow -= real;
+      dt = real * SLOW_RATE;
+    }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = clamp(Math.log2(multiplier) / 3.5, 0, 1);
@@ -249,6 +290,8 @@ export function createScene(options: SceneOptions = {}): Scene {
         crashX100 = view.currentX100;
         startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, cashed, true);
         pop.x = 1;
+        rimHit = binHit = true;
+        audio.crash('splash', true);
       }
     } else if (view.phase !== previous) {
       // Still holding the last round's reveal: this round ran while the tab was hidden.
@@ -262,7 +305,8 @@ export function createScene(options: SceneOptions = {}): Scene {
         crashX100 = view.currentX100;
         startCrash(crash, pack.anchor + pilePack(pack), view.currentX100, cashed, quiet);
         post(feed, 'DEV PULLED 100% LIQUIDITY', 'news');
-        if (quiet) pop.x = 1;
+        if (quiet) { pop.x = 1; rimHit = binHit = true; }
+        audio.crash('splash', quiet);
       }
       if (view.phase === 'betting') {
         if (crash.active && crash.age < REVEAL_HOLD) holding = true;
@@ -273,30 +317,54 @@ export function createScene(options: SceneOptions = {}): Scene {
         launchAge = 0;
         launchPop.v = 14;
         post(feed, 'DEV BOUGHT 69.00 SOL', 'news');
+        audio.fx('whoosh', 1);
       }
       previous = view.phase;
     }
     if (holding && crash.age >= REVEAL_HOLD) resetRound();
     // After the resets, so none of them drops this round's cash-out; latched, so the badge stays up through a
     // reveal held into the next round's betting.
-    if (view.cashoutX100 !== null) secured = { x100: view.cashoutX100, payout: view.payout };
+    if (view.cashoutX100 !== null && !secured) {
+      secured = { x100: view.cashoutX100, payout: view.payout };
+      if (running) { audio.cashout(); celebrate(); }
+    }
     if (secured && running && pack.you.mode === 'race') bankYou(pack);
 
     stepPack(pack, { racing: running, multiplier, tension, crashed }, dt);
+    const wasHit = crash.hit;
     stepCrash(crash, dt);
-    stepFeed(feed, running && !secured, tension, dt);
+    if (!wasHit && crash.hit && crash.age < 1) {
+      // The pile-up: the thud, the freeze, the slow motion and the punch-in, all but the thud skipped under reduced motion.
+      audio.fx('thud', 1.2);
+      if (!reduced) {
+        freeze = FREEZE_S;
+        slow = SLOW_S;
+        punch.v = 8;
+      }
+    }
+    if (crash.active && !rimHit && crash.age >= RIM_AT) { rimHit = true; audio.fx('squeak', 0.7); }
+    if (crash.active && !binHit && crash.age >= BIN_AT) { binHit = true; audio.fx('clang', 0.8); }
+    if (stepFeed(feed, running && !secured, tension, dt, multiplier)) audio.fx('notify', 0.6);
     for (const e of pack.events) {
-      if (e === 'jeets' && pack.wave > 1) { setEvent('JEETS OUT', 1.4); post(feed, `${8 + pack.wave * 3} JEETS SOLD`, 'news'); }
-      if (e === 'snipers') { setEvent('SNIPERS DUMPED', 1.8); post(feed, 'SNIPER BOTS SOLD 12.40 SOL', 'news'); }
-      if (e === 'sec') { setEvent('SEC IS HERE', 2.2); post(feed, 'SEC FROZE 3 WALLETS', 'news'); }
-      if (e === 'whale') { setEvent('WHALE ALERT', 2.8); post(feed, 'WHALE BOUGHT 420.69 SOL', 'news'); }
-      if (e === 'banked') { frost = 1; post(feed, 'YOU SOLD · BANKED', 'news'); }
+      if (e === 'jeets' && pack.wave > 1) { setEvent('JEETS OUT', 1.4); post(feed, `${8 + pack.wave * 3} JEETS SOLD`, 'news'); audio.fx('boo', 0.4 + 0.4 * tension); }
+      if (e === 'snipers') { setEvent('SNIPERS DUMPED', 1.8); post(feed, 'SNIPER BOTS SOLD 12.40 SOL', 'news'); audio.fx('kaching', 0.8); }
+      if (e === 'sec') { setEvent('SEC IS HERE', 2.2); post(feed, 'SEC FROZE 3 WALLETS', 'news'); audio.fx('siren', 0.7); }
+      if (e === 'whale') { setEvent('WHALE ALERT', 2.8); post(feed, 'WHALE BOUGHT 420.69 SOL', 'news'); audio.fx('glug', 1); }
+      if (e === 'banked') { frost = 1; post(feed, 'YOU SOLD · BANKED', 'news'); audio.fx('zap', 0.8); }
     }
     eventTimer = Math.max(0, eventTimer - dt);
     if (eventTimer <= 0) event = null;
     launchAge += dt;
     frost = Math.max(0, frost - dt / 0.6);
+    // A bubble on each beat of the tunnel's pulse while the race is on.
+    const beatWas = Math.floor(beat / (Math.PI * 2));
     beat += dt * (running ? 2.4 + 5.5 * tension : crashed ? 9 : 1.6);
+    if (running && Math.floor(beat / (Math.PI * 2)) !== beatWas) audio.fx('bubble', 0.4 + 0.6 * tension);
+    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    audio.update(view.phase, tension);
+    stepSpring(punch, 0, 9, 0.5, dt);
+    for (const k of confetti) { k.age += dt; k.x += k.vx * dt; k.vy += 480 * dt; k.y += k.vy * dt; k.vx *= Math.exp(-dt * 1.2); }
+    confetti = confetti.filter((k) => k.age < k.life);
     // The SAFU print is the impact's punchline; the verdict lands with the pull-out.
     stepSpring(pop, outcome && crash.age > PULL ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
@@ -337,7 +405,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!outside(crash)) drawVignette(ctx, running ? tension : 0, reduced ? 0 : beatGlow);
     if (r) drawLabels(ctx, labels, r.viewProj);
     if (!outside(crash)) drawFeed(ctx, feed);
-    if (!outside(crash)) drawCard(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, king: running && pack.you.mode === 'race' && multiplier >= WAVES[5]!, replies: Math.floor(12 + 40 * Math.pow(Math.max(0, multiplier - 1), 1.3)) });
+    if (!outside(crash)) drawCard(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, king: running && pack.you.mode === 'race' && multiplier >= WAVES[5]!, replies: Math.floor(12 + 40 * Math.pow(Math.max(0, multiplier - 1), 1.3)), time, reduced });
     if (frost > 0.01 && !reduced) {
       ctx.fillStyle = `rgba(160,240,255,${0.35 * frost})`;
       ctx.fillRect(0, 0, W, H);
@@ -370,6 +438,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#8ff0ff', 'center');
       ctx.restore();
     }
+    for (const k of confetti) { ctx.globalAlpha = 1 - k.age / k.life; ctx.fillStyle = k.colour; ctx.beginPath(); ctx.arc(k.x, k.y, k.size, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1;
     if (outcome && pop.x > 0.02) {
       const [text, colour] = popFor(outcome, crashX100);
       ctx.save();

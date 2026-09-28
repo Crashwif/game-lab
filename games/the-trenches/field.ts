@@ -21,8 +21,13 @@ export interface Runner { kind: 'rat' | 'jeet'; x: number; y: number; vx: number
 export interface Helmet { x: number; y: number; vx: number; vy: number; spin: number; rot: number; landed: boolean }
 export interface Silhouette { x0: number; y0: number; x1: number; y1: number; rot: number; peak: number }
 
+/** What happened this step, for the scene's sound: the flags hold for one frame, `helmets` counts the landings. */
+export interface FieldEvents { shell: boolean; jeet: boolean; flung: boolean; helmets: number }
+
 export interface Field {
   time: number;
+  whooshNext: number;
+  events: FieldEvents;
   bursts: Burst[];
   runners: Runner[];
   nuked: boolean;
@@ -38,7 +43,7 @@ export interface Field {
 }
 
 export function createField(): Field {
-  return { time: 0, bursts: [], runners: [], nuked: false, nukeAge: 0, nukeSeed: 1, cloudWobble: 0.5, cloudTilt: 0, helmets: [], flung: [], flash: 0, nextBurst: 1, nextRunner: 3 };
+  return { time: 0, whooshNext: 0, events: { shell: false, jeet: false, flung: false, helmets: 0 }, bursts: [], runners: [], nuked: false, nukeAge: 0, nukeSeed: 1, cloudWobble: 0.5, cloudTilt: 0, helmets: [], flung: [], flash: 0, nextBurst: 1, nextRunner: 3 };
 }
 
 export function resetField(f: Field): void {
@@ -88,9 +93,14 @@ export function nuke(f: Field, seed: number, quiet: boolean, frogXs: number[]): 
 export interface FieldDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
 
 export function stepField(f: Field, drive: FieldDrive, dt: number): void {
+  const e = f.events;
+  e.shell = e.jeet = e.flung = false;
+  e.helmets = 0;
   f.time += dt;
   if (f.nuked) {
+    const was = f.nukeAge;
     f.nukeAge += dt;
+    if (was <= 0.15 && f.nukeAge > 0.15) e.flung = true;
     f.flash = Math.max(0, f.flash - dt / 0.7);
     for (const h of f.helmets) {
       if (h.landed) continue;
@@ -99,15 +109,18 @@ export function stepField(f: Field, drive: FieldDrive, dt: number): void {
       h.y += h.vy * dt;
       h.rot += h.spin * dt;
       const floor = h.y > TRENCH_Y + 20 ? TRENCH_Y + 96 + noise(h.x) * 30 : Infinity;
-      if (h.y >= floor) { h.y = floor; h.landed = true; }
+      if (h.y >= floor) { h.y = floor; h.landed = true; e.helmets += 1; }
     }
     return;
   }
   const rate = drive.running ? 0.35 + 2.2 * drive.tension : 0.15;
   if (f.time > f.nextBurst && f.bursts.length < 24) {
     const n = f.time * 3.7;
-    f.bursts.push({ x: 40 + noise(n) * (W - 80), y: 30 + noise(n * 1.7) * 200, age: 0, life: 0.9 + noise(n * 2.3) * 0.8, size: 14 + noise(n * 3.1) * 26 * (0.5 + drive.tension), streak: drive.tension > 0.5 && noise(n * 4.1) > 0.4 ? 1 : 0 });
+    const streak = drive.tension > 0.5 && noise(n * 4.1) > 0.4 ? 1 : 0;
+    f.bursts.push({ x: 40 + noise(n) * (W - 80), y: 30 + noise(n * 1.7) * 200, age: 0, life: 0.9 + noise(n * 2.3) * 0.8, size: 14 + noise(n * 3.1) * 26 * (0.5 + drive.tension), streak });
     f.nextBurst = f.time + (0.4 + noise(n * 5.3) * 1.4) / rate;
+    // The incoming whistle, at most a couple a second.
+    if (streak && drive.running && f.time > f.whooshNext) { f.whooshNext = f.time + 0.6; e.shell = true; }
   }
   for (const b of f.bursts) b.age += dt;
   f.bursts = f.bursts.filter((b) => b.age < b.life);
@@ -116,6 +129,7 @@ export function stepField(f: Field, drive: FieldDrive, dt: number): void {
     const jeet = noise(n * 1.3) > 0.55;
     const x = 80 + noise(n) * 800;
     f.runners.push({ kind: jeet ? 'jeet' : 'rat', x, y: ridgeY(x, drive.tension, f.time) + 6, vx: (noise(n * 2) - 0.5) * 60, vy: jeet ? 90 : 140, age: 0, seed: n });
+    if (jeet) e.jeet = true;
     f.nextRunner = f.time + (1.2 + noise(n * 7) * 2.5) / (0.4 + drive.tension);
   }
   for (const r of f.runners) { r.age += dt; r.x += r.vx * dt; r.y += r.vy * dt * (0.6 + r.y / 400); }

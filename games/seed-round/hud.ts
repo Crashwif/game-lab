@@ -83,14 +83,26 @@ function crown(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): 
   ctx.stroke();
 }
 
-export interface CardState { multiplier: number; crashed: boolean; king: boolean; replies: number }
+export interface CardState { multiplier: number; crashed: boolean; king: boolean; replies: number; time: number; reduced: boolean }
 
-/** A pump.fun coin card: ticker, market cap, the bonding curve toward graduation, King of the Hill. */
+/** The top holder's share of the supply: 42% at the launch, 69% by 2×, and on toward all of it. */
+export const topHolder = (m: number): number => Math.min(96, 42 + 27 * Math.log2(Math.max(1, m)));
+
+/** What the dev is up to, by the multiplier. */
+function devStatus(m: number, crashed: boolean): [string, string] {
+  if (crashed) return ['dev: deleted', '#ff6b86'];
+  if (m < 1.5) return ['dev: online', '#86efac'];
+  if (m < 2.4) return ['dev: typing…', '#86efac'];
+  if (m < 4.6) return ['dev: afk', '#ffd34d'];
+  return ['dev: went dark', '#ff6b86'];
+}
+
+/** A pump.fun coin card: ticker, market cap, the bonding curve toward graduation, the top holder's share, King of the Hill. */
 export function drawCard(ctx: CanvasRenderingContext2D, card: CardState): void {
   const x = 16;
   const y = 16;
   const w = 228;
-  const h = card.king ? 104 : 84;
+  const h = card.king ? 140 : 118;
   ctx.save();
   ctx.fillStyle = 'rgba(16,6,12,0.72)';
   ctx.strokeStyle = card.crashed ? 'rgba(255,77,109,0.8)' : 'rgba(134,239,172,0.55)';
@@ -119,26 +131,49 @@ export function drawCard(ctx: CanvasRenderingContext2D, card: CardState): void {
   ctx.fillStyle = '#ffffff';
   ctx.font = '800 16px system-ui, sans-serif';
   ctx.fillText('Seed Round', x + 50, y + 25);
+  const [status, statusColour] = devStatus(card.multiplier, card.crashed);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = statusColour;
+  ctx.font = '700 8px system-ui, sans-serif';
+  ctx.fillText(status, x + w - 12, y + 24, 54);
+  ctx.textAlign = 'left';
   ctx.fillStyle = '#86efac';
   ctx.font = '700 12px system-ui, sans-serif';
   const cap = card.crashed ? 0 : 10_000 * card.multiplier;
   ctx.fillText(`MC $${compact(cap)} · ${compact(card.replies)} replies`, x + 50, y + 42, w - 62);
   const progress = card.crashed ? 0 : clamp(Math.log(card.multiplier) / Math.log(GRADUATION), 0, 1);
   const graduated = progress >= 1;
+  // The curve trembles as graduation nears: the wind-up before whatever comes next.
+  const tremble = !card.reduced && !card.crashed && !graduated ? clamp((progress - 0.75) / 0.25, 0, 1) * 1.5 * Math.sin(card.time * 42) : 0;
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.beginPath();
-  ctx.roundRect(x + 12, y + 56, w - 24, 10, 5);
+  ctx.roundRect(x + 12, y + 54, w - 24, 10, 5);
   ctx.fill();
   ctx.fillStyle = graduated ? '#ffd34d' : card.crashed ? '#ff4d6d' : '#86efac';
   ctx.beginPath();
-  ctx.roundRect(x + 12, y + 56, Math.max(10, (w - 24) * progress), 10, 5);
+  ctx.roundRect(x + 12, y + 54 + tremble, Math.max(10, (w - 24) * progress), 10, 5);
   ctx.fill();
   ctx.fillStyle = '#e9d9e0';
   ctx.font = '600 11px system-ui, sans-serif';
-  ctx.fillText(card.crashed ? 'bonding curve: rugged' : graduated ? 'bonding curve: GRADUATED' : `bonding curve progress: ${Math.floor(progress * 100)}%`, x + 12, y + 79);
+  ctx.fillText(card.crashed ? 'bonding curve: rugged' : graduated ? 'bonding curve: GRADUATED' : `bonding curve progress: ${Math.floor(progress * 100)}%`, x + 12, y + 76);
+  // The top holder's bar: green until it is most of the supply, then it throbs red.
+  const share = card.crashed ? 100 : topHolder(card.multiplier);
+  const hot = clamp((share - 60) / 20, 0, 1);
+  const throb = card.reduced || card.crashed ? 1 : 0.7 + 0.3 * Math.sin(card.time * 6);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.roundRect(x + 12, y + 86, w - 24, 8, 4);
+  ctx.fill();
+  ctx.fillStyle = `rgb(${Math.round(134 + (255 - 134) * hot)}, ${Math.round(239 - (239 - 77) * hot * throb)}, ${Math.round(172 - (172 - 109) * hot)})`;
+  ctx.beginPath();
+  ctx.roundRect(x + 12, y + 86, (w - 24) * (share / 100), 8, 4);
+  ctx.fill();
+  ctx.fillStyle = hot > 0.5 ? '#ffb3c1' : '#e9d9e0';
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.fillText(card.crashed ? 'top holder: the dev · 100%' : `top holder: ${Math.round(share)}% (1 wallet)`, x + 12, y + 108);
   if (card.king) {
-    crown(ctx, x + 22, y + 98, 9);
-    memeText(ctx, 'KING OF THE HILL', x + 38, y + 98, 16, '#ffd34d', 'left');
+    crown(ctx, x + 22, y + 132, 9);
+    memeText(ctx, 'KING OF THE HILL', x + 38, y + 132, 16, '#ffd34d', 'left');
   }
   ctx.restore();
 }

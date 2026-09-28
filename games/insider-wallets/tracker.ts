@@ -1,7 +1,8 @@
 /**
  * The wallet tracker beside the stage. Balances track the displayed
- * multiplier. PENDING blinks as tension rises. SOLD hits every row in
- * the same frame as the crash.
+ * multiplier. PENDING blinks as tension rises. The allocation pie's
+ * family-and-friends slice grows on the same curve. SOLD hits every row
+ * in the same frame as the crash, and the pie becomes all of it.
  */
 import { clamp } from './motion';
 
@@ -33,6 +34,11 @@ function money(value: number): string {
   return `$${value}`;
 }
 
+/** The family-and-friends share of the supply: a bare majority at launch, the meme number near the top, all of it after the dump. */
+export function insiderShare(tension: number, crashed: boolean): number {
+  return crashed ? 1 : 0.51 + 0.18 * clamp(tension, 0, 1);
+}
+
 export function drawTracker(
   ctx: CanvasRenderingContext2D,
   multiplier: number,
@@ -56,11 +62,11 @@ export function drawTracker(
   ctx.textAlign = 'left';
   ctx.fillText('INSIDER WALLETS', 12, 24);
   ROWS.forEach((row, index) => {
-    const y = 52 + index * 36;
+    const y = 50 + index * 29;
     const pending = !crashed && tension >= row.pending;
     const blink = pending && Math.sin(time * 10 + index) > 0;
     ctx.fillStyle = crashed ? 'rgba(255, 77, 109, 0.18)' : blink ? 'rgba(255, 224, 138, 0.16)' : 'transparent';
-    ctx.fillRect(8, y - 16, 252, 30);
+    ctx.fillRect(8, y - 15, 252, 27);
     ctx.fillStyle = '#d7dde8';
     ctx.font = '700 13px ui-monospace, monospace';
     ctx.textAlign = 'left';
@@ -73,11 +79,45 @@ export function drawTracker(
     ctx.textAlign = 'left';
     ctx.fillText(crashed ? 'SOLD' : pending ? 'PENDING' : 'HOLDING', 112, y);
   });
+  // The allocation pie. The community's slice is what is left; after the dump it is the bag.
+  const share = insiderShare(tension, crashed);
+  const px = 44;
+  const py = 316;
+  const pr = 24;
+  const gold = crashed ? '#ff4d6d' : '#f0c14a';
+  ctx.fillStyle = '#7cf67c';
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, pr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * share);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.font = '700 10px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#8b93a7';
+  ctx.fillText('ALLOCATION', 82, 300);
+  ctx.fillStyle = gold;
+  ctx.fillText('FAMILY & FRIENDS', 82, 316);
+  ctx.fillStyle = '#7cf67c';
+  ctx.fillText('COMMUNITY (YOU)', 82, 332);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = gold;
+  ctx.fillText(crashed ? 'SOLD' : `${Math.round(share * 100)}%`, 254, 316);
+  ctx.fillStyle = '#7cf67c';
+  ctx.fillText(crashed ? 'THE BAG' : `${100 - Math.round(share * 100)}%`, 254, 332);
   const flash = crashed ? clamp(1 - crashAge / 0.28, 0, 1) : 0;
   if (flash > 0.02) {
     ctx.globalAlpha = flash * 0.55;
     ctx.fillStyle = '#fff';
-    ctx.fillRect(8, 36, 252, 300);
+    ctx.fillRect(8, 36, 252, 310);
     ctx.globalAlpha = 1;
   }
   ctx.fillStyle = crashed ? '#ff4d6d' : '#f0c14a';

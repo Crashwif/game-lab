@@ -16,6 +16,7 @@ const HEAD_START = 250;
 const HEAD_END = BOUNCER_X - 80;
 
 interface Bubble { index: number; text: string; age: number; life: number }
+interface Confetti { x: number; y: number; vx: number; vy: number; age: number; life: number; colour: string; size: number }
 
 export interface Queue {
   time: number;
@@ -32,10 +33,12 @@ export interface Queue {
   runSeeds: number[];
   /** The coin at the head walks into the empty club after the crash. */
   headIn: Spring;
+  /** The burst over your coin as he steps out of the line. */
+  confetti: Confetti[];
 }
 
 export function createQueue(): Queue {
-  return { time: 0, advance: spring(0), bounce: spring(0), suits: 0, bubbles: [], mode: 'queued', youX: spring(0), shades: spring(0), panic: false, panicAge: 0, runSeeds: [], headIn: spring(0) };
+  return { time: 0, advance: spring(0), bounce: spring(0), suits: 0, bubbles: [], mode: 'queued', youX: spring(0), shades: spring(0), panic: false, panicAge: 0, runSeeds: [], headIn: spring(0), confetti: [] };
 }
 
 export function resetQueue(q: Queue): void {
@@ -50,6 +53,7 @@ export function resetQueue(q: Queue): void {
   q.panicAge = 0;
   q.runSeeds = [];
   settleSpring(q.headIn, 0);
+  q.confetti = [];
 }
 
 function progress(multiplier: number): number {
@@ -63,7 +67,7 @@ export function settleQueue(q: Queue, multiplier: number): void {
 }
 
 /** Your coin steps out of the line toward the taxi. `quiet` puts him by the taxi already, for an exit that already happened. */
-export function leaveQueue(q: Queue, quiet = false): void {
+export function leaveQueue(q: Queue, quiet = false, reduced = false): void {
   if (q.mode !== 'queued') return;
   if (quiet) {
     q.mode = 'gone';
@@ -73,6 +77,11 @@ export function leaveQueue(q: Queue, quiet = false): void {
   }
   q.mode = 'stepping';
   q.shades.v = 6;
+  // Confetti over your coin: the one who left with the bag. Capped, and skipped under reduced motion.
+  if (reduced) return;
+  const rng = mulberry32(42);
+  const x = coinX(q, YOU);
+  for (let i = 0; i < 36; i += 1) q.confetti.push({ x: x + (rng() - 0.5) * 30, y: GROUND - 110, vx: (rng() - 0.5) * 320, vy: -160 - rng() * 220, age: 0, life: 1 + rng() * 0.8, colour: ['#7cf67c', '#ffe27a', '#ffffff', '#ff5d9e'][i % 4]!, size: 2.5 + rng() * 3.5 });
 }
 
 /** Sell the news: the line turns and runs. */
@@ -129,6 +138,8 @@ export function stepQueue(q: Queue, drive: QueueDrive, dt: number): boolean {
     q.bubbles = [];
     stepSpring(q.headIn, q.panicAge > 1.4 ? 1 : 0, 3, 0.9, dt);
   }
+  for (const k of q.confetti) { k.age += dt; k.x += k.vx * dt; k.vy += 460 * dt; k.y += k.vy * dt; k.vx *= Math.exp(-dt * 1.2); }
+  q.confetti = q.confetti.filter((k) => k.age < k.life);
   return reached;
 }
 
@@ -327,4 +338,6 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
       ctx.restore();
     }
   }
+  for (const k of q.confetti) { ctx.globalAlpha = 1 - k.age / k.life; ctx.fillStyle = k.colour; ctx.beginPath(); ctx.arc(k.x, k.y, k.size, 0, Math.PI * 2); ctx.fill(); }
+  ctx.globalAlpha = 1;
 }
