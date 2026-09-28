@@ -103,6 +103,42 @@ export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
   stepSpring(s.sponsor, s.crashed ? 1 : 0, 10, 0.55, dt);
 }
 
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
+}
+
 function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
   ctx.strokeStyle = INK;
   ctx.lineWidth = width;
@@ -261,28 +297,22 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: nu
   ctx.font = '900 8px Impact, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('↑', -6, -45);
-  // Mic.
+  // The other arm holds the mic against the chest.
+  const micHand = { x: 22, y: -18 };
+  limb(ctx, { x: -18, y: -40 }, micHand, 22, 20, 1, 7, '#22262e');
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(8, -40);
-  ctx.lineTo(18, -28);
+  ctx.moveTo(micHand.x - 4, micHand.y);
+  ctx.lineTo(micHand.x + 6, micHand.y + 8);
   ctx.stroke();
   ctx.fillStyle = '#111';
-  ctx.fillRect(16, -30, 6, 8);
-  // Pointing arm, shaking at the wrist.
-  ctx.strokeStyle = '#22262e';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(20, -40);
-  ctx.lineTo(78 + shake, -58);
-  ctx.stroke();
-  ctx.strokeStyle = SKIN;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(78 + shake, -58);
-  ctx.lineTo(96 + shake, -64);
-  ctx.stroke();
+  ctx.fillRect(micHand.x + 4, micHand.y + 6, 6, 8);
+  // Pointing arm: sleeve, then the wrist, then the finger.
+  const wrist = { x: 72 + shake * 0.35, y: -50 };
+  limb(ctx, { x: 18, y: -42 }, wrist, 32, 28, wrist.y >= -42 ? -1 : 1, 8, '#22262e');
+  const finger = { x: 96 + shake, y: -66 };
+  limb(ctx, wrist, finger, 16, 14, finger.y >= wrist.y ? -1 : 1, 5, SKIN);
   // Head.
   ctx.translate(0, -78);
   ctx.beginPath();

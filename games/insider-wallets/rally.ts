@@ -157,6 +157,42 @@ export function prompter(multiplier: number, crashed: boolean, tension: number):
   return ['I LOVE', 'THE UNBANKED'];
 }
 
+type Point = { x: number; y: number };
+
+function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return {
+    x: root.x + (dx / distance) * along - (dy / distance) * bend,
+    y: root.y + (dy / distance) * along + (dx / distance) * bend,
+  };
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
+  const joint = bendJoint(a, b, upper, lower, side);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(joint.x, joint.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  return joint;
+}
+
 function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
   ctx.strokeStyle = INK;
   ctx.lineWidth = width;
@@ -220,20 +256,18 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
   ctx.moveTo(0, -46);
   ctx.lineTo(tie * 0.3, -8);
   ctx.stroke();
-  // Thumbs-up, shaking.
-  ctx.strokeStyle = '#1d3354';
-  ctx.lineWidth = 8;
+  // The free arm hangs. The other bends up into the thumb.
+  limb(ctx, { x: -24, y: -32 }, { x: -42, y: 10 }, 28, 26, 1, 8, '#1d3354');
+  const wrist = { x: 64, y: -38 + jitter * 0.4 };
+  limb(ctx, { x: 22, y: -30 }, wrist, 28, 24, wrist.y >= -30 ? -1 : 1, 9, '#1d3354');
+  const thumb = { x: 72, y: -62 + jitter };
+  limb(ctx, wrist, thumb, 14, 12, thumb.y >= wrist.y ? -1 : 1, 5, SKIN);
+  ctx.fillStyle = SKIN;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(28, -30);
-  ctx.lineTo(58, -44 + jitter);
-  ctx.stroke();
-  ctx.strokeStyle = SKIN;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(58, -44 + jitter);
-  ctx.lineTo(64, -62 + jitter);
-  ctx.moveTo(54, -40 + jitter);
-  ctx.lineTo(70, -38 + jitter);
+  ctx.arc(wrist.x, wrist.y, 6, 0, Math.PI * 2);
+  ctx.fill();
   ctx.stroke();
   // Head, jittered. Hair is drawn at the unshaken origin on purpose.
   ctx.save();
