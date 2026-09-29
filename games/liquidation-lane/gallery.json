@@ -1,0 +1,10 @@
+{
+  "name": "Liquidation Lane",
+  "hook": "Full send. Zero risk management.",
+  "tagline": "A first-person Lambo fever dream with sunglasses Pepe in the mirror, a screaming engine, and a highway sponsored by terrible financial decisions. Take the offshore exit before your leverage meets a wall.",
+  "tags": ["First-person Lambo", "Pepe in the mirror", "Neon highway chaos"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 25 }
+}
