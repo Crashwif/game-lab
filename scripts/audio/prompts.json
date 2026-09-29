@@ -201,6 +201,15 @@
         "coin": { "prompt": "A single bright arcade coin pickup chime, very short", "seconds": 0.5 },
         "siren": { "prompt": "A short police siren whoop, cartoonish", "seconds": 1.2 }
       }
+    },
+    "up-only": {
+      "music": { "prompt": "Bright 8-bit chiptune loop, 150 bpm, square-wave arpeggios, bouncy bass, playful arcade flying-game energy, seamless loop, instrumental" },
+      "crash": { "prompt": "A sad trombone wah-wah-wah-waaah, then a cartoon character falling with a whistle and a distant thud", "seconds": 3 },
+      "cashout": { "prompt": "A small private jet engine spooling up and whooshing past, with a cash register ka-ching", "seconds": 2.2 },
+      "effects": {
+        "whoosh": { "prompt": "A single small wing flap, a quick feathery whoosh, very short", "seconds": 0.5 },
+        "zap": { "prompt": "A cartoon lightning strike, a sharp crackling zap, short", "seconds": 0.9 }
+      }
     }
   }
 }

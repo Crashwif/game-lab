@@ -120,6 +120,24 @@ test('a source pack must fit the platform remix limits', () => {
   assert.throws(() => checkSources(unstyled), /style\.css is missing/);
 });
 
+test('gallery.json marks a game interactive with a boolean, or not at all', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'gallery-meta-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  // pack.mjs reads the games/ beside its own copy, so the copy goes in a tree of its own.
+  await mkdir(join(root, 'scripts/gallery'), { recursive: true });
+  await copyFile(join(ROOT, 'scripts/gallery/pack.mjs'), join(root, 'scripts/gallery/pack.mjs'));
+  await mkdir(join(root, 'games/demo'), { recursive: true });
+  const { readGallery } = await import(pathToFileURL(join(root, 'scripts/gallery/pack.mjs')).href);
+  const meta = { name: 'Demo', hook: 'h', tagline: 't', tags: ['a', 'b', 'c'], renderer: 'Canvas 2D', licence: 'open', poster: { seconds: 10 } };
+  const write = (extra) => writeFile(join(root, 'games/demo/gallery.json'), JSON.stringify({ ...meta, ...extra }));
+  await write({});
+  assert.equal(readGallery('demo').interactive, false);
+  await write({ interactive: true });
+  assert.equal(readGallery('demo').interactive, true);
+  await write({ interactive: 'yes' });
+  assert.throws(() => readGallery('demo'), /"interactive" is true for a game the player steers, or left out/);
+});
+
 test('an executable source file packs the same from a commit as from the working tree', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'gallery-pack-'));
   t.after(() => rm(root, { recursive: true, force: true }));

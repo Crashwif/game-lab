@@ -183,7 +183,7 @@ for (const game of games) {
   await writeFile(join(options.out, 'sources', `${game.slug}.json`), `${JSON.stringify(pack, null, 2)}\n`);
   for (const [path, content] of Object.entries(game.sources)) files[`sources/${game.slug}/${path}`] = sha256Text(content);
 }
-const entry = ({ slug, name, hook, tagline, tags, renderer, licence, royaltyBps }) => ({ slug, name, hook, tagline, tags, renderer, licence, royaltyBps });
+const entry = ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps }) => ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps });
 const manifest = { repository: options.repository, commit: options.commit, assetRoot: `/assets/game-lab/${short}`, games: games.map(entry) };
 await writeFile(join(options.out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 const record = {
