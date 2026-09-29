@@ -1,0 +1,16 @@
+{
+  "name": "Rug Rails",
+  "hook": "Outrun the rug. Bank the bag.",
+  "tagline": "The first skill game in the lab: a hoodie frog sprints down three neon subway lanes, swerving, jumping and sliding past sell walls, KYC gates and the Exit Scam Express while scooping shitcoins into a bag the Taxman wants. Cash out to hover off the rails with it before the round rolls them up like a carpet.",
+  "tags": [
+    "Skill runner",
+    "Perspective lanes",
+    "Rug-pull crash"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 21
+  }
+}
