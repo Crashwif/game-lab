@@ -1,0 +1,16 @@
+{
+  "name": "Moon Boys",
+  "hook": "The moon landing was fake. The rug is real.",
+  "tagline": "A memecoin rocket leaves mom's backyard for a moon with a face, with ninety-six holders riding the outside because the rocket sold out. The earth below is flat, a boom mic keeps dipping in, a giant glove nudges the moon and there are wires above the nose. Bail out on a parachute before the wire snaps and the crash cuts to the soundstage, where the moon was plywood, the dev is a lizard, and the earth leaves with him.",
+  "tags": [
+    "Raw WebGL2 rocket",
+    "Flat earth below",
+    "Soundstage reveal"
+  ],
+  "renderer": "WebGL2",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 31
+  }
+}
