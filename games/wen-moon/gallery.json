@@ -1,0 +1,10 @@
+{
+  "name": "Wen Moon",
+  "hook": "The rocket every chart promised",
+  "tagline": "A $MOON rocket with a frog pilot climbs out of the atmosphere on the multiplier while the moon grows, the booster drops and the jeets bail out. Cash out to eject in the escape pod before the rocket comes apart.",
+  "tags": ["Scrolling altitude camera", "Escape pod on a chute", "Seeded burst"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 24 }
+}

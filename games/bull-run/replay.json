@@ -1,0 +1,12 @@
+{
+  "gameId": "bull-run",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000000ab",
+  "serverSeedHash": "119e0116404f0798e2c2f33268a71163e8d9039b676af5e79b642b4905058b08",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 549,
+  "rallyN": 0,
+  "bets": []
+}

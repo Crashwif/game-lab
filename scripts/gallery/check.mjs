@@ -8,6 +8,7 @@
  *     source pack, named so the platform's remix bundler resolves them to the same file, and the
  *     platform's SDK and crash maths, as a remix must;
  *   - every replay.json names its game and passes the built SDK's verifyReplay;
+ *   - every game in BROWSER_REMIX is in GAMES and its source pack fits the browser Studio's AI input budget;
  *   - README.md's reference table links the games in GAMES order.
  *
  *   node scripts/gallery/check.mjs    lists every problem and exits 1
@@ -17,7 +18,7 @@ import { basename, dirname, join, posix, relative, resolve, sep } from 'node:pat
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { bundleOptions } from '../build.mjs';
-import { GAMES } from '../games.mjs';
+import { BROWSER_REMIX, GAMES } from '../games.mjs';
 import { ROOT, readGallery, sourcePack } from './pack.mjs';
 
 // Copied from the platform's packages/unlock-api/src/build.ts (Crashwif/crashwif), which bundles remixes.
@@ -31,6 +32,40 @@ function resolveRelative(files, importer, spec) {
   if (base.startsWith('..')) return null;
   for (const candidate of [base, `${base}.ts`, base.replace(/\.js$/, '.ts'), posix.join(base, 'index.ts')]) if (files[candidate] !== undefined) return candidate;
   return null;
+}
+
+// Copied from the platform's packages/unlock-api/src/remix.ts and ai-models.ts (Crashwif/crashwif), whose
+// browserRemixAvailable decides whether a remix starts in the browser Studio or hands off to Game Studio desktop.
+/** The AI input budget of a browser remix step, in tokens; the platform bounds a text's tokens by its UTF-8 bytes plus this allowance. */
+export const MAX_AI_INPUT_TOKENS = 120_000;
+const TOKEN_ALLOWANCE = 2_048;
+/** The bytes of the system prompt the platform sends ahead of the files. */
+const SYSTEM_PROMPT_BYTES = 2_639;
+const CLIPS_FILE = 'clips.json';
+
+/** The clip names a clips.json holds: the keys of its object whose values are strings. */
+function clipNames(json) {
+  try {
+    const clips = JSON.parse(json);
+    return clips && typeof clips === 'object' && !Array.isArray(clips) ? Object.keys(clips).filter((k) => typeof clips[k] === 'string').sort() : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The platform's bound on the tokens a remix step of `files` (path to text) sends the model: its system
+ * prompt, then every file under a header in path order, clips.json by its clip names alone, then the request.
+ */
+export function remixInputBound(files) {
+  const parts = Object.keys(files).sort().map((path) => (path === CLIPS_FILE ? `=== ${path} ===\n(recorded clips, not shown: ${clipNames(files[path]).join(', ') || 'none'})\n` : `=== ${path} ===\n${files[path]}\n`));
+  return SYSTEM_PROMPT_BYTES + Buffer.byteLength(`${parts.join('\n')}\n=== request ===\n`, 'utf8') + TOKEN_ALLOWANCE;
+}
+
+/** What is wrong with a game listed as remixable in the browser: a source pack whose remix step would exceed the budget. */
+export function budgetProblems(slug, files) {
+  const bound = remixInputBound(files);
+  return bound <= MAX_AI_INPUT_TOKENS ? [] : [`games/${slug}: a remix step would send ${bound} tokens by the platform's bound, over the browser Studio's ${MAX_AI_INPUT_TOKENS}, yet scripts/games.mjs lists it in BROWSER_REMIX`];
 }
 
 /** Where the allowed packages live here, which their workspace symlinks in node_modules resolve to. */
@@ -139,6 +174,7 @@ export async function check() {
   const { verifyReplay } = await import(pathToFileURL(sdk).href);
   const dirs = readdirSync(join(ROOT, 'games'), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   const problems = listProblems(GAMES, dirs);
+  for (const slug of BROWSER_REMIX) if (!GAMES.includes(slug)) problems.push(`scripts/games.mjs lists ${slug} in BROWSER_REMIX, but not in GAMES`);
   const attempt = (read) => {
     try {
       return read();
@@ -151,6 +187,7 @@ export async function check() {
     attempt(() => readGallery(slug));
     const pack = attempt(() => sourcePack(slug));
     if (pack) problems.push(...replayProblems(slug, pack.files['replay.json'], verifyReplay));
+    if (pack && BROWSER_REMIX.includes(slug)) problems.push(...budgetProblems(slug, pack.files));
     try {
       const { metafile, outputFiles } = await bundle(slug);
       problems.push(...importProblems(slug, metafile, ROOT, pack?.files));
@@ -170,4 +207,8 @@ if (import.meta.main) {
     process.exit(1);
   }
   console.log(`check: ${GAMES.length} games meet the Game Lab contract`);
+  for (const slug of GAMES) {
+    const bound = remixInputBound(sourcePack(slug).files);
+    console.log(`  ${slug}: a remix step sends ${bound} of the browser Studio's ${MAX_AI_INPUT_TOKENS} tokens${BROWSER_REMIX.includes(slug) ? '' : ' (remixes on the desktop)'}`);
+  }
 }

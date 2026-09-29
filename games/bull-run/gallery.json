@@ -1,0 +1,10 @@
+{
+  "name": "Bull Run",
+  "hook": "Eight seconds is for jeets",
+  "tagline": "A rodeo rider on a bull named $BULL: the bucking gets wilder with the multiplier, the crowd does the wave and the dev clown peeks from his barrel. Cash out to vault onto the fence with the bag before the bull throws you into the dirt.",
+  "tags": ["Bucking cycle on springs", "Lagged rider rig", "Seeded throw"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 20 }
+}

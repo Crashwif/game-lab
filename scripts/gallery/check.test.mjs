@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { bundle, check, importProblems, listProblems, readmeGames, readmeProblems, replayProblems } from './check.mjs';
+import { MAX_AI_INPUT_TOKENS, budgetProblems, bundle, check, importProblems, listProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
 import { MAX_SOURCE_FILES, MAX_SOURCE_FILE_BYTES, ROOT, SOURCE_EXTENSIONS, checkSources } from './pack.mjs';
 
 test('every game meets the Game Lab contract', async () => {
@@ -93,6 +93,18 @@ test('a game may import only files beside it and the two platform packages', asy
   assert.match(await refused("import x from './notes.txt';", { 'notes.txt': 'notes' }), unpacked);
   assert.match(await refused("import x from './data';", { 'data.json': '{"x":10}' }), /imports "\.\/data" \(games\/demo\/data\.json\), which a remix cannot find/);
   assert.match(await refused("import x from './data.js';", { 'data.js': 'export default 11;', 'data.ts': 'export default 12;' }), /imports "\.\/data\.js" \(games\/demo\/data\.js\), which a remix resolves to data\.ts in the source pack$/);
+});
+
+test('a game listed as remixable in the browser must fit the platform\'s AI input budget', () => {
+  // The bound counts the system prompt, each file under its header in path order, clips.json by its clip names, the request header and the allowance.
+  const small = { 'main.ts': 'export {};', 'index.html': '<script src="./game.generated.js"></script>', 'clips.json': '{"music":"data:,x","broken":1}' };
+  const message = '=== clips.json ===\n(recorded clips, not shown: music)\n\n=== index.html ===\n<script src="./game.generated.js"></script>\n\n=== main.ts ===\nexport {};\n\n=== request ===\n';
+  assert.equal(remixInputBound(small), 2_639 + Buffer.byteLength(message) + 2_048);
+  assert.equal(remixInputBound({ ...small, 'clips.json': 'not json' }), remixInputBound({ ...small, 'clips.json': '{}' }));
+  assert.equal(remixInputBound({ 'a.ts': 'é' }) - remixInputBound({ 'a.ts': 'e' }), 1);
+  assert.deepEqual(budgetProblems('demo', small), []);
+  const big = { ...small, 'scene.ts': 'x'.repeat(MAX_AI_INPUT_TOKENS) };
+  assert.match(budgetProblems('demo', big)[0], /^games\/demo: a remix step would send \d+ tokens by the platform's bound, over the browser Studio's 120000, yet scripts\/games\.mjs lists it in BROWSER_REMIX$/);
 });
 
 test('a source pack must fit the platform remix limits', () => {
