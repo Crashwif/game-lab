@@ -1,0 +1,12 @@
+{
+  "gameId": "rug-rails",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000000bf",
+  "serverSeedHash": "235bc80727550a4460d537e06c5d11e63e3e0e7ca0ea56624563e90d98c024ee",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 807,
+  "rallyN": 0,
+  "bets": []
+}
