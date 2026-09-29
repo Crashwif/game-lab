@@ -184,6 +184,15 @@
         "siren": { "prompt": "A police siren whoop, short", "seconds": 1 }
       }
     },
+    "moon-boys": {
+      "music": { "prompt": "Synthwave loop, 116 bpm, arpeggiated analog synths, gated reverb snare, soaring lead, a rocket climbing into a neon sky, seamless loop, instrumental" },
+      "crash": { "prompt": "A steel cable twanging and snapping, a sad trombone wah-wah, then a film clapperboard clap and a plywood board toppling onto a floor", "seconds": 3.5 },
+      "cashout": { "prompt": "A parachute snapping open with a whoosh of wind, then a cash register ka-ching", "seconds": 1.8 },
+      "effects": {
+        "creak": { "prompt": "A thin steel wire creaking under tension, short", "seconds": 0.8 },
+        "squeak": { "prompt": "A rubber glove squeaking against painted plywood, short, cartoonish", "seconds": 0.7 }
+      }
+    },
     "rug-rails": {
       "music": { "prompt": "Fast drum and bass loop, 170 bpm, chopped breakbeats, rolling reese bass, neon arcade synth stabs, endless-runner urgency, seamless loop, instrumental" },
       "crash": { "prompt": "A giant carpet yanked away with a whoosh, a cartoon character screaming while falling, then a deep boom and silence", "seconds": 3 },
