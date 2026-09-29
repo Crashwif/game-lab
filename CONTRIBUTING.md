@@ -17,6 +17,7 @@ SDK, crash-math and emulator edits originate in the platform repository. Refresh
 ## gallery.json
 
 - `name`, `hook`, `tagline` and `renderer` are non-empty strings, and `tags` is a list of exactly three non-empty strings.
+- `interactive` is `true` for a game the player steers during the round (a skill game, with its controls wired from the game's own files); left out, the game is one to watch and cash out of. The gallery filters on it and badges the card.
 - `licence` is `open`, `derivatives-royalty` or `all-rights-reserved`. Only `derivatives-royalty` sets `royaltyBps`, a whole number from 0 to 1000 (basis points); the others leave it out or at 0.
 - `poster.seconds` is a number above 0 and at most 120: the moment after page load at which the poster is captured from replay mode.
 

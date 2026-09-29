@@ -1,0 +1,17 @@
+{
+  "name": "Up Only",
+  "hook": "Flap through the chart. Bank before the rug.",
+  "tagline": "A one-tap skill game: a shiba in a wif hat flaps through a live candlestick chart, threading the gaps between green candles from support and red candles from resistance while shitcoins fill the bag on his back and a FUD cloud gathers behind him. Cash out to land on a private jet before the round flips every candle red and pulls the floor.",
+  "tags": [
+    "One-tap skill",
+    "Candlestick course",
+    "FUD storm"
+  ],
+  "renderer": "Canvas 2D",
+  "interactive": true,
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 20
+  }
+}

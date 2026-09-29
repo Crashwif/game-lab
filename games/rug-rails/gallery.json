@@ -8,6 +8,7 @@
     "Rug-pull crash"
   ],
   "renderer": "Canvas 2D",
+  "interactive": true,
   "licence": "open",
   "royaltyBps": 0,
   "poster": {

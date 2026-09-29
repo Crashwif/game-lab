@@ -130,9 +130,11 @@ export function checkSources(files, entry = SOURCE_ENTRY) {
 
 /**
  * games/<slug>/gallery.json, checked: the copy the gallery shows (name,
- * hook, tagline, renderer and three tags), the remix licence and royalty,
- * and poster.seconds. `source` is { from: 'git', commit } or
- * { from: 'worktree' } (the default), as for sourcePack.
+ * hook, tagline, renderer and three tags), whether the game is interactive
+ * (the player steers it; absent means a game to watch and cash out of), the
+ * remix licence and royalty, and poster.seconds. `source` is
+ * { from: 'git', commit } or { from: 'worktree' } (the default), as for
+ * sourcePack.
  */
 export function readGallery(slug, source = { from: 'worktree' }) {
   const file = `games/${slug}/gallery.json`;
@@ -149,13 +151,14 @@ export function readGallery(slug, source = { from: 'worktree' }) {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) fail('it must be a JSON object');
   for (const key of ['name', 'hook', 'tagline', 'renderer']) if (!text(meta[key])) fail(`"${key}" must be a non-empty string`);
   if (!Array.isArray(meta.tags) || meta.tags.length !== 3 || !meta.tags.every(text)) fail('"tags" must be exactly 3 non-empty strings');
+  if (meta.interactive !== undefined && typeof meta.interactive !== 'boolean') fail('"interactive" is true for a game the player steers, or left out');
   if (!LICENCES.has(meta.licence)) fail(`licence is one of ${[...LICENCES].join(', ')}`);
   const royaltyBps = meta.royaltyBps ?? 0;
   if (!Number.isInteger(royaltyBps) || royaltyBps < 0 || royaltyBps > 1000) fail('royaltyBps is 0 to 1000');
   if (meta.licence !== 'derivatives-royalty' && royaltyBps !== 0) fail('only a derivatives-royalty licence sets a royalty');
   const seconds = meta.poster?.seconds;
   if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0 || seconds > MAX_POSTER_SECONDS) fail(`"poster.seconds" must be a number above 0 and at most ${MAX_POSTER_SECONDS}`);
-  return { ...meta, royaltyBps };
+  return { ...meta, interactive: meta.interactive === true, royaltyBps };
 }
 
 /**
