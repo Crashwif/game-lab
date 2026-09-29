@@ -37,6 +37,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` pri
 | [I Got Hacked](games/i-got-hacked) | A balcony rig with a phone that cycles excuses, a paparazzi drone, a party crowd on a curve, a pool that drains, a yacht that leaves | Playable |
 | [Wen Binance](games/wen-binance) | A queue that advances on the curve, a marquee whose letters loosen and drop, a ticket scalper, a bass shake, doors that open on a spring | Playable |
 | [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD with a rumour feed in Canvas 2D on top | Playable |
+| [Liquidation Lane](games/liquidation-lane) | A first-person Lambo cockpit, sunglasses Pepe in the mirror, perspective highway traffic, climbing instruments, an offshore exit and a windshield-shattering wreck | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own
