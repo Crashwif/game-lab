@@ -1,0 +1,10 @@
+{
+  "name": "Pyramid Scheme",
+  "hook": "It's not a pyramid, it's a triangle",
+  "tagline": "You stand at the top of a human pyramid that gains a row of recruits underneath every time the multiplier grows by a third, while the founder pitches at his lectern. Cash out to jump off with the bag before the base gives way.",
+  "tags": ["Rows that lift on a spring", "Strain that gathers at the base", "Seeded collapse"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 26 }
+}

@@ -40,6 +40,9 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` pri
 | [Liquidation Lane](games/liquidation-lane) | A first-person Lambo cockpit, sunglasses Pepe in the mirror, perspective highway traffic, climbing instruments, an offshore exit and a windshield-shattering wreck | Playable |
 | [Moon Boys](games/moon-boys) | Raw WebGL2 again: a rocket with stage separations and ninety-six instanced holders clinging to the outside, a flat earth prop and a moon prop that faces the camera and grows, a boom mic and a stagehand's glove in camera space, wires that glint, a parachute bail-out, and a crash that cuts to the soundstage | Playable |
 | [Rug Rails](games/rug-rails) | The lab's first skill game: three perspective lanes with a runner rig seen from behind, a seeded course of walls, gates, rugs and trains with ramps onto their roofs, coins that swell a bag on the runner's back, a chaser that closes on stumbles, swipe and keyboard controls with a copy-trading bot that steers until the player does, a stash with ranks and cosmetic drip, a hoverboard cash-out and a rug-pull crash that rolls the rails up | Playable |
+| [Wen Moon](games/wen-moon) | Lightweight, remixable in the browser: a world that scrolls under the rocket with its altitude, a booster that separates, jeets bailing out on chutes, an escape pod, a seeded burst | Playable |
+| [Bull Run](games/bull-run) | Lightweight, remixable in the browser: a bucking cycle on springs, a rider rig that lags the bull, a chute gate, a dev clown in a barrel, a vault to the fence, a seeded throw | Playable |
+| [Pyramid Scheme](games/pyramid-scheme) | Lightweight, remixable in the browser: rows of recruits that lift the pyramid on a spring, strain that gathers at the base, a jump off the top, a seeded collapse | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ## Build your own
@@ -48,7 +51,11 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 `npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
 
-`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
+`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; each game in `BROWSER_REMIX` fits the browser Studio's budget (below); and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
+
+### Lightweight games for the browser Studio
+
+The platform's browser Studio sends a remix step's files to the model in full, and starts the step only when its input bound (the UTF-8 bytes of its system prompt and of every source file, `clips.json` by its clip names alone, plus 2,048) is within 120,000; a game over that hands off to Game Studio desktop. Every game carries the shared `main.ts` and `audio.ts`, which take 84 KB of it, so a game's own files have about 27 KB. Wen Moon, Bull Run and Pyramid Scheme are written to fit: a scene, one part file, the motion toolkit and the page, with a little room left for a remix to grow. `scripts/games.mjs` lists them as `BROWSER_REMIX`, `npm test` fails when one of them outgrows the budget, and `npm run check` reports each game's bound. The other references are richer than the budget allows and remix on the desktop.
 
 ## The page shell
 
