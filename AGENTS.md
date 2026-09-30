@@ -21,7 +21,7 @@ npm run typecheck
 npm run dev
 ```
 
-The emulator prints a live and a replay preview URL for each game. Stop its process before reinstalling dependencies. On Windows, prefer a local folder outside OneDrive; `EPERM` during installation can mean a file is locked. Resolve installation errors before building. TypeScript is a local development dependency; it does not require a global install.
+`npm run preview -- <slug>` builds and serves only the selected game and its relative media. `npm run dev` builds the catalog and prints a live and a replay preview URL for each game. Stop its process before reinstalling dependencies. On Windows, prefer a local folder outside OneDrive; `EPERM` during installation can mean a file is locked. Resolve installation errors before building. TypeScript is a local development dependency; it does not require a global install.
 
 ## Game structure
 
