@@ -10,8 +10,10 @@ Use Node 24.11 or later within 24.x, and npm 11. CI uses the version in `.nvmrc`
 git clone https://github.com/Crashwif/game-lab.git
 cd game-lab
 npm ci --include=dev --bin-links=true
-npm run dev
+npm run preview -- balloon-pump
 ```
+
+The selected-game preview builds only Balloon Pump, serves its media from a private temporary directory, and prints its recorded-preview URL. Replace `balloon-pump` with a game or imported remix listed in `scripts/games.mjs`. Stop and restart the preview to include edits.
 
 Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting. Every game has a Sound button: music and effects are synthesised on the page, off until you turn them on, and the choice is remembered.
 

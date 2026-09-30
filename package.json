@@ -19,7 +19,8 @@
     "test": "node scripts/shell.mjs && node --test scripts/gallery/*.test.mjs && npm test -w @crashwif/crash-math && npm test -w @crashwif/game-sdk && npm test -w @crashwif/emulator",
     "pack:sdk": "npm pack -w @crashwif/crash-math && npm pack -w @crashwif/game-sdk",
     "gallery:export": "node scripts/gallery/export.mjs --dist dist --out gallery-out",
-    "audio": "node scripts/audio/generate.mjs"
+    "audio": "node scripts/audio/generate.mjs",
+    "preview": "npm run build -w @crashwif/crash-math && npm run build -w @crashwif/game-sdk && npm run build -w @crashwif/emulator && node scripts/preview.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
