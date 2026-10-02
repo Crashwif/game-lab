@@ -210,6 +210,15 @@
         "whoosh": { "prompt": "A single small wing flap, a quick feathery whoosh, very short", "seconds": 0.5 },
         "zap": { "prompt": "A cartoon lightning strike, a sharp crackling zap, short", "seconds": 0.9 }
       }
+    },
+    "family-meeting": {
+      "music": { "prompt": "Gentle suburban dinner muzak loop, 96 bpm, soft electric organ chords, brushed hi-hats, a polite vibraphone melody, church-basement warmth, bland and pleasant, seamless loop, instrumental" },
+      "crash": { "prompt": "Two cartoon heads popping like balloons in quick succession with a wet splat, then a wooden cross clattering onto a ceramic dish", "seconds": 2.5 },
+      "cashout": { "prompt": "A kitchen chair scraping back on linoleum, quick footsteps, a bedroom door closing, and a cash register ka-ching", "seconds": 2 },
+      "effects": {
+        "whistle": { "prompt": "A stovetop kettle coming to a boil and whistling, short", "seconds": 1.2 },
+        "gasp": { "prompt": "A middle-aged woman gasping in shock, short, clutching pearls", "seconds": 0.8 }
+      }
     }
   }
 }
