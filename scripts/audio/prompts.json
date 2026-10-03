@@ -219,6 +219,15 @@
         "whistle": { "prompt": "A stovetop kettle coming to a boil and whistling, short", "seconds": 1.2 },
         "gasp": { "prompt": "A middle-aged woman gasping in shock, short, clutching pearls", "seconds": 0.8 }
       }
+    },
+    "thanksgiving-uncle": {
+      "music": { "prompt": "Warm dinner-party lo-fi loop, 82 bpm, dusty drums, Rhodes chords, upright bass, a public-radio jazz feel, cosy and slightly strained, seamless loop, instrumental" },
+      "crash": { "prompt": "A pickup truck crashing through a house wall: engine roar, drywall and glass bursting, a wooden table splintering, then a car horn stuck on", "seconds": 3 },
+      "cashout": { "prompt": "An old woman's cane banging a table twice, a hush, and a small church bell with a cash register ka-ching", "seconds": 2 },
+      "effects": {
+        "engine": { "prompt": "A lifted pickup truck revving its engine hard, close, short", "seconds": 1.2 },
+        "squeak": { "prompt": "A single excited dog bark, medium-sized dog, short", "seconds": 0.6 }
+      }
     }
   }
 }

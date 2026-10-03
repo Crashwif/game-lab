@@ -1,0 +1,10 @@
+{
+  "name": "Thanksgiving Uncle",
+  "hook": "Birds aren't real, sweetheart",
+  "tagline": "A liberal family's Thanksgiving table, and Uncle Rick at the end of it with a beer and some questions. Every step up the multiplier takes him deeper while Dad's smile freezes, the niece's eyes roll, the smart speaker keeps ordering things and his dog revs the truck in the driveway. Cash out to have Grandma say grace before Dale puts it in gear and comes through the wall.",
+  "tags": ["A smile that freezes over", "A speaker that mishears", "Seeded truck through the wall"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 34 }
+}
