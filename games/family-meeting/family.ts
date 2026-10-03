@@ -13,7 +13,9 @@ export const DAD_X = 372;
 export const MOM_X = 592;
 const HEAD_Y = -52;
 /** Where she sits: the chair's foot, at the near edge of the table. */
-export const DAUGHTER_X = 560;
+export const DAUGHTER_X = 604;
+/** The seat of her chair: the rig's origin, so the chair's legs show under it. */
+const CHAIR_Y = 506;
 const SKIN = { dad: '#f1cfb0', mom: '#f6d6c0' } as const;
 const HAIR = { dad: '#b9b3a8', mom: '#d8c08f' } as const;
 const HOT = '#e2574a';
@@ -263,8 +265,8 @@ function drawMug(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: numb
   ctx.fillStyle = '#d94f8a';
   ctx.font = '700 9px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('#1', 0, -6);
-  ctx.fillText('MOM', 0, 2);
+  ctx.fillText('#1', 0, -14);
+  ctx.fillText('MOM', 0, -5);
   ctx.restore();
 }
 
@@ -448,10 +450,10 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
   ctx.scale(s, s);
   ink(ctx, 2.5);
   if (p.kind === 'mom') {
-    // The bouffant behind the face.
+    // The bob behind the face: it stops at the ears.
     ctx.fillStyle = HAIR.mom;
     ctx.beginPath();
-    ctx.ellipse(0, -12, 54, 50, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -22, 50, 40, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   } else {
@@ -488,7 +490,7 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     ctx.stroke();
     for (const side of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(side * 46, 14, 10, 22, 0, 0, Math.PI * 2);
+      ctx.ellipse(side * 45, -2, 9, 15, side * 0.15, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -799,18 +801,35 @@ function drawHand(ctx: CanvasRenderingContext2D, x: number, y: number, open: num
   }
 }
 
-/** Her chair, a ladder back between us and her: drawn after her, so she sits behind its slats. */
+/** Her chair, a ladder back between us and her: drawn after her, so she sits on its seat behind its slats. */
 export function drawDaughterChair(ctx: CanvasRenderingContext2D): void {
   ctx.save();
-  ctx.translate(DAUGHTER_X, 540);
+  ctx.translate(DAUGHTER_X, CHAIR_Y);
   ink(ctx, 2.5);
-  ctx.fillStyle = '#8a5a3a';
-  for (const s of [-56, 56]) {
+  // The front legs, set in behind the back ones; the back legs run up into the posts; a stretcher between them.
+  ctx.fillStyle = '#6b4327';
+  for (const s of [-42, 42]) {
     ctx.beginPath();
-    ctx.roundRect(s - 6, -62, 12, 62, 3);
+    ctx.roundRect(s - 5, 10, 10, 40, 2);
     ctx.fill();
     ctx.stroke();
   }
+  ctx.fillStyle = '#8a5a3a';
+  for (const s of [-56, 56]) {
+    ctx.beginPath();
+    ctx.roundRect(s - 6, -62, 12, 110, 3);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.roundRect(-56, 28, 112, 7, 3);
+  ctx.fill();
+  ctx.stroke();
+  // The seat's back edge under her, and the slats.
+  ctx.beginPath();
+  ctx.roundRect(-62, 0, 124, 12, 4);
+  ctx.fill();
+  ctx.stroke();
   for (const y of [-58, -40, -22]) {
     ctx.beginPath();
     ctx.roundRect(-56, y, 112, 9, 3);
@@ -825,17 +844,22 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   const stand = clamp(d.stand.x, 0, 1);
   const stride = d.walk > 0 && !reduced ? Math.sin(d.walk * 11) : 0;
   ctx.save();
-  ctx.translate(d.x, 540 - 74 * stand + Math.abs(stride) * -4);
-  // Legs show once she is up: jeans, a stride when she walks.
-  if (stand > 0.05) {
+  ctx.translate(d.x, CHAIR_Y - 74 * stand + Math.abs(stride) * -4);
+  // Legs: shins and sneakers under the seat while she sits, the whole leg once she is up, a stride when she walks.
+  ink(ctx, 2.5);
+  for (const side of [-1, 1]) {
+    const lx = side * 22 - 13 + stride * side * 10;
+    const len = 36 + 74 * stand;
     ctx.fillStyle = '#3a5a8a';
-    ink(ctx, 2.5);
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.roundRect(side * 22 - 13 + stride * side * 10, -6, 26, 80 * stand, 6);
-      ctx.fill();
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.roundRect(lx, -6, 26, len, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#f7f3ea';
+    ctx.beginPath();
+    ctx.roundRect(lx - 2, len - 12, 30, 12, 4);
+    ctx.fill();
+    ctx.stroke();
   }
   // The hoodie, the hood on her back, a pin.
   ctx.fillStyle = '#2b2b33';
@@ -940,12 +964,12 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   ctx.fill();
   // The hair: a silhouette from the crown down the back to the shoulders, filled in rainbow bands.
   ctx.beginPath();
-  ctx.moveTo(-14, -12);
-  ctx.quadraticCurveTo(-18, -48, 12, -46);
+  ctx.moveTo(-9, -10);
+  ctx.quadraticCurveTo(-14, -48, 14, -46);
   ctx.quadraticCurveTo(48, -42, 46, -4);
   ctx.quadraticCurveTo(54, 40, 64, 74);
-  ctx.quadraticCurveTo(14, 86, -40, 72);
-  ctx.quadraticCurveTo(-22, 40, -14, -12);
+  ctx.quadraticCurveTo(14, 86, -36, 72);
+  ctx.quadraticCurveTo(-18, 40, -9, -10);
   ctx.closePath();
   ctx.save();
   ctx.clip();

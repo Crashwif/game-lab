@@ -56,7 +56,7 @@ export const LINES: Line[] = [
 ];
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
-  her: { x: 318, y: 404, tail: { x: 506, y: 440 }, width: 280 },
+  her: { x: 356, y: 400, tail: { x: 558, y: 410 }, width: 280 },
   dad: { x: 300, y: 134, tail: { x: 350, y: 176 }, width: 230 },
   mom: { x: 672, y: 134, tail: { x: 622, y: 176 }, width: 230 },
 };

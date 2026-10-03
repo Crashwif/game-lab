@@ -61,7 +61,7 @@ export const LINES: Line[] = [
 ];
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
-  rick: { x: 318, y: 404, tail: { x: 506, y: 440 }, width: 280 },
+  rick: { x: 356, y: 400, tail: { x: 562, y: 404 }, width: 280 },
   dad: { x: 300, y: 134, tail: { x: 350, y: 176 }, width: 230 },
   niece: { x: 672, y: 134, tail: { x: 622, y: 176 }, width: 230 },
   echo: { x: 118, y: 212, tail: { x: SPEAKER.x + 6, y: SPEAKER.y - 34 }, width: 190 },
@@ -1252,15 +1252,15 @@ export function drawTable(ctx: CanvasRenderingContext2D, r: Room, time: number):
   ctx.fillStyle = '#eef2f5';
   ink(ctx, 2);
   ctx.beginPath();
-  ctx.roundRect(548, 322, 24, 40, 3);
+  ctx.roundRect(696, 324, 24, 40, 3);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#5cb85c';
-  ctx.fillRect(551, 332, 18, 14);
+  ctx.fillRect(699, 334, 18, 14);
   ctx.fillStyle = INK;
   ctx.font = '900 9px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('OAT', 560, 340);
+  ctx.fillText('OAT', 708, 342);
   ctx.fillStyle = '#e08a3a';
   ink(ctx, 2);
   ctx.beginPath();
