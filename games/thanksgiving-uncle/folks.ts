@@ -13,7 +13,9 @@ export const DAD_X = 372;
 export const NIECE_X = 592;
 const HEAD_Y = -52;
 /** Where Rick sits: the chair's foot, at the near edge of the table. Grandma's seat at the far left end. */
-export const RICK_X = 560;
+export const RICK_X = 604;
+/** The seat of his chair: the rig's origin, so the chair's legs show under it. */
+const CHAIR_Y = 506;
 export const GRAN = { x: 182, y: 362 } as const;
 /** Dad's wine glass, in the room, for the shards. */
 export const GLASS_AT = { x: DAD_X - 46, y: SEAT_Y + 34 } as const;
@@ -722,18 +724,33 @@ export function stepRick(r: Rick, drive: RickDrive, dt: number): void {
   r.snores = r.snores.filter((s) => s.age < 1.8);
 }
 
-/** A ladder-back chair between us and Rick: drawn after him, so he sits behind its slats. */
+/** A ladder-back chair between us and Rick: drawn after him, so he sits on its seat behind its slats. */
 export function drawRickChair(ctx: CanvasRenderingContext2D): void {
   ctx.save();
-  ctx.translate(RICK_X, 540);
+  ctx.translate(RICK_X, CHAIR_Y);
   ink(ctx, 2.5);
-  ctx.fillStyle = '#2a2a30';
-  for (const s of [-62, 62]) {
+  ctx.fillStyle = '#1f1f24';
+  for (const s of [-46, 46]) {
     ctx.beginPath();
-    ctx.roundRect(s - 6, -62, 12, 62, 3);
+    ctx.roundRect(s - 5, 10, 10, 40, 2);
     ctx.fill();
     ctx.stroke();
   }
+  ctx.fillStyle = '#2a2a30';
+  for (const s of [-62, 62]) {
+    ctx.beginPath();
+    ctx.roundRect(s - 6, -62, 12, 110, 3);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.roundRect(-62, 28, 124, 7, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(-68, 0, 136, 12, 4);
+  ctx.fill();
+  ctx.stroke();
   for (const y of [-58, -40, -22]) {
     ctx.beginPath();
     ctx.roundRect(-62, y, 124, 9, 3);
@@ -766,7 +783,21 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   const beer = clamp(r.beer.x, 0, 1.2);
   const tilt = r.tilt.x;
   ctx.save();
-  ctx.translate(RICK_X, 540);
+  ctx.translate(RICK_X, CHAIR_Y);
+  // Jeans and work boots under the seat.
+  ink(ctx, 2.5);
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = '#3f5f8a';
+    ctx.beginPath();
+    ctx.roundRect(side * 26 - 15, -6, 30, 36, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#5a3a22';
+    ctx.beginPath();
+    ctx.roundRect(side * 26 - 17, 24, 34, 14, 4);
+    ctx.fill();
+    ctx.stroke();
+  }
   // The flannel shoulders and the vest over them.
   ink(ctx, 2.5);
   ctx.fillStyle = '#8a3b2b';
