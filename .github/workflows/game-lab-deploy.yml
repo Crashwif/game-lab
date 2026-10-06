@@ -1,8 +1,10 @@
 # Deploys the playable references to the platform's Game Lab page.
 #
-# It runs after CI passes on a push to main, or on a manual run from main, which
-# may name an earlier main commit to roll back to. Only commits on main deploy:
-# pull request runs of CI, forks included, never start either job.
+# It runs after CI passes on main (a push, or a CI run started on main by hand or
+# by Merge approved games after it merges an approved pull request), or on a
+# manual run from main, which may name an earlier main commit to roll back to.
+# Only commits on main deploy: pull request runs of CI, forks included, never
+# start either job.
 #
 # The work is split so that nothing the build runs can reach the platform token:
 #   export   builds every game, captures a poster from each recorded round and
@@ -53,7 +55,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest

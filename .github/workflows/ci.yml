@@ -33,3 +33,24 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
+
+  # What a pull request changes, by the repository's boundaries, in the job summary: the games it touches, the
+  # game list and docs, and any platform file (shell, build, checks, workflows, packages). It fails when a
+  # snapshot package changes without UPSTREAM.json. Merge approved games reads the same rules from main to
+  # decide whether a maintainer's approval merges a pull request from a fork on its own.
+  contribution:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Sort the changed paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/gallery/contribution.mjs --base "$BASE" --summary "$GITHUB_STEP_SUMMARY"
