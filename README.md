@@ -61,7 +61,9 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 ### Lightweight games for the browser Studio
 
-The platform's browser Studio sends a remix step's files to the model in full, and starts the step only when its input bound (the UTF-8 bytes of its system prompt and of every source file, `clips.json` by its clip names alone, plus 2,048) is within 120,000; a game over that hands off to Game Studio desktop. Every game carries the shared `main.ts` and `audio.ts`, which take 84 KB of it, so a game's own files have about 27 KB. Wen Moon, Bull Run and Pyramid Scheme are written to fit: a scene, one part file, the motion toolkit and the page, with a little room left for a remix to grow. `scripts/games.mjs` lists them as `BROWSER_REMIX`, `npm test` fails when one of them outgrows the budget, and `npm run check` reports each game's bound. The other references are richer than the budget allows and remix on the desktop.
+The platform's browser Studio sends a remix step's files to the model in full. Its input bound counts the UTF-8 bytes of the system prompt and every source file, `clips.json` by its clip names alone, plus 2,048. Every catalog origin must fit the platform's 330,000-token input limit with 15% headroom for edits; `npm run check` enforces this before export. Embedded artwork counts toward the bound, so keep runtime encodings compact and retain image masters separately.
+
+The lightweight references in `scripts/games.mjs`'s `BROWSER_REMIX` list also stay within a 120,000-token budget. Their shared `main.ts` and `audio.ts` take about 84 KB, leaving roughly 27 KB for a game's own files. Wen Moon, Bull Run and Pyramid Scheme use a scene, one part file, the motion toolkit and the page. `npm test` enforces both budgets, and `npm run check` reports every game's bound with headroom.
 
 ## The page shell
 

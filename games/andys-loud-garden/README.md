@@ -29,7 +29,7 @@ The shared shell handles waiting, betting, running, crash, reconnect and replay.
 - `drawing.ts` supplies Canvas 2D shapes and serrated leaves.
 - `garden.ts` draws the dusk backyard, plants, raised beds and scattered leaves.
 - `police.ts` draws the patrol car, officers, flashlights and closure tape.
-- `andy-sprites.png` is the transparent 1536 × 1024 artwork master: six 512 × 512 poses in a three-column, two-row atlas. `andy-sprites.webp` is the compressed runtime artwork. `sprites.ts` and the three `sprite-data-*.ts` files embed that WebP as a data URL within the source-pack file limits. The game makes no artwork requests.
+- `andy-sprites.png` is the transparent 1536 × 1024 artwork master: six 512 × 512 poses in a three-column, two-row atlas. `andy-sprites.webp` is the 1152 × 768 runtime atlas, encoded at WebP quality 0.2. `sprites.ts` and `sprite-data-0.ts` embed that WebP as a data URL within the source-pack file and browser-remix input limits. The game makes no artwork requests.
 - `main.ts`, `audio.ts` and the base styles are the canonical Game Lab shell. All music and effects are synthesized by its audio engine; there are no recorded clips.
 - `replay.json` uses the repository's verified example round with this game's ID.
 
