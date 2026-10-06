@@ -1,4 +1,4 @@
-# Balloon Pump
+# Balloon Pump Test
 
 A complete Canvas 2D reference with meme energy: a pale, increasingly worried dev in a pink knitted hat pumps his own memecoin with a floor pump. The coin is `$HOTAIR`, a balloon with a face of its own that fills with the displayed multiplier, and the crash event blows it up in his face and knocks him over. An accepted cashout drops a pair of sunglasses on him. An SEC intern rises out of the bush on the right once there is something to aim at, draws a slingshot back further with every multiple and trembles near the top; the crash is his shot, and the balloon goes a few frames after the stone leaves the pouch, with a hit-stop, a punch of the camera and a moment of slow motion for the shreds.
 
