@@ -7,8 +7,8 @@
 # start either job.
 #
 # The work is split so that nothing the build runs can reach the platform token:
-#   export   builds every game, captures a poster from each recorded round and
-#            writes the versioned export that the platform serves from
+#   export   reuses verified bundles and posters with identical inputs, builds
+#            and captures changed games, and writes the complete versioned export served from
 #            apps/web/public/assets/game-lab, then uploads it as an artifact.
 #            It holds no secrets and can only read this repository.
 #   publish  takes scripts/gallery/sync-platform.mjs from this workflow's own
@@ -92,15 +92,50 @@ jobs:
           set -euo pipefail
           version="$(git show "$GITHUB_SHA:.nvmrc")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          capture="$(git rev-parse "$GITHUB_SHA:.github/workflows/game-lab-deploy.yml")"
+          echo "capture=$capture:${ImageOS:-unknown}:${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ steps.node.outputs.version }}
           cache: npm
-      - name: Build every game
+      - name: Restore game bundles and posters
+        id: cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .game-lab-cache
+          key: game-lab-export-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: game-lab-export-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Plan game builds and poster captures
+        id: plan
+        env:
+          COMMIT: ${{ steps.commit.outputs.sha }}
+          GAME_LAB_CAPTURE_ENV: ${{ steps.node.outputs.capture }}
         run: |
-          npm ci
-          npm run build
+          set -euo pipefail
+          if [ -f scripts/gallery/cache.mjs ]; then
+            node scripts/gallery/export.mjs --commit "$COMMIT" --cache .game-lab-cache --plan
+          else
+            echo "incremental=false" >> "$GITHUB_OUTPUT"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "posters=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install build and capture dependencies
+        if: steps.plan.outputs.build == 'true' || steps.plan.outputs.posters == 'true'
+        run: npm ci
+      - name: Build shared packages
+        if: steps.plan.outputs.build == 'true'
+        env:
+          INCREMENTAL: ${{ steps.plan.outputs.incremental }}
+        run: |
+          set -euo pipefail
+          if [ "$INCREMENTAL" = true ]; then
+            npm run build -w @crashwif/crash-math
+            npm run build -w @crashwif/game-sdk
+          else
+            npm run build
+          fi
       - name: Fonts and a browser for the posters
+        if: steps.plan.outputs.posters == 'true'
         run: |
           echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
           (sudo apt-get update -qq && sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1) || echo "::warning::Microsoft core fonts are unavailable; posters use fallback fonts"
@@ -110,7 +145,19 @@ jobs:
       - name: Export the gallery
         env:
           COMMIT: ${{ steps.commit.outputs.sha }}
-        run: node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$COMMIT" --repository "https://github.com/$GITHUB_REPOSITORY"
+          INCREMENTAL: ${{ steps.plan.outputs.incremental }}
+          GAME_LAB_CAPTURE_ENV: ${{ steps.node.outputs.capture }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [ "$INCREMENTAL" = true ]; then flags+=(--cache .game-lab-cache); fi
+          node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$COMMIT" --repository "https://github.com/$GITHUB_REPOSITORY" "${flags[@]}"
+      - name: Save verified game bundles and posters
+        if: steps.plan.outputs.incremental == 'true' && (steps.plan.outputs.build == 'true' || steps.plan.outputs.posters == 'true')
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .game-lab-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gallery-out

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { MAX_AI_INPUT_TOKENS, budgetProblems, bundle, check, importProblems, listProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
+import { MAX_AI_INPUT_TOKENS, MAX_CATALOG_INPUT_TOKENS, budgetProblems, bundle, catalogBudgetProblems, check, importProblems, listProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
 import { MAX_SOURCE_FILES, MAX_SOURCE_FILE_BYTES, ROOT, SOURCE_EXTENSIONS, checkSources } from './pack.mjs';
 
 test('every game meets the Game Lab contract', async () => {
@@ -105,6 +105,16 @@ test('a game listed as remixable in the browser must fit the platform\'s AI inpu
   assert.deepEqual(budgetProblems('demo', small), []);
   const big = { ...small, 'scene.ts': 'x'.repeat(MAX_AI_INPUT_TOKENS) };
   assert.match(budgetProblems('demo', big)[0], /^games\/demo: a remix step would send \d+ tokens by the platform's bound, over the browser Studio's 120000, yet scripts\/games\.mjs lists it in BROWSER_REMIX$/);
+});
+
+test('every catalog game reserves remix growth capacity before export', () => {
+  const files = { 'main.ts': 'export {};', 'sprite-data.ts': 'x'.repeat(150_000) };
+  assert.deepEqual(catalogBudgetProblems('demo', files), []);
+  assert.match(catalogBudgetProblems('demo', { ...files, 'sprite-data.ts': 'x'.repeat(473_000) })[0], /15% input headroom, over the platform catalog's 330000/);
+  const allowance = Math.floor(MAX_CATALOG_INPUT_TOKENS / 1.15) - remixInputBound(files);
+  const boundary = { ...files, 'sprite-data.ts': files['sprite-data.ts'] + 'x'.repeat(allowance) };
+  assert.deepEqual(catalogBudgetProblems('demo', boundary), []);
+  assert.equal(catalogBudgetProblems('demo', { ...boundary, 'sprite-data.ts': boundary['sprite-data.ts'] + 'é' }).length, 1);
 });
 
 test('a source pack must fit the platform remix limits', () => {

@@ -38,6 +38,8 @@ function resolveRelative(files, importer, spec) {
 // browserRemixAvailable decides whether a remix starts in the browser Studio or hands off to Game Studio desktop.
 /** The AI input budget of a browser remix step, in tokens; the platform bounds a text's tokens by its UTF-8 bytes plus this allowance. */
 export const MAX_AI_INPUT_TOKENS = 120_000;
+/** The platform's catalog capacity, including the 15% growth room required by its remix-size suite. */
+export const MAX_CATALOG_INPUT_TOKENS = 330_000;
 const TOKEN_ALLOWANCE = 2_048;
 /** The bytes of the system prompt the platform sends ahead of the files. */
 const SYSTEM_PROMPT_BYTES = 2_639;
@@ -66,6 +68,11 @@ export function remixInputBound(files) {
 export function budgetProblems(slug, files) {
   const bound = remixInputBound(files);
   return bound <= MAX_AI_INPUT_TOKENS ? [] : [`games/${slug}: a remix step would send ${bound} tokens by the platform's bound, over the browser Studio's ${MAX_AI_INPUT_TOKENS}, yet scripts/games.mjs lists it in BROWSER_REMIX`];
+}
+
+export function catalogBudgetProblems(slug, files) {
+  const required = Math.ceil(remixInputBound(files) * 1.15);
+  return required <= MAX_CATALOG_INPUT_TOKENS ? [] : [`games/${slug}: a remix needs ${required} tokens with 15% input headroom, over the platform catalog's ${MAX_CATALOG_INPUT_TOKENS}; reduce embedded assets or source size`];
 }
 
 /** Where the allowed packages live here, which their workspace symlinks in node_modules resolve to. */
@@ -186,7 +193,7 @@ export async function check() {
     if (!dirs.includes(slug)) continue;
     attempt(() => readGallery(slug));
     const pack = attempt(() => sourcePack(slug));
-    if (pack) problems.push(...replayProblems(slug, pack.files['replay.json'], verifyReplay));
+    if (pack) problems.push(...replayProblems(slug, pack.files['replay.json'], verifyReplay), ...catalogBudgetProblems(slug, pack.files));
     if (pack && BROWSER_REMIX.includes(slug)) problems.push(...budgetProblems(slug, pack.files));
     try {
       const { metafile, outputFiles } = await bundle(slug);
@@ -209,6 +216,6 @@ if (import.meta.main) {
   console.log(`check: ${GAMES.length} games meet the Game Lab contract`);
   for (const slug of GAMES) {
     const bound = remixInputBound(sourcePack(slug).files);
-    console.log(`  ${slug}: a remix step sends ${bound} of the browser Studio's ${MAX_AI_INPUT_TOKENS} tokens${BROWSER_REMIX.includes(slug) ? '' : ' (remixes on the desktop)'}`);
+    console.log(`  ${slug}: ${Math.ceil(bound * 1.15)} of the platform catalog's ${MAX_CATALOG_INPUT_TOKENS} tokens, including 15% input headroom${BROWSER_REMIX.includes(slug) ? ' (lightweight reference)' : ''}`);
   }
 }
