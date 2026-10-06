@@ -8,7 +8,11 @@
  * apps/web/public/assets/game-lab/; the source packs land in sources/ for
  * the platform's packages/game-lab.
  *
- *   node scripts/gallery/export.mjs --dist dist --out gallery-out [--commit <sha>] [--repository <url>] [--sources git|worktree] [--skip-posters]
+ *   node scripts/gallery/export.mjs --dist dist --out gallery-out [--commit <sha>] [--repository <url>] [--sources git|worktree] [--skip-posters] [--cache <directory>] [--plan]
+ *
+ * --cache builds only missing or changed games and reuses hash-checked bundles and
+ * posters. It requires a clean checkout of --commit. --plan reports that work
+ * before dependency and browser installation, without building or writing an export.
  *
  * gallery.json and the source packs come from the commit's blobs (--sources
  * git, the default), so untracked files, uncommitted edits and symlinks never
@@ -26,22 +30,23 @@
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, realpathSync } from 'node:fs';
-import { access, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { GAMES } from '../games.mjs';
 import { ROOT, SOURCE_ENTRY, readGallery, sourcePack } from './pack.mjs';
+import { BUNDLE_FILES, planGames, saveGame, sharedInputs } from './cache.mjs';
 
-const BUNDLE_FILES = ['index.html', 'game.generated.js', 'style.css'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 
 function args() {
-  const out = { dist: 'dist', out: 'gallery-out', commit: '', repository: 'https://github.com/Crashwif/game-lab', sources: 'git', skipPosters: false };
+  const out = { dist: 'dist', out: 'gallery-out', commit: '', repository: 'https://github.com/Crashwif/game-lab', sources: 'git', skipPosters: false, cache: '', plan: false };
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--skip-posters') out.skipPosters = true;
+    else if (a === '--plan') out.plan = true;
     else if (a.startsWith('--')) out[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i] ?? '';
   }
   if (out.sources !== 'git' && out.sources !== 'worktree') throw new Error('--sources is git or worktree');
@@ -102,6 +107,7 @@ async function countColours(base64) {
 }
 
 async function capturePosters(dist, out, short, games) {
+  if (games.length === 0) return;
   let chromium;
   try {
     ({ chromium } = await import('playwright'));
@@ -109,9 +115,10 @@ async function capturePosters(dist, out, short, games) {
     throw new Error('Playwright is not installed: run `npm ci` and `npx playwright install chromium`, or pass --skip-posters');
   }
   const { server, port } = await serve(dist);
-  const browser = await chromium.launch();
+  let browser;
   const failures = [];
   try {
+    browser = await chromium.launch();
     for (const game of games) {
       const page = await browser.newPage({ viewport: { width: 960, height: 660 }, deviceScaleFactor: 1, reducedMotion: 'no-preference' });
       // Listen before loading: a bad replay throws while the deferred script runs, before the load event.
@@ -140,61 +147,94 @@ async function capturePosters(dist, out, short, games) {
       }
     }
   } finally {
-    await browser.close();
-    server.close();
+    await browser?.close();
+    await new Promise((done) => server.close(done));
   }
   if (failures.length) throw new Error(`poster capture failed for ${failures.length} of ${games.length} games:\n  ${failures.join('\n  ')}`);
 }
 
-const options = args();
-const short = options.commit.slice(0, 7);
-const source = options.sources === 'git' ? { from: 'git', commit: options.commit } : { from: 'worktree' };
-const games = [];
-for (const slug of GAMES) {
-  const meta = readGallery(slug, source);
-  for (const file of BUNDLE_FILES) await access(join(options.dist, slug, file)).catch(() => { throw new Error(`${options.dist}/${slug}/${file} is missing: run npm run build first`); });
-  games.push({ slug, ...meta, sources: sourcePack(slug, source).files });
+function readGames(options) {
+  const source = options.sources === 'git' ? { from: 'git', commit: options.commit } : { from: 'worktree' };
+  return GAMES.map((slug) => ({ slug, ...readGallery(slug, source), sources: sourcePack(slug, source).files }));
 }
-// --skip-posters keeps the posters this short commit already has in the output.
-const kept = new Map();
-if (options.skipPosters) {
-  for (const game of games) {
-    const poster = await readFile(join(options.out, short, game.slug, 'poster.png')).catch((error) => { if (error.code === 'ENOENT') return null; throw error; });
-    if (poster) kept.set(game.slug, poster);
+
+async function buildMissing(slugs, dist) {
+  const { buildGames } = await import('../build.mjs');
+  await buildGames(slugs, { dist });
+}
+
+/** Every export includes the entire current catalog; only its expensive build and capture work is selective. */
+export async function exportGallery(options, { games = readGames(options), sharedKey, build = buildMissing, capture = capturePosters } = {}) {
+  if (options.plan && !options.cache) throw new Error('--plan requires --cache');
+  if (options.cache && (options.sources !== 'git' || options.skipPosters)) throw new Error('--cache requires --sources git and cannot skip posters');
+  const planned = options.cache ? await planGames(games, options.cache, sharedKey ?? sharedInputs(options.commit)) : games;
+  const builds = options.cache ? planned.filter((g) => !g.bundle) : [];
+  const posters = options.skipPosters ? [] : planned.filter((g) => !g.cachedPoster);
+  const summary = { build: builds.map((g) => g.slug), posters: posters.map((g) => g.slug), reused: planned.filter((g) => g.cachedPoster).map((g) => g.slug), total: games.length };
+  if (options.cache) console.log(`gallery plan: build ${builds.length}, capture ${posters.length}, reuse ${summary.reused.length} of ${games.length} games`);
+  if (options.plan) {
+    if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `incremental=true\nbuild=${builds.length > 0}\nposters=${posters.length > 0}\n`);
+    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,
+      `## Gallery export\n\n- Build: ${summary.build.join(', ') || 'none'}\n- Capture posters: ${summary.posters.join(', ') || 'none'}\n- Reuse verified posters: ${summary.reused.length} of ${games.length}\n`);
+    return summary;
   }
+  if (builds.length) await build(summary.build, options.dist);
+  for (const game of planned) {
+    if (game.bundle) {
+      await mkdir(join(options.dist, game.slug), { recursive: true });
+      for (const file of BUNDLE_FILES) await writeFile(join(options.dist, game.slug, file), game.bundle[file]);
+    }
+    for (const file of BUNDLE_FILES) await access(join(options.dist, game.slug, file)).catch(() => { throw new Error(`${options.dist}/${game.slug}/${file} is missing: run npm run build first`); });
+  }
+  const short = options.commit.slice(0, 7);
+  // --skip-posters keeps the posters this short commit already has in the output.
+  const kept = new Map();
+  if (options.skipPosters) {
+    for (const game of games) {
+      const poster = await readFile(join(options.out, short, game.slug, 'poster.png')).catch((error) => { if (error.code === 'ENOENT') return null; throw error; });
+      if (poster) kept.set(game.slug, poster);
+    }
+  }
+  await rm(join(options.out, short), { recursive: true, force: true });
+  await rm(join(options.out, 'sources'), { recursive: true, force: true });
+  for (const game of planned) {
+    await mkdir(join(options.out, short, game.slug), { recursive: true });
+    for (const file of BUNDLE_FILES) await copyFile(join(options.dist, game.slug, file), join(options.out, short, game.slug, file));
+    if (kept.has(game.slug)) await writeFile(join(options.out, short, game.slug, 'poster.png'), kept.get(game.slug));
+    else if (game.cachedPoster) await writeFile(join(options.out, short, game.slug, 'poster.png'), game.cachedPoster);
+  }
+  if (posters.length) await capture(options.dist, options.out, short, posters);
+  else if (kept.size) console.log(`kept ${kept.size} posters already exported for ${short}`);
+  const files = {};
+  for (const game of games) {
+    for (const file of (await readdir(join(options.out, short, game.slug))).sort()) files[`${short}/${game.slug}/${file}`] = await sha256(join(options.out, short, game.slug, file));
+    if (!files[`${short}/${game.slug}/poster.png`]) console.warn(`warning: no poster for ${game.slug}`);
+  }
+  await mkdir(join(options.out, 'sources'), { recursive: true });
+  for (const game of games) {
+    const pack = { slug: game.slug, name: game.name, repository: options.repository, commit: options.commit, entry: SOURCE_ENTRY, licence: game.licence, royaltyBps: game.royaltyBps, files: game.sources };
+    await writeFile(join(options.out, 'sources', `${game.slug}.json`), `${JSON.stringify(pack, null, 2)}\n`);
+    for (const [path, content] of Object.entries(game.sources)) files[`sources/${game.slug}/${path}`] = sha256Text(content);
+  }
+  const entry = ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps }) => ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps });
+  const manifest = { repository: options.repository, commit: options.commit, assetRoot: `/assets/game-lab/${short}`, games: games.map(entry) };
+  await writeFile(join(options.out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  const record = {
+    repository: options.repository,
+    commit: options.commit,
+    build: options.cache ? 'npm ci; build shared packages and changed games; reuse verified bundles and posters with identical inputs' : 'npm ci && npm run build',
+    posters: `Canvas captures from verified replay mode at 960 × 540, taken the number of seconds after page load given by games/<slug>/gallery.json: ${games.map((g) => `${g.name} at ${g.poster.seconds}`).join(', ')}.`,
+    // The platform sync reuses a poster only while the game's bundle files and this moment are unchanged.
+    posterSeconds: Object.fromEntries(games.map((g) => [g.slug, g.poster.seconds])),
+    sources: `sources/<slug>.json holds each game's own .ts, .json, .html and .css files (except gallery.json), read from the commit, as the platform's remix flow starts from them; the SDK and crash maths come from the platform's own packages.`,
+    files,
+  };
+  await writeFile(join(options.out, 'SOURCE.json'), `${JSON.stringify(record, null, 2)}\n`);
+  if (options.cache) {
+    for (const game of planned) if (!game.bundle || !game.cachedPoster) await saveGame(options.cache, game, join(options.out, short, game.slug));
+  }
+  console.log(`exported ${games.length} games from ${options.commit} (${options.sources === 'git' ? 'sources from its blobs' : 'sources from the working tree'}) to ${options.out}/${short} (source packs in ${options.out}/sources)`);
+  return summary;
 }
-await rm(join(options.out, short), { recursive: true, force: true });
-await rm(join(options.out, 'sources'), { recursive: true, force: true });
-for (const game of games) {
-  await mkdir(join(options.out, short, game.slug), { recursive: true });
-  for (const file of BUNDLE_FILES) await copyFile(join(options.dist, game.slug, file), join(options.out, short, game.slug, file));
-  if (kept.has(game.slug)) await writeFile(join(options.out, short, game.slug, 'poster.png'), kept.get(game.slug));
-}
-if (!options.skipPosters) await capturePosters(options.dist, options.out, short, games);
-else if (kept.size) console.log(`kept ${kept.size} posters already exported for ${short}`);
-const files = {};
-for (const game of games) {
-  for (const file of (await readdir(join(options.out, short, game.slug))).sort()) files[`${short}/${game.slug}/${file}`] = await sha256(join(options.out, short, game.slug, file));
-  if (!files[`${short}/${game.slug}/poster.png`]) console.warn(`warning: no poster for ${game.slug}`);
-}
-await mkdir(join(options.out, 'sources'), { recursive: true });
-for (const game of games) {
-  const pack = { slug: game.slug, name: game.name, repository: options.repository, commit: options.commit, entry: SOURCE_ENTRY, licence: game.licence, royaltyBps: game.royaltyBps, files: game.sources };
-  await writeFile(join(options.out, 'sources', `${game.slug}.json`), `${JSON.stringify(pack, null, 2)}\n`);
-  for (const [path, content] of Object.entries(game.sources)) files[`sources/${game.slug}/${path}`] = sha256Text(content);
-}
-const entry = ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps }) => ({ slug, name, hook, tagline, tags, renderer, interactive, licence, royaltyBps });
-const manifest = { repository: options.repository, commit: options.commit, assetRoot: `/assets/game-lab/${short}`, games: games.map(entry) };
-await writeFile(join(options.out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-const record = {
-  repository: options.repository,
-  commit: options.commit,
-  build: 'npm ci && npm run build',
-  posters: `Canvas captures from verified replay mode at 960 × 540, taken the number of seconds after page load given by games/<slug>/gallery.json: ${games.map((g) => `${g.name} at ${g.poster.seconds}`).join(', ')}.`,
-  // The platform sync reuses a poster only while the game's bundle files and this moment are unchanged.
-  posterSeconds: Object.fromEntries(games.map((g) => [g.slug, g.poster.seconds])),
-  sources: `sources/<slug>.json holds each game's own .ts, .json, .html and .css files (except gallery.json), read from the commit, as the platform's remix flow starts from them; the SDK and crash maths come from the platform's own packages.`,
-  files,
-};
-await writeFile(join(options.out, 'SOURCE.json'), `${JSON.stringify(record, null, 2)}\n`);
-console.log(`exported ${games.length} games from ${options.commit} (${options.sources === 'git' ? 'sources from its blobs' : 'sources from the working tree'}) to ${options.out}/${short} (source packs in ${options.out}/sources)`);
+
+if (import.meta.main) await exportGallery(args());
