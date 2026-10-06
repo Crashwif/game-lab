@@ -1,0 +1,19 @@
+# Who reviews the platform's own files: the shell, the build, the checks, the workflows, the package
+# snapshots and the dependency lockfile. With "Require review from Code Owners" on main, a pull request
+# that changes them needs one of these owners' approval. A game's own directory has no owner, so a game
+# contribution needs any maintainer's approval and nothing more; scripts/games.mjs, which adding a game
+# edits, is left unowned for the same reason.
+#
+# Replace the owner with a team (@Crashwif/<team>) once the maintainers are more than one person.
+/.github/ @przmyst
+/apps/ @przmyst
+/packages/ @przmyst
+/scripts/ @przmyst
+/scripts/games.mjs
+/games/tsconfig.json @przmyst
+/package.json @przmyst
+/package-lock.json @przmyst
+/tsconfig.base.json @przmyst
+/UPSTREAM.json @przmyst
+/.gitattributes @przmyst
+/.nvmrc @przmyst

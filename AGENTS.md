@@ -35,4 +35,4 @@ Use transparent PNG layers or separate rig parts for generated sprites. Keep ani
 
 Build before typechecking and testing because workspaces import built outputs. Run the checks relevant to the change, including `npm run typecheck`, `npm run check`, and relevant tests. Report the commands and any failures. Never hide a failure by weakening a check.
 
-Review the Git diff, preserve unrelated creator edits, and explain what changed and how to preview it. Do not publish or push the creator's work without their authorization.
+Review the Git diff, preserve unrelated creator edits, and explain what changed and how to preview it. Do not publish or push the creator's work without their authorization. A game submitted from a fork as a pull request merges and deploys on its own once CI passes and a maintainer approves it (`CONTRIBUTING.md`, "Submit a game from a fork"), so keep a game's pull request to its own directory, its row in `scripts/games.mjs` and the README table, and the docs; platform files need a maintainer's hand.
