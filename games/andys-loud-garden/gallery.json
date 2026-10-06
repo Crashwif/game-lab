@@ -1,0 +1,10 @@
+{
+  "name": "Andy's Loud Garden",
+  "hook": "Just a little backyard gardening",
+  "tagline": "Andy waters his ganja patch into a suspiciously enormous jungle. Cash out and stroll home with the harvest, or watch the cops roll up, catch Andy red-handed and close the garden at the crash.",
+  "tags": ["Andy", "Growing garden", "Police bust"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 18 }
+}

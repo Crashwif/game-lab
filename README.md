@@ -22,6 +22,7 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` pri
 | [Seed Round](games/seed-round) | Raw WebGL2 with no libraries: a tunnel bent onto its path in the vertex shader, instanced swimmers with travelling-wave tails, a translucent latex reveal, the HUD with a rumour feed in Canvas 2D on top | Playable |
 | [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a live odds board, a news ticker, a cheering crowd | Playable |
 | [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a slingshot that winds up with the multiplier, a seeded burst with hit-stop and slow motion, meme captions | Playable |
+| [Andy’s Loud Garden](games/andys-loud-garden) | Andy character sprites, layered cannabis growth, a watering loop, a harvest walk-off, a police arrival and garden closure tied to the crash | Playable |
 | [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook and counterweight, residents in the windows, a sales office queue, camera tracking, a seeded collapse with hit-stop | Playable |
 | [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, a game's own sounds on the shared audio bus | Playable |
 | [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, bagholders thawing under the ice, a liquidation drone that closes in, a reflection, a seeded shatter into floes | Playable |
