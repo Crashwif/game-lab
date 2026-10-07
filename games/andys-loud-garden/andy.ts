@@ -11,6 +11,16 @@ import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepS
 export type Point = { x: number; y: number };
 export type AndyMode = 'idle' | 'watering' | 'harvest' | 'busted';
 
+interface Foot {
+  /** World-space contact. It stays fixed until this foot leaves the floor. */
+  x: number;
+  lift: number;
+  from: number;
+  to: number;
+  swing: number;
+  duration: number;
+}
+
 export interface AndyDrive {
   mode: AndyMode;
   /** World x under his hips; the scene walks him off with it. */
@@ -30,6 +40,8 @@ export interface AndyRig {
   modeAge: number;
   x: number;
   vx: number;
+  reduced: boolean;
+  feet: [Foot, Foot];
   /** 1 facing the garden, -1 facing home; the turn passes through 0. */
   facing: Spring;
   /** Walk cycle in strides, and the watering cycle in pours. */
@@ -51,6 +63,7 @@ export interface AndyRig {
   shades: Spring;
   basket: Spring;
   eyeOpen: Spring;
+  lid: Spring;
   mouthOpen: Spring;
   mouthCurve: Spring;
   brow: Spring;
@@ -76,8 +89,8 @@ export interface AndyView {
 }
 
 const INK = '#2a1f3a';
-const YELLOW = '#f7c422';
-const YELLOW_SHADE = '#d99e13';
+const YELLOW = '#eed007';
+const YELLOW_SHADE = '#dca609';
 const TEE = '#f6ead2';
 const TEE_SHADE = '#dccbb0';
 const TEAL = '#2f8f8c';
@@ -94,31 +107,41 @@ const BASKET_DARK = '#8a5a2a';
 const HIP_Y = -92;
 const TORSO = 58;
 const LEG = 50;
-const ARM = 42;
+const ARM = 44;
 /** Ground covered by one stride cycle, in px. */
 const STRIDE = 90;
 
-/** Solves a two-bone limb with a fixed endpoint and a consistent bend direction. */
-export function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
-  const dx = end.x - root.x;
-  const dy = end.y - root.y;
-  const distance = Math.max(0.001, Math.hypot(dx, dy));
-  const reach = Math.min(upper + lower - 0.001, Math.max(Math.abs(upper - lower) + 0.001, distance));
+export interface Limb { root: Point; joint: Point; end: Point }
+
+/** Clamp the endpoint as well as the elbow: neither bone can stretch, even at a singular target. */
+export function solveLimb(root: Point, target: Point, upper: number, lower: number, side: number): Limb {
+  const dx = target.x - root.x;
+  const dy = target.y - root.y;
+  const distance = Math.hypot(dx, dy);
+  const direction = distance > 1e-8 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 };
+  const reach = clamp(distance, Math.abs(upper - lower) + 0.001, upper + lower - 0.001);
   const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
-  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
-  return { x: root.x + dx / distance * along - dy / distance * bend, y: root.y + dy / distance * along + dx / distance * bend };
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * (side < 0 ? -1 : 1);
+  return {
+    root,
+    joint: { x: root.x + direction.x * along - direction.y * bend, y: root.y + direction.y * along + direction.x * bend },
+    end: { x: root.x + direction.x * reach, y: root.y + direction.y * reach },
+  };
 }
 
 const lerp = (a: Point, b: Point, t: number): Point => ({ x: mix(a.x, b.x, t), y: mix(a.y, b.y, t) });
 const add = (a: Point, dx: number, dy: number): Point => ({ x: a.x + dx, y: a.y + dy });
 const rot = (p: Point, a: number): Point => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
+const footAt = (x: number): Foot => ({ x, lift: 0, from: x, to: x, swing: 1, duration: 0.25 });
+/** A turn shows a narrower silhouette without collapsing the rig into a zero-width line. */
+const facingScale = (rig: AndyRig): number => Math.sign(rig.facing.x || 1) * (0.72 + 0.28 * Math.abs(rig.facing.x));
 
 export function createAndy(x: number): AndyRig {
   return {
-    mode: 'idle', time: 0, modeAge: 0, x, vx: 0, facing: spring(1), stride: 0, pour: 0,
+    mode: 'idle', time: 0, modeAge: 0, x, vx: 0, reduced: false, feet: [footAt(x - 25), footAt(x + 27)], facing: spring(1), stride: 0, pour: 0,
     lean: spring(0), nod: spring(0), crouch: spring(0), hop: spring(0), reach: spring(0), tilt: spring(0), raise: spring(0),
     ears: [spring(0), spring(0)], headPrev: null, headV: { x: 0, y: 0 }, shades: spring(0), basket: spring(0),
-    eyeOpen: spring(1), mouthOpen: spring(0.1), mouthCurve: spring(0.6), brow: spring(0), blinkAt: 2.1,
+    eyeOpen: spring(1), lid: spring(0.56), mouthOpen: spring(0.1), mouthCurve: spring(0.6), brow: spring(0), blinkAt: 2.1,
     gazeWeight: spring(0), gazeAt: { x: 0, y: 0 }, glanceUntil: 0, nextGlance: 1.5,
     can: { held: true, x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, rest: 0 }, drops: [],
     events: { pour: false, step: false, drop: false, land: false },
@@ -133,23 +156,35 @@ function pourCurve(phase: number): number {
   return 1 - smoothstep(0, 1, (u - 0.72) / 0.28);
 }
 
-/** A foot through one stride, hip-relative: planted and sliding back, then swung forward with a lift. */
-function strideFoot(u: number): Point {
-  u -= Math.floor(u);
-  if (u < 0.58) return { x: mix(27, -27, u / 0.58), y: 0 };
-  const t = (u - 0.58) / 0.42;
-  return { x: mix(-27, 27, smoothstep(0, 1, t)), y: -18 * Math.sin(Math.PI * t) };
+/** Alternate weight-bearing feet. The planted foot never slides with the moving hip. */
+function stepFeet(rig: AndyRig, dt: number): void {
+  const speed = Math.abs(rig.vx);
+  const direction = Math.sign(rig.vx || -1);
+  for (const foot of rig.feet) {
+    if (foot.swing >= 1) continue;
+    foot.swing = Math.min(1, foot.swing + dt / foot.duration);
+    foot.x = mix(foot.from, foot.to, smoothstep(0, 1, foot.swing));
+    foot.lift = 20 * Math.sin(Math.PI * foot.swing);
+    if (foot.swing === 1) { foot.lift = 0; rig.events.step = true; rig.nod.v += 0.25; }
+  }
+  if (rig.mode !== 'harvest' || speed < 3 || rig.feet.some(foot => foot.swing < 1)) return;
+  const trailing = [...rig.feet].sort((a, b) => (a.x - b.x) * direction)[0]!;
+  if ((trailing.x - rig.x) * direction > -24) return;
+  trailing.from = trailing.x;
+  trailing.duration = clamp(35 / speed, 0.16, 0.3);
+  trailing.to = rig.x + rig.vx * trailing.duration + direction * 24;
+  trailing.swing = 0;
 }
 
 type Mood = 'calm' | 'keen' | 'nervous' | 'panic' | 'shock' | 'caught' | 'smug';
 const FACES: Record<Mood, { eye: number; lid: number; open: number; curve: number; brow: number }> = {
-  calm: { eye: 1, lid: 0.42, open: 0.12, curve: 0.6, brow: 0 },
-  keen: { eye: 1.05, lid: 0.3, open: 0.3, curve: 0.8, brow: -0.2 },
-  nervous: { eye: 1.1, lid: 0.18, open: 0.2, curve: 0.2, brow: 0.6 },
-  panic: { eye: 1.3, lid: 0.05, open: 0.45, curve: -0.3, brow: 1 },
-  shock: { eye: 1.7, lid: 0, open: 1, curve: -0.1, brow: 1 },
-  caught: { eye: 1.35, lid: 0.08, open: 0.5, curve: -0.7, brow: 0.9 },
-  smug: { eye: 0.85, lid: 0.5, open: 0.15, curve: 0.9, brow: -0.5 },
+  calm: { eye: 1, lid: 0.56, open: 0.22, curve: 0.7, brow: 0 },
+  keen: { eye: 1, lid: 0.5, open: 0.35, curve: 0.85, brow: -0.1 },
+  nervous: { eye: 1.05, lid: 0.42, open: 0.25, curve: 0.3, brow: 0.45 },
+  panic: { eye: 1.12, lid: 0.29, open: 0.4, curve: -0.1, brow: 0.7 },
+  shock: { eye: 1.25, lid: 0.04, open: 1, curve: -0.1, brow: 1 },
+  caught: { eye: 1.08, lid: 0.3, open: 0.4, curve: -0.55, brow: 0.8 },
+  smug: { eye: 0.95, lid: 0.6, open: 0.25, curve: 0.9, brow: -0.3 },
 };
 
 interface Pose {
@@ -162,55 +197,66 @@ interface Pose {
   frontFoot: Point;
   backHand: Point;
   frontHand: Point;
-  backSide: number;
+  backArm: Limb;
+  frontArm: Limb;
+  backLeg: Limb;
+  frontLeg: Limb;
   /** Head-local to rig-local. */
   toLocal: (lx: number, ly: number) => Point;
 }
 
 /** The pose the springs describe, in rig-local coordinates: x along his facing, y up from the ground. */
-function computePose(rig: AndyRig): Pose {
+export function computePose(rig: AndyRig): Pose {
   const t = rig.time;
-  const reach = rig.reach.x;
-  const raise = clamp(rig.raise.x, 0, 1.3);
+  const reach = clamp(rig.reach.x, 0, 1);
+  const raise = clamp(rig.raise.x, 0, 1);
   const lean = rig.lean.x;
   const crouch = rig.crouch.x;
-  const walking = rig.mode === 'harvest' ? clamp(Math.abs(rig.vx) / 60, 0, 1) : 0;
-  const idle = rig.mode === 'idle' || (rig.mode === 'harvest' && walking < 0.05) ? 1 : 0;
+  const walking = !rig.reduced && rig.mode === 'harvest' ? clamp(Math.abs(rig.vx) / 60, 0, 1) : 0;
+  const idle = !rig.reduced && (rig.mode === 'idle' || (rig.mode === 'harvest' && walking < 0.05)) ? 1 : 0;
   const breathe = Math.sin(t * 1.5) * 1.8 * idle;
   const sway = Math.sin(t * 0.7) * 3 * idle;
   const u = rig.stride - Math.floor(rig.stride);
   const bob = walking * -3.5 * (0.5 + 0.5 * Math.cos(Math.PI * 2 * (u - 0.3) * 2));
-  const tremble = rig.mode === 'busted' ? Math.exp(-rig.modeAge * 1.3) * Math.sin(t * 38) * 2.5 : 0;
+  const tremble = !rig.reduced && rig.mode === 'busted' ? Math.exp(-rig.modeAge * 1.3) * Math.sin(t * 38) * 2.5 : 0;
+  const flip = facingScale(rig);
+  const foot = (f: Foot): Point => ({ x: (f.x - rig.x) / flip, y: -f.lift + Math.min(0, rig.hop.x) });
+  const backFoot = foot(rig.feet[0]);
+  const frontFoot = foot(rig.feet[1]);
 
   const hip = { x: sway + 10 * lean - 6 * raise, y: HIP_Y + 16 * crouch + rig.hop.x + breathe + bob };
-  const torsoAngle = 0.08 + 0.5 * lean - 0.3 * raise + 0.14 * walking;
+  // Let the pelvis yield to the supporting leg before solving either chain. This preserves the
+  // world-space foot contact during acceleration instead of pulling an unreachable foot off the floor.
+  for (const [target, dx, dy] of [[backFoot, -9, 2], [frontFoot, 9, 0]] as const) {
+    const horizontal = target.x - hip.x - dx;
+    const vertical = Math.sqrt(Math.max(1, (LEG * 2 - 1) ** 2 - horizontal ** 2));
+    hip.y = Math.max(hip.y, target.y - 18 - dy - vertical);
+  }
+  const torsoAngle = 0.06 + 0.32 * lean - 0.22 * raise + 0.1 * walking;
   const shoulder = add(hip, Math.sin(torsoAngle) * TORSO, -Math.cos(torsoAngle) * TORSO);
-  const headRot = torsoAngle * 0.5 + rig.nod.x;
-  const head = add(shoulder, Math.sin(headRot) * 46, -Math.cos(headRot) * 46);
+  const headRot = torsoAngle * 0.3 + rig.nod.x;
+  const head = add(shoulder, Math.sin(headRot) * 52, -Math.cos(headRot) * 52);
   const toLocal = (lx: number, ly: number): Point => ({ x: head.x + lx * Math.cos(headRot) - ly * Math.sin(headRot), y: head.y + lx * Math.sin(headRot) + ly * Math.cos(headRot) });
-
-  // Feet: a stance that widens into the pour, spreads for the startle and strides for the walk home.
-  const standBack = { x: mix(-22, -36, Math.max(reach, raise)) + sway * 0.3, y: 0 };
-  const standFront = { x: mix(20, 34, Math.max(reach, raise)) + sway * 0.3, y: 0 };
-  const walkBack = add(strideFoot(rig.stride + 0.5), hip.x, 0);
-  const walkFront = add(strideFoot(rig.stride), hip.x, 0);
-  const backFoot = lerp(standBack, walkBack, walking);
-  const frontFoot = lerp(standFront, walkFront, walking);
 
   // Hands: the can hand reaches out over the bed, the free hand rests on the hip, both fly up when caught.
   const frontShoulder = add(shoulder, 8, 4);
   const backShoulder = add(shoulder, -10, 6);
   const swing = Math.sin(rig.stride * Math.PI * 2) * 16 * walking;
   const frontRest = add(frontShoulder, 24 + swing * 0.3, 60 - idle * 2 + Math.sin(t * 1.5) * 1.5 * idle);
-  const frontPour = add(frontShoulder, 60, 26 + Math.sin(t * 2.3) * 2);
-  const frontUp = add(frontShoulder, 62 + tremble, -54);
+  const frontPour = add(frontShoulder, 55, 28);
+  const frontUp = add(frontShoulder, 57 + tremble, -56);
   const backRest = add(backShoulder, -22 + swing, 58 + Math.sin(t * 1.5 + 1) * 1.5 * idle);
-  const base = rot({ x: -8, y: 40 }, rig.tilt.x);
-  const support = add(frontPour, base.x, base.y);
-  const backUp = add(backShoulder, -60 - tremble, -50);
-  const frontHand = lerp(lerp(frontRest, frontPour, reach), frontUp, raise);
-  const backHand = lerp(lerp(backRest, support, reach), backUp, raise);
-  return { hip, torsoAngle, shoulder, head, headRot, backFoot, frontFoot, backHand, frontHand, backSide: mix(1, -1, raise), toLocal };
+  const frontArm = solveLimb(frontShoulder, lerp(lerp(frontRest, frontPour, reach), frontUp, raise), ARM, ARM, 1);
+  const frontHand = frontArm.end;
+  // The supporting palm follows the actual can grip and tilt, even while he is lowering it.
+  const base = rot({ x: -14, y: 36 }, rig.tilt.x);
+  const support = add(frontHand, base.x, base.y);
+  const backUp = add(backShoulder, -58 - tremble, -54);
+  const backArm = solveLimb(backShoulder, lerp(lerp(backRest, support, smoothstep(0.12, 0.55, reach)), backUp, raise), ARM, ARM, 1);
+  const backHand = backArm.end;
+  const backLeg = solveLimb(add(hip, -9, 2), add(backFoot, 0, -18), LEG, LEG, -1);
+  const frontLeg = solveLimb(add(hip, 9, 0), add(frontFoot, 0, -18), LEG, LEG, -1);
+  return { hip, torsoAngle, shoulder, head, headRot, backFoot: add(backLeg.end, 0, 18), frontFoot: add(frontLeg.end, 0, 18), backHand, frontHand, backArm, frontArm, backLeg, frontLeg, toLocal };
 }
 
 /** The can's grip-local coordinates: its body hangs under the grip, the spout leaves to the right. */
@@ -218,13 +264,17 @@ const SPOUT_TIP = { x: 50, y: -8 };
 const SPOUT_ROOT = { x: 18, y: 16 };
 
 function enterMode(rig: AndyRig, mode: AndyMode, pose: Pose, drive: AndyDrive): void {
+  const previous = rig.mode;
   rig.mode = mode;
   rig.modeAge = 0;
   if (mode === 'idle') {
+    // A pause between watering acts preserves the pose; a new round resets the props.
+    if (previous === 'watering') return;
     rig.can.held = true;
     rig.drops.length = 0;
     rig.stride = 0;
     rig.pour = 0;
+    rig.feet = [footAt(drive.x - 25), footAt(drive.x + 27)];
     settleSpring(rig.facing, 1);
     settleSpring(rig.raise, 0);
     settleSpring(rig.crouch, 0);
@@ -252,17 +302,19 @@ function enterMode(rig: AndyRig, mode: AndyMode, pose: Pose, drive: AndyDrive): 
   }
 }
 
-function worldPoint(rig: AndyRig, p: Point, ground: number): Point {
-  return { x: rig.x + p.x * rig.facing.x, y: ground + p.y };
+export function worldPoint(rig: AndyRig, p: Point, ground: number): Point {
+  return { x: rig.x + p.x * facingScale(rig), y: ground + p.y };
 }
 
 /**
  * Jumps to the pose the drive calls for, for a round met late: hands already up with the can on the
  * ground after a bust, or shades on and the basket in hand after an accepted exit.
  */
-export function settleAndy(rig: AndyRig, drive: AndyDrive): void {
+export function settleAndy(rig: AndyRig, drive: AndyDrive, reduced = false): void {
+  rig.reduced = reduced;
   rig.x = drive.x;
   rig.vx = 0;
+  rig.feet = [footAt(drive.x - 25), footAt(drive.x + 27)];
   rig.mode = drive.mode;
   rig.modeAge = 5;
   rig.drops.length = 0;
@@ -270,7 +322,7 @@ export function settleAndy(rig: AndyRig, drive: AndyDrive): void {
   settleSpring(rig.facing, drive.mode === 'harvest' ? -1 : 1);
   settleSpring(rig.lean, drive.mode === 'watering' ? 0.7 : 0);
   settleSpring(rig.nod, 0);
-  settleSpring(rig.crouch, drive.mode === 'busted' ? 1 : 0);
+  settleSpring(rig.crouch, drive.mode === 'busted' ? 0.55 : 0);
   settleSpring(rig.hop, 0);
   settleSpring(rig.reach, drive.mode === 'watering' ? 1 : 0);
   settleSpring(rig.tilt, drive.mode === 'watering' ? 1.05 : 0);
@@ -284,9 +336,10 @@ export function settleAndy(rig: AndyRig, drive: AndyDrive): void {
   rig.pour = drive.mode === 'watering' ? 0.4 : 0;
   rig.can = drive.mode === 'idle' || drive.mode === 'watering'
     ? { held: true, x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, rest: 0 }
-    : { held: false, x: drive.x + 54, y: drive.ground - 12, vx: 0, vy: 0, angle: Math.PI / 2, spin: 0, rest: 2 };
+    : { held: false, x: drive.x + 54, y: drive.ground - canFloorOffset(-0.85), vx: 0, vy: 0, angle: -0.85, spin: 0, rest: 2 };
   const face = FACES[moodOf(rig, drive)];
   settleSpring(rig.eyeOpen, face.eye);
+  settleSpring(rig.lid, face.lid);
   settleSpring(rig.mouthOpen, face.open);
   settleSpring(rig.mouthCurve, face.curve);
   settleSpring(rig.brow, face.brow);
@@ -307,11 +360,14 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   rig.events.step = false;
   rig.events.drop = false;
   rig.events.land = false;
+  // No drop, blink, ballistic prop or secondary motion leaks into the static presentation.
+  if (reduced) { settleAndy(rig, drive, true); return; }
+  rig.reduced = false;
+  if (dt <= 0) return;
   const pose = computePose(rig);
   if (drive.mode !== rig.mode) enterMode(rig, drive.mode, pose, drive);
-  if (dt <= 0) return;
-  const go = (s: Spring, target: number, omega: number, zeta: number): Spring => reduced ? settleSpring(s, target) : stepSpring(s, target, omega, zeta, dt);
-  rig.time += reduced ? 0 : dt;
+  const go = (s: Spring, target: number, omega: number, zeta: number): Spring => stepSpring(s, target, omega, zeta, dt);
+  rig.time += dt;
   rig.modeAge += dt;
   rig.vx = (drive.x - rig.x) / dt;
   rig.x = drive.x;
@@ -336,12 +392,12 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
     }
     case 'watering': {
       const before = rig.pour;
-      const rate = reduced ? 0 : 0.42 + drive.growth * 0.5;
+      const rate = 0.42 + drive.growth * 0.5;
       rig.pour += rate * dt;
       const u0 = before - Math.floor(before);
       const u1 = rig.pour - Math.floor(rig.pour);
       if ((u0 < 0.12 && u1 >= 0.12) || (u1 < u0 && u1 >= 0.12)) { rig.events.pour = true; rig.nod.v += 0.9; }
-      const pour = reduced ? 0.85 : pourCurve(rig.pour);
+      const pour = pourCurve(rig.pour);
       reach = 0.6 + 0.4 * pour;
       tilt = 0.25 + 0.85 * pour + fear * Math.sin(t * 23) * 0.04;
       lean = 0.35 + 0.5 * pour;
@@ -354,14 +410,7 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
     }
     case 'harvest': {
       const walking = clamp(Math.abs(rig.vx) / 60, 0, 1);
-      const before = rig.stride;
-      if (!reduced) rig.stride += (Math.abs(rig.vx) / STRIDE) * dt;
-      // A foot lands when its swing wraps; the other foot runs half a stride behind.
-      for (const offset of [0, 0.5]) {
-        const a = (before + offset) % 1;
-        const b = (rig.stride + offset) % 1;
-        if (b < a) { rig.events.step = true; rig.nod.v += 0.6; }
-      }
+      rig.stride += (Math.abs(rig.vx) / STRIDE) * dt;
       lean = 0.1 * walking;
       gaze = 1;
       gazeAt = { x: drive.x - 400 * (rig.facing.x < 0 ? 1 : -1), y: drive.ground - 120 };
@@ -379,15 +428,16 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   go(rig.lean, lean, 14, 0.6);
   go(rig.reach, reach, 12, 0.6);
   go(rig.tilt, tilt, 16, 0.5);
-  go(rig.raise, raise, 20, 0.35);
+  go(rig.raise, raise, 17, 0.72);
   go(rig.crouch, crouch, 18, 0.5);
   go(rig.hop, 0, 16, 0.5);
-  go(rig.nod, 0.05 * lean + (gazeAt === drive.street ? 0.12 : 0), 11, 0.35);
-  go(rig.facing, rig.mode === 'harvest' && rig.modeAge > 0.5 ? -1 : 1, 7, 0.9);
+  go(rig.nod, 0.03 * lean + (gazeAt === drive.street ? -0.1 : 0), 11, 0.65);
+  go(rig.facing, rig.mode === 'harvest' && rig.modeAge > 0.16 ? -1 : 1, 12, 0.95);
   go(rig.shades, rig.mode === 'harvest' ? 1 : 0, 12, 0.5);
   go(rig.basket, rig.mode === 'harvest' && rig.modeAge > 0.25 ? 1 : 0, 14, 0.45);
   rig.gazeAt = gazeAt;
   go(rig.gazeWeight, gaze, 9, 0.8);
+  stepFeet(rig, dt);
 
   // The face.
   const mood = moodOf(rig, drive);
@@ -395,6 +445,7 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   const blinking = t > rig.blinkAt && t < rig.blinkAt + 0.12;
   if (t >= rig.blinkAt + 0.12) rig.blinkAt = t + 2 + 2.8 * noise(rig.blinkAt);
   go(rig.eyeOpen, blinking && mood !== 'shock' ? 0.06 : face.eye, 28, 0.9);
+  go(rig.lid, face.lid, 12, 0.85);
   go(rig.mouthOpen, face.open + (rig.mode === 'watering' ? Math.max(0, Math.sin(t * 2.6)) * 0.15 : 0), 14, 0.8);
   go(rig.mouthCurve, face.curve, 10, 0.8);
   go(rig.brow, face.brow, 12, 0.75);
@@ -404,12 +455,11 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   const head = worldPoint(rig, after.head, drive.ground);
   if (rig.headPrev) rig.headV = { x: (head.x - rig.headPrev.x) / dt, y: (head.y - rig.headPrev.y) / dt };
   rig.headPrev = head;
-  // Forward motion streams both ears back; a dropping head throws them up. The back ear hangs down and
-  // back, so up is a larger angle for it and a smaller one for the ear flopped over the brow.
-  const streamBack = clamp(rig.headV.x * rig.facing.x * 0.004, -0.5, 0.5);
-  const lift = clamp(-rig.headV.y * 0.0025, -0.4, 0.4);
-  go(rig.ears[0], -0.15 + streamBack * 0.8 - lift - after.headRot * 0.5, 13, 0.22);
-  go(rig.ears[1], 0.1 - streamBack * 1.1 + lift * 1.3 - after.headRot * 0.5, 15, 0.2);
+  // Long drooping ears trail the head, with bounded lag so the silhouette stays recognizable.
+  const streamBack = clamp(rig.headV.x * Math.sign(rig.facing.x) * 0.002, -0.22, 0.22);
+  const lift = clamp(-rig.headV.y * 0.0015, -0.16, 0.16);
+  go(rig.ears[0], streamBack - lift - after.headRot * 0.6, 10, 0.62);
+  go(rig.ears[1], streamBack * 0.8 + lift * 0.6 - after.headRot * 0.6, 12, 0.58);
 
   // The dropped can and the flung sweat.
   if (!rig.can.held) {
@@ -419,15 +469,16 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
       can.x += can.vx * dt;
       can.y += can.vy * dt;
       can.angle += can.spin * dt;
-      const low = drive.ground - 10;
+      const low = drive.ground - canFloorOffset(can.angle);
       if (can.y > low) {
         can.y = low;
-        if (can.vy > 60) { if (can.vy > 200) rig.events.land = true; can.vy *= -0.32; can.vx *= 0.6; can.spin = -can.spin * 0.5; } else { can.vy = 0; can.vx *= 0.85; can.rest += dt; }
+        if (can.vy > 60) { if (can.vy > 200) rig.events.land = true; can.vy *= -0.32; can.vx *= 0.6; can.spin = -can.spin * 0.5; } else { can.vy = 0; can.vx *= Math.exp(-dt * 10); can.rest += dt; }
       }
       if (can.vy === 0 && can.y >= low - 0.01) {
-        const lying = can.angle > 0 ? Math.PI / 2 : -Math.PI / 2;
+        const lying = -0.85 + Math.round((can.angle + 0.85) / (2 * Math.PI)) * 2 * Math.PI;
         can.angle += (lying - can.angle) * (1 - Math.exp(-dt * 8));
         can.spin = 0;
+        can.y = drive.ground - canFloorOffset(can.angle);
       }
     }
   }
@@ -440,13 +491,18 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   if (rig.drops.length && rig.drops[0]!.age > 1.1) rig.drops.length = 0;
 }
 
+/** Rotated support points of the body, handles and rose, measured from the grip. */
+export function canFloorOffset(angle: number): number {
+  return Math.max(...[[-22, 6], [-22, 44], [22, 44], [22, 6], [-37, 24], [0, -9], [55, -16], [55, 2]]
+    .map(([x, y]) => x! * Math.sin(angle) + y! * Math.cos(angle))) + 2;
+}
+
 /** Draws him and reports where the water leaves the can. */
 export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: AndyDrive): AndyView {
   const t = rig.time;
   const pose = computePose(rig);
-  const { hip, torsoAngle, shoulder, head, headRot, backFoot, frontFoot, backHand, frontHand, backSide, toLocal } = pose;
-  const facing = rig.facing.x;
-  const flip = Math.abs(facing) < 0.12 ? 0.12 * Math.sign(facing || 1) : facing;
+  const { hip, torsoAngle, shoulder, head, headRot, backFoot, frontFoot, backHand, frontHand, toLocal } = pose;
+  const flip = facingScale(rig);
   const raise = clamp(rig.raise.x, 0, 1.3);
   const mood = moodOf(rig, drive);
 
@@ -459,14 +515,13 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
     if (outline) { ctx.strokeStyle = INK; ctx.lineWidth = outline; ctx.stroke(); }
     ctx.fillStyle = color; ctx.fill();
   }
-  function limb(root: Point, end: Point, upper: number, lower: number, side: number, width: number, color: string, shade: string): Point {
-    const joint = bendJoint(root, end, upper, lower, side);
+  function limb({ root, joint, end }: Limb, width: number, color: string, shade: string): Point {
     segment(root, joint, width + 6, INK); segment(joint, end, width + 6, INK);
     segment(root, joint, width, shade); segment(joint, end, width, color);
     return joint;
   }
   function boot(foot: Point, lift: number): void {
-    ctx.save(); ctx.translate(foot.x, foot.y); ctx.rotate(-lift * 0.5);
+    ctx.save(); ctx.translate(foot.x, foot.y - 8); ctx.rotate(-lift * 0.3);
     ctx.beginPath(); ctx.moveTo(-14, -22); ctx.lineTo(13, -22); ctx.lineTo(15, -8); ctx.quadraticCurveTo(30, -6, 30, 2); ctx.quadraticCurveTo(28, 8, 18, 8); ctx.lineTo(-13, 8); ctx.quadraticCurveTo(-18, 6, -17, -2); ctx.closePath();
     ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.lineJoin = 'round'; ctx.stroke();
     ctx.fillStyle = BOOT; ctx.fill();
@@ -475,6 +530,15 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
     ctx.restore();
   }
   function hand(p: Point, open: number, color: string): void {
+    open = clamp(open, 0, 1);
+    if (open > 0.1) {
+      for (let i = 0; i < 4; i += 1) {
+        const angle = -2.55 + i * 0.54;
+        const base = add(p, Math.cos(angle) * 5, Math.sin(angle) * 5);
+        const tip = add(p, Math.cos(angle) * (9 + open * (i === 1 || i === 2 ? 13 : 10)), Math.sin(angle) * (9 + open * (i === 1 || i === 2 ? 13 : 10)));
+        segment(base, tip, 6.5, INK); segment(base, tip, 3.8, color);
+      }
+    }
     disc(p, 10, 9.5, color, 3);
     ctx.strokeStyle = YELLOW_SHADE; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
     for (let i = 0; i < 4; i += 1) {
@@ -494,15 +558,13 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   ctx.beginPath(); ctx.ellipse((backFoot.x + frontFoot.x) / 2, 5, 58 + Math.abs(frontFoot.x - backFoot.x) * 0.3, 9, 0, 0, Math.PI * 2); ctx.fill();
 
   // Back leg and arm, then the torso over them.
-  const backHip = add(hip, -9, 2);
-  const frontHip = add(hip, 9, 0);
-  limb(backHip, add(backFoot, 0, -10), LEG, LEG, -1, 24, TEAL_DARK, TEAL_DARK);
+  limb(pose.backLeg, 24, TEAL_DARK, TEAL_DARK);
   boot(backFoot, clamp(-backFoot.y / 16, 0, 1));
   const backShoulder = add(shoulder, -10, 6);
   // The far arm hangs behind the body, reaches across it to steady the can, and comes up beside the face when caught.
   const backLayer: 'behind' | 'across' | 'raised' = raise > 0.5 ? 'raised' : rig.reach.x > 0.5 ? 'across' : 'behind';
   const backArm = (): void => {
-    const joint = limb(backShoulder, backHand, ARM, ARM, backSide, 15, YELLOW_SHADE, TEE_SHADE);
+    const joint = limb(pose.backArm, 15, YELLOW_SHADE, YELLOW_SHADE);
     segment(backShoulder, lerp(backShoulder, joint, 0.45), 23, INK);
     segment(backShoulder, lerp(backShoulder, joint, 0.45), 18, TEE_SHADE);
     hand(backHand, raise, YELLOW_SHADE);
@@ -523,7 +585,7 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   segment({ x: -8, y: -TORSO + 30 }, { x: 8, y: -TORSO + 30 }, 1.5, TEAL_DARK);
   ctx.restore();
 
-  limb(frontHip, add(frontFoot, 0, -10), LEG, LEG, -1, 26, TEAL, TEAL);
+  limb(pose.frontLeg, 26, TEAL, TEAL);
   boot(frontFoot, clamp(-frontFoot.y / 16, 0, 1));
   disc(hip, 28, 18, TEAL, 3.5);
   if (backLayer === 'across') backArm();
@@ -531,21 +593,29 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   // The head: ears behind it, the skull and muzzle as one outline, then the face.
   ctx.save();
   ctx.translate(head.x, head.y); ctx.rotate(headRot);
-  drawEar(ctx, { x: -30, y: -34 }, rig.ears[0].x + 2.25, 78, 36, t);
-  ctx.beginPath(); ctx.ellipse(0, 0, 50, 45, 0, 0, Math.PI * 2); ctx.ellipse(34, 12, 34, 25, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.stroke();
-  ctx.fillStyle = YELLOW; ctx.fill();
-  ctx.beginPath(); ctx.ellipse(0, 0, 50, 45, 0, 0, Math.PI * 2); ctx.ellipse(34, 12, 34, 25, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = YELLOW_SHADE;
-  ctx.beginPath(); ctx.ellipse(22, 30, 36, 9, 0.1, 0, Math.PI); ctx.fill();
-  drawEar(ctx, { x: -24, y: -44 }, rig.ears[1].x + 0.42, 52, 34, t + 1);
+  drawEar(ctx, { x: 44, y: -36 }, rig.ears[1].x + 1.3, 83, 24, t);
+  drawEar(ctx, { x: -40, y: -36 }, rig.ears[0].x + 1.69, 97, 31, t);
+  // One broad cheek-and-brow contour: no projecting dog snout or circular skull seam.
+  ctx.beginPath(); ctx.moveTo(-47, -28);
+  ctx.bezierCurveTo(-47, -50, -20, -60, 3, -49);
+  ctx.bezierCurveTo(24, -65, 55, -54, 59, -34);
+  ctx.bezierCurveTo(65, -24, 61, -11, 65, -3);
+  ctx.quadraticCurveTo(74, 6, 61, 12);
+  ctx.bezierCurveTo(67, 40, 46, 55, 10, 55);
+  ctx.bezierCurveTo(-25, 55, -47, 38, -48, 16);
+  ctx.quadraticCurveTo(-52, -7, -47, -28); ctx.closePath();
+  ctx.fillStyle = YELLOW; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  ctx.save(); ctx.clip();
+  ctx.beginPath(); ctx.moveTo(-46, 18); ctx.bezierCurveTo(-20, 52, 32, 55, 62, 28);
+  ctx.lineTo(70, 68); ctx.lineTo(-53, 65); ctx.closePath(); ctx.fillStyle = YELLOW_SHADE; ctx.fill();
+  ctx.restore();
   drawFace(ctx, rig, mood, headRot, toLocal, drive);
   ctx.restore();
   if (backLayer === 'raised') backArm();
 
   // Front arm and whatever it holds: the can, or the harvest basket.
   const frontShoulder = add(shoulder, 8, 4);
-  const elbow = limb(frontShoulder, frontHand, ARM, ARM, 1, 16, YELLOW, TEE);
+  const elbow = limb(pose.frontArm, 16, YELLOW, YELLOW);
   segment(frontShoulder, lerp(frontShoulder, elbow, 0.45), 25, INK);
   segment(frontShoulder, lerp(frontShoulder, elbow, 0.45), 20, TEE);
   let spout: Point | null = null;
@@ -571,6 +641,7 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
     ctx.restore();
   }
   hand(frontHand, raise, YELLOW);
+  if (rig.can.held && rig.reach.x > 0.55) hand(backHand, 0, YELLOW_SHADE);
   ctx.restore();
 
   // The can where it fell, in world space, and the sweat flung off at the bust.
@@ -602,7 +673,10 @@ function drawEar(ctx: CanvasRenderingContext2D, pivot: Point, angle: number, len
   ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.stroke();
   ctx.fillStyle = YELLOW; ctx.fill();
   ctx.fillStyle = YELLOW_SHADE;
-  ctx.beginPath(); ctx.ellipse(length * 0.72, width * 0.08, length * 0.2, width * 0.24, 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(length * 0.2, width * 0.3);
+  ctx.bezierCurveTo(length * 0.65, width * 0.14, length * 0.81, width * 0.15, length * 0.92, -width * 0.1);
+  ctx.quadraticCurveTo(length * 0.98, width * 0.51, length * 0.79, width * 0.5);
+  ctx.quadraticCurveTo(length * 0.45, width * 0.65, length * 0.2, width * 0.3); ctx.fill();
   ctx.restore();
 }
 
@@ -615,92 +689,87 @@ function drawDrop(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 
 function drawFace(ctx: CanvasRenderingContext2D, rig: AndyRig, mood: Mood, headRot: number, toLocal: (lx: number, ly: number) => Point, drive: AndyDrive): void {
   const t = rig.time;
-  const face = FACES[mood];
-  const eyeOpen = Math.max(0.06, rig.eyeOpen.x);
-  const lid = face.lid;
-  const eyes = [{ x: 4, y: -12, rx: 13, ry: 15 }, { x: 31, y: -17, rx: 12, ry: 14 }];
-  // Pupils drift toward what he is looking at, in head space; the viewer when nothing holds his eye.
+  const eyeOpen = clamp(rig.eyeOpen.x, 0.06, 1.3);
+  const lid = clamp(rig.lid.x, 0, 0.7);
+  const eyes = [{ x: -12, y: -17, rx: 23, ry: 18 }, { x: 36, y: -20, rx: 21, ry: 17 }];
   const weight = clamp(rig.gazeWeight.x, 0, 1);
-  const headWorld = (lx: number, ly: number): Point => { const p = toLocal(lx, ly); return { x: rig.x + p.x * rig.facing.x, y: drive.ground + p.y }; };
   for (const eye of eyes) {
-    const world = headWorld(eye.x, eye.y);
+    const world = worldPoint(rig, toLocal(eye.x, eye.y), drive.ground);
     const gx = (rig.gazeAt.x - world.x) * Math.sign(rig.facing.x || 1);
     const gy = rig.gazeAt.y - world.y;
     const gd = Math.max(1, Math.hypot(gx, gy));
-    const lx = (gx * Math.cos(-headRot) - gy * Math.sin(-headRot)) / gd;
-    const ly = (gx * Math.sin(-headRot) + gy * Math.cos(-headRot)) / gd;
-    const scale = Math.min(1.4, face.eye);
+    const lx = (gx * Math.cos(headRot) + gy * Math.sin(headRot)) / gd;
+    const ly = (-gx * Math.sin(headRot) + gy * Math.cos(headRot)) / gd;
+    const ry = eye.ry * eyeOpen;
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eye.rx * scale, eye.ry * scale * eyeOpen, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = '#fffdf5'; ctx.fill();
-    ctx.clip();
-    const px = eye.x + 3 + lx * 4.5 * weight;
-    const py = eye.y + 1 + ly * 4 * weight;
-    ctx.beginPath(); ctx.arc(px, py, 7.5 * scale, 0, Math.PI * 2); ctx.fillStyle = '#3c7ad6'; ctx.fill();
-    ctx.beginPath(); ctx.arc(px + 0.5, py + 0.5, 4 * scale, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
-    ctx.beginPath(); ctx.arc(px - 2.5, py - 3, 1.8, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
-    // The heavy half lid that gives him the look.
-    const drop = eye.ry * scale * eyeOpen * 2 * lid * (0.85 + 0.15 * Math.sin(t * 0.9));
-    ctx.fillStyle = YELLOW;
-    ctx.fillRect(eye.x - eye.rx * 2, eye.y - eye.ry * 2, eye.rx * 4, eye.ry * 2 - eye.ry * scale * eyeOpen + drop);
-    if (drop > 1) {
-      ctx.beginPath(); ctx.moveTo(eye.x - eye.rx * scale, eye.y - eye.ry * scale * eyeOpen + drop); ctx.lineTo(eye.x + eye.rx * scale, eye.y - eye.ry * scale * eyeOpen + drop);
-      ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-    }
+    ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eye.rx, ry, -0.06, 0, Math.PI * 2);
+    ctx.fillStyle = '#fffbea'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.stroke(); ctx.clip();
+    const px = eye.x + 2 + lx * 5 * weight;
+    const py = eye.y + 2 + ly * 3 * weight;
+    ctx.beginPath(); ctx.arc(px, py, 10.5, 0, Math.PI * 2); ctx.fillStyle = '#4e9acc'; ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py - 1.5, 8, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
+    ctx.beginPath(); ctx.arc(px + 2.5, py - 4.5, 2, 0, Math.PI * 2); ctx.fillStyle = '#fffef8'; ctx.fill();
+    // Andy's broad half-lids stay visible while watering; only the startle opens them fully.
+    const lidY = eye.y - ry + 2 * ry * lid;
+    ctx.beginPath(); ctx.moveTo(eye.x - eye.rx - 4, lidY + 3);
+    ctx.quadraticCurveTo(eye.x, lidY - 4, eye.x + eye.rx + 4, lidY - 2);
+    ctx.lineTo(eye.x + eye.rx + 4, eye.y - ry - 6); ctx.lineTo(eye.x - eye.rx - 4, eye.y - ry - 6); ctx.closePath();
+    ctx.fillStyle = YELLOW; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(eye.x - eye.rx - 4, lidY + 3);
+    ctx.quadraticCurveTo(eye.x, lidY - 4, eye.x + eye.rx + 4, lidY - 2);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.stroke();
     ctx.restore();
   }
-  // Brows: inner ends rise with worry, drop with smugness.
   const brow = rig.brow.x;
-  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-9, -29 + 2 * brow); ctx.lineTo(13, -33 - 6 * brow); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(22, -35 - 5 * brow); ctx.lineTo(42, -31 + 2 * brow); ctx.stroke();
-  // Nostrils on the muzzle.
-  ctx.fillStyle = INK;
-  ctx.beginPath(); ctx.ellipse(58, -4, 2.6, 1.8, 0.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(64, 1, 2.2, 1.6, 0.4, 0, Math.PI * 2); ctx.fill();
-  // The grin: a wide mouth across the muzzle whose corners curl with the mood and whose jaw drops when he yelps.
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-34, -34 + brow * 3); ctx.quadraticCurveTo(-16, -48 - brow * 6, 7, -37 - brow * 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(17, -39 - brow * 4); ctx.quadraticCurveTo(36, -51 - brow * 3, 54, -38 + brow * 2); ctx.stroke();
+  // The broad, shallow muzzle reads as one face, with a continuous tooth band and a curled lip.
+  ctx.fillStyle = '#ffe773'; ctx.beginPath(); ctx.ellipse(31, 1, 9, 2.4, -0.16, 0, Math.PI * 2); ctx.fill();
   const open = clamp(rig.mouthOpen.x, 0, 1);
-  const curve = rig.mouthCurve.x;
-  const a = { x: 2, y: 14 };
-  const b = { x: 60, y: 6 };
-  const topCtl = { x: 32, y: 10 - curve * 8 + open * 4 };
-  const bottomCtl = { x: 30, y: 24 + 30 * open + curve * 10 };
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(topCtl.x, topCtl.y, b.x, b.y); ctx.quadraticCurveTo(bottomCtl.x, bottomCtl.y, a.x, a.y); ctx.closePath();
-  ctx.fillStyle = '#8a1b2b'; ctx.fill();
+  const curve = clamp(rig.mouthCurve.x, -1, 1);
+  const a = { x: -28, y: 17 - curve * 2 };
+  const b = { x: 59, y: 10 - curve * 3 };
+  const top = { x: 14, y: 24 + curve * 3 };
+  const bottom = { x: 14, y: 43 + open * 40 };
+  const mouth = () => {
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(top.x, top.y, b.x, b.y);
+    ctx.bezierCurveTo(65, bottom.y - 8, -21, bottom.y + 2, a.x, a.y); ctx.closePath();
+  };
+  mouth(); ctx.fillStyle = '#641e35'; ctx.fill(); ctx.strokeStyle = YELLOW_SHADE; ctx.lineWidth = 8; ctx.stroke();
   ctx.save(); ctx.clip();
-  ctx.fillStyle = '#fffdf5';
-  ctx.beginPath(); ctx.moveTo(a.x - 5, a.y - 12); ctx.lineTo(b.x + 5, b.y - 12); ctx.lineTo(b.x + 5, b.y + 1 + open * 2); ctx.quadraticCurveTo(32, 14 - curve * 5 + open * 6, a.x - 5, a.y + 2 + open * 2); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#d9cfc0'; ctx.lineWidth = 1.2;
-  for (let i = 1; i < 6; i += 1) { const x = a.x + (b.x - a.x) * i / 6; ctx.beginPath(); ctx.moveTo(x, a.y + (b.y - a.y) * i / 6 - 10); ctx.lineTo(x, a.y + (b.y - a.y) * i / 6 + 6); ctx.stroke(); }
-  if (open > 0.3) { ctx.fillStyle = '#e4607a'; ctx.beginPath(); ctx.ellipse(30, 22 + 24 * open, 16, 7 + 6 * open, -0.1, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#fdf4d9';
+  ctx.beginPath(); ctx.moveTo(-24, a.y - 3); ctx.quadraticCurveTo(top.x, top.y - 2, 53, b.y - 2);
+  ctx.lineTo(49, b.y + 7); ctx.quadraticCurveTo(14, top.y + 13, -17, a.y + 6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#b6394b'; ctx.beginPath(); ctx.ellipse(16, 38 + open * 13, 26, 10 + open * 5, -0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#dd5a65'; ctx.beginPath(); ctx.ellipse(20, 34 + open * 12, 13, 4, -0.05, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-  ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(topCtl.x, topCtl.y, b.x, b.y); ctx.quadraticCurveTo(bottomCtl.x, bottomCtl.y, a.x, a.y); ctx.closePath(); ctx.stroke();
-  // Sweat slides down the face as the garden gets loud; shock flings it (the rig's drops) instead.
-  const drops = mood === 'nervous' ? 1 : mood === 'panic' ? 3 : mood === 'caught' ? 2 : 0;
-  const sites = [{ x: -22, y: -30 }, { x: 44, y: -36 }, { x: -14, y: 6 }];
+  mouth(); ctx.strokeStyle = INK; ctx.lineWidth = 3.4; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-34, 11); ctx.quadraticCurveTo(-32, 17, -23, 16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(56, 6); ctx.quadraticCurveTo(65, 5, 64, -1); ctx.stroke();
+
+  const drops = mood === 'nervous' ? 1 : mood === 'panic' ? 2 : mood === 'caught' ? 1 : 0;
+  const sites = [{ x: -36, y: -28 }, { x: 59, y: -31 }];
   for (let i = 0; i < drops; i += 1) {
     const p = (t / 1.1 + i * 0.37) % 1;
     const site = sites[i]!;
     ctx.globalAlpha = 1 - p * p;
-    drawDrop(ctx, site.x, site.y + 26 * p * p, 3.6, 0);
+    drawDrop(ctx, site.x, site.y + 20 * p * p, 3.2, 0);
   }
   ctx.globalAlpha = 1;
-  // Deal-with-it shades drop in from above once the harvest is his.
-  const shades = clamp(rig.shades.x, 0, 1.1);
+  const shades = clamp(rig.shades.x, 0, 1);
   if (shades > 0.02) {
-    const dy = -140 * (1 - shades);
+    const dy = -100 * (1 - shades);
     ctx.fillStyle = INK;
     for (const eye of eyes) {
-      ctx.fillRect(eye.x - 15, eye.y - 11 + dy, 30, 12);
-      ctx.fillRect(eye.x - 12, eye.y + 1 + dy, 24, 6);
-      ctx.fillRect(eye.x - 8, eye.y + 7 + dy, 16, 3);
+      ctx.beginPath(); ctx.roundRect(eye.x - eye.rx - 1, eye.y - 6 + dy, eye.rx * 2 + 2, 22, [2, 2, 9, 9]); ctx.fill();
     }
-    ctx.fillRect(eyes[0]!.x + 14, eyes[0]!.y - 12 + dy, 6, 4);
-    ctx.fillRect(-52, eyes[0]!.y - 8 + dy, 38, 4);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    for (const eye of eyes) ctx.fillRect(eye.x - 12, eye.y - 8 + dy, 9, 3);
+    ctx.fillRect(9, -24 + dy, 10, 5); ctx.fillRect(-43, -22 + dy, 12, 5);
+    ctx.fillStyle = '#87b5c5';
+    for (const eye of eyes) {
+      ctx.beginPath(); ctx.moveTo(eye.x - 13, eye.y - 2 + dy); ctx.lineTo(eye.x - 4, eye.y - 2 + dy);
+      ctx.lineTo(eye.x - 13, eye.y + 9 + dy); ctx.lineTo(eye.x - 18, eye.y + 9 + dy); ctx.closePath(); ctx.fill();
+    }
   }
 }
 

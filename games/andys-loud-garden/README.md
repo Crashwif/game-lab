@@ -1,8 +1,8 @@
 # Andy's Loud Garden
 
-Andy grows a very conspicuous ganja garden behind his house. The patch grows with the room's displayed multiplier, from little seedlings to a leafy jungle. Andy is a rig built from shapes: two-bone arms and legs solve toward hand and foot targets, the torso and head follow on springs, his floppy ears trail every move, and the watering can tips over the bed on its own cycle with the water arcing from the rose into the soil. He breathes and shifts his weight while he waits, pours faster and sweats as the garden gets louder, and glances over his shoulder at the street. At the crash, a frozen beat, then he drops the can, jumps and throws his hands up, a patrol car pulls up, two officers enter, leaves scatter and a **BUSTED** stamp and garden-closure tape fill the scene.
+Andy grows a very conspicuous ganja garden behind his house. The patch grows with the room's displayed multiplier, from little seedlings to a leafy jungle. His broad yellow face, long hanging ears, heavy blue eyes and wide grin follow the Andy reference linked below. The character stays fully drawn in Canvas: fixed-length arms and legs, grounded feet, a yielding pelvis, and separate springs for his head, lids and ears. Both hands follow the same watering can, including the supporting palm beneath it; the water arcs from the rose into the soil. He breathes and shifts his weight while he waits, pours faster and sweats as the garden gets louder, and glances over his shoulder at the street. At the crash, a frozen beat, then he drops the can, jumps with both feet and throws his hands up, a patrol car pulls up, two officers enter, leaves scatter and a **BUSTED** stamp and garden-closure tape fill the scene.
 
-An accepted cashout drops the can, lowers the shades, hands him a harvest basket and turns him for home with a stride that follows his speed. The police still close the patch when the round crashes; the player's accepted exit stays visible. The harvest is a visual celebration only. Credits have no monetary value, and the scene never determines or changes a crash or cashout result.
+An accepted cashout drops the can, lowers the shades, hands him a harvest basket and turns him for home with alternating planted feet, lifted steps and a stride that follows his speed. The dropped can collides using its rotated body, handles and spout. The police still close the patch when the round crashes; the player's accepted exit stays visible. The harvest is a visual celebration only. Credits have no monetary value, and the scene never determines or changes a crash or cashout result.
 
 ![Andy watering the growing garden](preview.png)
 
@@ -19,9 +19,17 @@ npm run preview -- andys-loud-garden
 
 The preview prints the replay address. Remove `?mode=replay` to join the emulator with local credits. Use **Join round**, then **Cash out**, or press **Space** while the game has focus. Embedded play uses the host's stake and credit controls. **Restart replay** repeats the verified fixture. **Sound** enables the procedural lo-fi loop, watering cues, cashout chime and police siren; audio starts muted.
 
-The shared shell handles waiting, betting, running, crash, reconnect and replay. The scene reads only its `SceneView`; plant size is a visual response to the supplied multiplier, and the rig only presents what the round already decided. A round met late (a hidden tab, a page opened mid-round) settles the rig straight into its pose. With reduced motion, the springs settle instead of swinging, so there is no bobbing, pouring cycle, water or ear flap, the plant sway, flashing lights and screen shake are suppressed, and the police arrive in their settled positions.
+The shared shell handles waiting, betting, running, crash, reconnect and replay. The scene reads only its `SceneView`; plant size is a visual response to the supplied multiplier, and the rig only presents what the round already decided. A round met late (a hidden tab, a page opened mid-round) settles the rig straight into its pose. With reduced motion, the springs settle instead of swinging, so there is no bobbing, pouring cycle, water, ear flap or falling can, the plant sway, flashing lights and screen shake are suppressed, and the police arrive in their settled positions.
 
 `npm run build` writes the publishable HTML, JavaScript and CSS to `dist/andys-loud-garden/`. Validate with `npm run typecheck`, `npm run check` and `npm test`. The contribution slug and replay game ID are both `andys-loud-garden`; `gallery.json` registers this game independently of Balloon Pump.
+
+For the character's contact and motion regressions, run:
+
+```sh
+node --test games/andys-loud-garden/andy.test.mjs
+```
+
+These checks cover fixed bone lengths, the supporting palm, planted feet through acceleration and turning at 30/60/120 fps, crash hit-stop and the hop, can collision, reduced motion, and recovery for the next round. The test file is excluded from the published bundle and source pack.
 
 ## Source and artwork
 
@@ -34,7 +42,7 @@ The shared shell handles waiting, betting, running, crash, reconnect and replay.
 - `main.ts`, `audio.ts` and the base styles are the canonical Game Lab shell. All music and effects are synthesized by its audio engine; there are no recorded clips. The rig's events (a pour starting, the can hitting the ground, a footfall) cue the effects.
 - `replay.json` uses the repository's verified example round with this game's ID.
 
-Everything on the page is drawn in code; the game ships no images and makes no artwork requests. Andy is a character from Matt Furie's **Boys Club**; the rig's look (golden yellow, floppy ears, heavy-lidded blue eyes, the broad muzzle and grin, teal overalls over a cream T-shirt, purple boots) references the [Andy project website](https://boysclubandy.com/). No affiliation with or endorsement by the character's creator or the Andy project is implied.
+Everything on the page is drawn in code; the game ships no images and makes no artwork requests. Andy is a character from Matt Furie's **Boys Club**; the rig's look (lemon yellow, hanging ears, heavy-lidded blue eyes, a broad cheek and grin, teal overalls over a cream T-shirt, purple boots) references the [Andy project website](https://boysclubandy.com/). No affiliation with or endorsement by the character's creator or the Andy project is implied.
 
 The gallery's `open` setting permits Game Lab remixing with no derivative royalty. Character rights remain with their respective owners.
 
@@ -42,4 +50,4 @@ The gallery's `open` setting permits Game Lab remixing with no derivative royalt
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.
+On narrow screens, `portrait.ts` presents a closer view of Andy and the first bed; the crash framing keeps his reaction visible alongside the arriving officer. A small overview preserves the whole garden, with readable scene text beneath it. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the prop oscillation.
