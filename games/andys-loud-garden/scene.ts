@@ -35,7 +35,7 @@ const HIT_STOP = 0.09;
 
 /** The room supplies every outcome; growth, actors and effects only present its view. */
 export function createScene(options: SceneOptions = {}): Scene {
-  const { capture, present } = createPortrait("ANDY\u2019S LOUD GARDEN", [100, 170, 600, 330], '#f0d99c');
+  const { capture, present } = createPortrait("ANDY\u2019S LOUD GARDEN", [100, 205, 430, 290], '#f0d99c');
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'lofi', crash: 'siren', music: 0.6, effects: 0.8 });
   const andy = createAndy(HOME_X);
@@ -115,7 +115,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const departure = walking ? reduced ? 1 : ease((exitAge - 0.7) / 3.1) : 0;
     const mode: AndyMode = walking ? 'harvest' : crashed ? 'busted' : running ? act.stage > 0 && act.effort < .68 ? 'idle' : 'watering' : 'idle';
     const drive: AndyDrive = { mode, x: HOME_X - departure * 360, ground: GROUND, growth: growth * act.effort, bed: BED, street: STREET };
-    if (previous === null) settleAndy(andy, drive);
+    if (previous === null) settleAndy(andy, drive, reduced);
     // The bust lands on a frozen beat before he jumps.
     const frozen = !reduced && mode === 'busted' && bustAge < HIT_STOP;
     stepAndy(andy, drive, frozen ? 0 : dt, reduced);
@@ -154,7 +154,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     hud(c, view, growth, bustAge, time);
     c.restore();
     previous = view.phase; lastElapsed = view.elapsed; lastNow = now;
-    present(c, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : view.phase === 'crashed' ? 'The garden is closed.' : secured !== null ? 'Harvest home.' : act.line, "FROM THE GARDEN", OVERTIME_BUBBLES[Math.floor(view.elapsed / 9000) % OVERTIME_BUBBLES.length]!, view.phase === 'crashed' ? [250, 160, 710, 370] : secured !== null ? [0, 160, 520, 370] : undefined);
+    present(c, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : view.phase === 'crashed' ? 'The garden is closed.' : secured !== null ? 'Harvest home.' : act.line, "FROM THE GARDEN", OVERTIME_BUBBLES[Math.floor(view.elapsed / 9000) % OVERTIME_BUBBLES.length]!, view.phase === 'crashed' ? [95, 175, 620, 330] : secured !== null ? [0, 160, 520, 370] : undefined);
 
   }
 
