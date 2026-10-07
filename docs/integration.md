@@ -9,7 +9,7 @@ Every game's `main.ts` is the same page shell (canonical copy: `scripts/shell/ma
 3. `crashed`: use the backend's final multiplier, stop pumping, and play the burst.
 4. `waiting`: hold a resting pose until the next round.
 
-`scripts/shell/main.ts` is the integration reference. Balloon Pump's `scene.ts` and `pumper.ts` are ordinary Canvas 2D drawing code; another game can use WebGL (Seed Round renders WebGL2 offscreen and copies each frame in), a 3D engine, or DOM elements with the same shell.
+`scripts/shell/main.ts` is the integration reference. [Hello World](../games/hello-world) is the smallest starting point: its commented `scene.ts` draws a greeting, a multiplier and a circle using the same shell. Balloon Pump's `scene.ts` and `pumper.ts` are richer Canvas 2D examples; another game can use WebGL (Seed Round renders WebGL2 offscreen and copies each frame in), a 3D engine, or DOM elements with the same shell.
 
 ## Drop-in SDK
 
@@ -76,7 +76,7 @@ Production sessions come from the platform's pass flow, not the emulator. Never 
 
 1. Run `npm run build`.
 2. Open Studio, start a blank project, and choose **Your own renderer**.
-3. Upload `index.html`, `game.generated.js`, and `style.css` from `dist/balloon-pump/`; set the entry to `index.html`.
+3. Upload `index.html`, `game.generated.js`, and `style.css` from `dist/hello-world/` (or `dist/<your-slug>/` for your own game); set the entry to `index.html`.
 4. Save and publish to a room you own.
 
 Published frames have an opaque origin and no network access. Keep scripts, fonts, images and audio inside the bundle and use relative paths. The production URL has no `mode=replay` query: the game connects to the platform bridge automatically. The explicit replay mode is for the gallery and the Studio preview only and has no bet controls.
