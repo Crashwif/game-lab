@@ -26,7 +26,7 @@ Inspection motions cycle independently of the capped physical dimensions. Paper 
 
 An accepted cashout sends the applicant out in a tinfoil poncho. The accepted multiplier and privacy badge persist through the later crash. Clicking the control alone does not start the escape: the SDK's accepted cashout state does.
 
-A crash immediately stops the round and displays the final multiplier and rejection stamp. The machinery packages an identity dossier, then delivers a peanut after 2.8 seconds. The closing line reads “The airdrop was you.” A scene first opened after a crash displays the settled aftermath quietly. Returning after a frame gap does not replay missed audio cues. The shared shell handles stale connections, allowed intents, keyboard controls and replay verification.
+A crash immediately stops the round and displays the final multiplier and rejection stamp. The machinery packages an identity dossier, then delivers a peanut after 2.8 seconds. The applicant peers out of the packed dossier while a final-allocation receipt displays one peanut. The closing line reads “The airdrop was you.” A scene first opened after a crash displays the settled aftermath quietly. Returning after a frame gap does not replay missed audio cues. The shared shell handles stale connections, allowed intents, keyboard controls and replay verification.
 
 Reduced motion removes scanning travel, large escape motion and the rejection stamp's camera-scale effect. Information remains available through the caseboard, stage-specific apparatus and captions. The shell exposes the actual room status and controls outside the illustration, supports keyboard focus and Space, and turns audio off until enabled by the player.
 

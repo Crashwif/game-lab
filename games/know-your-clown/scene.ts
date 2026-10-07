@@ -103,9 +103,9 @@ export function createScene(options: SceneOptions = {}): Scene {
         box(c, 67, 427, 154, 22, 5, C.lime, C.ink, 2);
         label(c, 'PRIVACY INTACT', 144, 443, 12, C.ink, 'center');
       }
-    } else if (crashAge === null || !reduced && crashAge < 1.4) {
-      const packing = crashAge === null ? 0 : ease(crashAge / 1.4);
-      drawApplicant(c, { x: 511, y: 427 + packing * 85, scale: 1 - packing * .25,
+    } else {
+      const packing = crashAge === null ? 0 : reduced ? 1 : ease(crashAge / 1.4);
+      drawApplicant(c, { x: 511, y: 427 + packing * 53, scale: 1,
         time: reduced ? 0 : time, tension: d.tension, stage: d.stage, level: d.level, action: d.action, reduced,
         mode: crashAge !== null ? 'boxed' : !running ? 'idle' : d.stage === 4 ? 'dance' : 'scan', progress: packing });
     }

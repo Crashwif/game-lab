@@ -149,6 +149,16 @@ export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): voi
     const bounce = age > .6 ? Math.exp(-(age - .6) * 4) * Math.abs(Math.sin((age - .6) * 15)) * 12 : 0;
     drawPeanut(c, mix(825, 815, fall), mix(351, 385, fall) - (reduced ? 0 : bounce), .74, fall * .6);
   }
+  if (crash !== null && crash >= 2.8 && !v.escaped) {
+    c.save(); c.translate(684, 389); c.rotate(reduced ? -.05 : -.05 * ease((crash - 2.8) / .35));
+    box(c, -70, -51, 140, 99, 3, C.cream, C.ink, 2);
+    mono(c, 'FINAL ALLOCATION', 0, -30, 11, C.ink, 'center');
+    label(c, '1', -13, 17, 51, C.ink, 'right');
+    drawPeanut(c, 17, -3, .9, -.3);
+    line(c, [-57, 27, 57, 27], C.brass, 1);
+    label(c, 'THAT’S IT.', 0, 42, 13, C.red, 'center');
+    c.restore();
+  }
   // A data receipt prints continuously; the amount of paper is capped, the content keeps rotating.
   c.save(); c.translate(890, 324); c.rotate(-.09);
   const length = 17 + Math.min(53, d.seconds * .45);
@@ -316,6 +326,6 @@ export function drawPacking(c: CanvasRenderingContext2D, age: number, reduced: b
   c.save(); c.translate(584, 329); c.rotate(mix(1.2, 0, packed)); box(c, -73, -6, 73, 7, 0, '#caa570', C.ink, 2); c.restore();
   if (packed === 1) {
     box(c, 502, 323, 19, 120, 0, '#d8c49b88', C.ink, 0);
-    mono(c, 'HANDLE WITHOUT CARE', 512, 318, 10, C.cream, 'center');
+    mono(c, 'HANDLE WITHOUT CARE', 512, 458, 10, C.cream, 'center');
   }
 }
