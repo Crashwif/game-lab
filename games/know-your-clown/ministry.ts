@@ -215,6 +215,16 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
     drawArm(c, [682, 337], [645, 326 - motion * 8], [591 - inspect * 10, d.stage === 5 ? 241 : 289 + motion * 12], 'camera', inspect < .7, -.15);
     return;
   }
+  if (d.stage === 0 && v.running) {
+    const reach = reduced ? 0 : ease((d.action - .48) / .21) * (1 - ease((d.action - .77) / .18));
+    drawArm(c, [681, 343], [639, 257], [mix(627, 514, reach), mix(267, 334, reach)], 'stamp', reach > .8, -.05);
+    if (reduced || d.action >= .69) {
+      c.save(); c.translate(512, 361); c.rotate(-.09);
+      box(c, -73, -17, 146, 33, 2, C.cream, C.red, 3);
+      label(c, 'EXIT LIQUIDITY', 0, 6, 17, C.red, 'center', 135);
+      c.restore();
+    }
+  }
   if (d.stage === 0 || d.stage === 1) {
     // The projected brackets frame a face rather than imitating an actionable account-verification form.
     for (const [x, sign] of [[470, 1], [552, -1]] as const) {

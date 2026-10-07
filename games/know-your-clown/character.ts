@@ -22,6 +22,17 @@ const TEAL = '#39c6b4';
 const LIME = '#d4ed71';
 const TAU = Math.PI * 2;
 const clamp = (n: number, a = 0, b = 1): number => Math.max(a, Math.min(b, n));
+const ease = (n: number): number => { const t = clamp(n); return t * t * (3 - 2 * t); };
+
+function openingReaction(pose: ApplicantPose): { active: boolean; grin: number; recoil: number; glance: number } {
+  if (pose.mode !== 'scan' || pose.stage !== 0) return { active: false, grin: 0, recoil: 0, glance: 0 };
+  if (pose.reduced) return { active: true, grin: 0.55, recoil: 0, glance: 0 };
+  const a = clamp(pose.action);
+  const grin = ease((a - 0.18) / 0.16) * (1 - ease((a - 0.64) / 0.14));
+  const recoil = ease((a - 0.64) / 0.05) * (1 - ease((a - 0.76) / 0.18));
+  const glance = ease(a / 0.09) * (1 - ease((a - 0.2) / 0.12));
+  return { active: true, grin, recoil, glance };
+}
 
 function shape(ctx: CanvasRenderingContext2D, d: string, fill: string | CanvasGradient, width = 2.8, stroke = INK): void {
   const path = new Path2D(d);
@@ -143,8 +154,10 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   const boxed = pose.mode === 'boxed';
   const scanning = pose.mode === 'scan';
   const clown = pose.level >= 3;
+  const reaction = openingReaction(pose);
   ctx.save();
   ctx.rotate(headAngle);
+  ctx.scale(1 + reaction.grin * 0.055 + reaction.recoil * 0.105, 1 - reaction.grin * 0.025 - reaction.recoil * 0.1);
   oval(ctx, -31, 2, 7, 11, SKIN_SHADE, 2.4);
   oval(ctx, 31, 3, 6, 10, SKIN, 2.4);
   line(ctx, 'M-33 -1 Q-27 -4 -28 5 M32 0 L30 6', '#b98670', 1.8);
@@ -166,8 +179,8 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
 
   const blinkClock = time % 5.6;
   const blinking = !pose.reduced && blinkClock > 4.8 && blinkClock < 4.95 && !scanning;
-  const eyeH = blinking ? 1.1 : escaping ? 8.6 : boxed ? 12 : 10.8 + fear * 2;
-  const look = escaping ? 4 : boxed ? -1 : scanning ? Math.sin(time * 0.6) * 1.3 : Math.sin(time * 0.9) * 2.5;
+  const eyeH = blinking ? 1.1 : escaping ? 8.6 : boxed ? 12 : 10.8 + fear * 2 + reaction.grin * 2.1 + reaction.recoil * 1.4;
+  const look = escaping ? 4 : boxed ? -1 : reaction.active ? reaction.glance * 5 - reaction.recoil * 2 : scanning ? Math.sin(time * 0.6) * 1.3 : Math.sin(time * 0.9) * 2.5;
   for (const [x, width] of [[-13, 10.5], [17, 11.5]]) {
     oval(ctx, x, -1, width, eyeH, '#fffef5', 2.2);
     if (!blinking) {
@@ -179,7 +192,7 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
     }
     line(ctx, `M${x - width + 3} ${eyeH + 3} Q${x + 1} ${eyeH + 6} ${x + width - 1} ${eyeH + 2}`, '#b98980', 1.4);
   }
-  const brow = escaping ? -1 : 2 + fear * 5;
+  const brow = escaping ? -1 : 2 + fear * 5 + reaction.grin * 5 + reaction.recoil * 4;
   line(ctx, `M-25 ${-17 - brow * 0.2} Q-16 ${-20 - brow} -5 ${-16 - brow}`, INK, 3.4);
   line(ctx, `M8 ${-17 - brow} Q19 ${-23 - brow} 27 ${-17 - brow * 0.3}`, INK, 3.4);
 
@@ -203,6 +216,21 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   } else if (escaping) {
     shape(ctx, 'M-6 23 Q5 27 20 20 Q17 33 5 32 Q-3 31 -6 23Z', INK, 1.7);
     shape(ctx, 'M-4 24 Q6 27 18 22 L16 27 Q7 30 -1 27Z', CREAM, 0);
+  } else if (reaction.active) {
+    const spread = 10 + reaction.grin * 15 - reaction.recoil * 3;
+    const left = 5 - spread;
+    const right = 5 + spread;
+    const top = 24 - reaction.grin * 5;
+    const depth = 8 + reaction.grin * 6 - reaction.recoil * 4;
+    shape(ctx, `M${left} ${top} Q5 ${top + 5} ${right} ${top - 2} Q${right - 2} ${top + depth} 5 ${top + depth + 1} Q${left + 2} ${top + depth} ${left} ${top}Z`, INK, 1.8);
+    shape(ctx, `M${left + 2} ${top + 1} Q5 ${top + 6} ${right - 2} ${top} L${right - 4} ${top + 5} Q5 ${top + 9} ${left + 4} ${top + 5}Z`, CREAM, 0);
+    for (let i = -2; i <= 2; i += 1) {
+      const tooth = 5 + i * spread * 0.26;
+      line(ctx, `M${tooth} ${top + 3} L${tooth} ${top + 6}`, '#9bab98', 0.8);
+    }
+    if (reaction.grin > 0.3) {
+      line(ctx, `M${left - 3} ${top - 2} L${left - 1} ${top + 4} M${right + 2} ${top - 4} L${right + 1} ${top + 2}`, '#b98670', 1.5);
+    }
   } else if (fear > 0.65 || pose.mode === 'dance') {
     shape(ctx, 'M-4 24 Q6 18 17 24 L16 31 Q7 34 -3 31Z', INK, 1.5);
     shape(ctx, 'M-3 24 Q6 21 16 24 L15 27 L-2 27Z', CREAM, 0);
@@ -256,15 +284,16 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
   const scanning = pose.mode === 'scan';
+  const reaction = openingReaction(pose);
   const cycle = pose.reduced ? 0 : clamp(pose.action) * TAU;
   const groove = Math.sin(t * (dancing ? 6.3 : escaping ? 13 : 2.1));
   const sway = dancing ? groove * 11 : escaping ? 7 : Math.sin(t * 1.2) * 2.5;
   const bounce = dancing ? Math.abs(groove) * -6 : escaping ? -Math.abs(groove) * 5 : Math.sin(t * 2.1) * 1.6;
   const hip = { x: sway * 0.4, y: -67 + bounce };
   const chest = { x: sway, y: -132 + bounce };
-  const headX = chest.x + (scanning && pose.stage % 3 === 1 ? 7 : 3);
-  const headY = -184 + bounce + (boxed ? clamp(pose.progress) * 9 : 0);
-  const headAngle = escaping ? 0.05 : boxed ? -0.045 : dancing ? -groove * 0.105 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
+  const headX = chest.x + (scanning && pose.stage % 3 === 1 ? 7 : 3) + reaction.glance * 3 - reaction.recoil * 2;
+  const headY = -184 + bounce + (boxed ? clamp(pose.progress) * 9 : 0) - reaction.grin * 3 + reaction.recoil * 7;
+  const headAngle = escaping ? 0.05 : boxed ? -0.045 : dancing ? -groove * 0.105 : reaction.active ? reaction.glance * 0.085 - reaction.recoil * 0.07 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
 
   ctx.save();
   ctx.translate(pose.x, pose.y);

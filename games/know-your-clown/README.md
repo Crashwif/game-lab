@@ -4,7 +4,7 @@ A satirical Ministry of Airdrops subjects a hopeful applicant to increasingly ab
 
 ## Direction and pacing
 
-The room supplies the multiplier and committed crash. `direction.ts` maps elapsed round time to inspection appointments. Every appointment has its own apparatus, physical action, caption and sound cues. The opening already contains the mechanical iris, inspection arms and the promised peanut, so a short round has a complete visual premise.
+The room supplies the multiplier and committed crash. `direction.ts` maps elapsed round time to inspection appointments. Every appointment has its own apparatus, physical action, caption and sound cues. The opening forces an oversized smile, then stamps “EXIT LIQUIDITY” onto the applicant within its first 4.8-second cycle. The opening also contains the mechanical iris, inspection arms and the promised peanut, so a short round has a complete visual premise.
 
 | Round time | Procedure | Physical action |
 | --- | --- | --- |

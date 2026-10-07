@@ -70,7 +70,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       } else if (cue !== cueSerial) {
         const phase = Math.floor(d.action * 4);
         if (phase === 1) audio.fx(CUES[d.stage]!, .48);
-        if (phase === 3 && d.cycle % 2 === 0) audio.fx('engine', .2);
+        if (phase === 3 && d.stage === 0) audio.fx('thud', .48);
+        else if (phase === 3 && d.cycle % 2 === 0) audio.fx('engine', .2);
       }
     }
     if (crashed && !peanutPlayed && crashAge! >= 2.8) {
