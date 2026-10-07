@@ -5,11 +5,22 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { MAX_AI_INPUT_TOKENS, MAX_CATALOG_INPUT_TOKENS, budgetProblems, bundle, catalogBudgetProblems, check, importProblems, listProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
+import { MAX_AI_INPUT_TOKENS, MAX_CATALOG_INPUT_TOKENS, budgetProblems, bundle, catalogBudgetProblems, check, importProblems, listProblems, playerFundsProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
 import { MAX_SOURCE_FILES, MAX_SOURCE_FILE_BYTES, ROOT, SOURCE_EXTENSIONS, checkSources } from './pack.mjs';
 
 test('every game meets the Game Lab contract', async () => {
   assert.deepEqual(await check(), []);
+});
+
+test('match-up labels cannot put the player’s personal funds at stake', () => {
+  for (const label of ['DEGEN RODEO · TONIGHT: $BULL vs YOUR SAVINGS', 'The bull versus your money', 'BULL vs. YOUR CASH']) {
+    assert.deepEqual(playerFundsProblems('demo', { 'scene.ts': `const title = ${JSON.stringify(label)};` }), ["games/demo/scene.ts:1: the match-up label implies the player's money is at stake; name a fictional opponent"]);
+  }
+  assert.equal(playerFundsProblems('demo', { 'scene.ts': '\nconst title = `BULL vs YOUR SAVINGS`;' }).length, 1);
+  assert.deepEqual(playerFundsProblems('demo', { 'scene.ts': `
+    // A label such as BULL vs YOUR SAVINGS is unsuitable for valueless credits.
+    const labels = ['DEGEN RODEO · TONIGHT: $BULL vs GRAVITY', 'Cash out', 'Credits have no cash value', 'Your money is not at stake'];
+  ` }), []);
 });
 
 test('GAMES must list each game directory once', () => {

@@ -54,7 +54,7 @@ function captionFor(view: SceneView, rung: number, outcome: Outcome | null, secu
 function drawArena(ctx: CanvasRenderingContext2D, time: number, tension: number, gate: number, reduced: boolean): void {
   ctx.fillStyle = '#5a2a1a';
   ctx.fillRect(0, 0, 960, 300);
-  memeText(ctx, 'DEGEN RODEO · TONIGHT: $BULL vs YOUR SAVINGS', 480, 150, 22, '#f4d1b0', 'center', 700);
+  memeText(ctx, 'DEGEN RODEO · TONIGHT: $BULL vs GRAVITY', 480, 150, 22, '#f4d1b0', 'center', 700);
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
   for (const [row, y, n, s] of [[0, 278, 22, 1], [1, 250, 25, 0.82]] as const) {
     for (let i = 0; i < n; i += 1) {
