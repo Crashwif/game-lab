@@ -23,6 +23,7 @@ const LINES: { at: number; text: string; her: boolean }[] = [
   { at: 8.7, text: 'babe lambo tmrw', her: false },
   { at: 10, text: 'i am coming down', her: true },
 ];
+const OVERTIME_TEXTS = ['the coffee is cold', 'still researching', 'the cat wants breakfast', 'almost done. again.', 'your alarm just went off', 'five more minutes', 'the group chat is awake', 'please stop typing'];
 
 interface Mug { x: number; y: number; vx: number; vy: number; rot: number; vr: number; fallen: boolean; hits: number; color: string; }
 interface Bubble { text: string; her: boolean; age: number; }
@@ -74,6 +75,8 @@ export interface Kitchen {
   dogX: number;
   bubbles: Bubble[];
   nextLine: number;
+  textClock: number;
+  overtimeLine: number;
   bits: Bit[];
   meter: Spring;
   holding: boolean;
@@ -142,6 +145,8 @@ function freshKitchen(): Kitchen {
     dogX: 520,
     bubbles: [],
     nextLine: 0,
+    textClock: 0,
+    overtimeLine: 0,
     bits: [],
     meter: spring(0),
     holding: false,
@@ -407,6 +412,17 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
     k.nextLine += 1;
     k.events.text = true;
   }
+  if (drive.running && !k.crashed && !drive.traderGone && k.nextLine === LINES.length) {
+    k.textClock += dt;
+    if (k.textClock >= 8) {
+      k.textClock %= 8;
+      k.bubbles.push({ text: OVERTIME_TEXTS[k.overtimeLine % OVERTIME_TEXTS.length]!, her: k.overtimeLine % 2 === 0, age: 0 });
+      k.overtimeLine += 1;
+      k.events.text = true;
+    }
+  }
+  // Only the latest messages are drawn; old texts must not accumulate over long rounds.
+  if (k.bubbles.length > 6) k.bubbles = k.bubbles.slice(-6);
   for (const b of k.bubbles) b.age += dt;
 
   if (drive.running && !k.knocked && drive.multiplier >= 4) {

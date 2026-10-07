@@ -35,6 +35,10 @@ interface Gag { active: boolean; age: number; fired: number }
 interface Drop { x: number; y: number; vy: number; age: number }
 
 export interface World {
+  time: number;
+  winkNext: number;
+  takeClock: number;
+  take: number;
   /** The moon's eyes: 0 shut, 1 open. */
   eyes: Spring;
   blink: number;
@@ -54,10 +58,11 @@ export interface World {
 }
 
 export function createWorld(): World {
-  return { eyes: spring(0), blink: 0, wink: 0, look: [spring(0), spring(0)], push: spring(0), sweat: [], mic: { active: false, age: 0, fired: 0 }, glove: { active: false, age: 0, fired: 0 }, bird: { active: false, age: 0, fired: 0 }, wires: 0, snapped: false, snapAge: 0, events: [], random: mulberry32(0x5e7) };
+  return { time: 0, winkNext: 0, takeClock: 0, take: 0, eyes: spring(0), blink: 0, wink: 0, look: [spring(0), spring(0)], push: spring(0), sweat: [], mic: { active: false, age: 0, fired: 0 }, glove: { active: false, age: 0, fired: 0 }, bird: { active: false, age: 0, fired: 0 }, wires: 0, snapped: false, snapAge: 0, events: [], random: mulberry32(0x5e7) };
 }
 
 export function resetWorld(world: World): void {
+  world.time = world.winkNext = world.takeClock = world.take = 0;
   world.eyes = spring(0);
   world.blink = 0;
   world.wink = 0;
@@ -81,6 +86,7 @@ export function settleWorld(world: World, multiplier: number): void {
   world.bird.fired = BIRD_AT.filter((at) => multiplier >= at).length;
   if (multiplier >= GLOVE_AT) world.glove.fired = 1;
   if (multiplier >= WIRES_AT) world.wires = 1;
+  if (multiplier >= WINK_AT) world.winkNext = world.time + 12;
 }
 
 /** The wire snapped: the set stops pretending. */
@@ -94,12 +100,23 @@ export function stepWorld(world: World, multiplier: number, running: boolean, dt
   world.events = [];
   const r = world.random;
   if (running) {
+    world.time += dt;
     if (multiplier >= EYES_AT && world.eyes.x < 0.5 && world.eyes.v === 0) world.events.push('eyes');
     if (world.mic.fired < MIC_AT.length && multiplier >= MIC_AT[world.mic.fired]!) { world.mic = { active: true, age: 0, fired: world.mic.fired + 1 }; world.events.push('mic'); }
     if (world.bird.fired < BIRD_AT.length && multiplier >= BIRD_AT[world.bird.fired]!) { world.bird = { active: true, age: 0, fired: world.bird.fired + 1 }; world.events.push('bird'); }
     if (world.glove.fired < 1 && multiplier >= GLOVE_AT) { world.glove = { active: true, age: 0, fired: 1 }; world.events.push('glove'); }
     if (multiplier >= WIRES_AT && world.wires === 0) world.events.push('wires');
-    if (multiplier >= WINK_AT && world.wink === 0) { world.wink = 0.01; world.events.push('wink'); }
+    if (multiplier >= WINK_AT && world.wink === 0 && world.time >= world.winkNext) { world.wink = 0.01; world.winkNext = world.time + 12; world.events.push('wink'); }
+    // The crew keeps making mistakes after the final scripted cue; only one prop enters per take.
+    if (multiplier >= 60) {
+      world.takeClock += dt;
+      if (world.takeClock >= 9) {
+        world.takeClock %= 9;
+        const key = (['mic', 'bird', 'glove'] as const)[world.take++ % 3]!;
+        const gag = world[key];
+        if (!gag.active) { gag.active = true; gag.age = 0; gag.fired += 1; world.events.push(key); }
+      }
+    }
   }
   stepSpring(world.eyes, running && multiplier >= EYES_AT ? 1 : world.eyes.x, 6, 0.7, dt);
   if (multiplier >= WIRES_AT && running) world.wires = Math.min(1, world.wires + dt * 0.8);

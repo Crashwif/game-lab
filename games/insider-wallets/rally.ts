@@ -12,6 +12,7 @@ const MARKS = [1.5, 2.2, 3.2, 4.8, 7, 10, 14, 20];
 const SIGNS = ['SEND IT', 'WAGMI', 'BUY HIGH', 'LFG', 'HE CARES', 'MY RENT', 'TRUST ME', 'NO KYC'];
 /** What the press pool shouts, from polite to panicked; the tension picks the row. */
 const QUESTIONS = ['SIR, IS THIS LEGAL?', 'SIR, WHO IS ANON.SOL?', 'SIR, DID YOUR BARBER BUY?', 'SIR, HOW IS THE DOG WALKER RICH?', 'SIR, IS THAT YOUR HELICOPTER?', 'SIR, WHERE ARE YOU GOING?', 'SIR?? SIR???'];
+const FOLLOWUPS = ['SIR, ANOTHER FAMILY WALLET?', 'SIR, WHO PAID FOR THE FUEL?', 'SIR, THE CROWD HAS QUESTIONS', 'SIR, IS THE PILOT AN INSIDER?', 'SIR, WHY IS YOUR TIE SO LONG?', 'SIR, CAN WE SEE THE RECEIPTS?'];
 /** Seconds of rally time after the crash frame before the helicopter yanks him, and before the podium goes over. */
 const LIFT_DELAY = 0.12;
 const PODIUM_DELAY = 0.32;
@@ -155,6 +156,7 @@ export function settleRally(r: Rally, drive: RallyDrive, left: boolean): void {
 
 /** The next thing the press shouts: the tension picks the row (or the one below), never the same line twice running. */
 function nextQuestion(r: Rally, tension: number): string {
+  if (tension >= 1 && r.asked >= QUESTIONS.length) return FOLLOWUPS[r.asked++ % FOLLOWUPS.length]!;
   const row = Math.min(QUESTIONS.length - 1, Math.floor(tension * 7));
   const rows = [row, Math.max(0, row - 1)].filter((i, k, all) => all.indexOf(i) === k && QUESTIONS[i] !== r.question);
   r.asked += 1;

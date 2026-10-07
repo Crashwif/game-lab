@@ -1,8 +1,8 @@
 /**
  * Replays of settled rounds. A round is fully determined by its committed
- * seed, the chain's salt and edge, its bets and the published curve. Manual
- * cashouts include the multiplier and elapsed time accepted by the room.
- * The same maths (@crashwif/crash-math) drives the virtual clock.
+ * seed, the chain's salt and edge, its bets and the curve its chain ran on.
+ * Manual cashouts include the multiplier and elapsed time accepted by the
+ * room. The same maths (@crashwif/crash-math) drives the virtual clock.
  */
 import { chain as fairChain, free } from '@crashwif/crash-math';
 
@@ -29,6 +29,11 @@ export interface ReplayRound {
   serverSeedHash: string;
   salt: string;
   houseEdgeBps: number;
+  /**
+   * The curve the round ran on (its chain's): the ticks, the auto cashouts and the crash fall where it says. A
+   * round recorded without one ran on `free.FIRST_CURVE` (see `replayCurve`).
+   */
+  curve?: free.Curve;
   rallyN: number;
   bets: ReplayBet[];
   startedAt?: string | null;
@@ -55,6 +60,15 @@ export interface ReplayOptions {
   tickMs?: number;
 }
 
+/**
+ * The curve a recorded round ran on: the one it names, `free.FIRST_CURVE` when it was recorded without one,
+ * and null when it names one the maths can't run (such a round can't be replayed or checked).
+ */
+export function replayCurve(round: Pick<ReplayRound, 'curve'>): free.Curve | null {
+  if (round.curve === undefined) return free.FIRST_CURVE;
+  return free.validCurve(round.curve) ? round.curve : null;
+}
+
 /** Whether the round's crash point follows from its seed and salt, and its seed hashes to its announced hash. */
 export function verifyReplay(round: ReplayRound): { ok: boolean; problems: string[] } {
   const problems: string[] = [];
@@ -64,22 +78,29 @@ export function verifyReplay(round: ReplayRound): { ok: boolean; problems: strin
   } catch (error) {
     problems.push(`the seed can't be checked: ${(error as Error).message}`);
   }
+  const curve = replayCurve(round);
+  if (!curve) problems.push('the round names a multiplier curve this player can\'t run');
   for (const bet of round.bets) {
     const exit = bet.cashoutX100 ?? bet.targetX100;
     const expected = exit === null ? 0 : free.payout(bet.stake, exit, round.crashX100, round.rallyN);
     if ((bet.won && expected === 0) || (!bet.won && expected > 0) || bet.payout !== expected) problems.push(`a bet with ${exit === null ? 'no cashout' : `${(exit / 100).toFixed(2)}x exit`} was settled differently from the maths`);
-    if (bet.cashoutX100 !== null && bet.cashoutX100 !== undefined) {
+    if (curve && bet.cashoutX100 !== null && bet.cashoutX100 !== undefined) {
       const elapsed = bet.cashoutElapsedMs;
       if (elapsed === null || elapsed === undefined || !Number.isInteger(elapsed) || elapsed < 0
-        || free.multiplierAtX100(elapsed) !== bet.cashoutX100 || elapsed >= free.msToReach(round.crashX100)
-        || (bet.targetX100 !== null && bet.cashoutX100 >= bet.targetX100)) problems.push('a manual cashout does not match the published curve or precede the crash and auto target');
+        || free.multiplierAtX100(elapsed, curve) !== bet.cashoutX100 || elapsed >= free.msToReach(round.crashX100, curve)
+        || (bet.targetX100 !== null && bet.cashoutX100 >= bet.targetX100)) problems.push("a manual cashout does not match the round's curve or precede the crash and auto target");
     }
   }
   return { ok: problems.length === 0, problems };
 }
 
-/** The deterministic event timeline of a round: betting, the bets, lock, ticks, cash-outs, the crash. */
+/**
+ * The deterministic event timeline of a round: betting, the bets, lock, ticks, cash-outs, the crash. A round
+ * naming a curve the maths can't run has no timeline (RangeError): there is no pace to place its events at.
+ */
 export function replayTimeline(round: ReplayRound, options: ReplayOptions = {}): TimelineEntry[] {
+  const curve = replayCurve(round);
+  if (!curve) throw new RangeError('the round names a multiplier curve this player can\'t run');
   const bettingMs = Math.max(500, options.bettingMs ?? 3_000);
   const tickMs = Math.max(20, options.tickMs ?? 100);
   const entries: TimelineEntry[] = [{ at: 0, event: { type: 'round.betting', roundIndex: round.roundIndex, serverSeedHash: round.serverSeedHash, bettingMs } }];
@@ -87,15 +108,15 @@ export function replayTimeline(round: ReplayRound, options: ReplayOptions = {}):
   bets.forEach((bet, index) => entries.push({ at: Math.round((bettingMs * (index + 1)) / (bets.length + 1)), event: { type: 'bet', bet, index } }));
   const rally: RallyState = { active: round.rallyN > 0, bettors: round.rallyN, percent: free.rallyPercent(round.rallyN) };
   entries.push({ at: bettingMs, event: { type: 'round.locked', roundIndex: round.roundIndex, admitted: bets.length, rally } });
-  const durationMs = free.msToReach(round.crashX100);
+  const durationMs = free.msToReach(round.crashX100, curve);
   for (let t = tickMs; t < durationMs; t += tickMs) {
-    entries.push({ at: bettingMs + t, event: { type: 'tick', roundIndex: round.roundIndex, multiplierX100: free.multiplierAtX100(t), elapsedMs: t } });
+    entries.push({ at: bettingMs + t, event: { type: 'tick', roundIndex: round.roundIndex, multiplierX100: free.multiplierAtX100(t, curve), elapsedMs: t } });
   }
   for (const bet of bets) {
     if (!bet.won) continue;
     const exit = bet.cashoutX100 ?? bet.targetX100;
     if (exit === null) continue;
-    const t = bet.cashoutX100 === null || bet.cashoutX100 === undefined ? free.msToReach(exit) : bet.cashoutElapsedMs ?? 0;
+    const t = bet.cashoutX100 === null || bet.cashoutX100 === undefined ? free.msToReach(exit, curve) : bet.cashoutElapsedMs ?? 0;
     entries.push({ at: bettingMs + t, event: { type: 'cashout', roundIndex: round.roundIndex, targetX100: exit, payout: bet.payout, handle: bet.handle, elapsedMs: t } });
   }
   const result: RoundResult = {

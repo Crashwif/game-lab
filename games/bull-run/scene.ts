@@ -34,8 +34,8 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(2, size * 0.11);
-  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, size * (fill === INK ? 0.05 : 0.11));
+  ctx.strokeStyle = fill === INK ? '#f4d1b0' : INK;
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
@@ -220,7 +220,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       audio.milestone(rung);
     }
     stepSpring(gate, running || crashed ? 1 : 0, 6, 0.6, dt);
-    stepBull(bull, { running, tension, loose: crashed }, dt);
+    stepBull(bull, { running, tension, loose: crashed, seconds: reduced ? 0 : view.elapsed / 1000 }, dt);
     const fear = clamp(tension * 1.2, 0, 1);
     if (bull.landed) {
       puff(dust, bull.x.x + 40, FLOOR, 5);

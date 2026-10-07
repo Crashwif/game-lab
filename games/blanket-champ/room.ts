@@ -8,7 +8,6 @@
  * with a BREAKING headline for every stage, and finally the arm that flops
  * out with a thumbs-up while the cat comes back holding a tiny NGMI sign.
  */
-import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
 import { drawFeet, drawReaction, drawSleepers, sleeperBob, sleeperFeet, type SleeperPose } from './sleepers';
 
@@ -171,25 +170,18 @@ export function stepRoom(r: RoomState, growth: number, running: boolean, dt: num
  * mid-round or after the crash, or a frame after the tab was hidden. The glass and the cat only move on, so a
  * round already drawn keeps what it showed. Nothing fires: no beat, no falling glass, no shake.
  */
-export function settleRoom(r: RoomState, multiplier: number, running: boolean): void {
-  const ms = Math.log(Math.max(1, multiplier)) / free.GROWTH_RATE_PER_MS;
-  // The glass walks a step on each beat: count the beats along the curve, a tenth of a second at a time.
-  let beats = 0;
-  let x = GLASS_X;
-  for (let t = 0; t < ms && x <= GLASS_EDGE; t += 100) {
-    const growth = (t * free.GROWTH_RATE_PER_MS) / Math.LN2;
-    const before = beats;
-    beats += tempoAt(growth) * 0.1;
-    if (Math.floor(beats) > Math.floor(before)) x += walkPerBeat(clamp(growth / 3.3, 0, 1));
-  }
+export function settleRoom(r: RoomState, multiplier: number, running: boolean, elapsed = 0): void {
+  // Missed prop motion settles from the known duration and current tension. The room never assumes
+  // a backend growth rate: configured curves may reach the same multiplier at different times.
+  const growth = Math.log2(Math.max(1, multiplier));
+  const beats = Math.max(0, elapsed) / 1000 * tempoAt(growth * 0.5);
+  const x = GLASS_X + beats * walkPerBeat(clamp(growth / 6.6, 0, 1));
   if (!r.glassFallen && x > GLASS_EDGE) {
     r.glassFallen = true;
     r.glassFall = { y: 70, vy: 0, done: true };
   } else if (!r.glassFallen) r.glassX = Math.max(r.glassX, x);
-  // The cat heads for the door once the number passes 2×.
-  const catX = CAT_X + (CAT_SPEED * Math.max(0, ms - Math.log(2) / free.GROWTH_RATE_PER_MS)) / 1000;
-  if (catX > CAT_GONE) r.catGone = true;
-  else r.catX = Math.max(r.catX, catX);
+  // If the departure happened off screen, the cat is already out of the room.
+  if (multiplier >= 2) { r.catGone = true; r.catX = CAT_GONE; }
   r.wallCracks = Math.max(r.wallCracks, cracksAt(multiplier));
   settleSpring(r.fist, running && multiplier >= 4 ? 12 : 0);
   r.fistSeen = running && multiplier >= 4;

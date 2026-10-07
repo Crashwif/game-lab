@@ -60,12 +60,16 @@ const RIM_AT = OUTSIDE + 0.62;
 const BIN_AT = RUG_PULL + 0.45;
 type Confetti = { x: number; y: number; vx: number; vy: number; age: number; life: number; colour: string; size: number };
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["STILL CHASING THE EGG", "DIAMOND TAIL ENDURANCE", "ANOTHER WHALE INBOUND", "THE TUNNEL KEEPS GOING", "NO SWIMMER LEFT BEHIND", "LAP TWO: STILL EARLY", "THE EGG HAS NO ETA", "MARATHON MODE"];
+
 function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured: Secured | null, event: string | null): string {
   if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'FROZEN ASSETS' : 'FUNDS ARE SAFU';
   if (view.phase === 'betting') return 'LOADING…';
   if (view.phase !== 'running') return 'GM DEGENS';
   if (secured) return 'FROZEN ASSETS';
   if (event) return event;
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (m < 1.3) return 'FAIR LAUNCH';
   if (m < 1.8) return 'SWIM FASTER';
   if (m < 2.4) return 'RAW DOGGING THE CHART';

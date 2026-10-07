@@ -38,8 +38,8 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(2, size * 0.11);
-  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1, size * (fill === INK ? 0.05 : 0.11));
+  ctx.strokeStyle = fill === INK ? '#f4d1b0' : INK;
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
@@ -228,6 +228,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     const wobble = running && !reduced ? tension * tension * 2 : 0;
     if (!reduced && (shake > 0 || wobble > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + wobble), Math.cos(time * 70) * 5 * shake);
     drawRoom(ctx, place(shown.x, 0, 0), running ? tension : 0);
+    // At capacity, new recruits keep arriving at both wings while the stack holds its readable size.
+    if (running && rows === 9) {
+      const cycle = view.elapsed / 1000 / 10;
+      const walk = reduced ? 0.5 : cycle % 1;
+      for (const side of [-1, 1]) {
+        const x = side < 0 ? 28 + walk * 220 : 932 - walk * 170;
+        drawFigure(ctx, x, STAGE, 50, 0, time, { strain: 0.3, shirt: shirtFor(Math.floor(cycle), side + 1), you: false, shades: false, dazed: false, arms: walk < 0.6 ? 'down' : 'flail' });
+      }
+      const pitches = ['NEW COHORT ARRIVING', 'OVERFLOW ROOM IS FULL', 'PLEASE HOLD YOUR UPLINE', 'ANOTHER SEMINAR SOLD OUT'];
+      memeText(ctx, pitches[Math.floor(cycle) % pitches.length]!, 770, 210, 19, '#ffe6c7', 'center', 260);
+    }
     if (founderX > -100) drawFounder(ctx, founderX, time, founderX < LECTERN_X);
     drawLectern(ctx);
     if (bodies.length) drawBodies(ctx, bodies, time, secured !== null);

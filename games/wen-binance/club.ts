@@ -404,11 +404,11 @@ function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, 
   return joint;
 }
 
-function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'center'): void {
+function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'center', maxWidth?: number): void {
   ctx.font = `900 ${size}px Impact, "Arial Black", sans-serif`;
   ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(2, size * 0.12); ctx.strokeStyle = INK; ctx.strokeText(text, x, y);
-  ctx.fillStyle = fill; ctx.fillText(text, x, y);
+  ctx.lineWidth = Math.max(1, size * (fill === INK ? 0.04 : 0.12)); ctx.strokeStyle = fill === INK ? '#f7f3e8' : INK; ctx.strokeText(text, x, y, maxWidth);
+  ctx.fillStyle = fill; ctx.fillText(text, x, y, maxWidth);
 }
 
 /** A man in a suit, walking. `stride` in radians drives the knees; the bag lags a step behind. */
@@ -864,7 +864,9 @@ function drawScalper(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.beginPath(); ctx.moveTo(-24, -112); ctx.lineTo(-16, -128); ctx.moveTo(24, -112); ctx.lineTo(16, -128); ctx.stroke();
   memeSmall(ctx, 'FAST-TRACK', 0, -92, 12, '#c1121f');
   memeSmall(ctx, 'LISTING TIX', 0, -76, 12, INK);
-  memeSmall(ctx, `${(0.5 * (c.fee / 5) * (c.fee / 5)).toFixed(1)} BTC`, 0, -54, 15, '#c1121f');
+  const price = 0.5 * (c.fee / 5) ** 2;
+  const ticket = price >= 1e9 ? `${(price / 1e9).toFixed(1)}B` : price >= 1e6 ? `${(price / 1e6).toFixed(1)}M` : price >= 1000 ? `${(price / 1000).toFixed(1)}K` : price.toFixed(1);
+  memeSmall(ctx, `${ticket} BTC`, 0, -54, 15, '#c1121f', 'center', 60);
   ctx.restore();
   // His pitch.
   if (!fleeing && sc.bubbleAge < 2.4) {

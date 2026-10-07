@@ -53,10 +53,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE GOALPOSTS ARE MOVING", "BONUS STREAM JUST DROPPED", "THE MODS NEED COFFEE", "ONE MORE ONE MORE MILESTONE", "CHAT HAS ENTERED OVERTIME", "THE REVEAL HAS A WAITLIST", "PINNED MESSAGE: KEEP TIPPING", "THE HOODIE STAYS ON"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'SIMPED TO ZERO' : outcome === 'called' ? 'TOUCHED GRASS' : 'BOYFRIEND REVEAL';
   if (view.phase !== 'running') return 'GM QUEEN';
   if (secured) return 'TOUCH GRASS';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.4) return 'SIMP HARDER';
   if (multiplier < 1.9) return 'TIP TO UNLOCK';
   if (multiplier < 2.6) return 'WEN REVEAL';

@@ -85,10 +85,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE ELEVATOR NEEDS A MAP", "ANOTHER FLOOR, ANOTHER PRESALE", "PENTHOUSE ABOVE THE CLOUDS", "THE CRANE WORKS OVERTIME", "FOUNDATION: STILL VIBES", "NEW FLOOR JUST DROPPED", "THE INSPECTOR LEFT THE CHAT", "VERTICAL URBAN SPRAWL"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'THERE IS NO FLOOR' : outcome === 'called' ? 'SOLD THE PENTHOUSE' : 'BAILOUT DENIED';
   if (view.phase !== 'running') return 'WEN PRESALE?';
   if (secured) return 'SOLD TO THE NEXT GUY';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'PRESALE IS LIVE';
   if (multiplier < 1.7) return 'FLOOR PRICE UP';
   if (multiplier < 2.5) return 'BUILT ON VIBES';

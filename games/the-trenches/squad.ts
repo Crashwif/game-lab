@@ -492,7 +492,8 @@ function drawSign(ctx: CanvasRenderingContext2D, s: Squad): void {
   ctx.fillStyle = zero ? '#ff4d6d' : '#1c1f26';
   ctx.beginPath(); ctx.roundRect(-16, -11, 32, 22, 3); ctx.fill(); ctx.stroke();
   ctx.fillStyle = zero ? '#ffffff' : '#7cf67c'; ctx.font = '900 15px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(zero ? '0' : `${s.days}`, 0, 5);
+  const days = s.days >= 1000 ? `${(s.days / 1000).toFixed(s.days < 10000 ? 1 : 0)}k` : `${s.days}`;
+  ctx.fillText(zero ? '0' : days, 0, 5, 27);
   ctx.restore();
 }
 

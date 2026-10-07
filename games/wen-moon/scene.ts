@@ -66,6 +66,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let alt = 0;
   let booster = true;
   let rung = 0;
+  let traffic = 0;
   let shake = 0;
   let freeze = 0;
   let slow = 0;
@@ -81,6 +82,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     alt = 0;
     booster = true;
     rung = 0;
+    traffic = 0;
     shake = freeze = slow = 0;
     outcome = null;
     secured = null;
@@ -176,6 +178,14 @@ export function createScene(options: SceneOptions = {}): Scene {
         }
       }
       rung = next;
+    }
+    if (running && multiplier >= 15) {
+      traffic += dt;
+      if (traffic >= 12) {
+        traffic %= 12;
+        if (jeets.length < 8) jeets.push({ x: 0, h: alt + 120, vx: Math.sin(time) > 0 ? 65 : -65 });
+        audio.fx('whoosh', 0.35);
+      }
     }
     const cam = camera(alt);
     const screenY = (h: number): number => GROUND - h + cam.scroll;

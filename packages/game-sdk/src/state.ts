@@ -6,15 +6,23 @@
  * way, so a room can't tell a platform page from a creator's game.
  */
 import { chain as fairChain, free } from '@crashwif/crash-math';
-import type { ErrorCode, PublicRoundState, RoomInfo, RoundResult, ServerMessage, YouState } from './protocol.js';
+import type { ErrorCode, PublicRoundState, RoomInfo, RoomPlayer, RoundResult, ServerMessage, YouState } from './protocol.js';
 
 export interface RoomState {
   room: RoomInfo | null;
   round: PublicRoundState | null;
   recent: RoundResult[];
+  /**
+   * Everyone with a bet in the room: the round's bettors in the order they were accepted (a crashed round's
+   * stay listed until the next round opens), then the players queued for the next round. A bet's outcome
+   * follows from the entry and the round: a cashout on it won, and without one it has lost once the round
+   * crashed.
+   */
+  players: RoomPlayer[];
   you: YouState | null;
   connected: boolean;
   lastError: { code: ErrorCode; message?: string } | null;
+  /** How the room answered this client's last bet, until the next round opens; null again once it is cancelled. */
   lastBet: 'accepted' | 'queued' | null;
   /** Server clock minus ours, from the last state or pong. */
   clockOffsetMs: number;
@@ -27,7 +35,7 @@ export interface RoomState {
   /** Rounds whose announced hash was not the previous revealed seed (or the terminal hash): caught at betting time. */
   brokenAnnouncements: Record<string, true>;
   /** Each chain's commitment as first seen, so a later room message can't swap it. */
-  chains: Record<number, { terminalHash: string; houseEdgeBps: number; salt: string | null; chainLength: number; saltSlot: number; anchorSignature: string | null; changed: boolean }>;
+  chains: Record<number, { terminalHash: string; houseEdgeBps: number; curve: free.Curve | null; salt: string | null; chainLength: number; saltSlot: number; anchorSignature: string | null; anchorKey?: string | null; changed: boolean }>;
   /** Seeds this client saw revealed live (round.crashed), keyed "chain:round"; a connect snapshot can't touch them. */
   revealed: Record<string, string>;
   /** Per chain, the highest round whose revealed seed this client hashed back to the chain's pinned terminal hash. */
@@ -63,6 +71,7 @@ export const emptyRoomState = (): RoomState => ({
   room: null,
   round: null,
   recent: [],
+  players: [],
   you: null,
   connected: false,
   lastError: null,
@@ -97,14 +106,14 @@ export function withProblem(state: RoomState, problem: string): Pick<RoomState, 
  */
 export function remember(
   state: RoomState,
-  seen: { chainId: number; terminalHash: string; houseEdgeBps: number; salt: string | null; chainLength: number; saltSlot: number; anchorSignature: string | null; lastRound: number | null; lastSeed: string | null; lastAt?: number | null }[],
+  seen: { chainId: number; terminalHash: string; houseEdgeBps: number; curve?: free.Curve | null; salt: string | null; chainLength: number; saltSlot: number; anchorSignature: string | null; anchorKey?: string | null; lastRound: number | null; lastSeed: string | null; lastAt?: number | null }[],
 ): Pick<RoomState, 'chains' | 'verified' | 'highestChain' | 'baselines'> {
   const chains = { ...state.chains };
   const verified = { ...state.verified };
   const baselines = { ...state.baselines };
   let highestChain = state.highestChain;
   for (const e of seen) {
-    chains[e.chainId] ??= { terminalHash: e.terminalHash, houseEdgeBps: e.houseEdgeBps, salt: e.salt, chainLength: e.chainLength, saltSlot: e.saltSlot, anchorSignature: e.anchorSignature, changed: false };
+    chains[e.chainId] ??= { terminalHash: e.terminalHash, houseEdgeBps: e.houseEdgeBps, curve: free.validCurve(e.curve) ? e.curve : null, salt: e.salt, chainLength: e.chainLength, saltSlot: e.saltSlot, anchorSignature: e.anchorSignature, anchorKey: e.anchorKey, changed: false };
     if (e.lastRound !== null && e.lastSeed !== null && (verified[e.chainId]?.round ?? -1) < e.lastRound) verified[e.chainId] = { round: e.lastRound, seed: e.lastSeed };
     if (e.lastRound !== null && typeof e.lastAt === 'number' && (baselines[e.chainId]?.last ?? -1) < e.lastRound) baselines[e.chainId] = { last: e.lastRound, at: e.lastAt };
     highestChain = Math.max(highestChain, e.chainId);
@@ -208,11 +217,21 @@ function revealed(state: RoomState, r: RoundResult, now: number): Pick<RoomState
   };
 }
 
-/** Chains only move forward: a room announcing an older chain than one it already announced is replaying it. */
+/**
+ * Chains only move forward: a room announcing an older chain than one it already announced is replaying it.
+ * A room must also announce a curve this client can run: without one, nothing it shows about a round (the
+ * climb, a manual cashout's multiplier) can be checked, so betting is off.
+ */
 function noteChain(state: RoomState, room: RoomInfo): Pick<RoomState, 'highestChain' | 'integrity'> {
-  if (!Number.isSafeInteger(room.chainId) || room.chainId < 0) return { highestChain: state.highestChain, integrity: state.integrity };
-  if (room.chainId < state.highestChain) return { highestChain: state.highestChain, integrity: flag(state, `the room went back to chain ${room.chainId} after announcing chain ${state.highestChain}`) };
-  return { highestChain: room.chainId, integrity: state.integrity };
+  const integrity = free.validCurve(room.curve) ? state.integrity : flag(state, `the room announced a multiplier curve this client can't run`);
+  if (!Number.isSafeInteger(room.chainId) || room.chainId < 0) return { highestChain: state.highestChain, integrity };
+  if (room.chainId < state.highestChain) return { highestChain: state.highestChain, integrity: flag({ integrity }, `the room went back to chain ${room.chainId} after announcing chain ${state.highestChain}`) };
+  return { highestChain: room.chainId, integrity };
+}
+
+/** Whether two curves run the same: the same kind at the same rate. */
+function sameCurve(a: free.Curve, b: free.Curve): boolean {
+  return a.kind === b.kind && a.growthRatePerMs === b.growthRatePerMs;
 }
 
 /**
@@ -289,6 +308,15 @@ function noteIntegrity(before: RoomState, after: RoomState): RoomState {
 
 const RECENT = 20;
 const ANNOUNCED = 50;
+/** More players than a room admits and queues together (256 bettors and four times that in the queue). */
+const MAX_PLAYERS = 2_000;
+
+/** Lists a bet: in the place of the player's earlier entry, or after everyone listed. */
+function listPlayer(players: RoomPlayer[], player: RoomPlayer): RoomPlayer[] {
+  const at = players.findIndex((p) => p.key === player.key);
+  if (at === -1) return players.length < MAX_PLAYERS ? [...players, player] : players;
+  return players.map((p, i) => (i === at ? player : p));
+}
 
 function bounded<T>(record: Record<string, T>): Record<string, T> {
   const keys = Object.keys(record);
@@ -328,12 +356,14 @@ function announce(state: RoomState, chainId: number | undefined, roundIndex: num
 function pinChain(chains: RoomState['chains'], room: RoomInfo): RoomState['chains'] {
   if (room.chainId < 0) return chains;
   const pinned = chains[room.chainId];
+  const announced = free.validCurve(room.curve) ? room.curve : null;
   if (!pinned) {
     return {
       ...chains,
-      [room.chainId]: { terminalHash: room.terminalHash, houseEdgeBps: room.houseEdgeBps, salt: room.salt, chainLength: room.chainLength, saltSlot: room.saltSlot, anchorSignature: room.anchorSignature ?? null, changed: false },
+      [room.chainId]: { terminalHash: room.terminalHash, houseEdgeBps: room.houseEdgeBps, curve: announced, salt: room.salt, chainLength: room.chainLength, saltSlot: room.saltSlot, anchorSignature: room.anchorSignature ?? null, anchorKey: room.anchorKey ?? null, changed: false },
     };
   }
+  // The curve is fixed with the chain: a room changing it mid-chain would draw one climb and settle manual cashouts on another.
   const changed =
     pinned.changed ||
     pinned.terminalHash !== room.terminalHash ||
@@ -341,10 +371,14 @@ function pinChain(chains: RoomState['chains'], room: RoomInfo): RoomState['chain
     pinned.chainLength !== room.chainLength ||
     pinned.saltSlot !== room.saltSlot ||
     pinned.anchorSignature !== (room.anchorSignature ?? null) ||
+    (pinned.anchorKey !== undefined && pinned.anchorKey !== (room.anchorKey ?? null)) ||
+    (pinned.curve !== null && announced !== null && !sameCurve(pinned.curve, announced)) ||
     (pinned.salt !== null && room.salt !== null && pinned.salt !== room.salt);
+  const curve = pinned.curve ?? announced;
   const salt = pinned.salt ?? room.salt;
-  if (changed === pinned.changed && salt === pinned.salt) return chains;
-  return { ...chains, [room.chainId]: { ...pinned, salt, changed } };
+  const anchorKey = pinned.anchorKey === undefined ? room.anchorKey ?? null : pinned.anchorKey;
+  if (changed === pinned.changed && salt === pinned.salt && anchorKey === pinned.anchorKey && curve === pinned.curve) return chains;
+  return { ...chains, [room.chainId]: { ...pinned, salt, anchorKey, curve, changed } };
 }
 
 /** What to check a revealed round against, from what this client saw before the reveal. */
@@ -411,6 +445,7 @@ function fold(state: RoomState, msg: ServerMessage, now: number, fresh: boolean)
         room: msg.room,
         round: msg.round,
         recent: msg.recent.slice(0, RECENT),
+        players: Array.isArray(msg.players) ? msg.players.slice(0, MAX_PLAYERS) : [],
         you: msg.you,
         clockOffsetMs: msg.round.serverTime - now,
         chains,
@@ -442,6 +477,8 @@ function fold(state: RoomState, msg: ServerMessage, now: number, fresh: boolean)
       return {
         ...state,
         lastBet: null,
+        // The last round's bettors leave the list; the queued players stay and are admitted by their own frames.
+        players: state.players.filter((p) => p.status === 'queued'),
         ...announce(state, state.room?.chainId, msg.roundIndex, msg.serverSeedHash),
         ...sequenceBetting(state, msg.roundIndex, now),
         round: {
@@ -480,14 +517,30 @@ function fold(state: RoomState, msg: ServerMessage, now: number, fresh: boolean)
     case 'you':
       return { ...state, you: msg.you };
     case 'bet.result':
-      return { ...state, lastBet: msg.status, lastError: null };
+      return { ...state, lastBet: msg.status === 'cancelled' ? null : msg.status, lastError: null };
     case 'error':
       return { ...state, lastError: { code: msg.code, message: msg.message } };
     case 'pong':
       return { ...state, clockOffsetMs: msg.serverTime - now };
+    case 'player.bet':
+      return { ...state, players: listPlayer(state.players, msg.player) };
+    case 'player.left':
+      return { ...state, players: state.players.filter((p) => p.key !== msg.key) };
     case 'cashout':
-      return state;
+      return state.players.some((p) => p.key === msg.player && p.status === 'active')
+        ? { ...state, players: state.players.map((p) => (p.key === msg.player && p.status === 'active' ? { ...p, cashoutX100: msg.targetX100, payout: msg.payout } : p)) }
+        : state;
   }
+}
+
+/** Where a listed bet stands, from its entry and the round it is in. */
+export type PlayerOutcome = 'queued' | 'placed' | 'riding' | 'won' | 'lost';
+
+export function playerOutcome(player: RoomPlayer, round: Pick<PublicRoundState, 'phase'> | null): PlayerOutcome {
+  if (player.status === 'queued') return 'queued';
+  if (player.cashoutX100 !== null) return 'won';
+  if (round?.phase === 'crashed') return 'lost';
+  return round?.phase === 'running' ? 'riding' : 'placed';
 }
 
 export const ROOM_ERRORS: Record<ErrorCode, string> = {
@@ -507,11 +560,34 @@ export const ROOM_ERRORS: Record<ErrorCode, string> = {
   server_error: 'The room had a problem. Try again.',
 };
 
-export function roomSocketUrl(base: string, gameId: string, token?: string | null): string {
+/** The subprotocol every room client offers and the game server selects. */
+export const ROOM_PROTOCOL = 'crashwif.room.v1';
+/** The subprotocol entry that carries a session token: `crashwif.token.<token>`. */
+const TOKEN_PROTOCOL_PREFIX = 'crashwif.token.';
+
+/** The room's socket URL. It carries no session token: the token travels in the Sec-WebSocket-Protocol header. */
+export function roomSocketUrl(base: string, gameId: string): string {
   const url = new URL('/ws', base.replace(/^http/, 'ws'));
   url.searchParams.set('game', gameId);
-  if (token) url.searchParams.set('token', token);
   return url.toString();
+}
+
+/**
+ * The subprotocols a client offers: the room protocol and, when it has one, its session token as
+ * `crashwif.token.<token>`. A token is base64url text joined by one dot, so it fits a protocol name;
+ * a header entry, unlike a URL, stays out of proxy and access logs.
+ */
+export function roomSocketProtocols(token: string | null): string[] {
+  return token ? [ROOM_PROTOCOL, `${TOKEN_PROTOCOL_PREFIX}${token}`] : [ROOM_PROTOCOL];
+}
+
+/** The session token a client offered in its Sec-WebSocket-Protocol header, or null when it spectates. */
+export function roomTokenFromProtocols(header: string | undefined): string | null {
+  for (const entry of (header ?? '').split(',')) {
+    const protocol = entry.trim();
+    if (protocol.startsWith(TOKEN_PROTOCOL_PREFIX) && protocol.length > TOKEN_PROTOCOL_PREFIX.length) return protocol.slice(TOKEN_PROTOCOL_PREFIX.length);
+  }
+  return null;
 }
 
 /** A session token, or a function that fetches a fresh one (null to spectate). */

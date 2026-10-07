@@ -6,7 +6,7 @@
  *
  * Nothing is created until the player turns it on with the Sound button (the user gesture autoplay rules
  * want); the choice is remembered, and a remembered "on" starts with the next click or key on the page. No
- * audio files: the bundle stays self-contained, and everything below is synthesised with the Web Audio API.
+ * external audio requests: embedded recordings and procedural sounds both stay inside the bundle.
  *
  * Music is a step sequencer scheduled a little ahead of the audio clock, so it never stutters when a frame
  * is slow. A Style names a genre: its drum pattern, chords, scale, tempo and instruments. Tension, from the
@@ -40,8 +40,8 @@ export interface AudioOptions {
   /**
    * Recorded clips that play instead of the synthesised music loop, crash stinger, cash-out or a named effect.
    * By default they come from clips.json beside the game (scripts/audio/generate.mjs writes it from the prompt
-   * manifest); these override it. Each is a data: URL, so the pack stays self-contained: a 12 s loop at
-   * 64 kb/s is about 130 KB of text, a stinger at 32 kb/s about 5 KB a second.
+   * manifest); these override it. Each is a data: URL, so the pack stays self-contained. Full 150-second
+   * music uses compact Opus, plays at its authored speed, and restarts when a new round starts running.
    */
   clips?: Clips;
 }
@@ -452,7 +452,16 @@ function createAudio(options: AudioOptions): Audio {
       if (!url) continue;
       try {
         const bytes = await (await fetch(url)).arrayBuffer();
-        clipBuffers[key] = await ctx.decodeAudioData(bytes);
+        const buffer = await ctx.decodeAudioData(bytes);
+        if (context !== ctx) return; // The page may have closed while a full song decoded.
+        clipBuffers[key] = buffer;
+        if (key === 'music') {
+          // Mastered recordings have their own timbre. Do not add the synthesizer's distortion.
+          if (drive) drive.curve = null;
+          if (crackle) { crackle.stop(); crackle = null; }
+          // Decoding is asynchronous: adopt the recording as soon as it is ready, even mid-round.
+          if (mode === 'on' && !hidden && phase !== 'crashed') startMusic();
+        }
       } catch (error) {
         console.warn(`The ${key} clip could not be decoded; the synthesised one plays instead.`, error);
       }
@@ -1250,16 +1259,23 @@ function createAudio(options: AudioOptions): Audio {
       }
       if (mode !== 'on' || stopped) return;
       const t = context.currentTime;
-      if (filter) filter.frequency.setTargetAtTime(phase === 'running' ? 900 + 9000 * tension * tension : 700, t, 0.3);
+      const fullSong = (clipBuffers.music?.duration ?? 0) >= 120;
+      if (phase === 'running' && before !== 'running' && fullSong) {
+        // Waiting/betting must not consume the beginning of a full round's soundtrack.
+        clipMusic?.source.stop(t);
+        clipMusic = null;
+        startMusic();
+      }
+      if (filter) filter.frequency.setTargetAtTime(clipMusic ? (phase === 'running' ? 7000 + 3000 * tension : 3500) : (phase === 'running' ? 900 + 9000 * tension * tension : 700), t, 0.3);
       if (riser) {
-        const top = phase === 'running' ? clampNum((tension - 0.55) / 0.45, 0, 1) : 0;
+        const top = phase === 'running' && !clipMusic ? clampNum((tension - 0.55) / 0.45, 0, 1) : 0;
         riser.gain.gain.setTargetAtTime(0.05 * top, t, 0.4);
         riser.noise.gain.setTargetAtTime(0.12 * top * top, t, 0.4);
         riser.osc.frequency.setTargetAtTime(midiHz(root) * (1 + 3 * top), t, 0.5);
         riser.filter.frequency.setTargetAtTime(500 + 5000 * top, t, 0.5);
       }
-      // A recorded loop cannot add layers, but it can hurry: up to a tenth faster at the top.
-      if (clipMusic) clipMusic.source.playbackRate.setTargetAtTime(1 + (phase === 'running' ? 0.1 * tension : 0), t, 0.6);
+      // Full songs keep their authored duration and pitch. Legacy short loops can still hurry.
+      if (clipMusic) clipMusic.source.playbackRate.setTargetAtTime(1 + (!fullSong && phase === 'running' ? 0.1 * tension : 0), t, 0.6);
     },
     fx(name, strength = 1) {
       if (!live()) return;
@@ -1313,6 +1329,7 @@ function createAudio(options: AudioOptions): Audio {
         void context.resume();
         // The sequencer picks up from now rather than replaying what it missed.
         stepAt = context.currentTime + 0.05;
+        if (mode === 'on' && phase !== 'crashed') startMusic();
       }
     },
     close() {

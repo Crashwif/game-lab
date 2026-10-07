@@ -6,18 +6,20 @@
  * timing checks, a bet refused as late while the room's clock had time left
  * is flagged, and reconnects back off.
  *
- * Credits have no value; a spectator connects without a token.
+ * A player's session token is offered as a subprotocol (`crashwif.token.<token>`,
+ * next to `crashwif.room.v1`) in the Sec-WebSocket-Protocol header, never in the
+ * URL. Credits have no value; a spectator offers no token.
  */
 import { Emitter } from './emitter.js';
 import type { ClientMessage, ServerMessage } from './protocol.js';
-import { applyMessage, emptyRoomState, roomSocketUrl, withProblem, type RoomState, type TokenSource } from './state.js';
+import { applyMessage, emptyRoomState, roomSocketProtocols, roomSocketUrl, withProblem, type RoomState, type TokenSource } from './state.js';
 
 export type SocketLike = Pick<WebSocket, 'send' | 'close' | 'readyState'> & {
   onopen: ((ev: Event) => void) | null;
   onclose: ((ev: CloseEvent) => void) | null;
   onmessage: ((ev: MessageEvent) => void) | null;
 };
-export type SocketFactory = (url: string) => SocketLike;
+export type SocketFactory = (url: string, protocols: string[]) => SocketLike;
 
 export interface GameClientOptions {
   /** The game server's base URL (ws://, wss://, http:// or https://). */
@@ -56,7 +58,7 @@ export class GameClient extends Emitter<GameClientEvents> {
 
   constructor(private readonly options: GameClientOptions) {
     super();
-    this.makeSocket = options.makeSocket ?? ((url) => new WebSocket(url));
+    this.makeSocket = options.makeSocket ?? ((url, protocols) => new WebSocket(url, protocols));
     this.now = options.now ?? (() => Date.now());
     this.lastBeat = this.now();
   }
@@ -132,7 +134,7 @@ export class GameClient extends Emitter<GameClientEvents> {
     // Tokens are short-lived (15 minutes); a provider fetches a fresh one on every (re)connect.
     const token = typeof current.token === 'function' ? await current.token().catch(() => null) : current.token;
     if (this.closed || this.target !== current) return;
-    const socket = this.makeSocket(roomSocketUrl(this.options.baseUrl, current.gameId, token));
+    const socket = this.makeSocket(roomSocketUrl(this.options.baseUrl, current.gameId), roomSocketProtocols(token));
     this.socket = socket;
     // Nothing but errors counts on a socket until its snapshot: a round event racing ahead of it belongs to a
     // room this client hasn't been shown yet.

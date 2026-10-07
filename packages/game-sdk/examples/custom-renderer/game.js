@@ -10,10 +10,13 @@
  *   { proto, type: 'server', message, now, fresh }   every server frame
  *   { proto, type: 'allow', allowBets, reason }
  *   { proto, type: 'refused', message, reason }
+ *   { proto, type: 'ping', at }                     every few seconds once the game is ready
  * and hears:
- *   { proto, type: 'ready' }
+ *   { proto, type: 'ready', pongs: true }           declares that it answers pings
  *   { proto, type: 'client', message: { type: 'bet', stake, targetX100 } | { type: 'cancel' } | { type: 'cashout' } }
  *   { proto, type: 'resize', height }
+ *   { proto, type: 'pong', at }                     the answer to a ping; a game that declared pongs or has
+ *                                                   answered a ping is stopped after three unanswered in a row
  */
 const PROTO = 'crashwif-game-embed:v1';
 const host = window.parent;
@@ -91,10 +94,12 @@ window.addEventListener('message', (event) => {
     allowed = data.allowBets;
     log(allowed ? 'betting allowed' : `betting off: ${data.reason}`);
   } else if (data.type === 'refused') log(`refused: ${data.reason}`);
+  else if (data.type === 'ping') send({ type: 'pong', at: data.at });
   render();
 });
 
 el('bet').addEventListener('click', () => send({ type: 'client', message: { type: 'bet', stake: 50, targetX100: el('auto').checked ? 200 : null } }));
 el('cashout').addEventListener('click', () => send({ type: 'client', message: { type: 'cashout' } }));
-send({ type: 'ready' });
-send({ type: 'resize', height: document.body.scrollHeight });
+send({ type: 'ready', pongs: true });
+// The room's frame never scrolls: report the page's height at once and whenever it changes.
+new ResizeObserver(() => send({ type: 'resize', height: document.body.scrollHeight })).observe(document.body);

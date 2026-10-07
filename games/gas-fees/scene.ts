@@ -57,10 +57,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["EXPRESS LIFT TO NOWHERE", "THE CANARY WANTS A TRANSFER", "ANOTHER FLOOR, SAME AIR", "VENTILATION NOT FOUND", "THE PIZZA IS GETTING COLD", "MAXIMUM CLENCH OVERTIME", "WHO PRESSED EVERY BUTTON", "STILL NOT MY FLOOR"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'HE WHO SMELT IT' : outcome === 'called' ? 'DEALT IT, LEFT IT' : 'NETWORK CONGESTION';
   if (view.phase !== 'running') return 'GOING UP?';
   if (secured) return 'THIS IS MY FLOOR';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'HOLD IT';
   if (multiplier < 1.7) return 'CLENCH';
   if (multiplier < 2.3) return 'CHEEKS ARE STAKED';

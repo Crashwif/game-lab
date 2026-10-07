@@ -79,10 +79,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE SUMMIT MOVED AGAIN", "ANOTHER AIRDROP, SAME HILL", "UPHILL BOTH WAYS", "THE DEV PACKED A LUNCH", "THE MOON HAS ANOTHER HILL", "KEEP THE COIN ROLLING", "ALTITUDE: UNREASONABLE", "SISYPHUS WORKS OVERTIME"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'DEV SOLD ON YOUR HEAD' : outcome === 'called' ? 'GOOD LUCK, COMMUNITY' : 'RUGGED';
   if (view.phase !== 'running') return 'WEN LAUNCH?';
   if (secured) return "IT'S A CTO NOW";
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'PUSH IT';
   if (multiplier < 1.6) return 'SISYPHUS BUT DEGEN';
   if (multiplier < 2.5) return 'KING OF THE HILL';
@@ -140,7 +144,7 @@ function drawLambo(ctx: CanvasRenderingContext2D, cam: Camera, x: number, wheelS
 /** Tiny community pushers who take over after the ape leaves. */
 function drawCommunity(ctx: CanvasRenderingContext2D, cam: Camera, contactX: number, r: number, time: number, flattened: boolean): void {
   for (let i = 0; i < 3; i += 1) {
-    const x = contactX - r - 30 - i * 26;
+    const x = contactX - (r + 30 + i * 26) * Math.cos(slopeAngle(contactX));
     const p = toScreen(cam, { x, y: heightAt(x) });
     ctx.save();
     ctx.translate(p.x, p.y);
@@ -260,7 +264,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       settleDev(dev, tension, running, crashed);
       settleSpring(cloud.x, cloudAt(tension, running || crashed).x);
       settleSpring(cloud.y, cloudAt(tension, running || crashed).y);
-      rung = running ? RUNGS.filter((r) => multiplier >= r).length : 0;
+      rung = running ? RUNGS.filter((r) => multiplier >= r).length + Math.floor(Math.max(0, view.elapsed - 45_000) / 12_000) : 0;
       if (crashed) {
         crashCoin(coin, view.currentX100, true);
         outcome = ending;
@@ -337,7 +341,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
     if (running) {
-      const index = RUNGS.filter((r) => multiplier >= r).length;
+      const index = RUNGS.filter((r) => multiplier >= r).length + Math.floor(Math.max(0, view.elapsed - 45_000) / 12_000);
       audio.milestone(index);
       if (index > rung) {
         rung = index;
@@ -389,7 +393,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         lamboHeard = true;
         audio.fx('engine', 0.9);
       }
-      const target = pose.contact.x - pose.r - 190;
+      const target = pose.contact.x - (pose.r + 124) * Math.cos(pose.angle);
       lambo.x = Math.min(target, lambo.x + 380 * dt);
       lambo.wheel += 380 * dt / 14;
       if (lambo.x >= target - 0.5) { lambo.mode = 'waiting'; ape.mode = 'boarding'; ape.modeAge = 0; }
@@ -417,7 +421,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const follow = !coin.crashed || coin.crashAge < 0.8;
     if (follow) {
       stepSpring(cam.x, pose.contact.x + 40, 4, 1, dt);
-      stepSpring(cam.y, pose.contact.y + 70, 4, 1, dt);
+      stepSpring(cam.y, pose.contact.y + (lambo.mode === 'arriving' || lambo.mode === 'waiting' ? 30 : 70), 4, 1, dt);
     }
     const camera: Camera = { x: cam.x.x, y: cam.y.x };
     // The REKT holds off until the coin has actually reached someone.

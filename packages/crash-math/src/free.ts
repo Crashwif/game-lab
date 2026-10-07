@@ -19,8 +19,49 @@ import { TWO_POW_52, first52Bits, roundHash } from './core.js';
 export const DEFAULT_EDGE_BPS = 300;
 /** The rally bonus stops growing at this many bettors (+50%). */
 export const RALLY_MAX_BETTORS = 50;
-/** Growth rate of the displayed multiplier curve, per millisecond. */
-export const GROWTH_RATE_PER_MS = 0.00006;
+
+/**
+ * The displayed multiplier curve a room runs its rounds on: how fast the
+ * multiplier climbs, and so how long a round lasts before the committed crash
+ * point is reached. Display pace only: crash points never depend on it. A room
+ * publishes its curve with each chain (`RoomInfo.curve`) and a replay carries
+ * the curve its round ran on, so a game or verifier takes the curve from the
+ * room and never carries a copy of the pace that could go stale.
+ *
+ *   exponential: multiplier(t) = exp(growthRatePerMs x t)
+ */
+export interface Curve {
+  readonly kind: 'exponential';
+  readonly growthRatePerMs: number;
+}
+
+/** The fastest curve a room may announce: 10x in about 230 ms. */
+export const MAX_GROWTH_RATE_PER_MS = 0.01;
+
+/**
+ * The pace the platform's rooms run: each tenfold takes 30 seconds, so 10x
+ * arrives at 30 s, 100x at 1:00, 1,000x at 1:30 (one round in a thousand
+ * lasts longer) and 10,000x at 2:00 (one in ten thousand).
+ */
+export const DEFAULT_CURVE: Curve = { kind: 'exponential', growthRatePerMs: Math.LN10 / 30_000 };
+
+/**
+ * The curve of every round recorded without one: rooms ran this exponential
+ * before chains and recorded rounds carried their curve, so a replay that
+ * names none replays on it. Fixed for good, like the rounds it describes.
+ */
+export const FIRST_CURVE: Curve = { kind: 'exponential', growthRatePerMs: 0.00006 };
+
+/** Whether `value` is a curve this maths can run: a known kind with a finite, positive, bounded rate. */
+export function validCurve(value: unknown): value is Curve {
+  if (typeof value !== 'object' || value === null) return false;
+  const { kind, growthRatePerMs } = value as { kind?: unknown; growthRatePerMs?: unknown };
+  return kind === 'exponential' && typeof growthRatePerMs === 'number' && Number.isFinite(growthRatePerMs) && growthRatePerMs > 0 && growthRatePerMs <= MAX_GROWTH_RATE_PER_MS;
+}
+
+function assertCurve(curve: Curve): void {
+  if (!validCurve(curve)) throw new RangeError('curve must be the room\'s multiplier curve (RoomInfo.curve or a replay\'s curve): an exponential with a positive growth rate');
+}
 
 function instantCrashDivisor(edgeBps: number): bigint {
   if (!Number.isInteger(edgeBps) || edgeBps < 1 || edgeBps > 5000) {
@@ -72,28 +113,30 @@ export function payout(stake: number, targetX100: number, crashX100: number, ral
   return Number(paid);
 }
 
-/** Continuous display curve in hundredths; rendering can follow it without cent-sized steps. */
-export function multiplierAtContinuousX100(elapsedMs: number): number {
+/** The room's curve in hundredths at `elapsedMs`, continuous; rendering can follow it without cent-sized steps. */
+export function multiplierAtContinuousX100(elapsedMs: number, curve: Curve): number {
+  assertCurve(curve);
   if (!(elapsedMs >= 0)) {
     return 100;
   }
-  return 100 * Math.exp(GROWTH_RATE_PER_MS * elapsedMs);
+  return 100 * Math.exp(curve.growthRatePerMs * elapsedMs);
 }
 
-/** Displayed multiplier (hundredths) after `elapsedMs` of a running round. Display only. */
-export function multiplierAtX100(elapsedMs: number): number {
-  return Math.floor(multiplierAtContinuousX100(elapsedMs));
+/** Displayed multiplier (hundredths) `elapsedMs` into a round run on `curve`. Display only. */
+export function multiplierAtX100(elapsedMs: number, curve: Curve): number {
+  return Math.floor(multiplierAtContinuousX100(elapsedMs, curve));
 }
 
-/** Milliseconds until the displayed curve first reaches `x100`. Inverse of multiplierAtX100. */
-export function msToReach(x100: number): number {
+/** Milliseconds until the displayed curve first reaches `x100`. Inverse of multiplierAtX100 on the same curve. */
+export function msToReach(x100: number, curve: Curve): number {
   if (!Number.isInteger(x100) || x100 < 100) {
     throw new RangeError('x100 must be an integer of at least 100');
   }
-  let ms = Math.ceil(Math.log(x100 / 100) / GROWTH_RATE_PER_MS);
+  assertCurve(curve);
+  let ms = Math.ceil(Math.log(x100 / 100) / curve.growthRatePerMs);
   // Guard against floating-point rounding at the boundary.
-  while (ms > 0 && multiplierAtX100(ms - 1) >= x100) ms -= 1;
-  while (multiplierAtX100(ms) < x100) ms += 1;
+  while (ms > 0 && multiplierAtX100(ms - 1, curve) >= x100) ms -= 1;
+  while (multiplierAtX100(ms, curve) < x100) ms += 1;
   return ms;
 }
 

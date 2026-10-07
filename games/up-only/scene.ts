@@ -416,7 +416,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     text(ctx, world.heat > 0.7 ? 'STRIKE' : 'FUD', 192, 60, 7, world.heat > 0.7 ? PINK : '#c9d4ff', 'left', 40, MONO);
     // The round's multiplier, from the room.
     const colour = crashed ? (secured ? LIME : PINK) : secured ? LIME : running ? '#fff' : '#ffe08a';
-    memeText(ctx, `${multiplier.toFixed(2)}×`, W - 22, 44, 42, colour, 'right');
+    memeText(ctx, `${multiplier.toFixed(2)}×`, W - 22, 44, 42, colour, 'right', 220);
     // The bag, this round's score, with the power-ups under it.
     panel(ctx, W - 226, 74, 212, 40, 'rgba(6, 10, 32, 0.74)', '#2b3f7a', 8);
     ctx.beginPath();
@@ -446,7 +446,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The caption ladder at the top, and the milestone alert beside it.
     const fallenCaption = fallAge < 0.7 ? 'THE FLOOR WAS A RUG' : 'NGMI';
     const caption = crashed ? (secured ? 'PAPER HANDS. BAG INTACT.' : fallen || crashAge > 1 ? fallenCaption : 'WHY IS EVERYTHING RED') : secured ? 'ON THE JET. WATCHING THE DEGENS.' : running ? STAGES[stage]!.caption : station ? 'WEN FLAP' : 'GM. FLAP.';
-    memeText(ctx, caption, W / 2, 46, 30, crashed && !secured ? '#ffb3c8' : '#fff', 'center', 470);
+    memeText(ctx, caption, W / 2, 46, 30, crashed && !secured ? '#ffb3c8' : '#fff', 'center', 450);
     if (running && !secured && alertAge < 4 && stage > 0) {
       const alert = STAGES[stage]!;
       ctx.save();

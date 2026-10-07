@@ -1,20 +1,7 @@
-/**
- * The page shell every Game Lab game shares. This file is the same in every game directory: the canonical
- * copy is scripts/shell/main.ts, `npm run shell -- --write` copies it into each game, and CI fails when a copy
- * drifts. (Remix source packs carry only a game's own directory, so the shell is copied, not imported.)
- *
- * It connects to the room, or plays the recorded round, keeps the SceneView the scene draws from, and runs
- * the controls: the status line, the readout under it, Join round, Cash out, the Space shortcut and notices.
- * Everything about a round comes from the server; the game only draws it and asks for bets and cash-outs.
- *
- * It runs three ways:
- * - embedded: framed by the platform page, which owns the socket, the stake picker and the credit bank. The
- *   frame hides its own Join (the host's bet panel sets the stake), keeps Cash out, and reports its height
- *   so the host can size the frame to the game.
- * - standalone: opened on its own, against the local emulator on 127.0.0.1:4500 (`npm run dev`).
- * - replay: ?mode=replay plays replay.json, the recorded round the gallery and the studio preview show.
+/** Shared page shell. Canonical source: scripts/shell/main.ts; sync with npm run shell -- --write.
+ * The SDK owns rounds and intents. This shell displays standalone, embedded, or recorded play.
  */
-import { GameClient, ROOM_ERRORS, ReplayPlayer, connectEmbedded, verifyReplay, type EmbeddedGame, type RoomState, type ServerMessage, type YouState } from '@crashwif/game-sdk';
+import { GameClient, ROOM_ERRORS, ReplayPlayer, replayCurve, connectEmbedded, verifyReplay, type EmbeddedGame, type ReplayRound, type RoomState, type ServerMessage, type YouState } from '@crashwif/game-sdk';
 import { free } from '@crashwif/crash-math';
 import { createScene, type SceneView } from './scene';
 import replay from './replay.json';
@@ -121,11 +108,7 @@ function disposeScene(): void {
 }
 
 function drawScene(now: number): void {
-  // A scene resets itself when it sees a round's betting phase. A round it first meets later (the tab was
-  // hidden through the betting window, or the page joined mid-round or during the crash) gets a fresh scene,
-  // which settles straight into the phase it finds instead of carrying the last round's outcome. So does a
-  // live round the scene lost sight of for a while, rather than replaying at once everything it missed. The
-  // recording pauses while hidden, so replay keeps its scene.
+  // Late entry or a hidden live frame gets a fresh scene; replay pauses while hidden.
   const newRound = roundKey !== null && roundKey !== drawnRound;
   const lostSight = mode !== 'replay' && lastDrawnAt > 0 && now - lastDrawnAt > FRAME_GAP_MS && (view.phase === 'running' || view.phase === 'crashed');
   lastDrawnAt = now;
@@ -209,8 +192,11 @@ function onRoom(next: RoomState, message: ServerMessage | null): void {
     if (round.phase === 'crashed' && (view.phase !== 'crashed' || newRound)) crashTime = crashMoment(next, message);
     view.phase = round.phase;
     view.currentX100 = round.crashX100 ?? round.multiplierX100;
+    if (round.phase === 'crashed' && round.crashX100 !== null && Number.isInteger(round.crashX100) && round.crashX100 >= 100 && free.validCurve(next.room?.curve)) {
+      view.elapsed = free.msToReach(round.crashX100, next.room!.curve);
+    }
     // The running time only moves forward within a round, and starts each round from zero (Blanket Champ shows it).
-    if (newRound || round.phase === 'betting' || round.phase === 'waiting') view.elapsed = 0;
+    if ((newRound && round.phase !== 'crashed') || round.phase === 'betting' || round.phase === 'waiting') view.elapsed = 0;
     if (round.phase === 'running' && round.runningSince !== null) {
       rallyBettors = round.rally.active ? round.rally.bettors : 0;
       if (message?.type === 'tick' && message.roundIndex === round.roundIndex) anchor = { elapsed: message.elapsedMs, at: now };
@@ -231,8 +217,8 @@ function onRoom(next: RoomState, message: ServerMessage | null): void {
 function crashMoment(next: RoomState, message: ServerMessage | null): number {
   const round = next.round!;
   const x = round.crashX100;
-  if (message?.type === 'round.crashed' || round.runningSince === null || x === null || !Number.isInteger(x) || x < 100) return Date.now();
-  return Math.min(Date.now(), round.runningSince + free.msToReach(x) - next.clockOffsetMs);
+  if (message?.type === 'round.crashed' || round.runningSince === null || x === null || !Number.isInteger(x) || x < 100 || !free.validCurve(next.room?.curve)) return Date.now();
+  return Math.min(Date.now(), round.runningSince + free.msToReach(x, next.room!.curve) - next.clockOffsetMs);
 }
 
 function endedText(you: YouState): string {
@@ -282,9 +268,9 @@ function liveReadout(): string {
   if (round.phase === 'betting' && round.bettingClosesAt !== null) {
     parts.push(`Closes in ${Math.max(0, Math.ceil((round.bettingClosesAt - (Date.now() + state.clockOffsetMs)) / 1000))} s`);
   }
-  if (canCash && view.stake !== null && Number.isSafeInteger(view.stake)) {
+  if (canCash && view.stake !== null && Number.isSafeInteger(view.stake) && free.validCurve(state.room?.curve)) {
     // Priced on the published (floored) curve: the room pays at least this if the cash-out lands before the crash.
-    const x = free.multiplierAtX100(view.elapsed);
+    const x = free.multiplierAtX100(view.elapsed, state.room!.curve);
     parts.push(`Worth ${credits(free.payout(view.stake, x, x, rallyBettors))} now`);
   }
   // Standalone shows the balance; embedded, the host's credit bank does.
@@ -385,8 +371,10 @@ function connectEmulator(): void {
 
 function playRecording(): void {
   bet.hidden = cashout.hidden = true;
-  const check = verifyReplay(replay);
-  if (!check.ok) {
+  const recording: ReplayRound = replay;
+  const curve = replayCurve(recording);
+  const check = verifyReplay(recording);
+  if (!check.ok || !curve) {
     console.error('The recorded round failed its check:', check.problems.join('; '));
     write(statusLine, 'The recorded round failed its check, so it is not shown');
     return;
@@ -426,6 +414,7 @@ function playRecording(): void {
     } else if (event.type === 'round.crashed') {
       view.phase = 'crashed';
       view.currentX100 = event.result.crashX100;
+      view.elapsed = Math.max(0, at - lockedAt);
       crashedAt = at;
       write(statusLine, `Recorded round · crashed at ${formatX(event.result.crashX100)}`);
     }
@@ -447,7 +436,7 @@ function playRecording(): void {
     if (!player.finished) player.seek(t);
     if (view.phase === 'running') {
       view.elapsed = Math.max(0, t - lockedAt);
-      view.currentX100 = Math.max(view.currentX100, Math.min(replay.crashX100, free.multiplierAtContinuousX100(view.elapsed)));
+      view.currentX100 = Math.max(view.currentX100, Math.min(replay.crashX100, free.multiplierAtContinuousX100(view.elapsed, curve)));
     }
     crashTime = crashedAt === null ? wall : startedAt + crashedAt;
   };
@@ -471,10 +460,10 @@ function draw(now: number): void {
   const clock = performance.now();
   if (mode === 'replay') stepReplay?.();
   else {
-    if (view.phase === 'running' && anchor) {
+    if (view.phase === 'running' && anchor && free.validCurve(state?.room?.curve)) {
       // Never backwards: a tick delivered later than the one before would otherwise pull the number back.
       view.elapsed = Math.max(view.elapsed, anchor.elapsed + Math.min(MAX_AHEAD_MS, clock - anchor.at));
-      view.currentX100 = Math.max(view.currentX100, free.multiplierAtContinuousX100(view.elapsed));
+      view.currentX100 = Math.max(view.currentX100, free.multiplierAtContinuousX100(view.elapsed, state!.room!.curve));
     }
     refresh(clock);
   }

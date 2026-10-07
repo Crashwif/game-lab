@@ -1,7 +1,9 @@
 {
-  "fingerprint": "e79b586e509ab827",
+  "fingerprint": "492d4721ef5ab0f7",
+  "endpoint": "/v1/music",
   "format": "mp3_44100_64",
-  "bytes": 96175,
-  "prompt": "Icy synthwave loop, 108 bpm, gated reverb drums, arpeggiated analog synth, cold pads, sense of dread building, seamless loop, instrumental",
-  "at": "2026-09-28T12:57:56.646Z"
+  "bytes": 1199587,
+  "seconds": 150,
+  "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Glacial synthwave at 108 BPM: glassy arpeggios, cold airy pads, taut plucked bass, gated drums and an elegant skating melody with uneasy harmonic changes.",
+  "at": "2026-10-07T09:05:05.016Z"
 }

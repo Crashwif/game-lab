@@ -6,7 +6,6 @@
  * shared page audio: a phonk set that climbs with the tempo, cues from the
  * room's own events, and a sad trombone (or a roar) at the finish.
  */
-import { free } from '@crashwif/crash-math';
 import { pageAudio } from './audio';
 import { type CrowdState, collectWinnings, createCrowd, drawBleachers, drawBooth, drawConfetti, drawCrowd, drawOddsBoard, finishCrowd, resetCrowd, settleCrowd, stepCrowd } from './crowd';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
@@ -59,10 +58,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["OVERTIME CHAMPION", "THE NEIGHBOURS FILED A TICKET", "STAMINA AUDIT PENDING", "THE CROWD WANTS AN ENCORE", "THE BED NEEDS A PIT STOP", "STILL THE MAIN EVENT", "THE CAT MOVED OUT", "EXTRA TIME, SAME CHAMP"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'FINISHED EARLY' : outcome === 'called' ? 'SOLD BEFORE THE FINISH' : 'GG';
   if (view.phase !== 'running') return 'GM CHAMP';
   if (secured) return 'DEAL WITH IT';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'HE HAS BEGUN';
   if (multiplier < 1.7) return 'ENTERING THE POSITION';
   if (multiplier < 2.5) return 'NO PULLBACKS';
@@ -90,6 +93,10 @@ function headlineFor(view: SceneView, multiplier: number, secured: Secured | nul
   if (outcome) return legendary ? ['RECORD BOOKS', 'UPDATED'] : outcome === 'rekt' ? ['BREAKING:', "IT'S OVER (?)"] : outcome === 'called' ? ['BREAKING:', 'HE IS DONE'] : ['BREAKING:', "IT'S OVER"];
   if (view.phase !== 'running') return ['TONIGHT:', 'THE MAIN EVENT'];
   if (secured) return ['INSIDER SOLD', 'BEFORE THE TOP'];
+  if (view.elapsed >= 45_000) {
+    const headlines: Headline[] = [['EXTRA TIME', 'STILL GOING'], ['BED FRAME', 'ON OVERTIME'], ['NEIGHBOURS', 'STILL AWAKE'], ['CAT REQUESTS', 'A TRANSFER'], ['CROWD CHANTS', 'ONE MORE'], ['LIVE FROM', 'THE NIGHT SHIFT']];
+    return headlines[Math.floor((view.elapsed - 45_000) / 10_000) % headlines.length]!;
+  }
   if (multiplier < 1.3) return ['BREAKING:', 'HE HAS BEGUN'];
   if (multiplier < 1.7) return ['SOURCES SAY', 'STILL GOING'];
   if (multiplier < 2.5) return ['ANALYSTS:', 'NO PULLBACK'];
@@ -200,7 +207,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetRoom(room);
       resetCrowd(crowd);
       if (running || crashed) {
-        settleRoom(room, multiplier, running);
+        settleRoom(room, multiplier, running, view.elapsed);
         settleCrowd(crowd, tension, multiplier, running, secured !== null);
         settleSpring(brigade, running && multiplier >= 10 ? 1 : 0);
         brigadeOn = brigade.x > 0.5;
@@ -211,7 +218,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (crashed && !room.finished) {
         const quiet = view.crashAge > 1500;
         // Met late, or on the first frame back, the props are still where the last frame left them.
-        if (quiet || resumed) settleRoom(room, multiplier, false);
+        if (quiet || resumed) settleRoom(room, multiplier, false, view.elapsed);
         finish(view, multiplier, quiet);
       }
       if (view.phase === 'betting') {
@@ -225,7 +232,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
-    if (resumed && running) settleRoom(room, multiplier, true);
+    if (resumed && running) settleRoom(room, multiplier, true, view.elapsed);
     if (secured && running) collectWinnings(crowd);
     audio.update(view.phase, tension);
 
@@ -316,7 +323,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     // Once crashed, the clock shows how long the curve took to reach the crash point, so a round first met
     // after the crash reads right too.
-    const seconds = Math.floor((crashed ? Math.log(multiplier) / free.GROWTH_RATE_PER_MS : view.elapsed) / 1000);
+    const seconds = Math.floor(view.elapsed / 1000);
     memeText(ctx, `STAMINA ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
   }
 

@@ -59,6 +59,10 @@ const CRASH_LINES: Record<Kind, string> = {
   chad: 'bro WHAT', grandma: 'my wig!!', wif: '...wif?', karen: 'MANAGER!!!', bro: 'chat did u smell that',
   nun: 'lord have mercy', whale: 'i got liquidated', bride: 'ON MY DRESS', pizza: 'extra cheese??',
 };
+const OVERTIME_LINES: Record<Kind, string> = {
+  chad: 'is this leg day now', grandma: 'bingo started an hour ago', wif: 'wif... still here', karen: 'i pressed the help button', bro: 'chat we are STILL live',
+  nun: 'grant us ventilation', whale: 'i need a bigger lift', bride: 'the cake is melting', pizza: 'delivery is now cold',
+};
 /** How high above the feet each kind's head (hat, veil or blowhole included) reaches, in rider space. */
 const HEAD_TOP: Record<Kind, number> = { chad: -192, grandma: -206, wif: -218, karen: -200, bro: -202, nun: -208, whale: -242, bride: -204, pizza: -200 };
 const LINE_LIFE = 2.2;
@@ -73,12 +77,14 @@ export interface Crowd {
   squeeze: Spring;
   /** Seconds the doors stay open after an arrival. */
   doorTimer: number;
+  chatterClock: number;
+  chatterIndex: number;
   lines: Line[];
   events: { arrived: Kind | null };
 }
 
 export function createCrowd(): Crowd {
-  return { list: [], next: 0, squeeze: spring(0), doorTimer: 0, lines: [], events: { arrived: null } };
+  return { list: [], next: 0, squeeze: spring(0), doorTimer: 0, chatterClock: 0, chatterIndex: 0, lines: [], events: { arrived: null } };
 }
 
 export function resetCrowd(c: Crowd): void {
@@ -86,6 +92,7 @@ export function resetCrowd(c: Crowd): void {
   c.next = 0;
   settleSpring(c.squeeze, 0);
   c.doorTimer = 0;
+  c.chatterClock = c.chatterIndex = 0;
   c.lines = [];
 }
 
@@ -143,6 +150,15 @@ export function stepCrowd(c: Crowd, drive: CrowdDrive, dt: number): void {
     admit(c, ROSTER[c.next]!.kind, false);
     c.next += 1;
     if (c.events.arrived) c.lines.push({ who: c.list[c.list.length - 1]!, text: ARRIVAL_LINES[c.events.arrived], delay: 0, age: 0, box: null });
+  }
+  // Once the lift is full, the existing riders keep reacting without adding more overlapping bodies.
+  if (drive.running && !drive.gassed && c.next === ROSTER.length) {
+    c.chatterClock += dt;
+    if (c.chatterClock >= 7) {
+      c.chatterClock %= 7;
+      const who = c.list[c.chatterIndex++ % c.list.length]!;
+      c.lines.push({ who, text: OVERTIME_LINES[who.kind], delay: 0, age: 0, box: null });
+    }
   }
   for (const l of c.lines) { if (l.delay > 0) l.delay -= dt; else l.age += dt; }
   // One bubble per speaker: a line that has started replaces whatever that speaker was still saying.
