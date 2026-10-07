@@ -1,7 +1,58 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
+import { build } from 'esbuild';
 import { directionAt, multiplierLabel } from '../../games/know-your-clown/direction.ts';
+
+let compiledScene;
+
+async function sceneHarness(options = {}) {
+  compiledScene ??= build({
+    entryPoints: [fileURLToPath(new URL('../../games/know-your-clown/scene.ts', import.meta.url))],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    globalName: 'KycScene',
+    plugins: [{
+      name: 'record-scene-audio',
+      setup(bundler) {
+        bundler.onResolve({ filter: /^\.\/audio$/ }, () => ({ path: 'audio', namespace: 'record-scene-audio' }));
+        bundler.onLoad({ filter: /.*/, namespace: 'record-scene-audio' }, () => ({ contents: 'export const pageAudio = () => globalThis.sceneAudio;' }));
+      },
+    }],
+  });
+  const events = [];
+  const labels = [];
+  const context = {
+    Path2D: class {},
+    sceneAudio: {
+      update() {},
+      fx(name, strength) { events.push({ type: 'fx', name, strength }); },
+      cashout() { events.push({ type: 'cashout' }); },
+      crash(name, quiet) { events.push({ type: 'crash', name, quiet }); },
+    },
+  };
+  runInNewContext((await compiledScene).outputFiles[0].text, context);
+  const scene = context.KycScene.createScene(options);
+  const gradient = () => ({ addColorStop() {} });
+  const canvas = new Proxy({
+    canvas: { width: 960, height: 540 },
+    fillText(text) { labels.push(text); },
+    measureText(text) { return { width: text.length * 10 }; },
+    createLinearGradient: gradient,
+    createRadialGradient: gradient,
+  }, { get: (target, key) => key in target ? target[key] : () => {} });
+  return {
+    events,
+    draw(patch, now) {
+      labels.length = 0;
+      scene.draw(canvas, { phase: 'waiting', currentX100: 100, elapsed: 0, crashAge: 0, stake: 50, cashoutX100: null, payout: null, ...patch }, now);
+      return labels.join(' ');
+    },
+  };
+}
 
 test('Know Your Clown introduces distinct physical acts beyond two minutes', () => {
   const earlier = [0, 18_000, 37_000, 57_000, 78_000].map(directionAt);
@@ -88,4 +139,71 @@ test('Know Your Clown has a verified replay that reaches every authored act', as
   assert.equal(crashed.type, 'round.crashed');
   assert.equal(crashed.result.crashX100, replay.crashX100);
   assert.equal(crashed.durationMs, free.msToReach(replay.crashX100));
+});
+
+test('an accepted KYC exit remains an escape when the room later crashes', async () => {
+  const game = await sceneHarness();
+  const cashoutX100 = 4_294_967_295;
+  game.draw({ phase: 'running', elapsed: 290_000, currentX100: cashoutX100 }, 0);
+  game.draw({ phase: 'running', elapsed: 290_100, currentX100: cashoutX100, cashoutX100 }, 100);
+  game.draw({ phase: 'running', elapsed: 291_500, currentX100: cashoutX100, cashoutX100 }, 1_500);
+  assert.equal(game.events.filter(({ type }) => type === 'cashout').length, 1);
+
+  for (const [crashAge, now] of [[0, 1_600], [3_000, 4_600]]) {
+    const text = game.draw({ phase: 'crashed', elapsed: 300_000, currentX100: 5_000_000_000, crashAge }, now);
+    assert.match(text, /PRIVACY INTACT/);
+    assert.match(text, /CLAIM ABANDONED/);
+    assert.match(text, /CASHED OUT 42949672\.95×/);
+    assert.doesNotMatch(text, /CLAIM REJECTED|IDENTITY EXPORTED|\bSOLD\b/);
+  }
+});
+
+test('a KYC scene opened after the crash settles quietly into the final aftermath', async () => {
+  const game = await sceneHarness();
+  const view = { phase: 'crashed', elapsed: 160_000, currentX100: 1_476_478, crashAge: 8_000 };
+  const text = game.draw(view, 1_000);
+  assert.match(text, /IDENTITY EXPORTED/);
+  assert.match(text, /THE AIRDROP WAS YOU/);
+  assert.match(text, /HANDLE WITHOUT CARE/);
+  assert.doesNotMatch(text, /CLAIM REJECTED/);
+  game.draw({ ...view, crashAge: 8_500 }, 1_500);
+  assert.deepEqual(game.events, [{ type: 'crash', name: 'slam', quiet: true }]);
+});
+
+test('joining or resuming a long KYC audit does not replay historical cues', async () => {
+  const game = await sceneHarness();
+  const text = game.draw({ phase: 'running', elapsed: 600_000 }, 1_000);
+  assert.match(text, /FINALITY REASSESSMENT/);
+  game.draw({ phase: 'running', elapsed: 600_016 }, 1_016);
+  game.draw({ phase: 'running', elapsed: 900_000 }, 5_000);
+  game.draw({ phase: 'running', elapsed: 900_016 }, 5_016);
+  assert.deepEqual(game.events, []);
+
+  const beginning = await sceneHarness();
+  beginning.draw({ phase: 'running', elapsed: 0 }, 0);
+  beginning.draw({ phase: 'running', elapsed: 1_300 }, 1_300);
+  assert.deepEqual(beginning.events.map(({ type, name }) => ({ type, name })), [{ type: 'fx', name: 'beep' }]);
+});
+
+test('the next KYC betting phase clears an accepted exit before an instant crash', async () => {
+  const game = await sceneHarness();
+  const escaped = game.draw({ phase: 'running', elapsed: 30_000, cashoutX100: 250 }, 1_000);
+  assert.match(escaped, /PRIVACY INTACT/);
+  const betting = game.draw({ phase: 'betting' }, 1_016);
+  assert.doesNotMatch(betting, /PRIVACY INTACT|CLAIM ABANDONED|CASHED OUT/);
+  const crashed = game.draw({ phase: 'crashed', crashAge: 0 }, 1_032);
+  assert.match(crashed, /CLAIM REJECTED/);
+  assert.match(crashed, /IDENTITY EXPORTED/);
+  assert.doesNotMatch(crashed, /PRIVACY INTACT|CLAIM ABANDONED|CASHED OUT/);
+  assert.deepEqual(game.events, [{ type: 'crash', name: 'slam', quiet: false }]);
+});
+
+test('reduced-motion KYC crashes present the packed aftermath immediately', async () => {
+  const game = await sceneHarness({ reducedMotion: true });
+  game.draw({ phase: 'running', elapsed: 150_000 }, 1_000);
+  const crashed = game.draw({ phase: 'crashed', elapsed: 150_000, crashAge: 0 }, 1_016);
+  assert.match(crashed, /HANDLE WITHOUT CARE/);
+  assert.match(crashed, /\bSOLD\b/);
+  assert.match(crashed, /CLAIM REJECTED/);
+  assert.deepEqual(game.events, [{ type: 'crash', name: 'slam', quiet: false }]);
 });
