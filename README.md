@@ -57,7 +57,7 @@ Read the [integration guide](docs/integration.md) for embedded games, direct SDK
 
 `npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
 
-`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; each game in `BROWSER_REMIX` fits the browser Studio's budget (below); and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
+`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; game labels do not pit an opponent against the player's personal funds; each game in `BROWSER_REMIX` fits the browser Studio's budget (below); and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
 
 ### Lightweight games for the browser Studio
 
