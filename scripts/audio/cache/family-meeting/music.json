@@ -1,0 +1,9 @@
+{
+  "fingerprint": "6776b7a4a66852fd",
+  "endpoint": "/v1/music",
+  "format": "mp3_44100_64",
+  "bytes": 1199587,
+  "seconds": 150,
+  "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Awkward suburban dinner chamber funk at 100 BPM: dry pizzicato strings, muted bassoon-like synth, ticking percussion, warm piano and increasingly frantic polite melodic exchanges.",
+  "at": "2026-10-07T09:15:44.937Z"
+}

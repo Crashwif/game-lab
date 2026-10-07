@@ -1,232 +1,611 @@
 {
-  "$comment": "Prompts for scripts/audio/generate.mjs. Each game may give a music loop, a crash stinger, a cash-out and named effects (the names audio.ts knows: airhorn, kaching, scream, splash, thud, ...). A clip's seconds, format (an ElevenLabs output_format), loop, prompt_influence and via ('music' or 'effects') override the defaults; 'request' merges extra fields into the API body. Keep loops at or under 12 s and effects short (at least 0.5 s, the sound effects endpoint's minimum): clips.json must stay under 200 KB a game.",
+  "$comment": "Thirty distinct 150-second instrumental scores use ElevenLabs Music only. Masters remain in cache; the generator embeds full-length mono Opus at 8 kbps to meet the platform 256 KiB clips.json bound, preserving existing effects. Music refusals never fall back to the sound-effects model.",
   "defaults": {
-    "music": { "via": "music", "seconds": 12, "format": "mp3_44100_64" },
-    "effects": { "format": "mp3_22050_32", "prompt_influence": 0.45 }
+    "music": {
+      "via": "music",
+      "seconds": 150,
+      "format": "mp3_44100_64"
+    },
+    "effects": {
+      "format": "mp3_22050_32",
+      "prompt_influence": 0.45
+    }
   },
   "games": {
     "balloon-pump": {
-      "music": { "prompt": "Upbeat 8-bit chiptune loop, 150 bpm, square-wave arpeggios, bright NES lead, punchy noise drums, playful and slightly anxious, seamless loop, instrumental" },
-      "crash": { "prompt": "A huge rubber balloon bursting with a sharp pop, then rubber shreds fluttering down, cartoonish", "seconds": 2.5 },
-      "cashout": { "prompt": "Cartoon cash register ka-ching with a short triumphant 8-bit fanfare", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Playful anxious 8-bit chiptune at 150 BPM: springy square-wave melody, bubbly arpeggios, balloon-like pitch bends, rubbery bass and crisp noise-channel drums."
+      },
+      "crash": {
+        "prompt": "A huge rubber balloon bursting with a sharp pop, then rubber shreds fluttering down, cartoonish",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "Cartoon cash register ka-ching with a short triumphant 8-bit fanfare",
+        "seconds": 1.8
+      },
       "effects": {
-        "squeak": { "prompt": "A single short squeak of stretching balloon rubber, cartoonish", "seconds": 0.6 },
-        "yeet": { "prompt": "A slingshot band snapping and a small stone whooshing through the air, short", "seconds": 0.8 }
+        "squeak": {
+          "prompt": "A single short squeak of stretching balloon rubber, cartoonish",
+          "seconds": 0.6
+        },
+        "yeet": {
+          "prompt": "A slingshot band snapping and a small stone whooshing through the air, short",
+          "seconds": 0.8
+        }
       }
     },
     "tower-tension": {
-      "music": { "prompt": "Dark trap beat loop, 140 bpm, deep 808 bass slides, rapid hi-hat rolls, ominous minor piano stabs, tense, seamless loop, instrumental" },
-      "crash": { "prompt": "A tall building collapsing: concrete floors pancaking, rubble crashing down, dust settling, dramatic", "seconds": 3 },
-      "cashout": { "prompt": "Cash register ka-ching followed by a small crowd cheer and a party horn", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Architectural trap at 140 BPM: ominous minor piano, deep 808 glides, metallic construction percussion, ticking hi-hats and rising string counterlines."
+      },
+      "crash": {
+        "prompt": "A tall building collapsing: concrete floors pancaking, rubble crashing down, dust settling, dramatic",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "Cash register ka-ching followed by a small crowd cheer and a party horn",
+        "seconds": 2
+      },
       "effects": {
-        "scream": { "prompt": "A cartoon man screaming as he falls, Doppler fade, comedic", "seconds": 1.2 },
-        "creak": { "prompt": "A steel structure creaking and groaning under strain, short", "seconds": 1 }
+        "scream": {
+          "prompt": "A cartoon man screaming as he falls, Doppler fade, comedic",
+          "seconds": 1.2
+        },
+        "creak": {
+          "prompt": "A steel structure creaking and groaning under strain, short",
+          "seconds": 1
+        }
       }
     },
     "boiler-room": {
-      "music": { "prompt": "Industrial techno loop, 132 bpm, pounding kick, metallic percussion, acid bassline, factory ambience, relentless, seamless loop, instrumental" },
-      "crash": { "prompt": "A steam boiler exploding: a massive metallic blast, pressure release roar, rivets clattering, long hiss of steam", "seconds": 3 },
-      "cashout": { "prompt": "Cash register ka-ching with a short brassy fanfare and coins spilling", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Mechanical industrial techno at 132 BPM: piston-like syncopation, warm acid bass, rivet percussion, chugging kick and steam-like filtered noise with melodic brass stabs."
+      },
+      "crash": {
+        "prompt": "A steam boiler exploding: a massive metallic blast, pressure release roar, rivets clattering, long hiss of steam",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "Cash register ka-ching with a short brassy fanfare and coins spilling",
+        "seconds": 1.8
+      },
       "effects": {
-        "chuff": { "prompt": "A single steam piston chuff, short and puffy", "seconds": 0.5 }
+        "chuff": {
+          "prompt": "A single steam piston chuff, short and puffy",
+          "seconds": 0.5
+        }
       }
     },
     "thin-ice": {
-      "music": { "prompt": "Icy synthwave loop, 108 bpm, gated reverb drums, arpeggiated analog synth, cold pads, sense of dread building, seamless loop, instrumental" },
-      "crash": { "prompt": "A frozen lake shattering: ice cracking and splitting loudly, then a heavy splash into freezing water", "seconds": 3 },
-      "cashout": { "prompt": "Cash register ka-ching and a quick sparkling chime, wintry", "seconds": 1.6 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Glacial synthwave at 108 BPM: glassy arpeggios, cold airy pads, taut plucked bass, gated drums and an elegant skating melody with uneasy harmonic changes."
+      },
+      "crash": {
+        "prompt": "A frozen lake shattering: ice cracking and splitting loudly, then a heavy splash into freezing water",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "Cash register ka-ching and a quick sparkling chime, wintry",
+        "seconds": 1.6
+      },
       "effects": {
-        "creak": { "prompt": "Ice cracking under weight, a sharp crackle spreading, short", "seconds": 0.9 },
-        "splash": { "prompt": "A person plunging into icy water with a big splash", "seconds": 1.5 }
+        "creak": {
+          "prompt": "Ice cracking under weight, a sharp crackle spreading, short",
+          "seconds": 0.9
+        },
+        "splash": {
+          "prompt": "A person plunging into icy water with a big splash",
+          "seconds": 1.5
+        }
       }
     },
     "king-of-the-hill": {
-      "music": { "prompt": "Euphoric eurodance loop, 140 bpm, four-on-the-floor kick, supersaw lead riff, piano stabs, hands-in-the-air energy, seamless loop, instrumental" },
-      "crash": { "prompt": "A giant metal coin rolling downhill and slamming into the ground with a heavy clang and a cartoon splat", "seconds": 2.5 },
-      "cashout": { "prompt": "A sports car engine revving and pulling away with a cash register ka-ching", "seconds": 2.2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Regal comic eurodance at 140 BPM: bright piano stabs, swaggering synth-brass fanfares, pumping bass and an ascending mountain-climb melody."
+      },
+      "crash": {
+        "prompt": "A giant metal coin rolling downhill and slamming into the ground with a heavy clang and a cartoon splat",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "A sports car engine revving and pulling away with a cash register ka-ching",
+        "seconds": 2.2
+      },
       "effects": {
-        "stomp": { "prompt": "A single heavy footstep on gravel, short", "seconds": 0.5 },
-        "engine": { "prompt": "A small propeller plane flying overhead, short pass", "seconds": 2 }
+        "stomp": {
+          "prompt": "A single heavy footstep on gravel, short",
+          "seconds": 0.5
+        },
+        "engine": {
+          "prompt": "A small propeller plane flying overhead, short pass",
+          "seconds": 2
+        }
       }
     },
     "exit-liquidity": {
-      "music": { "prompt": "Sunny pool party eurodance loop, 140 bpm, bouncy bass, bright synth chords, whistles and crowd vibes, seamless loop, instrumental" },
-      "crash": { "prompt": "A swimming pool draining fast: a loud gurgling whirlpool, sucking drain, final glug", "seconds": 3 },
-      "cashout": { "prompt": "Cash register ka-ching with a cocktail glass clink and a satisfied sigh", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Poolside tropical house at 122 BPM: marimba, steel-pan accents, sunny guitar chops, bouncing bass, handclaps and watery filtered synth turns."
+      },
+      "crash": {
+        "prompt": "A swimming pool draining fast: a loud gurgling whirlpool, sucking drain, final glug",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "Cash register ka-ching with a cocktail glass clink and a satisfied sigh",
+        "seconds": 1.8
+      },
       "effects": {
-        "splash": { "prompt": "A cannonball splash into a swimming pool, short", "seconds": 1 },
-        "whoosh": { "prompt": "A helicopter passing overhead quickly, rotor whoosh, short", "seconds": 1.5 }
+        "splash": {
+          "prompt": "A cannonball splash into a swimming pool, short",
+          "seconds": 1
+        },
+        "whoosh": {
+          "prompt": "A helicopter passing overhead quickly, rotor whoosh, short",
+          "seconds": 1.5
+        }
       }
     },
     "blanket-champ": {
-      "music": { "prompt": "Drift phonk loop, 134 bpm, cowbell melody, distorted 808 bass, lo-fi vinyl crackle, half-time swagger, seamless loop, instrumental" },
-      "crash": { "prompt": "A sad trombone wah-wah-wah-waaah, comedic failure sting", "seconds": 2.5 },
-      "cashout": { "prompt": "A cash register ka-ching with a stadium crowd roar and an air horn", "seconds": 2.2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Playful bedroom drift phonk at 134 BPM: cheeky muted cowbell hook, warm distorted bass, bouncing half-time drums, little squeaky synth replies and triumphant stadium brass accents."
+      },
+      "crash": {
+        "prompt": "A sad trombone wah-wah-wah-waaah, comedic failure sting",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "A cash register ka-ching with a stadium crowd roar and an air horn",
+        "seconds": 2.2
+      },
       "effects": {
-        "thud": { "prompt": "A wooden headboard knocking against a wall once, short", "seconds": 0.5 },
-        "siren": { "prompt": "A fire engine siren approaching, short", "seconds": 2 }
+        "thud": {
+          "prompt": "A wooden headboard knocking against a wall once, short",
+          "seconds": 0.5
+        },
+        "siren": {
+          "prompt": "A fire engine siren approaching, short",
+          "seconds": 2
+        }
       }
     },
     "gas-fees": {
-      "music": { "prompt": "Cheesy elevator muzak loop, 96 bpm, bossa nova rhythm, smooth electric piano, soft strings, vibraphone, bland and pleasant, seamless loop, instrumental" },
-      "crash": { "prompt": "A long comedic fart followed by a sad trombone wah-wah", "seconds": 2.5 },
-      "cashout": { "prompt": "An elevator ding, doors sliding open, and a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Comically polite elevator bossa nova at 96 BPM: vibraphone, smooth electric piano, upright bass, brushed snare and suave flute; gradually twist the harmony into harmless unease."
+      },
+      "crash": {
+        "prompt": "A long comedic fart followed by a sad trombone wah-wah",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "An elevator ding, doors sliding open, and a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "bell": { "prompt": "A single elevator arrival ding, clean", "seconds": 0.8 },
-        "creak": { "prompt": "An elevator cable straining and creaking, short", "seconds": 1 }
+        "bell": {
+          "prompt": "A single elevator arrival ding, clean",
+          "seconds": 0.8
+        },
+        "creak": {
+          "prompt": "An elevator cable straining and creaking, short",
+          "seconds": 1
+        }
       }
     },
     "onlyfrens": {
-      "music": { "prompt": "Dreamy synthwave loop, 108 bpm, soft arpeggios, lush pads, gated snare, neon late-night mood, seamless loop, instrumental" },
-      "crash": { "prompt": "A livestream cutting to harsh television static with a digital glitch and a sudden silence", "seconds": 2 },
-      "cashout": { "prompt": "A notification chime and a cash register ka-ching, short", "seconds": 1.4 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Glossy late-night neon pop instrumental at 108 BPM: soft arpeggios, glittering plucks, plush synth chords, gated snare and flirtatious question-answer melody."
+      },
+      "crash": {
+        "prompt": "A livestream cutting to harsh television static with a digital glitch and a sudden silence",
+        "seconds": 2
+      },
+      "cashout": {
+        "prompt": "A notification chime and a cash register ka-ching, short",
+        "seconds": 1.4
+      },
       "effects": {
-        "notify": { "prompt": "A cheerful streaming donation notification chime, short", "seconds": 0.7 },
-        "door": { "prompt": "A bedroom door opening with a creak, short", "seconds": 1 }
+        "notify": {
+          "prompt": "A cheerful streaming donation notification chime, short",
+          "seconds": 0.7
+        },
+        "door": {
+          "prompt": "A bedroom door opening with a creak, short",
+          "seconds": 1
+        }
       }
     },
     "pump-and-dump": {
-      "music": { "prompt": "Hardstyle gym loop, 150 bpm, distorted reverse-bass kick, screeching lead, hype build, seamless loop, instrumental" },
-      "crash": { "prompt": "A loaded barbell dropped onto a rack and the floor with a huge metallic slam, weight plates clanging and rolling", "seconds": 3 },
-      "cashout": { "prompt": "A barbell racked with a clang, chalk clapped, and a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Energetic melodic gym hardstyle at 150 BPM: heavy reverse-bass kick, bold minor-key lead, clanging metallic fills and uplifting chord lifts."
+      },
+      "crash": {
+        "prompt": "A loaded barbell dropped onto a rack and the floor with a huge metallic slam, weight plates clanging and rolling",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A barbell racked with a clang, chalk clapped, and a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "clang": { "prompt": "A weight plate sliding onto a barbell with a metallic clink, short", "seconds": 0.7 },
-        "chuff": { "prompt": "A strained exhale from a man lifting heavy weight, short", "seconds": 0.6 }
+        "clang": {
+          "prompt": "A weight plate sliding onto a barbell with a metallic clink, short",
+          "seconds": 0.7
+        },
+        "chuff": {
+          "prompt": "A strained exhale from a man lifting heavy weight, short",
+          "seconds": 0.6
+        }
       }
     },
     "bonding-curl": {
-      "music": { "prompt": "Aggressive phonk loop, 134 bpm, cowbell riff, crunchy 808s, gym motivation energy, seamless loop, instrumental" },
-      "crash": { "prompt": "A wet cartoon pop and a puff of powder, then a dumbbell thudding through a floor", "seconds": 2.5 },
-      "cashout": { "prompt": "A dumbbell dropped with a floor crack, a smooch, and a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Muscular rhythmic phonk at 134 BPM: focused cowbell hook, gritty elastic 808 bass, stomping drums and flexing brass synth answers."
+      },
+      "crash": {
+        "prompt": "A wet cartoon pop and a puff of powder, then a dumbbell thudding through a floor",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "A dumbbell dropped with a floor crack, a smooch, and a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "creak": { "prompt": "Rubber stretching and creaking, like a balloon or a tight sleeve, short", "seconds": 0.7 },
-        "siren": { "prompt": "An ambulance siren approaching, short", "seconds": 2 }
+        "creak": {
+          "prompt": "Rubber stretching and creaking, like a balloon or a tight sleeve, short",
+          "seconds": 0.7
+        },
+        "siren": {
+          "prompt": "An ambulance siren approaching, short",
+          "seconds": 2
+        }
       }
     },
     "wife-changing-money": {
-      "music": { "prompt": "Late-night lo-fi hip hop loop, 82 bpm, dusty drums, warm Rhodes chords, vinyl crackle, fridge-hum melancholy, seamless loop, instrumental" },
-      "crash": { "prompt": "A door slamming hard, a ring dropped on a wooden table, then silence with a faint dog whine", "seconds": 3 },
-      "cashout": { "prompt": "A laptop lid closing softly and a quiet cash register ka-ching, sneaky", "seconds": 1.6 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Tense 3 AM kitchen lo-fi at 82 BPM: intimate felt piano, warm Rhodes, muted jazz bass, soft dusty drums and clock-like percussion, bittersweet anxious harmony."
+      },
+      "crash": {
+        "prompt": "A door slamming hard, a ring dropped on a wooden table, then silence with a faint dog whine",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A laptop lid closing softly and a quiet cash register ka-ching, sneaky",
+        "seconds": 1.6
+      },
       "effects": {
-        "notify": { "prompt": "A phone text message buzz on a wooden table, short", "seconds": 0.7 },
-        "stomp": { "prompt": "A single footstep thumping on the ceiling above, muffled, short", "seconds": 0.6 }
+        "notify": {
+          "prompt": "A phone text message buzz on a wooden table, short",
+          "seconds": 0.7
+        },
+        "stomp": {
+          "prompt": "A single footstep thumping on the ceiling above, muffled, short",
+          "seconds": 0.6
+        }
       }
     },
     "not-financial-advice": {
-      "music": { "prompt": "Flashy trap loop, 140 bpm, hi-hat rolls, brassy synth stabs, 808 bass, influencer hype video energy, seamless loop, instrumental" },
-      "crash": { "prompt": "A vinyl record scratch stop followed by a truck reversing beep and a tow winch", "seconds": 3 },
-      "cashout": { "prompt": "A camera shutter click and a cash register ka-ching, short", "seconds": 1.4 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Flashy fake-finance TV trap at 140 BPM: cocky pizzicato strings, synthetic brass, 808 bass, glossy news-jingle fragments and increasingly unstable chromatic chords."
+      },
+      "crash": {
+        "prompt": "A vinyl record scratch stop followed by a truck reversing beep and a tow winch",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A camera shutter click and a cash register ka-ching, short",
+        "seconds": 1.4
+      },
       "effects": {
-        "kaching": { "prompt": "A quick cash register ka-ching, short", "seconds": 0.8 },
-        "camera": { "prompt": "A phone camera screenshot shutter click, short", "seconds": 0.5 }
+        "kaching": {
+          "prompt": "A quick cash register ka-ching, short",
+          "seconds": 0.8
+        },
+        "camera": {
+          "prompt": "A phone camera screenshot shutter click, short",
+          "seconds": 0.5
+        }
       }
     },
     "honeypot": {
-      "music": { "prompt": "Sweet bouncy eurodance loop, 140 bpm, plucky synth, bubbly bass, summer picnic vibe with a buzzing undertone, seamless loop, instrumental" },
-      "crash": { "prompt": "A jar lid screwed shut with a squeak and a click, then an angry bee swarm rising and a sad trombone", "seconds": 3 },
-      "cashout": { "prompt": "A sticky paw pulling free with a slurp, a pop, and a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Honey-sweet electro swing at 118 BPM: plucked upright bass, jaunty clarinet-like synth, buzzing saw accents, brushed breaks and sticky syncopated piano."
+      },
+      "crash": {
+        "prompt": "A jar lid screwed shut with a squeak and a click, then an angry bee swarm rising and a sad trombone",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A sticky paw pulling free with a slurp, a pop, and a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "buzz": { "prompt": "A swarm of bees buzzing, short swell", "seconds": 1.2 },
-        "glug": { "prompt": "Thick honey pouring with a glug, short", "seconds": 0.9 }
+        "buzz": {
+          "prompt": "A swarm of bees buzzing, short swell",
+          "seconds": 1.2
+        },
+        "glug": {
+          "prompt": "Thick honey pouring with a glug, short",
+          "seconds": 0.9
+        }
       }
     },
     "insider-wallets": {
-      "music": { "prompt": "Patriotic casino big-band loop, 124 bpm, swing drums, brass fanfare riff, upright bass, campaign rally showmanship, seamless loop, instrumental" },
-      "crash": { "prompt": "A crowd gasping then booing loudly while a helicopter takes off, dramatic", "seconds": 3 },
-      "cashout": { "prompt": "A cash register ka-ching and a door closing as someone slips out, short", "seconds": 1.6 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Polished casino heist jazz funk at 112 BPM: walking electric bass, crisp drums, sly muted trumpet, vibraphone and mischievous organ chords."
+      },
+      "crash": {
+        "prompt": "A crowd gasping then booing loudly while a helicopter takes off, dramatic",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A cash register ka-ching and a door closing as someone slips out, short",
+        "seconds": 1.6
+      },
       "effects": {
-        "cheer": { "prompt": "A confetti cannon popping and a crowd cheering, short", "seconds": 1.5 },
-        "camera": { "prompt": "A burst of press camera shutters and flashes, short", "seconds": 0.8 }
+        "cheer": {
+          "prompt": "A confetti cannon popping and a crowd cheering, short",
+          "seconds": 1.5
+        },
+        "camera": {
+          "prompt": "A burst of press camera shutters and flashes, short",
+          "seconds": 0.8
+        }
       }
     },
     "the-trenches": {
-      "music": { "prompt": "Military march loop, 116 bpm, snare drum rolls, bugle melody, fife, boots marching, stirring and slightly absurd, seamless loop, instrumental" },
-      "crash": { "prompt": "A nuclear explosion: a colossal blast, shockwave roar, debris raining down, long rumble", "seconds": 3.5 },
-      "cashout": { "prompt": "A helmet clanging, a match striking a cigar, and a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Dark comic military breakbeat at 120 BPM: marching snare, muted bugle phrases, low synth bass, field-radio texture and determined rhythmic strings."
+      },
+      "crash": {
+        "prompt": "A nuclear explosion: a colossal blast, shockwave roar, debris raining down, long rumble",
+        "seconds": 3.5
+      },
+      "cashout": {
+        "prompt": "A helmet clanging, a match striking a cigar, and a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "whistle": { "prompt": "A military officer's whistle blowing sharply, short", "seconds": 0.8 },
-        "phone": { "prompt": "An old field telephone ringing, two rings", "seconds": 1.5 }
+        "whistle": {
+          "prompt": "A military officer's whistle blowing sharply, short",
+          "seconds": 0.8
+        },
+        "phone": {
+          "prompt": "An old field telephone ringing, two rings",
+          "seconds": 1.5
+        }
       }
     },
     "hopium-drip": {
-      "music": { "prompt": "Eerie hospital ambient loop, 72 bpm, soft piano notes, heart monitor beeps in rhythm, air conditioner hum, uneasy calm, seamless loop, instrumental" },
-      "crash": { "prompt": "A heart monitor flatline: one beep then a continuous long tone, clinical and cold", "seconds": 4 },
-      "cashout": { "prompt": "A hospital discharge bell, a balloon squeak, and a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Hopeful uneasy hospital ambient pulse at 92 BPM: soft heartbeat kick, delicate bell tones, breathing pads, minimal piano and gradually fuller arpeggiated bass."
+      },
+      "crash": {
+        "prompt": "A heart monitor flatline: one beep then a continuous long tone, clinical and cold",
+        "seconds": 4
+      },
+      "cashout": {
+        "prompt": "A hospital discharge bell, a balloon squeak, and a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "heartbeat": { "prompt": "A single heartbeat thump, lub-dub, short", "seconds": 0.6 },
-        "zap": { "prompt": "A defibrillator charging whine and a shock zap", "seconds": 1.5 }
+        "heartbeat": {
+          "prompt": "A single heartbeat thump, lub-dub, short",
+          "seconds": 0.6
+        },
+        "zap": {
+          "prompt": "A defibrillator charging whine and a shock zap",
+          "seconds": 1.5
+        }
       }
     },
     "i-got-hacked": {
-      "music": { "prompt": "Luxury trap loop, 140 bpm, lush pads, plucked harp, 808s, champagne-and-yacht mood, seamless loop, instrumental" },
-      "crash": { "prompt": "A sad trombone wah-wah while a yacht horn blows and an engine pulls away", "seconds": 3 },
-      "cashout": { "prompt": "A towel snap, a sports car door closing, and a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Luxury balcony party trap at 138 BPM: sparkling electric piano, suspicious minor-key flute, rolling hats, confident bass and wry yacht-lounge guitar."
+      },
+      "crash": {
+        "prompt": "A sad trombone wah-wah while a yacht horn blows and an engine pulls away",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A towel snap, a sports car door closing, and a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "pop": { "prompt": "A champagne cork popping with fizz, short", "seconds": 0.8 },
-        "camera": { "prompt": "A drone camera whirring and a shutter click, short", "seconds": 0.9 }
+        "pop": {
+          "prompt": "A champagne cork popping with fizz, short",
+          "seconds": 0.8
+        },
+        "camera": {
+          "prompt": "A drone camera whirring and a shutter click, short",
+          "seconds": 0.9
+        }
       }
     },
     "wen-binance": {
-      "music": { "prompt": "Big-room club loop, 128 bpm, sidechained bass, muffled as if heard through a nightclub door, kick thumping, seamless loop, instrumental" },
-      "crash": { "prompt": "A vinyl record scratch stop, then doors bursting open and a crowd rushing out with a boo", "seconds": 3 },
-      "cashout": { "prompt": "A taxi door closing, a quick engine pull-away, and a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Queue-outside-the-club electro house at 128 BPM: distant bass becoming clear, crisp four-on-the-floor, neon organ stabs, playful ticket-like percussion and a big original synth hook."
+      },
+      "crash": {
+        "prompt": "A vinyl record scratch stop, then doors bursting open and a crowd rushing out with a boo",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A taxi door closing, a quick engine pull-away, and a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "door": { "prompt": "A heavy nightclub door opening with a burst of music and closing, short", "seconds": 1.2 },
-        "clang": { "prompt": "A metal marquee letter falling and clanging on the pavement, short", "seconds": 0.8 }
+        "door": {
+          "prompt": "A heavy nightclub door opening with a burst of music and closing, short",
+          "seconds": 1.2
+        },
+        "clang": {
+          "prompt": "A metal marquee letter falling and clanging on the pavement, short",
+          "seconds": 0.8
+        }
       }
     },
     "seed-round": {
-      "music": { "prompt": "Liquid drum and bass loop, 172 bpm, rolling breakbeats, deep reese bass, watery pads, racing forward, seamless loop, instrumental" },
-      "crash": { "prompt": "A wet rubbery impact, a huge splash and a suction whoosh, then a bin toppling and a rug yanked", "seconds": 3.5 },
-      "cashout": { "prompt": "A sci-fi portal zap and a glass vial sealing, then a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Liquid drum and bass at 172 BPM: rippling marimba arpeggios, deep rounded reese bass, aquatic pads and nimble rolling breakbeats for a neon microscopic tunnel race."
+      },
+      "crash": {
+        "prompt": "A wet rubbery impact, a huge splash and a suction whoosh, then a bin toppling and a rug yanked",
+        "seconds": 3.5
+      },
+      "cashout": {
+        "prompt": "A sci-fi portal zap and a glass vial sealing, then a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "bubble": { "prompt": "A single underwater bubble blip, short", "seconds": 0.5 },
-        "siren": { "prompt": "A police siren whoop, short", "seconds": 1 }
+        "bubble": {
+          "prompt": "A single underwater bubble blip, short",
+          "seconds": 0.5
+        },
+        "siren": {
+          "prompt": "A police siren whoop, short",
+          "seconds": 1
+        }
       }
     },
     "moon-boys": {
-      "music": { "prompt": "Synthwave loop, 116 bpm, arpeggiated analog synths, gated reverb snare, soaring lead, a rocket climbing into a neon sky, seamless loop, instrumental" },
-      "crash": { "prompt": "A steel cable twanging and snapping, a sad trombone wah-wah, then a film clapperboard clap and a plywood board toppling onto a floor", "seconds": 3.5 },
-      "cashout": { "prompt": "A parachute snapping open with a whoosh of wind, then a cash register ka-ching", "seconds": 1.8 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Comic cinematic space synthwave at 116 BPM: soaring analog lead, broad warm pads, rocket-like bass pulse, glittering orbital arpeggios and hints of theatrical pizzicato."
+      },
+      "crash": {
+        "prompt": "A steel cable twanging and snapping, a sad trombone wah-wah, then a film clapperboard clap and a plywood board toppling onto a floor",
+        "seconds": 3.5
+      },
+      "cashout": {
+        "prompt": "A parachute snapping open with a whoosh of wind, then a cash register ka-ching",
+        "seconds": 1.8
+      },
       "effects": {
-        "creak": { "prompt": "A thin steel wire creaking under tension, short", "seconds": 0.8 },
-        "squeak": { "prompt": "A rubber glove squeaking against painted plywood, short, cartoonish", "seconds": 0.7 }
+        "creak": {
+          "prompt": "A thin steel wire creaking under tension, short",
+          "seconds": 0.8
+        },
+        "squeak": {
+          "prompt": "A rubber glove squeaking against painted plywood, short, cartoonish",
+          "seconds": 0.7
+        }
       }
     },
     "rug-rails": {
-      "music": { "prompt": "Fast drum and bass loop, 170 bpm, chopped breakbeats, rolling reese bass, neon arcade synth stabs, endless-runner urgency, seamless loop, instrumental" },
-      "crash": { "prompt": "A giant carpet yanked away with a whoosh, a cartoon character screaming while falling, then a deep boom and silence", "seconds": 3 },
-      "cashout": { "prompt": "A hoverboard powering up with a rising hum and a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Arcade rooftop drum and bass at 168 BPM: nimble breakbeats, rubbery bass, bright parkour plucks, quick call-and-response leads and train-track percussion."
+      },
+      "crash": {
+        "prompt": "A giant carpet yanked away with a whoosh, a cartoon character screaming while falling, then a deep boom and silence",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A hoverboard powering up with a rising hum and a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "coin": { "prompt": "A single bright arcade coin pickup chime, very short", "seconds": 0.5 },
-        "siren": { "prompt": "A short police siren whoop, cartoonish", "seconds": 1.2 }
+        "coin": {
+          "prompt": "A single bright arcade coin pickup chime, very short",
+          "seconds": 0.5
+        },
+        "siren": {
+          "prompt": "A short police siren whoop, cartoonish",
+          "seconds": 1.2
+        }
       }
     },
     "up-only": {
-      "music": { "prompt": "Bright 8-bit chiptune loop, 150 bpm, square-wave arpeggios, bouncy bass, playful arcade flying-game energy, seamless loop, instrumental" },
-      "crash": { "prompt": "A sad trombone wah-wah-wah-waaah, then a cartoon character falling with a whistle and a distant thud", "seconds": 3 },
-      "cashout": { "prompt": "A small private jet engine spooling up and whooshing past, with a cash register ka-ching", "seconds": 2.2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Airborne arcade chiptune at 150 BPM: joyful square-wave melody, bouncing triangle bass, sparkling coin arpeggios and agile noise drums with clear rhythmic gaps."
+      },
+      "crash": {
+        "prompt": "A sad trombone wah-wah-wah-waaah, then a cartoon character falling with a whistle and a distant thud",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A small private jet engine spooling up and whooshing past, with a cash register ka-ching",
+        "seconds": 2.2
+      },
       "effects": {
-        "whoosh": { "prompt": "A single small wing flap, a quick feathery whoosh, very short", "seconds": 0.5 },
-        "zap": { "prompt": "A cartoon lightning strike, a sharp crackling zap, short", "seconds": 0.9 }
+        "whoosh": {
+          "prompt": "A single small wing flap, a quick feathery whoosh, very short",
+          "seconds": 0.5
+        },
+        "zap": {
+          "prompt": "A cartoon lightning strike, a sharp crackling zap, short",
+          "seconds": 0.9
+        }
       }
     },
     "family-meeting": {
-      "music": { "prompt": "Gentle suburban dinner muzak loop, 96 bpm, soft electric organ chords, brushed hi-hats, a polite vibraphone melody, church-basement warmth, bland and pleasant, seamless loop, instrumental" },
-      "crash": { "prompt": "Two cartoon heads popping like balloons in quick succession with a wet splat, then a wooden cross clattering onto a ceramic dish", "seconds": 2.5 },
-      "cashout": { "prompt": "A kitchen chair scraping back on linoleum, quick footsteps, a bedroom door closing, and a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Awkward suburban dinner chamber funk at 100 BPM: dry pizzicato strings, muted bassoon-like synth, ticking percussion, warm piano and increasingly frantic polite melodic exchanges."
+      },
+      "crash": {
+        "prompt": "Two cartoon heads popping like balloons in quick succession with a wet splat, then a wooden cross clattering onto a ceramic dish",
+        "seconds": 2.5
+      },
+      "cashout": {
+        "prompt": "A kitchen chair scraping back on linoleum, quick footsteps, a bedroom door closing, and a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "whistle": { "prompt": "A stovetop kettle coming to a boil and whistling, short", "seconds": 1.2 },
-        "gasp": { "prompt": "A middle-aged woman gasping in shock, short, clutching pearls", "seconds": 0.8 }
+        "whistle": {
+          "prompt": "A stovetop kettle coming to a boil and whistling, short",
+          "seconds": 1.2
+        },
+        "gasp": {
+          "prompt": "A middle-aged woman gasping in shock, short, clutching pearls",
+          "seconds": 0.8
+        }
       }
     },
     "thanksgiving-uncle": {
-      "music": { "prompt": "Warm dinner-party lo-fi loop, 82 bpm, dusty drums, Rhodes chords, upright bass, a public-radio jazz feel, cosy and slightly strained, seamless loop, instrumental" },
-      "crash": { "prompt": "A pickup truck crashing through a house wall: engine roar, drywall and glass bursting, a wooden table splintering, then a car horn stuck on", "seconds": 3 },
-      "cashout": { "prompt": "An old woman's cane banging a table twice, a hush, and a small church bell with a cash register ka-ching", "seconds": 2 },
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Wry Thanksgiving back-porch instrumental at 94 BPM: fingerpicked acoustic guitar, upright bass, brushed drums, comic clarinet replies, soft organ and warm family-dinner harmonies."
+      },
+      "crash": {
+        "prompt": "A pickup truck crashing through a house wall: engine roar, drywall and glass bursting, a wooden table splintering, then a car horn stuck on",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "An old woman's cane banging a table twice, a hush, and a small church bell with a cash register ka-ching",
+        "seconds": 2
+      },
       "effects": {
-        "engine": { "prompt": "A lifted pickup truck revving its engine hard, close, short", "seconds": 1.2 },
-        "squeak": { "prompt": "A single excited dog bark, medium-sized dog, short", "seconds": 0.6 }
+        "engine": {
+          "prompt": "A lifted pickup truck revving its engine hard, close, short",
+          "seconds": 1.2
+        },
+        "squeak": {
+          "prompt": "A single excited dog bark, medium-sized dog, short",
+          "seconds": 0.6
+        }
+      }
+    },
+    "andys-loud-garden": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Sunny psychedelic garden dub at 88 BPM: offbeat muted guitar, warm electric piano, elastic bass, brushed shaker, tape-echo flute and delicate plant-like rising arpeggios."
+      }
+    },
+    "liquidation-lane": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Night-highway racing phonk at 132 BPM: driving cowbell motif, clean aggressive bass, tight snare, dark synth pads and overtaking arpeggios."
+      }
+    },
+    "wen-moon": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Optimistic retro rocket synthwave at 110 BPM: ascending arpeggios, glowing analog chords, driving bass, punchy gated drums and a memorable hopeful space melody."
+      }
+    },
+    "bull-run": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Comic rodeo electro-funk at 126 BPM: twangy guitar licks, springy slap bass, stomping handclaps, playful harmonica-like synth and bucking syncopation."
+      }
+    },
+    "pyramid-scheme": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Lavish comic sales-convention lounge at 114 BPM: piano, muted brass, plucked bass, crisp swing drums, climbing chord inversions and sly musical winks."
       }
     }
   }

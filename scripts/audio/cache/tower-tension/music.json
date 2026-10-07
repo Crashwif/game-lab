@@ -1,7 +1,9 @@
 {
-  "fingerprint": "0a3b129a6e26b987",
+  "fingerprint": "b36b0959b3da309a",
+  "endpoint": "/v1/music",
   "format": "mp3_44100_64",
-  "bytes": 96175,
-  "prompt": "Dark trap beat loop, 140 bpm, deep 808 bass slides, rapid hi-hat rolls, ominous minor piano stabs, tense, seamless loop, instrumental",
-  "at": "2026-09-28T12:57:22.998Z"
+  "bytes": 1199587,
+  "seconds": 150,
+  "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Architectural trap at 140 BPM: ominous minor piano, deep 808 glides, metallic construction percussion, ticking hi-hats and rising string counterlines.",
+  "at": "2026-10-07T09:03:47.817Z"
 }

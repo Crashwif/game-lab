@@ -1,7 +1,9 @@
 {
-  "fingerprint": "0d74fa2bd41d6512",
+  "fingerprint": "d825f94beaca427a",
+  "endpoint": "/v1/music",
   "format": "mp3_44100_64",
-  "bytes": 96175,
-  "prompt": "Big-room club loop, 128 bpm, sidechained bass, muffled as if heard through a nightclub door, kick thumping, seamless loop, instrumental",
-  "at": "2026-09-28T13:01:25.221Z"
+  "bytes": 1199587,
+  "seconds": 150,
+  "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Queue-outside-the-club electro house at 128 BPM: distant bass becoming clear, crisp four-on-the-floor, neon organ stabs, playful ticket-like percussion and a big original synth hook.",
+  "at": "2026-10-07T09:13:29.042Z"
 }
