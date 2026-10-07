@@ -4,7 +4,7 @@
  * frame time, and nothing drawn here changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type Club, DOOR, H, INK, W, armClub, callTaxi, crashClub, createClub, drawClubBack, drawClubFront, resetClub, settleClub, stepClub, waveSuit } from './club';
+import { type Club, DOOR, H, INK, W, armClub, callTaxi, crashClub, createClub, drawClubBack, drawLateCheckpoint, drawClubFront, resetClub, settleClub, stepClub, waveSuit } from './club';
 import { clamp, spring, stepSpring } from './motion';
 import { type Queue, SUITS, createQueue, drawQueue, leaveQueue, panicQueue, resetQueue, settleQueue, stepQueue } from './queue';
 
@@ -130,6 +130,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = clamp(growth / 3.5, 0, 1);
@@ -241,6 +242,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
     drawClubBack(ctx, club, tension, reduced);
+    if (running && !outcome) drawLateCheckpoint(ctx, view.elapsed / 1000, reduced);
     drawQueue(ctx, queue, tension, outcome !== null, outcome === 'called', club.taxiX.x);
     drawClubFront(ctx, club, reduced);
     if (outcome && pop.x > 0.02 && club.crashAge > 0.4) {

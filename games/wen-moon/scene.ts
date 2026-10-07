@@ -96,7 +96,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
   /** The pod leaves the nose; `quiet` puts it far below already, for a cash-out met late. */
   function eject(quiet: boolean): void {
-    pod = quiet ? { x: -80, h: alt - 900, vx: 0, vy: -55, chute: spring(1), age: 9 } : { x: 0, h: alt + 190, vx: -90, vy: 260, chute: spring(0), age: 0 };
+    pod = quiet ? { x: -80, h: alt - 900, vx: 0, vy: -55, chute: spring(1), age: 9 } : { x: 0, h: alt + 190, vx: -170, vy: 60, chute: spring(0), age: 0 };
     if (!quiet) {
       audio.cashout();
       audio.fx('pop', 1.2);
@@ -135,6 +135,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * 0.3;
     }
     time += dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = 1 - Math.exp(-growth / 2.2);
@@ -221,7 +222,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (fire < 0) {
       ctx.save();
       ctx.translate(PAD_X, cam.y);
-      drawRocket(ctx, { booster, piloted: pod === null, frog, flame: running ? 30 + 130 * tension : 0, flicker: reduced ? 0 : noise(Math.floor(time * 40)), wobble: reduced ? 0 : Math.sin(time * 3) * 0.03 * tension });
+      drawRocket(ctx, { booster, piloted: pod === null, frog, flame: running ? 30 + 130 * tension : 0, flicker: reduced ? 0 : noise(Math.floor(time * 40)), wobble: reduced ? 0 : Math.sin(time * 3) * 0.03 * tension + (view.elapsed > 45000 ? Math.sin(time * Math.PI / 9) * 0.07 : 0) });
       ctx.restore();
     } else if (fire < 2) {
       // The fireball blooms and fades.
@@ -234,7 +235,11 @@ export function createScene(options: SceneOptions = {}): Scene {
       disc(ctx, PAD_X, cam.y - 110, r, glow);
     }
     drawPieces(ctx, pieces);
-    if (pod) drawPod(ctx, pod, screenY(pod.h), frog, time);
+    if (pod) {
+      // Keep the entire canopy and pilot in the safe area during the accepted exit.
+      const framedY = pod.age < 3.5 ? Math.max(230, screenY(pod.h)) : screenY(pod.h);
+      drawPod(ctx, pod, framedY, frog, time);
+    }
     if (fire >= 0 && fire < 0.3) {
       ctx.fillStyle = `rgba(255, 255, 255, ${(0.3 - fire) * (reduced ? 0.8 : 2.5)})`;
       ctx.fillRect(0, 0, 960, 540);

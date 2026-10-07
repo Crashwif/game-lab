@@ -26,6 +26,8 @@ export interface PumperDrive {
   /** The round is running: the handle works at `rate` strokes per second. */
   pumping: boolean;
   rate: number;
+  /** Hands slide inward along the handle during the recovery act. */
+  regrip?: number;
   /** 0..1 dread, following the multiplier. */
   fear: number;
   /** Knocked over by the burst. */
@@ -179,8 +181,8 @@ function computePose(rig: PumperRig, drive: PumperDrive): Pose {
   const shoulder = { x: hip.x + Math.sin(torsoAngle) * 108, y: hip.y - Math.cos(torsoAngle) * 108 };
   const handleY = PUMP.handleTop + c * PUMP.travel;
   const release = smoothstep(0, 0.5, fall);
-  const backHand = lerpPoint({ x: PUMP.x - 14, y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
-  const frontHand = lerpPoint({ x: PUMP.x + 14, y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
+  const backHand = lerpPoint({ x: PUMP.x - 14 + 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
+  const frontHand = lerpPoint({ x: PUMP.x + 14 - 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
   const backFoot = lerpPoint({ x: 160, y: 426 }, { x: 262, y: 430 }, fall);
   const frontFoot = lerpPoint({ x: 306, y: 423 }, { x: 296, y: 424 }, fall);
   const headRot = torsoAngle + headAngle;

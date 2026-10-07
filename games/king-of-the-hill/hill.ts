@@ -144,7 +144,10 @@ function drawSigns(ctx: CanvasRenderingContext2D, cam: Camera): void {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  for (const [i, sign] of SIGNS.entries()) {
+  const markers = [['CROSSWIND', 'BRACE'], ['REST STOP', 'KEEP PUSHING'], ['LOOSE ROCK', 'MIND YOUR FEET'], ['NEXT SUMMIT', 'STILL AHEAD']];
+  const first = Math.max(6, Math.floor((cam.x - 650) / 620));
+  const signs = [...SIGNS, ...Array.from({ length: 4 }, (_, i) => ({ x: (first + i) * 620, lines: markers[(first + i) % markers.length]! }))];
+  for (const [i, sign] of signs.entries()) {
     const w = Math.ceil(Math.max(...sign.lines.map((line) => ctx.measureText(line).width))) + 18;
     const h = 48;
     const p = toScreen(cam, { x: sign.x, y: heightAt(sign.x) });

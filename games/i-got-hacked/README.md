@@ -13,3 +13,9 @@ A washed celebrity launches a coin from a mansion balcony. A fictional star in a
 Fans, followers, the yacht, the whispers, the drone's flashes and the draft post all follow the displayed multiplier; nothing in the presentation changes the committed outcome. `prefers-reduced-motion` turns off the shake, the phone's punch, the full-screen flashes (the drone's and the green of an exit), the party bounce and the particles.
 
 Run `npm run dev` from the repository root and open the I Got Hacked URL it prints. Join with 50 local credits, then cash out during a running round to leave the party. `npm run build` produces the three publishable files in `dist/i-got-hacked/`.
+
+## Visual direction and small screens
+
+The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
+
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.

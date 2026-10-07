@@ -565,6 +565,7 @@ function drawTaxi(ctx: CanvasRenderingContext2D, x: number, time: number, moving
 
 /** The building, the marquee, the doors and what is behind them, the bouncer. */
 export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: number, reduced: boolean): void {
+
   const thump = clamp(c.thump.x, 0, 1);
   // Night sky and the brick front.
   const sky = ctx.createLinearGradient(0, 0, 0, 220);
@@ -896,4 +897,19 @@ export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club, reduced: b
   drawScalper(ctx, c);
   if (c.taxi || c.taxiX.x < W + 200) drawTaxi(ctx, c.taxiX.x, c.time, Math.abs(c.taxiX.v) > 8);
   if (c.strobe > 0 && !reduced && Math.floor(c.time * 18) % 2 === 0) { ctx.fillStyle = `rgba(255,255,255,${0.35 * c.strobe})`; ctx.fillRect(0, 0, W, H); }
+}
+
+/** Repeated admission checks provide anticipation and relief after the original suit waves. */
+export function drawLateCheckpoint(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean): void {
+  if (seconds < 45) return;
+  const phase = (seconds - 45) % 18 / 18;
+  const open = reduced ? 0.35 : Math.pow(Math.max(0, Math.sin(phase * Math.PI * 2)), 2);
+  ctx.save(); ctx.translate(DOOR.x - 46, DOOR.y + DOOR.h - 34);
+  ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-92 * (1 - open), -72 * open); ctx.stroke();
+  ctx.fillStyle = '#f7f4ea'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-138, -132 - open * 12, 132, 42, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#8a2545'; ctx.font = '900 17px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(phase < 0.5 ? 'CHECKING LIST' : 'CHECK AGAIN', -72, -106 - open * 12, 122);
+  ctx.restore();
 }

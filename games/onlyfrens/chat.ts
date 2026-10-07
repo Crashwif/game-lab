@@ -47,7 +47,7 @@ const goalAt = (index: number): number => GOALS[index] ?? GOALS[GOALS.length - 1
 /** What the queen posts as each goal is reached; the last is for the final goal, when the reveal is due any second. */
 const QUEEN_POSTS = ['one more milestone frens <3', 'ur all so generous omg', 'my bf... i mean my brother says hi', 'almost there babes', 'one more and the hoodie comes off', 'ok ok the reveal is SO close', 'ok ok reveal any second frens <3'];
 /** The top tier of the pinned tip menu at each goal reached: dumber and dearer every time. */
-const TIP_MENU: [string, string][] = [
+export const TIP_MENU: [string, string][] = [
   ['SAYS GM', '1 SOL'], ['SAYS UR NAME', '5 SOL'], ['HOODIE STRING PULL', '69 SOL'], ['BLINKS TWICE', '420 SOL'], ['UNMUTES MIC', '1,000 SOL'],
   ['REVEALS DOG NAME', '4,200 SOL'], ['HOODIE STAYS ON', '69,000 SOL'], ['SAYS GN', '1 KIDNEY'], ['REMEMBERS U', 'UR HOUSE'], ['ACKNOWLEDGES U', 'NOT FOR SALE'],
 ];

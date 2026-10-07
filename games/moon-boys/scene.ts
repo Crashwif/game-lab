@@ -11,7 +11,7 @@ import { drawFallback } from './fallback';
 import { H, type Label, W, drawLabels, drawPanel, drawVignette, grouped, memeText, moonKm } from './hud';
 import { type Vec3, add, cross, lerp3, lookAt, madd, mat4, normalize, perspective, rotateAbout, sub } from './math3d';
 import { clamp, mulberry32, settleSpring, spring, stepSpring } from './motion';
-import { WAVES, aboard, bailYou, createRocket, drawRocket, headline, killRocket, resetRocket, rocketFrame, settleRocket, stepRocket, toWorld } from './rocket';
+import { WAVES, cameraCentre, aboard, bailYou, createRocket, drawRocket, headline, killRocket, resetRocket, settleRocket, stepRocket } from './rocket';
 import { Renderer } from './render';
 import { pageSound } from './sound';
 import { type Camera, FLAT_AT, createWorld, drawCameraGags, drawGround, drawMoon, drawWires, flightEnvironment, moonPlacement, resetWorld, settleWorld, snapWires, spaceness, stepWorld } from './world';
@@ -216,13 +216,14 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // The camera: an orbit round the rocket on the pad while the round loads, a chase cam once it flies.
     const racing = view.phase === 'running' || crash.active;
+    const elapsed = view.elapsed / 1000;
     stepSpring(orbit, racing ? 0 : 1, 3, 1, dt);
     stepSpring(dip, dipTimer > 0 ? 1 : 0, 2.2, 0.9, dt);
-    const frame = rocketFrame(rocket);
-    const centre = toWorld(frame, 0, rocket.focus.x, 0);
+    const centre = cameraCentre(rocket);
     const az = 0.55 * Math.sin(time * 0.23 + 0.6);
     const pitch = -0.12 + 0.62 * dip.x;
-    const dist = 15 + 4.5 * tension;
+    const closeup = elapsed > 45 && !crash.active && !reduced ? Math.pow(Math.max(0, Math.sin((elapsed - 45) * Math.PI / 18)), 4) : 0;
+    const dist = 15 + 4.5 * tension - 7 * closeup;
     const chaseEye: Vec3 = [centre[0] + Math.sin(az) * Math.cos(pitch) * dist, centre[1] + Math.sin(pitch) * dist, centre[2] + Math.cos(az) * Math.cos(pitch) * dist];
     const chaseTarget: Vec3 = [centre[0], centre[1] + 2.4 - 8.5 * dip.x, centre[2]];
     const oa = time * 0.22 + 0.4;
@@ -258,7 +259,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawMoon(world, r, placement, cam, centre, time, labels, reduced);
     const drawn = drawRocket(rocket, r, labels, time, reduced);
     lastEngine = drawn.engine;
-    if (drawn.you) labels.push({ text: 'YOU', at: add(drawn.you, [0, 0.75, 0]), colour: '#c9f76b', size: orbit.x >= 0.5 ? 24 : 18 });
+    if (drawn.you) labels.push({ text: 'YOU', at: add(drawn.you, [1.7, 0.7, 0]), colour: '#c9f76b', size: orbit.x >= 0.5 ? 24 : 18 });
     drawWires(world, r, drawn.nose, time, labels, reduced);
     drawCameraGags(world, r, cam, time, labels);
     if (flatSeen && rocket.alt > 20 && rocket.alt < 200) labels.push({ text: 'FLAT EARTH', at: [0, 0, 140], colour: '#8ff0ff', size: 22, far: true });

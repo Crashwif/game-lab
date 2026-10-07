@@ -7,6 +7,7 @@
  * the bar and sits him up to flex; the spotter takes the bench. The crash
  * drops the bar on whoever is under it and sends the plates rolling.
  */
+import { endurance } from './endurance';
 import { type Spring, clamp, fract, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { INK, type Point, SKIN } from './gym';
 
@@ -41,6 +42,8 @@ export interface Bench {
   arrival: { side: -1 | 1; index: number; age: number } | null;
   nextPlate: number;
   tension: number;
+  act: number;
+  effort: number;
   dumped: boolean;
   dumpAge: number;
   hands: Spring;
@@ -61,7 +64,7 @@ const freshSyringe = (): Syringe => ({ peek: spring(0), out: false, x: 0, y: 0, 
 const noEvents = (): Bench['events'] => ({ rep: false, plate: false, racked: false, swapped: false, impact: false, bounce: 0 });
 
 export function createBench(): Bench {
-  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), jolt: spring(0), impactPending: false, syringe: freshSyringe(), events: noEvents() };
+  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, act: 0, effort: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), jolt: spring(0), impactPending: false, syringe: freshSyringe(), events: noEvents() };
 }
 
 export function resetBench(b: Bench): void {
@@ -150,12 +153,13 @@ export function dumpBar(b: Bench, seed: number, quiet: boolean): void {
   else { s.x = 540; s.y = SYRINGE_FLOOR - 10; s.vx = 120 + rng() * 60; s.vy = -60; s.angle = 0.4; s.spin = 6; s.settled = false; }
 }
 
-export interface BenchDrive { running: boolean; multiplier: number; growth: number; tension: number }
+export interface BenchDrive { running: boolean; multiplier: number; growth: number; tension: number; seconds?: number }
 
 export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
   b.time += dt;
   b.modeAge += dt;
   b.tension = drive.tension;
+  const act = endurance(drive.seconds ?? 0); b.act = act.act; b.effort = drive.running ? act.effort : 0;
   b.events = noEvents();
   if (b.mode === 'idle' && drive.running) { b.mode = 'lifting'; b.modeAge = 0; b.phase = 0; }
   if (b.mode === 'racking' && b.modeAge > 0.7) { b.mode = 'sitting'; b.modeAge = 0; b.events.racked = true; }
@@ -165,7 +169,7 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
   if (lifting && drive.running) {
     const before = b.phase;
     const rate = 0.45 + 0.65 * (1 - Math.exp(-drive.growth / 2.2));
-    b.phase += rate * dt;
+    b.phase += rate * (1 - b.effort * (b.act === 2 ? .72 : .22)) * dt;
     if (fract(before) < 0.5 && (fract(b.phase) >= 0.5 || Math.floor(b.phase) > Math.floor(before))) { b.events.rep = true; b.grunt.v += 8; }
     // Plates the number passed while no frame was drawn (a hidden tab) go straight on; only the latest is carried in.
     while (b.nextPlate + 1 < PLATE_AT.length && drive.multiplier >= PLATE_AT[b.nextPlate + 1]!) { addPlates(b, b.nextPlate, true); b.arrival = null; }
@@ -173,7 +177,8 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
   }
   if (b.arrival) { b.arrival.age += dt; if (b.arrival.age > 1) b.arrival = null; }
   // Where the bar wants to be.
-  const repY = mix(BAR.top, BAR.chest, 0.5 - 0.5 * Math.cos(b.phase * Math.PI * 2));
+  const rep = .5 - .5 * Math.cos(b.phase * Math.PI * 2);
+  const repY = mix(BAR.top, BAR.chest, b.act === 2 ? mix(rep, .08, b.effort * .9) : rep);
   const target = b.dumped ? BAR.chest + 34 : b.mode === 'idle' || b.mode === 'sitting' || (b.mode === 'racking' && b.modeAge > 0.3) ? BAR.rack : b.mode === 'swap' ? BAR.top : b.mode === 'racking' ? BAR.top : repY;
   stepSpring(b.barY, target, b.dumped ? 9 : b.mode === 'lifting' ? 26 : 8, b.dumped ? 0.3 : 0.9, dt);
   stepSpring(b.hands, b.dumped && b.dumpAge > 0.25 ? 0 : 1, 10, 0.7, dt);
@@ -216,12 +221,12 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
 /** Bar height at a given x along the bent bar. */
 function barAt(b: Bench, x: number): number {
   const plates = b.plates.filter((p) => !p.loose).length / 2;
-  const sag = (2 + 3 * plates) * (b.mode === 'idle' || b.mode === 'sitting' ? 0.3 : 1);
+  const sag = (2 + 3 * plates + (b.act === 3 ? b.effort * 15 : 0)) * (b.mode === 'idle' || b.mode === 'sitting' ? 0.3 : 1);
   const t = (x - BAR.left) / (BAR.right - BAR.left);
   const bend = sag * (4 * (t - 0.5) * (t - 0.5));
   const lifting = b.mode === 'lifting' && !b.dumped;
   const tremor = lifting ? Math.sin(b.time * 31) * (0.4 + 5 * b.tension * b.tension) : 0;
-  const tilt = lifting ? Math.sin(b.time * 9.7) * 9 * b.tension * (t - 0.5) * 2 : 0;
+  const tilt = lifting ? (Math.sin(b.time * 9.7) * 9 * b.tension + (b.act === 1 ? b.effort * 22 : b.act === 4 ? -b.effort * 18 : 0)) * (t - .5) * 2 : 0;
   return b.barY.x + bend + tremor + tilt;
 }
 

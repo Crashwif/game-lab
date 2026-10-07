@@ -177,8 +177,17 @@ export function drawPeanut(c: CanvasRenderingContext2D, x: number, y: number, si
   c.restore();
 }
 
+/** Fixed links with a configured bend side, independent of animated tool targets. */
+export function mechanicalElbow(base: [number, number], end: [number, number], side: number, upper = 90, lower = 95): [number, number] {
+  const dx = end[0] - base[0], dy = end[1] - base[1], d = Math.max(.001, Math.hypot(dx, dy));
+  const along = (upper ** 2 - lower ** 2 + d ** 2) / (2 * d);
+  const h = Math.sqrt(Math.max(0, upper ** 2 - along ** 2)) * side;
+  return [base[0] + dx / d * along - dy / d * h, base[1] + dy / d * along + dx / d * h];
+}
+
 /** Three linked segments form each arm, with a counterweight and a distinct inspection tool. */
 export function drawArm(c: CanvasRenderingContext2D, base: [number, number], elbow: [number, number], end: [number, number], tool: 'camera' | 'probe' | 'stamp', active: boolean, angle: number): void {
+  elbow = mechanicalElbow(base, end, base[0] < 500 ? -1 : 1, tool === 'stamp' ? 90 : 65, tool === 'stamp' ? 95 : 85);
   const p = [...base, ...elbow, ...end];
   line(c, p, C.ink, 19); line(c, p, '#b6c9b6', 12); line(c, [base[0] - 3, base[1] - 3, elbow[0] - 3, elbow[1] - 3], '#edf0cf', 2);
   for (const joint of [base, elbow]) { oval(c, ...joint, 12, 12, C.brass, C.ink, 2); bolt(c, ...joint, 5); }
@@ -227,7 +236,7 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
   }
   if (d.stage === 0 && v.running) {
     const reach = reduced ? 0 : ease((d.action - .48) / .21) * (1 - ease((d.action - .77) / .18));
-    drawArm(c, [681, 343], [639, 257], [mix(627, 514, reach), mix(267, 334, reach)], 'stamp', reach > .8, -.05);
+    drawArm(c, [681, 343], [639, 257], [mix(590, 514, reach), mix(252, 334, reach)], 'stamp', reach > .8, -.05);
     if (reduced || d.action >= .69) {
       c.save(); c.translate(512, 361); c.rotate(-.09);
       box(c, -73, -17, 146, 33, 2, C.cream, C.red, 3);

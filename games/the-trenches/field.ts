@@ -6,6 +6,7 @@
  * mushroom cloud, a shockwave, a helmet rain and a crater. Nothing here
  * changes the outcome.
  */
+import { endurance } from './endurance';
 import { clamp, mix, mulberry32, noise, smoothstep } from './motion';
 
 export const INK = '#1c1f26';
@@ -382,4 +383,27 @@ export function drawNukeFront(ctx: CanvasRenderingContext2D, f: Field, reduced: 
     ctx.restore();
   }
   if (f.flash > 0 && !reduced) { ctx.fillStyle = `rgba(255, 250, 230, ${f.flash * f.flash})`; ctx.fillRect(0, 0, W, H); }
+}
+
+/** Advancing field details under the squad: mud, cover and discarded kit return in bounded chapters. */
+export function drawAdvance(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean): void {
+  const act = endurance(seconds); if (!act.act) return;
+  const age = seconds - 42 - act.cycle * 26;
+  const drift = reduced ? 55 : Math.min(120, age * 5);
+  ctx.save();
+  if (act.act === 2 || act.act === 4) {
+    ctx.fillStyle = act.act === 2 ? '#453926' : '#58613b';
+    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(210 + i * 130, 285 + drift * .65, 45, 10 + act.effort * 5, 0, 0, Math.PI * 2); ctx.fill(); }
+  } else {
+    for (const x of [86, 800]) {
+      const y = 265 + drift;
+      ctx.fillStyle = '#a58e5f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+      for (let j = 0; j < 3; j++) { ctx.beginPath(); ctx.roundRect(x + j * 22, y - j % 2 * 9, 35, 16, 7); ctx.fill(); ctx.stroke(); }
+      if (act.act === 3) {
+        ctx.strokeStyle = '#c4b59a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 24, y); ctx.lineTo(x + 24, y - 45); ctx.stroke();
+        ctx.fillStyle = '#78984a'; ctx.beginPath(); ctx.moveTo(x + 24, y - 45); ctx.lineTo(x + 49 + act.effort * 7, y - 35); ctx.lineTo(x + 24, y - 26); ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
 }

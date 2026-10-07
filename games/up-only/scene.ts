@@ -1,3 +1,4 @@
+import { endurance } from './endurance';
 /**
  * Composes Up Only from the room state: the chart and the shiba stepped with the frame time and the
  * player's flaps (or the copy-trading bot's), the night drawn behind them, the FUD cloud, the jet, the coin
@@ -363,7 +364,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // ---- The picture ---------------------------------------------------------------------------------------
     const dark = crashed && crashAge >= 0 ? smoothstep(0.2, 1.4, crashAge) : 0;
-    const chart: ChartView = { time, distance: world.distance, tension, rugX, dark, reduced };
+    const chart: ChartView = { seconds: running ? view.elapsed / 1000 : 0, time, distance: world.distance, tension, rugX, dark, reduced };
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
     else if (!reduced && running && !off) ctx.translate(0, Math.sin(time * 90) * 1.2 * speedK * speedK);
@@ -445,7 +446,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     text(ctx, goal ? `NEXT: ${goal.label} AT ${count(goal.at)} · BEST BAG ${count(stash.best)}` : `MAXED · BEST BAG ${count(stash.best)}`, W - 288, H - 24, 7, '#c9d4ff', 'left', 262, MONO);
     // The caption ladder at the top, and the milestone alert beside it.
     const fallenCaption = fallAge < 0.7 ? 'THE FLOOR WAS A RUG' : 'NGMI';
-    const caption = crashed ? (secured ? 'PAPER HANDS. BAG INTACT.' : fallen || crashAge > 1 ? fallenCaption : 'WHY IS EVERYTHING RED') : secured ? 'ON THE JET. WATCHING THE DEGENS.' : running ? STAGES[stage]!.caption : station ? 'WEN FLAP' : 'GM. FLAP.';
+    const act = endurance(view.elapsed / 1000).act;
+    const lateCaption = ['', 'A FRONT IS CROSSING THE CHART', 'PURPLE SKY. STEADY WINGS.', 'GREEN AIR. SAME GRAVITY.', 'THE SATELLITE IS WATCHING'][act]!;
+    const caption = crashed ? (secured ? 'PAPER HANDS. BAG INTACT.' : fallen || crashAge > 1 ? fallenCaption : 'WHY IS EVERYTHING RED') : secured ? 'ON THE JET. WATCHING THE DEGENS.' : running ? (act ? lateCaption : STAGES[stage]!.caption) : station ? 'WEN FLAP' : 'GM. FLAP.';
     memeText(ctx, caption, W / 2, 46, 30, crashed && !secured ? '#ffb3c8' : '#fff', 'center', 450);
     if (running && !secured && alertAge < 4 && stage > 0) {
       const alert = STAGES[stage]!;
@@ -485,7 +488,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     // Controls: before the round, and for a moment while the bot flaps.
-    if (station || (running && bot && !secured && world.time < 7)) {
+    if (station) {
       const y = station ? 250 : 206;
       panel(ctx, W / 2 - 250, y - 22, 500, station ? 66 : 44, 'rgba(6, 10, 32, 0.86)', '#2b3f7a', 8);
       if (station) {
@@ -496,6 +499,10 @@ export function createScene(options: SceneOptions = {}): Scene {
         text(ctx, 'COPY-TRADING BOT FLAPPING (MID)', W / 2, y - 6, 14, CYAN, 'center', 470);
         text(ctx, 'A TAP OR ↑ TAKES OVER', W / 2, y + 14, 8, '#eef3ff', 'center', 470, MONO);
       }
+    }
+    if (running && bot && !secured) {
+      panel(ctx, 16, 144, 176, 24, 'rgba(6,10,32,.9)', CYAN, 5);
+      text(ctx, 'BOT · TAP TO FLAP', 104, 160, 10, CYAN, 'center', 164, MONO);
     }
     // The outcome, once the chart is gone.
     if (crashed && outcomePop.x > 0.02) {

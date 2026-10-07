@@ -115,8 +115,8 @@ export function dumpRally(r: Rally, seed: number, quiet: boolean, reduced: boole
     r.droop.x = 1;
     r.lift = LIFT_MAX;
     settleSpring(r.tieLag, LIFT_MAX);
-    r.heliX.x = 470;
-    r.heliY.x = 10;
+    r.heliX.x = 600;
+    r.heliY.x = 90;
     r.surge = 1;
     r.question = 'NO COMMENT';
     r.questionAge = 9;
@@ -145,7 +145,7 @@ const tieFor = (tension: number): number => smoothstep(0.12, 0.95, tension);
 export function settleRally(r: Rally, drive: RallyDrive, left: boolean): void {
   r.cannons = Math.max(r.cannons, marksPassed(drive.multiplier));
   settleSpring(r.droop, drive.tension * 0.15);
-  settleSpring(r.heliX, 760 - drive.tension * 80);
+  settleSpring(r.heliX, 620 - drive.tension * 80);
   settleSpring(r.tieLen, tieFor(drive.tension));
   r.heliNear = drive.tension > 0.5;
   if (left) {
@@ -195,8 +195,8 @@ export function stepRally(r: Rally, drive: RallyDrive, dt: number): void {
   const tipTarget = r.crashed ? (r.crashT > PODIUM_DELAY ? 1 : 0) : drive.running ? drive.tension * 0.05 + tremble : 0;
   stepSpring(r.tip, tipTarget, r.crashed ? 5 : 9, r.crashed ? 0.55 : 0.7, dt);
   stepSpring(r.droop, r.crashed ? 1 : drive.tension * 0.15, 3, 0.8, dt);
-  stepSpring(r.heliX, r.crashed ? 450 : 760 - drive.tension * 80, 2.4, 0.9, dt);
-  stepSpring(r.heliY, r.crashed ? 10 + Math.sin(r.rotor * 0.2) * 3 : 70 + Math.sin(r.rotor * 0.2) * 4, 2.2, 0.85, dt);
+  stepSpring(r.heliX, r.crashed ? 600 : 620 - drive.tension * 80, 2.4, 0.9, dt);
+  stepSpring(r.heliY, r.crashed ? 90 : 145 + Math.sin(r.time * Math.PI / 12) * (r.time > 45 ? 24 : 4), 2.2, 0.85, dt);
   // The yank: the lift starts a beat after the frame and picks up speed, so he leaves faster than he rose.
   if (r.crashed && r.crashT > LIFT_DELAY && r.lift < LIFT_MAX) {
     r.liftV = Math.min(260, r.liftV + 340 * dt);
@@ -351,6 +351,13 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
     ctx.rotate(swing);
     ctx.translate(0, 46);
   }
+  // Hips, bent knees and boots become visible when the cable lifts him clear.
+  for (const side of [-1, 1]) {
+    const kick = lift > 4 ? Math.sin(time * 3 + side) * 12 : 0;
+    limb(ctx, { x: side * 13, y: 12 }, { x: side * 18 + kick, y: 78 - Math.abs(kick) }, 38, 36, side, 15, '#1d3354');
+    ctx.fillStyle = '#171922'; ctx.fillRect(side * 18 + kick - 8, 72 - Math.abs(kick), 25, 10);
+  }
+  ctx.fillStyle = SKIN; ctx.fillRect(-8, -60, 16, 17);
   // Body and tie. The tie and the thumb get the nerves. The hair does not.
   ctx.fillStyle = '#1d3354';
   ink(ctx, 3);
@@ -391,7 +398,7 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
   ctx.stroke();
   // Head, jittered. Hair is drawn at the unshaken origin on purpose.
   ctx.save();
-  ctx.translate(jitter * 0.8, 0);
+  ctx.translate(jitter * 0.8 + (!crashed && time > 45 ? Math.sin(time * Math.PI / 10) * 4 : 0), 0);
   ctx.beginPath();
   ctx.ellipse(0, -78, 20, 22, 0, 0, Math.PI * 2);
   ctx.fillStyle = SKIN;
@@ -524,6 +531,7 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     if (x > 650) continue;
     ctx.fillStyle = ['#e63946', '#3b82f6', '#f2c14e', '#7cf67c', '#e7eef8'][i % 5]!;
     ink(ctx, 1.5);
+    ctx.beginPath(); ctx.roundRect(x - 8, y + 7, 16, 14, 5); ctx.fill();
     ctx.beginPath();
     ctx.arc(x, y, 10, 0, Math.PI * 2);
     ctx.fill();
@@ -535,6 +543,8 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     if (holds && !crowded) signs.push(sign);
   }
   for (const sign of signs) {
+    ctx.strokeStyle = '#b88c63'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sign.x, sign.y + 12); ctx.lineTo(sign.x, sign.y + 35); ctx.stroke();
     ctx.fillStyle = crashed ? '#ff4d6d' : '#f7f4ea';
     ink(ctx, 1.5);
     ctx.beginPath();
@@ -570,7 +580,7 @@ function drawPress(ctx: CanvasRenderingContext2D, r: Rally, tension: number, tim
 function drawHeli(ctx: CanvasRenderingContext2D, r: Rally): void {
   ctx.save();
   ctx.translate(r.heliX.x, r.heliY.x);
-  ctx.fillStyle = '#2c333c';
+  ctx.fillStyle = '#697b8b';
   ink(ctx, 2);
   ctx.beginPath();
   ctx.ellipse(0, 0, 36, 16, 0, 0, Math.PI * 2);
@@ -582,11 +592,14 @@ function drawHeli(ctx: CanvasRenderingContext2D, r: Rally): void {
   ctx.lineTo(62, 6);
   ctx.fill();
   ctx.stroke();
+  ctx.fillStyle = '#a5e7ef'; ctx.beginPath(); ctx.ellipse(-15, -2, 15, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#d7e2e9'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(0, -29); ctx.moveTo(-24, 16); ctx.lineTo(-24, 25); ctx.lineTo(28, 25); ctx.moveTo(19, 16); ctx.lineTo(19, 25); ctx.stroke();
   // Rotor. A disc, so the blades read as spinning rather than a still cross.
   ctx.strokeStyle = 'rgba(230,230,230,0.85)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.ellipse(0, -8, 54, 6 + Math.abs(Math.sin(r.rotor)) * 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -30, 54, 6 + Math.abs(Math.sin(r.rotor)) * 4, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
   // Cable once he is being collected.
@@ -595,7 +608,7 @@ function drawHeli(ctx: CanvasRenderingContext2D, r: Rally): void {
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(r.heliX.x, r.heliY.x + 16);
-    ctx.lineTo(430, 250 - r.lift);
+    ctx.lineTo(430, 282 - r.lift);
     ctx.stroke();
   }
   // Downdraft.

@@ -174,7 +174,7 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed:
   ctx.save();
   ctx.translate(x, footY - bob);
   ctx.scale(facing, 1);
-  ctx.rotate(Math.sin(time * 1.4 + seed) * (stride > 0 ? 0.02 : 0.045));
+  // Feet remain planted; the torso can shift its weight above them.
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const hue = you ? 48 : Math.floor(noise(seed * 4.1) * 360);
   const hood = you ? '#ffe27a' : `hsl(${hue}, 55%, 45%)`;
@@ -182,7 +182,7 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed:
   const idle = time * 1.3 + seed;
   for (const side of [-1, 1]) {
     const phase = (stride > 0 ? stride : idle) + (side > 0 ? Math.PI : 0);
-    const amp = stride > 0 ? 1 : 0.28;
+    const amp = stride > 0 ? 1 : 0;
     const lift = Math.max(0, Math.sin(phase)) * 13 * amp;
     const reach = Math.cos(phase) * 9 * amp;
     const foot = { x: side * 10 + reach, y: -lift };
@@ -190,6 +190,7 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed:
     ctx.fillStyle = '#1b1b22'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 2, 6.5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
+  ctx.translate(stride > 0 ? 0 : Math.sin(time * 1.4 + seed) * 2, 0);
   // Hoodie body.
   ctx.fillStyle = hood; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-24, -74, 48, 46, 10); ctx.fill(); ctx.stroke();
@@ -291,7 +292,7 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
     if (q.panic && i !== 0) {
       const speed = 220 + 200 * (q.runSeeds[i] ?? 0.5);
       x -= Math.max(0, q.panicAge - 0.3 - (q.runSeeds[i] ?? 0) * 0.5) * speed;
-      stride = q.time * 13 + i;
+      stride = Math.abs(x) / 10 + i;
       facing = -1;
       if (x < -80) continue;
     } else if (q.panic && i === 0) {
@@ -299,7 +300,7 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
       const inward = clamp(q.headIn.x, 0, 1);
       x = mix(x, 705, inward);
       footY = mix(GROUND + 6, GROUND - 4, inward);
-      stride = inward > 0.02 && inward < 0.98 ? q.time * 10 : 0;
+      stride = inward > 0.02 && inward < 0.98 ? Math.abs(x) / 10 : 0;
       ctx.save();
       if (inward > 0.3) ctx.globalAlpha = 1 - smoothstep(0.3, 1, inward) * 0.7;
       const scale = 1 - 0.25 * inward;
@@ -308,7 +309,7 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
       ctx.restore();
       continue;
     }
-    const sway = Math.sin(q.time * 1.6 + i * 1.1) * 3 * (1 - panic);
+    const sway = 0;
     const bob = (q.bounce.x > 0 ? Math.max(0, q.bounce.x) * 6 * Math.max(0, Math.sin(i * 0.9 + 1)) : 0) + (finished && cheerful && you ? 0 : 0);
     const mood: Mood = q.panic ? 'shock' : finished ? (cheerful ? 'calm' : 'shock') : tension > 0.7 ? 'worried' : tension > 0.35 && noise(i * 2.2 + Math.floor(q.time * 0.5)) > 0.5 ? 'hype' : 'calm';
     drawCoin(ctx, x + sway, footY, i, bob, mood, you, 0, stride, facing, q.time);

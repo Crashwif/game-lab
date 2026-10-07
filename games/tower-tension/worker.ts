@@ -245,7 +245,7 @@ export function drawWorker(ctx: CanvasRenderingContext2D, w: WorkerState): void 
     ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
   };
   // Legs and boots.
-  const stride = w.mode === 'falling' ? 10 : 0;
+  const stride = w.mode === 'falling' ? 10 : w.mode === 'boarding' ? Math.sin(w.modeAge * 14) * 5 : 0;
   line(-5, -20, -7 - stride, 0, 5, '#2f3f5c');
   line(5, -20, 7 + stride, 0, 5, '#2f3f5c');
   ctx.fillStyle = '#4a3728';
@@ -261,10 +261,15 @@ export function drawWorker(ctx: CanvasRenderingContext2D, w: WorkerState): void 
   ctx.fillRect(-11, -25, 22, 3);
   // Arms: down when calm, up and out when it gets wobbly.
   const raise = clamp(w.arms.x, 0, 1.2);
-  const ax = 12 + raise * 8;
-  const ay = -22 - raise * 34;
-  line(-10, -35, -ax, ay + Math.sin(w.time * 9) * raise * 4, 5, SKIN);
-  line(10, -35, ax, ay + Math.cos(w.time * 9) * raise * 4, 5, SKIN);
+  for (const side of [-1, 1]) {
+    const angle = side * (0.12 + raise * 1.8);
+    const shoulder = { x: side * 10, y: -35 };
+    const elbow = { x: shoulder.x + Math.sin(angle) * 13, y: shoulder.y + Math.cos(angle) * 13 };
+    const forearm = angle + side * (0.4 + Math.sin(w.time * 4 + side) * raise * 0.2);
+    const hand = { x: elbow.x + Math.sin(forearm) * 12, y: elbow.y + Math.cos(forearm) * 12 };
+    line(shoulder.x, shoulder.y, elbow.x, elbow.y, 5, SKIN);
+    line(elbow.x, elbow.y, hand.x, hand.y, 5, SKIN);
+  }
   drawFace(ctx, w, mood);
   if (mood !== 'calm' && mood !== 'smug' && mood !== 'out') {
     const p = (w.time / 0.9) % 1;

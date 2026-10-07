@@ -89,4 +89,8 @@ The current platform default grows tenfold every 30 seconds. There is no hard ro
 
 For browser presentation review, run `node scripts/qa/scene-review.mjs` after building. Open `http://127.0.0.1:4511/<slug>/index.html?seconds=150&late=1` for a settled late-entry fixture; add `&crash=1`, `&cashout=1`, or `&reduced=1` for those presentation states. Omitting `late` steps the scene sequentially at 30 fps (software WebGL can be slow). The fixture is local test tooling and is excluded from game bundles.
 
+For continuous animation review without one long blocking browser command, open `?seconds=0`, then call `window.sceneReview.advance(15)`, `.advance(30)`, and so on. Each call preserves the previous pose and steps at 30 fps. Use `.tick(0.125)` for an exact subsecond pose step, `.tick(0.1, 'crashed')` to begin a crash, and `.cashout()` to show an accepted cashout. `.seek(150)` creates a fresh late-entry scene; it is deliberately a different check from continuous playback. The fixture updates its labels and redraws on viewport changes.
+
+`REVIEW_GAMES=balloon-pump,bull-run node scripts/qa/scene-review.mjs` builds only the named fixtures. With that server running, `REVIEW_GAMES=balloon-pump,bull-run REVIEW_SEQUENCE=1 node scripts/qa/capture.mjs /tmp/game-motion-review` captures continuous frames through 180 seconds using gstack, followed by responsive and outcome states. Without `REVIEW_SEQUENCE=1`, capture retains its quicker late-entry sampling. Watch motion as well as comparing stills: continued animation does not by itself demonstrate sustained suspense.
+
 `npm run test:browser` checks the real page shell against room curves and old replays, and exercises full-song playback. Install Playwright Chromium first (`npx playwright install chromium`).

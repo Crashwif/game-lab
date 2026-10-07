@@ -5,9 +5,11 @@
  */
 import { CYAN, GOLD, INK, LIME, MONO, PINK, ellipse, line, memeText, panel, poly, text } from './art';
 import { BIRD_X, CANDLE_W, CEILING, COIN_VALUE, FLOOR, H, W, type Candle, type Pickup } from './sky';
+import { endurance } from './endurance';
 import { clamp, noise, smoothstep } from './motion';
 
 export interface ChartView {
+  seconds?: number;
   time: number;
   distance: number;
   tension: number;
@@ -30,7 +32,9 @@ const PRICES = ['$0.0420', '$0.0069', '$0.0013', '$0.0004', '$0.0001', '$0.0000'
 function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#05081c');
-  sky.addColorStop(0.55, '#101a48');
+  const act = endurance(view.seconds ?? 0);
+  const regions = ['#101a48', '#203955', '#302449', '#153a37', '#303953'];
+  sky.addColorStop(0.55, regions[act.act]!);
   sky.addColorStop(1, '#1a1f4a');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
@@ -43,6 +47,22 @@ function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
     const y = noise(i * 3.1) * 300;
     const tw = view.reduced ? 0.7 : 0.45 + 0.55 * Math.abs(Math.sin(view.time * 2 + i));
     ellipse(ctx, x, y, 1.1, 1.1, `rgba(255, 255, 255, ${0.6 * tw})`);
+  }
+  // Weather fronts and a satellite pass behind the course; their silhouettes cannot hide gap edges.
+  if (act.act > 0) {
+    ctx.save(); ctx.globalAlpha = .12 + .12 * act.effort;
+    const drift = view.reduced ? 0 : view.time * (act.act === 2 ? 9 : 3);
+    for (let i = 0; i < 4; i += 1) {
+      const x = ((i * 310 + drift) % 1250) - 150;
+      ellipse(ctx, x, 290 + i % 2 * 32, 110, 15, act.act === 3 ? '#75d3bb' : '#afc4ed');
+    }
+    ctx.restore();
+    if (act.act === 4) {
+      const x = 900 - act.effort * 510;
+      panel(ctx, x - 12, 110, 24, 14, '#acb9ce', INK, 2);
+      panel(ctx, x - 52, 110, 32, 14, '#345680', '#88b4ce', 0);
+      panel(ctx, x + 20, 110, 32, 14, '#345680', '#88b4ce', 0);
+    }
   }
   // The moon, which everyone is going to, clear of the HUD's corner.
   ellipse(ctx, 900, 222, 36, 36, '#f3eccb', '#c9bd8a', 2);

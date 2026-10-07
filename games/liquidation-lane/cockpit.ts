@@ -116,7 +116,8 @@ function instruments(ctx: CanvasRenderingContext2D, view: CockpitView): void {
 function steeringWheel(ctx: CanvasRenderingContext2D, view: CockpitView): void {
   ctx.save(); ctx.translate(219, 505);
   const panic = view.crashed && view.cashout === null ? Math.sin(Math.min(view.crashAge, 1) * 4) * 1.1 : 0;
-  ctx.rotate(view.steering * 0.27 + panic);
+  const turn = Math.max(-0.7, Math.min(0.7, view.steering * 0.27 + panic));
+  ctx.rotate(turn);
   ctx.beginPath(); ctx.arc(0, 0, 104, Math.PI * 0.05, Math.PI * 1.95); ctx.strokeStyle = '#030710'; ctx.lineWidth = 30; ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, 104, Math.PI * 0.05, Math.PI * 1.95); ctx.strokeStyle = '#343a40'; ctx.lineWidth = 19; ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, 99, Math.PI * 1.12, Math.PI * 1.88); ctx.strokeStyle = '#bfd65c'; ctx.lineWidth = 2; ctx.stroke();
@@ -127,17 +128,25 @@ function steeringWheel(ctx: CanvasRenderingContext2D, view: CockpitView): void {
   text(ctx, 'L', 0, 3, 21, '#12151b', 'center');
   text(ctx, 'LAMBO', 0, -5, 5, '#eeeabd', 'center');
   line(ctx, [[-7, -114], [7, -114]], LIME, 7);
-  // The driver's green hands and black sleeves frame the wheel.
+  ctx.restore();
+  // Hands follow the rim, while shoulders stay attached to the driver below the dashboard.
+
   for (const side of [-1, 1]) {
-    ctx.save(); ctx.translate(side * 88, -54); ctx.rotate(side * 0.45);
-    poly(ctx, [[-20, 125], [-23, 33], [-16, 9], [14, 5], [25, 34], [43, 125]], '#111b26', '#48514b');
+    const hand = steeringContact(side, turn);
+    const root = { x: side < 0 ? 110 : 320, y: 600 };
+    const dx = hand.x - root.x, dy = hand.y - root.y, d = Math.hypot(dx, dy);
+    const along = (105 * 105 - 108 * 108 + d * d) / (2 * d);
+    const bend = Math.sqrt(Math.max(0, 105 * 105 - along * along)) * side;
+    const elbow = { x: root.x + dx / d * along - dy / d * bend, y: root.y + dy / d * along + dx / d * bend };
+    line(ctx, [[root.x, root.y], [elbow.x, elbow.y], [hand.x, hand.y]], '#48514b', 34);
+    line(ctx, [[root.x, root.y], [elbow.x, elbow.y], [hand.x, hand.y]], '#111b26', 29);
+    ctx.save(); ctx.translate(hand.x, hand.y); ctx.rotate(turn + side * 0.45);
     ellipse(ctx, 0, 0, 19, 29, '#64984a', '#162e26');
     ellipse(ctx, -side * 13, 4, 9, 14, '#79aa55', '#274530');
     for (let i = 0; i < 3; i += 1) line(ctx, [[-10, -15 + i * 7], [9, -16 + i * 7]], '#385b35', 1.5);
     if (side < 0) { panel(ctx, -19, 25, 38, 12, '#cca74f', '#ffe080', 2); panel(ctx, -6, 23, 15, 16, '#142d31', '#d2b660', 2); }
     ctx.restore();
   }
-  ctx.restore();
 }
 
 function phone(ctx: CanvasRenderingContext2D, view: CockpitView): void {
@@ -223,4 +232,9 @@ export function drawDamage(ctx: CanvasRenderingContext2D, view: CockpitView): vo
     text(ctx, 'THIS IS AN AIRBAG.', 0, 46, 10, '#617172', 'center', undefined, MONO);
     ctx.restore();
   }
+}
+
+/** Hand contact points remain on the same rim locations for every steering angle. */
+export function steeringContact(side: number, turn: number): { x: number; y: number } {
+  return { x: 219 + side * 88 * Math.cos(turn) + 54 * Math.sin(turn), y: 505 + side * 88 * Math.sin(turn) - 54 * Math.cos(turn) };
 }

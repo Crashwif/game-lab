@@ -201,11 +201,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
 
-    stepCurler(curler, { running, multiplier, growth, tension }, dt);
+    stepCurler(curler, { running, multiplier, growth, tension, seconds: view.elapsed / 1000 }, dt);
     // After the step, which clears the last frame's events, so the drop's reaction below sees this one.
     if (secured && running) poseCurler(curler);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: clamp((growth - 1) / 3, 0, 1) }, dt);
-    stepMedic(medic, { running, multiplier }, dt);
+    stepMedic(medic, { running, multiplier, seconds: view.elapsed / 1000 }, dt);
     if (running && milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) {
       heckle(gym, HECKLES[milestone % HECKLES.length]!, milestone % 2 === 0);
       milestone += 1;

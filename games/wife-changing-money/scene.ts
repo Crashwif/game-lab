@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait, isPortrait } from './portrait';
 /**
  * Composes Wife Changing Money: the dark kitchen, the trader, the suitcase
  * meter and the HUD. Motion is stepped with the real frame time. Nothing
@@ -96,6 +98,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("WIFE CHANGING MONEY", [260, 240, 460, 270], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Lo-fi beats to lose the house to. The crash is the slam of her hand on the table.
   const audio = pageAudio({ style: 'lofi', crash: 'slam' });
@@ -162,8 +165,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += reduced ? dt * 0.25 : dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const fear = clamp((Math.log2(multiplier) - 0.2) / 3.2, 0, 1);
-    const tension = 1 - Math.exp(-Math.log2(multiplier) / 2.2);
+    const act = actAt(view.elapsed, reduced);
+    const fear = clamp((Math.log2(multiplier) - 0.2) / 3.2, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
+    const tension = 1 - Math.exp(-Math.log2(multiplier) / 2.2) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
@@ -246,9 +250,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     const glow = trader.lid.x > 0.8 ? 'off' : kitchen.chartDead ? 'red' : 'green';
     drawRoom(ctx, kitchen, reduced ? 0 : time);
-    drawTrader(ctx, trader, glow, time, fear);
     drawLaptop(ctx, kitchen, trader.lid.x, time, fear);
-    drawMid(ctx, kitchen, multiplier, time);
+    drawTrader(ctx, trader, glow, time, fear, running && secured === null && act.stage > 0 && act.effort < .6);
+    drawMid(ctx, kitchen, multiplier, time, !isPortrait(ctx.canvas));
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawFront(ctx, kitchen, time);
     drawGlow(ctx, trader.lid.x, kitchen.chartDead);
     drawLight(ctx, kitchen);
@@ -271,6 +276,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const readoutWidth = Math.min(290, ctx.measureText(readout).width);
     const captionRight = 936 - readoutWidth - 24;
     const captionCentre = Math.min(470, (30 + captionRight) / 2);
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(captionCentre, 64);
@@ -293,6 +299,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const meterWord = pct >= 78 ? 'WIFE CHANGING' : pct >= 45 ? 'LIFE CHANGING' : 'COPING';
     memeText(ctx, `${meterWord} ${pct}%`, 24, 518, 24, outcome ? '#ffb4c2' : '#f0e6c8', 'left');
     memeText(ctx, `MUGS ${visibleMugs(multiplier)}`, 936, 518, 22, '#f0e6c8', 'right');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "LATEST MESSAGE", kitchen.bubbles.at(-1)?.text ?? 'Just one more trade.', view.cashoutX100 !== null ? trader.mode === 'upstairs' ? [635, 110, 325, 385] : [Math.max(0, Math.min(560, trader.x - 175)), Math.max(100, trader.y - 280), 400, 320] : undefined);
+
   }
 
   return { draw };

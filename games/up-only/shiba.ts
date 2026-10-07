@@ -38,29 +38,38 @@ const HAT_DARK = '#d94f8f';
 /** The bag's radius in rig px for a bag of `coins`: it swells, but never past the dog. */
 export const bagRadius = (coins: number): number => 12 + 16 * clamp(Math.log10(1 + Math.max(0, coins)) / 3.4, 0, 1);
 
-function wing(ctx: CanvasRenderingContext2D, x: number, y: number, beat: number, scale: number, shade: string): void {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(-0.9 + beat * 1.3);
-  ctx.scale(scale, scale);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(-18, -26, -46, -30, -52, -12);
-  ctx.bezierCurveTo(-40, -6, -30, 0, -16, 6);
-  ctx.closePath();
-  ctx.fillStyle = shade;
-  ctx.fill();
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  line(ctx, [[-10, -4], [-36, -18]], '#d9d2c4', 1.5);
-  line(ctx, [[-8, 0], [-34, -8]], '#d9d2c4', 1.5);
+/** Smooth power stroke and eased recovery, with zero velocity at each reversal. */
+export function wingBeat(age: number): number {
+  const smooth = (x: number) => { const t = clamp(x, 0, 1); return t * t * (3 - 2 * t); };
+  return age < .12 ? smooth(age / .12) : 1 - smooth((age - .12) / .32);
+}
+export function wingJoints(age: number) {
+  const beat = wingBeat(age), delayed = wingBeat(Math.max(0, age - .045));
+  const shoulder = { x: 0, y: 0 }, a = -2.45 + beat * 1.5;
+  const elbow = { x: Math.cos(a) * 25, y: Math.sin(a) * 25 };
+  const b = a + .4 + (delayed - beat) * .9;
+  const wrist = { x: elbow.x + Math.cos(b) * 23, y: elbow.y + Math.sin(b) * 23 };
+  return { shoulder, elbow, wrist, feather: wingBeat(Math.max(0, age - .08)) - beat };
+}
+function wing(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, scale: number, shade: string): void {
+  const { elbow: e, wrist: w, feather } = wingJoints(age);
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(e.x - 4, e.y - 10, w.x, w.y - 5);
+  for (let i = 0; i < 4; i += 1) {
+    const t = i / 4;
+    ctx.lineTo(w.x + (e.x - w.x) * t - 5 + feather * 6, w.y + (e.y - w.y) * t + 12 - i);
+    ctx.lineTo(w.x + (e.x - w.x) * (t + .2), w.y + (e.y - w.y) * (t + .2) + 5);
+  }
+  ctx.quadraticCurveTo(e.x + 4, e.y + 8, 0, 0); ctx.closePath();
+  ctx.fillStyle = shade; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+  line(ctx, [[0, 0], [e.x, e.y], [w.x, w.y]], '#d9d2c4', 1.5);
   ctx.restore();
 }
 
 export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   // The wings beat down over the first tenth of a second after a flap and glide back up.
-  const beat = p.flapAge < 0.1 ? p.flapAge / 0.1 : clamp(1 - (p.flapAge - 0.1) / 0.28, 0, 1);
+  const age = p.reduced ? .44 : p.flapAge;
+  const follow = p.reduced ? 0 : wingBeat(Math.max(0, age - .06)) - wingBeat(age);
   ctx.save();
   ctx.translate(p.x, p.y);
   if (p.fall > 0 && !p.reduced) ctx.rotate(p.fall * 7);
@@ -74,7 +83,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
     poly(ctx, [[-30, -4], [-56 * flick, 0], [-30, 4]], '#fff6c8');
   }
   // The far wing, the tail, the body, the near wing.
-  wing(ctx, -6, -14, beat, 0.75, '#c9c2b8');
+  wing(ctx, -6, -14, Math.max(0, age - .018), 0.75, '#c9c2b8');
   ctx.beginPath();
   ctx.arc(-34, -6, 12, Math.PI * 0.6, Math.PI * 2.2);
   ctx.strokeStyle = FUR;
@@ -100,12 +109,12 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   const r = bagRadius(p.bag);
   ctx.save();
   ctx.translate(-8, -26);
-  ctx.rotate(0.2);
+  ctx.rotate(0.2 + follow * .22);
   ellipse(ctx, 0, 0, r, r * 0.96, '#a8642a', '#6e3f14', 2.5);
   ellipse(ctx, 0, -r * 0.92, r * 0.4, r * 0.2, '#6e3f14', INK, 1.5);
   text(ctx, '$', 0, r * 0.06, r * 1.2, '#f7e2a0', 'center');
   ctx.restore();
-  wing(ctx, 2, -12, beat, 1, '#fff');
+  wing(ctx, 2, -12, age, 1, '#fff');
   // The head, the snout, the ears and the wif hat.
   ellipse(ctx, 20, -14, 20, 19, FUR, INK, 2.5);
   ellipse(ctx, 34, -8, 11, 8, CREAM, INK, 2);
@@ -114,6 +123,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   ellipse(ctx, 27, -6, 4, 2.5, '#f7b5a0');
   poly(ctx, [[5, -28], [10, -44], [18, -30]], FUR, INK, 2);
   poly(ctx, [[22, -30], [30, -46], [36, -28]], FUR, INK, 2);
+  ctx.save(); ctx.translate(20, -30); ctx.rotate(follow * .12); ctx.translate(-20, 30);
   ctx.beginPath();
   ctx.arc(20, -30, 19, Math.PI, 0);
   ctx.fillStyle = HAT;
@@ -124,6 +134,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   panel(ctx, 0, -34, 40, 9, HAT_DARK, INK, 3, 2);
   ellipse(ctx, 20, -50, 6, 6, '#fff', INK, 2);
   if (p.drip.has('crown')) poly(ctx, [[8, -52], [12, -64], [16, -54], [20, -66], [24, -54], [28, -64], [32, -52]], GOLD, '#8a6a00', 2);
+  ctx.restore();
   // The eye: a squint, shades when earned, lasers when really earned.
   if (p.drip.has('shades')) {
     panel(ctx, 14, -22, 26, 10, INK, undefined, 2);

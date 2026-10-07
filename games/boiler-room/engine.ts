@@ -108,7 +108,8 @@ export function stepEngine(e: EngineState, drive: EngineDrive, ps: Particles, dt
     puff(ps, 612, 272, -0.25, -1, 90 * strength, 3 + Math.round(3 * strength), 7 + 6 * strength, 0.9, 1, e.theta * 10);
     e.lamp.v += (Math.floor(e.theta / Math.PI) % 2 ? 1 : -1) * 0.12 * e.pressure * e.pressure;
   }
-  const pressureTarget = e.blown ? 0 : drive.pressure;
+  const relief = e.time > 45 && drive.running ? Math.pow(Math.max(0, Math.sin((e.time - 45) * Math.PI / 18)), 4) : 0;
+  const pressureTarget = e.blown ? 0 : drive.pressure * (1 - relief * 0.24);
   e.pressure += (pressureTarget - e.pressure) * (1 - Math.exp(-dt / (e.blown ? 0.45 : 0.6)));
   stepSpring(e.needle, e.pressure, e.blown ? 3 : 6, e.blown ? 0.3 : 0.8, dt);
   e.flame += ((drive.running ? 0.35 + 0.65 * e.pressure : e.blown ? 0.05 : 0.15) - e.flame) * (1 - Math.exp(-dt / 0.8));
@@ -131,6 +132,7 @@ export function stepEngine(e: EngineState, drive: EngineDrive, ps: Particles, dt
   while (e.leakClock > 0.05) {
     e.leakClock -= 0.05;
     for (let i = 0; i < e.leaks && !e.blown; i += 1) {
+      if (e.time > 45 && i === Math.floor((e.time - 45) / 18) % LEAK_SPOTS.length && relief > 0.2) continue;
       const spot = LEAK_SPOTS[i]!;
       puff(ps, spot.x, spot.y, spot.dx, spot.dy, 150 + 120 * e.pressure, 1, 4 + 4 * e.pressure, 0.55, 1, e.time * 97 + i * 13);
     }
@@ -475,4 +477,17 @@ export function drawMachine(ctx: CanvasRenderingContext2D, e: EngineState): void
   ctx.fillStyle = IRON_LIGHT; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(GOVERNOR.x - 7, sleeveY - 4, 14, 8, 2); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(GOVERNOR.x, GOVERNOR.y - 14, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+
+/** Mechanical patches take turns sealing one seam, then slipping under load. */
+export function drawMaintenance(ctx: CanvasRenderingContext2D, e: EngineState): void {
+  if (e.time < 45 || e.blown) return;
+  const cycle = (e.time - 45) / 18;
+  const site = LEAK_SPOTS[Math.floor(cycle) % LEAK_SPOTS.length]!;
+  const close = Math.pow(Math.max(0, Math.sin(cycle * Math.PI)), 4);
+  ctx.save(); ctx.translate(site.x, site.y); ctx.rotate((1 - close) * 0.55);
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.fillStyle = '#af7949';
+  ctx.fillRect(-18, -12 - (1 - close) * 14, 36, 24); ctx.strokeRect(-18, -12 - (1 - close) * 14, 36, 24);
+  ctx.strokeStyle = '#f4cd67'; ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, -4); ctx.stroke();
+  ctx.restore();
 }

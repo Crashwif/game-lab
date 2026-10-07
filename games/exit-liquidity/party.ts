@@ -313,12 +313,32 @@ function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: strin
   ctx.restore();
 }
 
-/** The dev's wrist, where the chain ends: it comes up and in as he sits up with the tension. */
+/** A shared world-space pose keeps the chain, fist and fixed-length arm on one socket. */
+export function devArmPose(p: PartyState) {
+  const d = p.dev, lean = clamp(d.lean.x, 0, 1), lounging = d.mode === 'lounging';
+  const tremble = lounging ? lean * lean * smoothstep(0.7, 1, p.tension) * p.motion : 0;
+  const jx = (noise(Math.floor(p.time * 31)) - 0.5) * 4 * tremble;
+  const jy = (noise(Math.floor(p.time * 29) + 7) - 0.5) * 3 * tremble;
+  const body = { x: d.x + jx, y: (lounging ? DEV_LOUNGER.y - 26 - 20 * lean : DEV_LOUNGER.y - 44) + jy };
+  const spin = lounging ? -0.25 + 0.5 * lean : 0;
+  const shoulder = { x: body.x - 10 * Math.cos(spin), y: body.y - 10 * Math.sin(spin) };
+  const wrist = lounging
+    ? { x: d.x - 36 - 22 * lean + jx, y: DEV_LOUNGER.y - 28 - 34 * lean + jy }
+    : { x: d.x - 26 + jx, y: DEV_LOUNGER.y - 62 - clamp(d.yank.x, 0, 30) + jy };
+  const dx = wrist.x - shoulder.x, dy = wrist.y - shoulder.y, reach = Math.hypot(dx, dy);
+  const along = (34 * 34 - 36 * 36 + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, 34 * 34 - along * along));
+  const elbow = { x: shoulder.x + dx / reach * along - dy / reach * bend, y: shoulder.y + dy / reach * along + dx / reach * bend };
+  return { body, spin, shoulder, elbow, wrist };
+}
+/** Use the same rail spacing and rung origin as the pool foreground. */
+export function ladderContact(side: number, y: number): { x: number; y: number } {
+  const first = POOL.top - 10;
+  return { x: LADDER_X + side * 7, y: clamp(first + Math.round((y - first) / 18) * 18, first, first + 7 * 18) };
+}
+
 export function devWrist(p: PartyState): { x: number; y: number } {
-  const d = p.dev;
-  const lean = clamp(d.lean.x, 0, 1);
-  if (d.mode === 'lounging') return { x: d.x - 36 - 22 * lean, y: DEV_LOUNGER.y - 28 - 34 * lean };
-  return { x: d.x - 26, y: DEV_LOUNGER.y - 62 - clamp(d.yank.x, 0, 30) };
+  return devArmPose(p).wrist;
 }
 
 interface WojakLook { tone: number; mood: 'calm' | 'nervous' | 'panic' | 'smug' | 'sad' | 'shock'; shades: number; scale: number; spin: number }
@@ -547,7 +567,9 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
   for (const h of p.holders) {
     if (h.mode === 'gone') continue;
     const look: WojakLook = { tone: h.tone, mood: h.mode === 'sucked' ? 'shock' : h.mode === 'puddle' ? 'sad' : h.mode === 'jumping' ? (h.airdropped ? 'panic' : 'smug') : mood(fear), shades: 0, scale: h.scale, spin: h.spin };
-    drawWojakBust(ctx, h.x, h.y - 8, look, h.x > 480 ? -1 : 1);
+    const row = p.holders.indexOf(h) % 3;
+    const ripple = p.time > 45 && !pool.draining ? Math.max(0, Math.sin(p.time * 0.52 - row - h.x * 0.006)) * 6 : 0;
+    drawWojakBust(ctx, h.x, h.y - 8 - row * 7 - ripple, look, h.x > 480 ? -1 : 1);
     if (h.mode === 'puddle') {
       ctx.fillStyle = 'rgba(102, 224, 163, 0.6)';
       ctx.beginPath(); ctx.ellipse(h.x, POOL.floor - 3, 36, 7, 0, 0, Math.PI * 2); ctx.fill();
@@ -559,7 +581,26 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.fillStyle = 'rgba(102, 224, 163, 0.6)';
     ctx.beginPath(); ctx.ellipse(a.x, POOL.floor - 3, 40, 8, 0, 0, Math.PI * 2); ctx.fill();
   }
+  // Exit limbs are visible above water; alternating ladder contacts stay on its rails/rungs.
+  if (['paddling', 'climbing', 'walking'].includes(a.mode)) {
+    ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      const phase = a.modeAge * (a.mode === 'walking' ? 12 : 8) + (side > 0 ? Math.PI : 0);
+      const climb = a.mode === 'climbing';
+      const handX = climb ? ladderContact(side, a.y).x : a.x + side * (24 + Math.sin(phase) * 7);
+      const handY = climb ? ladderContact(side, a.y - 22 + Math.sin(phase) * 10).y : a.y + 2 + Math.cos(phase) * 7;
+      ctx.beginPath(); ctx.moveTo(a.x + side * 12, a.y - 10); ctx.lineTo(a.x + side * 22, a.y - 2); ctx.lineTo(handX, handY); ctx.stroke();
+      if (a.mode !== 'paddling') {
+        const footX = climb ? ladderContact(side, a.y).x : a.x + side * 10 + Math.cos(phase) * 9;
+        const footY = climb ? ladderContact(side, a.y + 18).y : POOL.top - 1 - Math.max(0, Math.sin(phase)) * 8;
+        ctx.beginPath(); ctx.moveTo(a.x + side * 7, a.y + 3); ctx.lineTo(a.x + side * 13, a.y + 14); ctx.lineTo(footX, footY); ctx.stroke();
+      }
+    }
+  }
   drawWojakBust(ctx, a.x, a.y - 10, { tone: 0.9, mood: aMood, shades: clamp(a.shades.x, 0, 1), scale: a.mode === 'sucked' ? a.scale : 1.15, spin: a.spin }, 1);
+  if (a.mode !== 'puddle' && a.scale > 0.1) {
+    ctx.save(); ctx.font = '900 16px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#f6ff8f'; ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.strokeText('YOU', a.x, a.y - 66); ctx.fillText('YOU', a.x, a.y - 66); ctx.restore();
+  }
   if (a.mode === 'lounging') {
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(a.x + 14, a.y - 30, 12, 16, 2); ctx.fill(); ctx.stroke();
@@ -574,16 +615,15 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
   const grin = clamp(d.grin.x, 0, 1);
   const lean = clamp(d.lean.x, 0, 1);
   const lounging = d.mode === 'lounging';
-  const tremble = lounging ? lean * lean * smoothstep(0.7, 1, p.tension) * p.motion : 0;
-  const jx = (noise(Math.floor(p.time * 31)) - 0.5) * 4 * tremble;
-  const jy = (noise(Math.floor(p.time * 29) + 7) - 0.5) * 3 * tremble;
-  const devY = (lounging ? DEV_LOUNGER.y - 26 - 20 * lean : DEV_LOUNGER.y - 44) + jy;
+  const { body, spin, shoulder, elbow, wrist } = devArmPose(p);
+  const devY = body.y;
   const selfie = d.mode === 'selfie';
-  drawWojakBust(ctx, d.x + jx, devY, { tone: 0.2, mood: lounging ? (grin > 0.5 ? 'smug' : 'calm') : 'smug', shades: 1, scale: 1.15, spin: lounging ? -0.25 + 0.5 * lean : 0 }, selfie ? 1 : -1);
-  // The fist the chain is wound round.
-  const wrist = devWrist(p);
+  drawWojakBust(ctx, body.x, body.y, { tone: 0.2, mood: lounging ? (grin > 0.5 ? 'smug' : 'calm') : 'smug', shades: 1, scale: 1.15, spin }, selfie ? 1 : -1);
+  ctx.strokeStyle = INK; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(shoulder.x, shoulder.y); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(wrist.x, wrist.y); ctx.stroke();
+  ctx.strokeStyle = SKIN; ctx.lineWidth = 6; ctx.stroke();
   ctx.fillStyle = SKIN; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(wrist.x + jx, wrist.y + jy, 5.5 + 1.5 * lean, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(wrist.x, wrist.y, 5.5 + 1.5 * lean, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   if (selfie) {
     // The bag on the deck, the selfie stick out to the right, and the flash.
     ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;

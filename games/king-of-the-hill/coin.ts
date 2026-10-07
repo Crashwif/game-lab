@@ -4,6 +4,7 @@
  * its rim who bail at milestones, collects a crown, a graduation cap and a
  * flag, and at the crash rolls back down the hill over everyone.
  */
+import { endurance } from './endurance';
 import { type Spring, clamp, mulberry32, noise, settleSpring, spring, stepSpring } from './motion';
 import { type Camera, type Point, heightAt, slopeAngle, toScreen } from './hill';
 
@@ -17,6 +18,7 @@ export interface Jeet { x: number; y: number; vx: number; vy: number; angle: num
 export interface Dust { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour: string }
 
 export interface CoinDrive {
+  seconds?: number;
   /** Target world x of the contact point, and the radius the market cap calls for. */
   x: number;
   radius: number;
@@ -138,7 +140,9 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
         c.jeeted += 1;
       }
     }
-    stepSpring(c.back, 0, 5, 0.8, dt);
+    const act = endurance(drive.seconds ?? 0);
+    // A slow setback and a brace, followed by recovery; the rolling/hand/foot anchors share this pose.
+    stepSpring(c.back, drive.running ? act.effort * (act.act === 1 ? 220 : act.act === 3 ? 360 : act.act === 4 ? 90 : 0) : 0, act.act === 2 ? 2.4 : 5, 0.8, dt);
   } else {
     c.crashAge += dt;
     const angle = slopeAngle(Math.max(0, c.x));

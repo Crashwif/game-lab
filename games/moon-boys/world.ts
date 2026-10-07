@@ -1,13 +1,4 @@
-/**
- * The set. The launch site in mom's backyard (the pad, the tower, the
- * trailer with its dish, the dog house, the pool, mom at the door), the flat
- * earth the backyard sits on, the sky and the sun, and the moon: a painted
- * disc that always faces the camera and grows as the multiplier climbs, with
- * eyes that open at 2.4×, follow the rocket, blink, wink at 6.9× and sweat
- * past 10×. The oddities that come out at the rungs are drawn here too: the
- * boom mic that dips into frame, the stagehand's glove that nudges the moon,
- * the SEC's bird, and the wires above the nose.
- */
+/** Spaceport, moon prop and recurring studio mistakes. All events affect presentation only. */
 import { PRINT, FACE } from './atlas';
 import { putInstance } from './gl';
 import type { Label } from './hud';
@@ -137,7 +128,7 @@ export function stepWorld(world: World, multiplier: number, running: boolean, dt
 
 /** Where the moon is and how big, for a rocket centre and the multiplier; it never quite arrives. */
 export function moonPlacement(centre: Vec3, multiplier: number): { pos: Vec3; scale: number; distance: number } {
-  const distance = 2400 / Math.pow(1 + 2.2 * Math.log2(Math.max(1, multiplier)), 1.5);
+  const distance = Math.max(110, 2400 / Math.pow(1 + 2.2 * Math.log2(Math.max(1, multiplier)), 1.5));
   const near = Math.min(distance, MOON_FAR);
   return { pos: madd(centre, MOON_DIR, near), scale: (MOON_RADIUS * near) / distance, distance };
 }

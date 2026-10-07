@@ -5,7 +5,7 @@
  * frame time, and nothing drawn here changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { DOME, type EngineDrive, type EngineState, blowEngine, createEngine, drawBoiler, drawMachine, resetEngine, settleEngine, stepEngine } from './engine';
+import { DOME, type EngineDrive, type EngineState, blowEngine, createEngine, drawBoiler, drawMachine, drawMaintenance, resetEngine, settleEngine, stepEngine } from './engine';
 import { clamp, noise, smoothstep, spring, stepSpring } from './motion';
 import { type Particles, createParticles, drawParticles, emit, sparks, stepParticles } from './particles';
 import { type Sound, pageSound } from './sound';
@@ -227,6 +227,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     time += dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
+    if (view.phase === 'running') engine.time = stoker.time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const pressure = 1 - Math.exp(-growth / 2.4);
@@ -245,6 +247,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       // A fresh scene (the page joining, or a round first seen after its betting phase) settles into the round
       // as it stands: a crash is the quiet aftermath, and an exit already taken has him behind the shield.
       previous = view.phase;
+      engine.time = stoker.time = time = view.elapsed / 1000;
       settleEngine(engine, drive);
       settleStoker(stoker, running, crashed, secured !== null, drive.pressure);
       if (crashed) {
@@ -326,6 +329,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawRoom(ctx, engine, time);
     drawParticles(ctx, ps, 0);
     drawBoiler(ctx, engine);
+    drawMaintenance(ctx, engine);
     drawMachine(ctx, engine);
     drawCoalPile(ctx);
     if (stoker.shovelDropped) drawShovelOnFloor(ctx);

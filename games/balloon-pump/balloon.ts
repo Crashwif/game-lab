@@ -29,6 +29,7 @@ interface Puff { x: number; y: number; vx: number; vy: number; r: number; age: n
 export interface BalloonDrive {
   /** Resting radius the multiplier calls for. */
   radius: number;
+  tug?: number;
   /** 0..1 dread on its face. */
   fear: number;
   /** 0..1 how thin the rubber is stretched (colour and shine). */
@@ -121,7 +122,7 @@ export function stepBalloon(b: BalloonState, drive: BalloonDrive, dt: number): v
     stepSpring(b.rise, riseFor(radius), 3.2, 0.7, dt);
     const rise = clamp(b.rise.x, 0, 1);
     // A bigger balloon swings slower; a floating one is barely damped by the air.
-    stepSpring(b.sway, restAngle(rise, b.time), clamp(4 * Math.sqrt(40 / radius), 1.6, 6), mix(0.75, 0.13, rise), dt);
+    stepSpring(b.sway, restAngle(rise, b.time) + (drive.tug ?? 0), clamp(4 * Math.sqrt(40 / radius), 1.6, 6), mix(0.75, 0.13, rise), dt);
     stepSpring(b.eyeOpen, 1 + 0.9 * drive.fear, 9, 0.85, dt);
     stepSpring(b.mouthOpen, Math.pow(drive.fear, 1.5), 9, 0.85, dt);
     stepSpring(b.brow, drive.fear, 9, 0.85, dt);
@@ -162,6 +163,7 @@ export interface BalloonGeometry {
   /** Tether to centre. */
   length: number;
   radius: number;
+  tug?: number;
   rise: number;
 }
 

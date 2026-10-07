@@ -37,3 +37,9 @@ The shared shell handles waiting, betting, running, crash, reconnect and replay.
 Everything on the page is drawn in code; the game ships no images and makes no artwork requests. Andy is a character from Matt Furie's **Boys Club**; the rig's look (golden yellow, floppy ears, heavy-lidded blue eyes, the broad muzzle and grin, teal overalls over a cream T-shirt, purple boots) references the [Andy project website](https://boysclubandy.com/). No affiliation with or endorsement by the character's creator or the Andy project is implied.
 
 The gallery's `open` setting permits Game Lab remixing with no derivative royalty. Character rights remain with their respective owners.
+
+## Visual direction and small screens
+
+The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
+
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.

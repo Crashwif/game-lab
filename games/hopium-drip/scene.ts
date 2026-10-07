@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 /**
  * Composes Hopium Drip from the room state: the ward, the monitor, then
  * the HUD over the ward, with the sound cued from the trace's beats and
@@ -75,6 +77,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("HOPIUM DRIP", [100, 125, 525, 360], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Hospital muzak that races with the heart rate; the crash is the long beep.
   const audio = pageAudio({ style: 'hospital', crash: 'flatline' });
@@ -122,8 +125,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const act = actAt(view.elapsed, reduced);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -238,6 +242,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
     drawWard(ctx, ward, tension, reduced);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     // The word waits for the paddles to fail, so the CLEAR! plays out first; a round met late shows it at once.
     if (outcome && pop.x > 0.02 && ward.deadAge > TOD_AT - 0.6) {
       ctx.save();
@@ -256,6 +261,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     drawMonitor(ctx, monitor, multiplier, tension, reduced);
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(WARD.w / 2, 42);
@@ -280,6 +286,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, `${multiplier.toFixed(2)}×`, WARD.w - 18, WARD.h - 18, 52, colour, 'right');
     ctx.restore();
     memeText(ctx, `${monitor.doseIndex} ${monitor.doseIndex === 1 ? 'DOSE' : 'DOSES'}`, 18, WARD.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "PATIENT OBSERVATION", `${Math.round(monitor.bpm.x)} BPM · Dose ${monitor.doseIndex} · ${ward.label}`, view.cashoutX100 !== null ? [Math.max(0, Math.min(430, ward.patient.x - 180)), 125, 525, 360] : undefined);
+
   }
 
   return { draw };

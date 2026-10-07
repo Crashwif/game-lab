@@ -6,6 +6,7 @@
  * to the shore; the crash brings it down over the hole to read the verdict.
  * Nothing here changes the committed outcome: it only reads the view.
  */
+import { endurance } from './endurance';
 import { type Spring, clamp, settleSpring, spring, stepSpring } from './motion';
 
 const INK = '#1c1f26';
@@ -28,6 +29,7 @@ export interface EngineState {
 }
 
 export interface EngineDrive {
+  seconds?: number;
   running: boolean;
   crashed: boolean;
   tension: number;
@@ -62,7 +64,9 @@ function target(drive: EngineDrive): { x: number; y: number } {
   // Over the hole it reads the verdict from the side with more room, so its bubble never sits on the REKT or the signs.
   if (drive.crashed && drive.holeX !== null && !drive.safe) return { x: clamp(drive.holeX + (drive.holeX < 480 ? 230 : -230), 150, 810), y: 150 };
   if (drive.safe || !drive.running) return { x: HOME_X, y: HOME_Y };
-  return { x: HOME_X - (HOME_X - CLOSE_X) * drive.tension, y: HOME_Y + 24 * drive.tension };
+  const act = endurance(drive.seconds ?? 0);
+  return { x: HOME_X - (HOME_X - CLOSE_X) * drive.tension + (act.act === 1 ? -70 : act.act === 3 ? 110 : 0) * act.effort,
+    y: HOME_Y + 24 * drive.tension + (act.act === 2 ? 72 : act.act === 4 ? 38 : 0) * act.effort };
 }
 
 /** Jumps to where a round already under way has it, its line already said. */

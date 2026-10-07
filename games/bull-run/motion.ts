@@ -4,19 +4,8 @@
  */
 
 export const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
-export const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-/** Hermite ramp from 0 at `edge0` to 1 at `edge1`. */
-export function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
-  return t * t * (3 - 2 * t);
-}
 
-/** Hash noise in [0, 1): the same input always gives the same value. */
-export const noise = (n: number): number => {
-  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
-  return x - Math.floor(x);
-};
 
 export interface Spring {
   x: number;

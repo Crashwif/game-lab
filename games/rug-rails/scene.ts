@@ -1,3 +1,4 @@
+import { endurance } from './endurance';
 /**
  * Composes Rug Rails from the room state: the course and the frog stepped with the frame time and the
  * player's commands (or the copy-trading bot's), the tunnel drawn around them, the Taxman, the coin spray,
@@ -379,7 +380,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
     else if (!reduced && running && !offRails) ctx.translate(Math.sin(time * 90) * 1.4 * speedK * speedK, 0);
     const fall = fallen ? clamp(fallAge / 1.2, 0, 1) : 0;
-    drawWorld(ctx, world, { time, distance: world.distance, tension, rugZ, dark, reduced }, cam, () => {
+    drawWorld(ctx, world, { seconds: running ? view.elapsed / 1000 : 0, time, distance: world.distance, tension, rugZ, dark, reduced }, cam, () => {
       const x = mix(r.x.x, HOVER_X, hover.x);
       const hoverBob = reduced ? 0 : Math.sin(time * 2.2) * 0.05;
       const h = fallen ? -(fallAge * fallAge * 6) : mix(r.h, HOVER_H + hoverBob, hover.x);
@@ -468,7 +469,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     text(ctx, goal ? `NEXT: ${goal.label} AT ${count(goal.at)} · BEST BAG ${count(stash.best)}` : `MAXED · BEST BAG ${count(stash.best)}`, W - 288, H - 24, 7, '#c9c2e6', 'left', 262, MONO);
     // The caption ladder at the top, and the milestone alert beside it.
     const fallenCaption = fallAge < 0.7 ? 'THE FLOOR WAS A RUG' : 'NGMI';
-    const caption = crashed ? (secured ? 'PAPER HANDS. BAG INTACT.' : fallen || crashAge > 1 ? fallenCaption : 'IS THAT A RUG') : secured ? 'HOVERING. WATCHING THE DEGENS.' : running ? STAGES[stage]!.caption : station ? 'MIND THE GAP' : 'GM. RUN.';
+    const act = endurance(view.elapsed / 1000).act;
+    const lateCaption = ['', 'NEON STATION. SAME TAXMAN.', 'MIND THE AMBER LIGHTS', 'BLUE LINE. NO LAST STOP.', 'THE TUNNEL HAS OVERTIME'][act]!;
+    const caption = crashed ? (secured ? 'PAPER HANDS. BAG INTACT.' : fallen || crashAge > 1 ? fallenCaption : 'IS THAT A RUG') : secured ? 'HOVERING. WATCHING THE DEGENS.' : running ? (act ? lateCaption : STAGES[stage]!.caption) : station ? 'MIND THE GAP' : 'GM. RUN.';
     memeText(ctx, caption, W / 2, 46, 30, crashed && !secured ? '#ffb3c8' : '#fff', 'center', 450);
     if (running && !secured && alertAge < 4 && stage > 0) {
       const alert = STAGES[stage]!;
@@ -510,7 +513,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     // Controls: before the round, and for a moment while the bot drives.
-    if (station || (running && bot && !secured && world.time < 7)) {
+    if (station) {
       const y = station ? 300 : 206;
       panel(ctx, W / 2 - 250, y - 22, 500, station ? 66 : 44, 'rgba(10, 8, 26, 0.86)', '#3b2d63', 8);
       if (station) {
@@ -521,6 +524,10 @@ export function createScene(options: SceneOptions = {}): Scene {
         text(ctx, 'COPY-TRADING BOT DRIVING (MID)', W / 2, y - 6, 14, CYAN, 'center', 470);
         text(ctx, 'ARROWS, WASD OR A SWIPE TAKE THE WHEEL', W / 2, y + 14, 8, '#e9e6ff', 'center', 470, MONO);
       }
+    }
+    if (running && bot && !secured) {
+      panel(ctx, 16, 144, 176, 24, 'rgba(6,10,32,.9)', CYAN, 5);
+      text(ctx, 'BOT · ARROWS TO DRIVE', 104, 160, 10, CYAN, 'center', 164, MONO);
     }
     // The outcome, once the rails are gone.
     if (crashed && outcomePop.x > 0.02) {

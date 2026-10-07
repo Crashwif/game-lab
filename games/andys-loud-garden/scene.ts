@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 import { type AndyDrive, type AndyMode, createAndy, drawAndy, drawStream, settleAndy, stepAndy } from './andy';
 import { pageAudio } from './audio';
 import { box, clamp, ease, INK, line, noise, oval, text } from './drawing';
@@ -33,6 +35,7 @@ const HIT_STOP = 0.09;
 
 /** The room supplies every outcome; growth, actors and effects only present its view. */
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("ANDY\u2019S LOUD GARDEN", [100, 170, 600, 330], '#f0d99c');
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'lofi', crash: 'siren', music: 0.6, effects: 0.8 });
   const andy = createAndy(HOME_X);
@@ -90,6 +93,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const time = reduced ? 0 : now / 1000;
     const delta = lastNow === null ? 0 : Math.max(0, (now - lastNow) / 1000);
     const dt = Math.min(0.05, delta);
+    const act = actAt(view.elapsed, reduced);
     const growth = running || crashed ? clamp(Math.log2(Math.max(1, view.currentX100 / 100)) / 2.3) : 0;
     const bustAge = crashed ? Math.max(0, view.crashAge / 1000) : -1;
     if (view.cashoutX100 !== null && secured === null) {
@@ -109,8 +113,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const exitAge = cashoutAt === null ? -1 : Math.max(0, (now - cashoutAt) / 1000);
     const walking = secured !== null;
     const departure = walking ? reduced ? 1 : ease((exitAge - 0.7) / 3.1) : 0;
-    const mode: AndyMode = walking ? 'harvest' : crashed ? 'busted' : running ? 'watering' : 'idle';
-    const drive: AndyDrive = { mode, x: HOME_X - departure * 360, ground: GROUND, growth, bed: BED, street: STREET };
+    const mode: AndyMode = walking ? 'harvest' : crashed ? 'busted' : running ? act.stage > 0 && act.effort < .68 ? 'idle' : 'watering' : 'idle';
+    const drive: AndyDrive = { mode, x: HOME_X - departure * 360, ground: GROUND, growth: growth * act.effort, bed: BED, street: STREET };
     if (previous === null) settleAndy(andy, drive);
     // The bust lands on a frozen beat before he jumps.
     const frozen = !reduced && mode === 'busted' && bustAge < HIT_STOP;
@@ -126,6 +130,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     c.save(); c.translate(quake, 0);
     for (let i = 0; i < 3; i++) plant(c, 419 + i * 151, 451, growth * (i === 1 ? 1 : 0.9), time, i + 1, bustAge, reduced);
     beds(c);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(c, act);
     if (running && growth > 0.7) pollinators(c, reduced ? 0 : view.elapsed / 1000);
     const seen = drawAndy(c, andy, drive);
     if (!reduced) drawStream(c, seen, BED.y + 6, time);
@@ -145,9 +150,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       c.globalAlpha = 1;
     }
+    capture(c);
     hud(c, view, growth, bustAge, time);
     c.restore();
     previous = view.phase; lastElapsed = view.elapsed; lastNow = now;
+    present(c, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : view.phase === 'crashed' ? 'The garden is closed.' : secured !== null ? 'Harvest home.' : act.line, "FROM THE GARDEN", OVERTIME_BUBBLES[Math.floor(view.elapsed / 9000) % OVERTIME_BUBBLES.length]!, view.phase === 'crashed' ? [250, 160, 710, 370] : secured !== null ? [0, 160, 520, 370] : undefined);
+
   }
 
   return { draw, dispose() { disposed = true; } };

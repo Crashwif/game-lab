@@ -58,7 +58,7 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 /** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
-const OVERTIME_CAPTIONS = ["THE SET HAS NO END", "SPOTTER STILL SCROLLING", "THE BAR WANTS A DAY OFF", "OVERTIME AT THE IRON BANK", "REP COUNT: LOST TRACK", "CHALK UP AND COPE", "ONE MORE MEANS ONE MORE", "THE GYM IS CLOSING"];
+const OVERTIME_CAPTIONS = ["THE SET HAS NO END", "SPOTTER FINALLY HELPING", "THE BAR WANTS A DAY OFF", "OVERTIME AT THE IRON BANK", "REP COUNT: LOST TRACK", "CHALK UP AND COPE", "ONE MORE MEANS ONE MORE", "THE GYM IS CLOSING"];
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'SPOTTER SOLD' : outcome === 'called' ? 'RACKED AND JACKED' : 'NO SPOTTER NGMI';
@@ -224,7 +224,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running) rackBar(bench);
     audio.update(view.phase, tension);
 
-    stepBench(bench, { running, multiplier, growth, tension }, dt);
+    stepBench(bench, { running, multiplier, growth, tension, seconds: view.elapsed / 1000 }, dt);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: 0 }, dt);
     if (bench.events.impact) impact();
     if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }

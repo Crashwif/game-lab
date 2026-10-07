@@ -207,7 +207,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The camera: an orbit round your swimmer while the round loads, a chase cam once it runs.
     const racing = view.phase === 'running' || crash.active;
     stepSpring(orbit, racing ? 0 : 1, 3, 1, dt);
-    const followX = pack.you.mode === 'race' ? pack.you.x : 0;
+    const currentSway = !reduced && view.elapsed > 45000 ? Math.sin(view.elapsed / 1000 * Math.PI / 18) * 0.45 : 0;
+    const followX = pack.you.mode === 'race' ? pack.you.x + currentSway : 0;
     const followY = pack.you.mode === 'race' ? pack.you.y : -0.3;
     stepSpring(camX, followX, 2.4, 1, dt);
     stepSpring(camY, followY, 2.4, 1, dt);
@@ -236,7 +237,9 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // The egg: far and small at 1×, filling the bore the higher it goes.
     const eggM = view.phase === 'running' ? m : crash.active ? crashX100 / 100 : 1;
-    const distance = eggDistance(eggM);
+    const lateSeconds = Math.max(0, view.elapsed / 1000 - 45);
+    const current = lateSeconds > 0 && !crash.active ? Math.sin(lateSeconds * Math.PI / 18) : 0;
+    const distance = eggDistance(eggM) + 5 * (1 - Math.cos(lateSeconds * Math.PI / 18));
     const near = Math.min(distance, EGG_FAR);
     const eggS = pack.anchor + near;
     const eggScale = (EGG_RADIUS * near) / distance;
@@ -247,7 +250,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const flash = crashFlash(crash) * (reduced ? 0.35 : 1) + (reduced ? 0 : 0.45 * Math.max(0, 1 - launchAge / 0.35));
     r.drawTunnel({ s0: Math.floor((eyeS - 14) / RING_SPACING) * RING_SPACING, pulse: reduced ? 0.1 : 0.35 + 0.65 * tension, beat, bulgeS: eggS, bulge: 1, flash, heat: tension * 0.5 });
     const [ex, ey, ez] = basisFrom(rotateAbout(fe.tangent, fe.up, time * 0.12), fe.up);
-    putInstance(r.meshes.sphere, 0, fe.point, ex, ey, ez, [eggScale, eggScale, eggScale], [1, 1, 1, 1], [0, 0, -1, 0], [1, 0, 0, 0]);
+    const eggPoint = madd(fe.point, fe.side, current * 0.55);
+    putInstance(r.meshes.sphere, 0, eggPoint, ex, ey, ez, [eggScale, eggScale, eggScale], [1, 1, 1, 1], [0, 0, -1, 0], [1, 0, 0, 0]);
     r.drawLit(r.meshes.sphere, 1);
     const drawn = drawPack(pack, r, eye, reduced);
     labels.push(...pack.labels);
@@ -468,8 +472,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!running && !settled) ctx.globalAlpha = 0.85;
     memeText(ctx, `${(settled ? crashX100 / 100 : multiplier).toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
     ctx.restore();
-    memeText(ctx, `SWIMMERS LEFT ${grouped(headline(running ? multiplier : 1, settled))}`, 18, H - 18, 22, settled ? '#ff9db0' : '#f6e9ee', 'left');
-    const microns = Math.round(eggDistance(running ? multiplier : 1) * 160);
+    memeText(ctx, `CONTENDERS ${grouped(headline(running ? multiplier : 1, settled))}`, 18, H - 18, 22, settled ? '#ff9db0' : '#f6e9ee', 'left');
+    if (running && view.elapsed > 45000) memeText(ctx, 'ESCORTS · OUT OF THE RACE', 18, H - 66, 15, '#9fd8ff', 'left', 320);
+    const microns = Math.round((eggDistance(running ? multiplier : 1) + (running ? 5 * (1 - Math.cos(Math.max(0, view.elapsed / 1000 - 45) * Math.PI / 18)) : 0)) * 160);
     if (!settled) memeText(ctx, `EGG IN ${grouped(microns)} µm`, 18, H - 46, 15, '#ffd0dc', 'left');
     const nextWave = WAVES.find((w) => w > multiplier);
     if (running && nextWave !== undefined && !secured) memeText(ctx, `NEXT JEET WAVE ${nextWave.toFixed(1)}×`, 18, H - 68, 13, '#c9b3bd', 'left');

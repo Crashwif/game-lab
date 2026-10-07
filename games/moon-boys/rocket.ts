@@ -1,18 +1,8 @@
-/**
- * The rocket and everyone on it. Four strap-on boosters (the snipers'
- * stage, which separates at 1.3× with the snipers riding it down), a core
- * (the bundled supply, gone at 2×) and the upper stage with the crew capsule
- * and the nose the wires hold. The rocket sold out, so ninety-six holders
- * ride the outside, clinging to the upper stage, and let go in waves at each
- * milestone, tumbling away behind. Your astronaut clings at the front in a
- * lime visor and bails out on a parachute when the room accepts your
- * cash-out. Positions are in rocket space (up along its axis from the base)
- * so a sway or a tumble carries everything with it.
- */
+/** Rocket stages, crowd release and the articulated player. Positions use the rocket's local frame. */
 import { CROWD_FACES, FACE, PRINT } from './atlas';
 import { putInstance } from './gl';
 import type { Label } from './hud';
-import { type Vec3, add, cross, madd, normalize, rotateAbout } from './math3d';
+import { type Vec3, add, cross, madd, normalize, rotateAbout, sub } from './math3d';
 import { type Spring, clamp, mulberry32, settleSpring, spring, stepSpring } from './motion';
 import type { Renderer } from './render';
 
@@ -84,7 +74,7 @@ export interface Rocket {
 export interface Frame { origin: Vec3; x: Vec3; y: Vec3; z: Vec3 }
 
 export function createRocket(): Rocket {
-  const rocket: Rocket = { alt: 0, climb: (CLIMB * 0.00006 * 1000) / Math.LN2, time: 0, thrust: 0, swayX: spring(0), swayZ: spring(0), focus: spring(8), boosters: { attached: true, age: 0 }, core: { attached: true, age: 0 }, holders: [], you: { mode: 'cling', theta: 0, y: 11.6, size: 0.5, age: 0, from: [0, 0, 0], vel: [0, 0, 0] }, particles: [], events: [], wave: 0, panic: false, dead: false, deadFor: 0, random: mulberry32(0x6b0b) };
+  const rocket: Rocket = { alt: 0, climb: (CLIMB * 0.00006 * 1000) / Math.LN2, time: 0, thrust: 0, swayX: spring(0), swayZ: spring(0), focus: spring(8), boosters: { attached: true, age: 0 }, core: { attached: true, age: 0 }, holders: [], you: { mode: 'cling', theta: 0, y: 11.6, size: 1.1, age: 0, from: [0, 0, 0], vel: [0, 0, 0] }, particles: [], events: [], wave: 0, panic: false, dead: false, deadFor: 0, random: mulberry32(0x6b0b) };
   resetRocket(rocket);
   return rocket;
 }
@@ -107,7 +97,7 @@ export function resetRocket(rocket: Rocket): void {
   rocket.panic = false;
   rocket.dead = false;
   rocket.deadFor = 0;
-  rocket.you = { mode: 'cling', theta: 0, y: 11.6, size: 0.5, age: 0, from: [0, 0, 0], vel: [0, 0, 0] };
+  rocket.you = { mode: 'cling', theta: 0, y: 11.6, size: 1.1, age: 0, from: [0, 0, 0], vel: [0, 0, 0] };
   // Waves take a shrinking share of the crowd: the early jeets are the many.
   const shares = [18, 14, 12, 10, 9, 8, 7, 6, 5, 4, 3];
   const quits: number[] = [];
@@ -141,7 +131,7 @@ export function rocketFrame(rocket: Rocket): Frame {
     const t = rocket.deadFor;
     y = rotateAbout(y, [0, 0, 1], Math.min(2.7, 0.35 * t + 1.7 * t * t));
   }
-  let x: Vec3 = normalize(cross([0, 0, 1], y));
+  let x: Vec3 = normalize(cross(y, [0, 0, 1]));
   if (!Number.isFinite(x[0]!) || Math.hypot(x[0], x[1], x[2]) < 1e-4) x = [1, 0, 0];
   const z = cross(x, y);
   // A rocket that never left the pad (a 1.00× round) tips over on it rather than through it.
@@ -298,6 +288,21 @@ function stagePose(stage: Stage, out: Vec3, up: Vec3, climb: number): { offset: 
   return { offset: [out[0] * (t * 2.5 + t * t * 1.5) - up[0] * drop, out[1] * (t * 2.5 + t * t * 1.5) - up[1] * drop, out[2] * (t * 2.5 + t * t * 1.5) - up[2] * drop], roll: Math.min(1.4, t * 0.6) };
 }
 
+export function bailPosition(rocket: Rocket): Vec3 {
+  const { x, y, z, origin } = rocketFrame(rocket), you = rocket.you, t = you.age;
+  const open = clamp((t - 0.45) / 0.35, 0, 1);
+  const fallen = open <= 0 ? 0.5 * GRAVITY * t * t : 0.5 * GRAVITY * 0.45 * 0.45 + (t - 0.45) * (2.2 + (GRAVITY * 0.45 - 2.2) * Math.exp(-(t - 0.45) * 3));
+  const rel = madd(you.from, you.vel, Math.min(t, 0.45) + Math.max(0, t - 0.45) * 0.35);
+  const at = add(origin, add([x[0] * rel[0] + z[0] * rel[2], x[1] * rel[0] + z[1] * rel[2], x[2] * rel[0] + z[2] * rel[2]], [y[0] * rel[1], y[1] * rel[1], y[2] * rel[1]]));
+  return [at[0] + Math.sin(t * 1.3) * 0.4 * open, at[1] - fallen - (rocket.dead ? 0 : rocket.climb) * t, at[2]];
+}
+export function cameraCentre(rocket: Rocket): Vec3 {
+  const centre = toWorld(rocketFrame(rocket), 0, rocket.focus.x, 0);
+  if (rocket.you.mode !== 'eject') return centre;
+  const at = add(bailPosition(rocket), [0, 1, 0]);
+  return madd(centre, sub(at, centre), clamp(rocket.you.age / 0.6, 0, 1));
+}
+
 export interface Drawn {
   you: Vec3 | null;
   nose: Vec3;
@@ -380,7 +385,6 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
   r.drawLit(m.porthole, 3);
   // The holders: clinging in a grid, then tumbling away.
   const climbDrop = rocket.dead ? 0 : rocket.climb;
-  const spinAxes: Vec3[] = [];
   for (const holder of rocket.holders) {
     if (holder.state === 'gone') continue;
     const out = outward(holder.theta);
@@ -404,7 +408,6 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     const fx = rotateAbout(hx, holder.spin, angle);
     const fy = rotateAbout(y, holder.spin, angle);
     const fz = rotateAbout(hz, holder.spin, angle);
-    spinAxes.push(pos);
     flails = putInstance(m.flail, flails, pos, fx, fy, fz, [s, s, s], [1, 1, 1, 1], [rocket.dead ? FACE.crying : holder.face, 0, 0, 0]);
     if (holder.label && t < 2.2) labels.push({ text: `${holder.label} SOLD`, at: add(pos, [0, 0.9 * s, 0]), colour: '#ff6b86', size: 14 });
   }
@@ -417,20 +420,15 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
   const uz = cross(ux, y);
   if (you.mode === 'cling') {
     youAt = toWorld(frame, yo[0] * (0.85 + 0.44 * you.size), you.y, yo[2] * (0.85 + 0.44 * you.size));
-    clings = putInstance(m.cling, clings, youAt, ux, y, uz, [you.size, you.size, you.size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
+    drawHero(r, youAt, ux, y, uz, you.size, rocket.time, 0, reduced, true);
   } else if (you.mode === 'eject') {
     const t = you.age;
     const open = clamp((t - 0.45) / 0.35, 0, 1);
-    // A jump, then the canopy takes the fall down to a drift: 2 a second, against the rocket's climb.
-    const fallen = open <= 0 ? 0.5 * GRAVITY * t * t : 0.5 * GRAVITY * 0.45 * 0.45 + (t - 0.45) * (2.2 + (GRAVITY * 0.45 - 2.2) * Math.exp(-(t - 0.45) * 3));
-    const rel = madd(you.from, you.vel, Math.min(t, 0.45) + Math.max(0, t - 0.45) * 0.35);
-    const at = add(frame.origin, add([x[0] * rel[0] + z[0] * rel[2], x[1] * rel[0] + z[1] * rel[2], x[2] * rel[0] + z[2] * rel[2]], [y[0] * rel[1], y[1] * rel[1], y[2] * rel[1]]));
-    youAt = [at[0] + Math.sin(t * 1.3) * 0.4 * open, at[1] - fallen - climbDrop * t, at[2]];
+    youAt = bailPosition(rocket);
     const swing = reduced ? 0 : Math.sin(t * 2.2) * 0.18 * open;
     const sx = rotateAbout(ux, uz, swing);
     const sy = rotateAbout([0, 1, 0], uz, swing);
-    const pose = open > 0 ? m.flail : m.flail;
-    flails = putInstance(pose, flails, youAt, sx, sy, uz, [you.size, you.size, you.size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
+    drawHero(r, youAt, sx, sy, uz, you.size, rocket.time, open, reduced, false);
     if (open > 0) {
       const top = add(youAt, [sy[0] * 2.4, sy[1] * 2.4, sy[2] * 2.4]);
       const size = 1.6 * open;
@@ -473,4 +471,37 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
   }
   r.flushSprites('alpha');
   return { you: youAt, nose: toWorld(frame, 0, 17.3, 0), engine: engineAt, centre: toWorld(frame, 0, rocket.focus.x, 0) };
+}
+
+/** Two-bone hero limbs: the end targets are independent of torso effort. */
+export function heroJoint(root: [number, number], end: [number, number], upper: number, lower: number, side: number): [number, number] {
+  const dx = end[0] - root[0], dy = end[1] - root[1], d = Math.hypot(dx, dy);
+  const along = (upper * upper - lower * lower + d * d) / (2 * d);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  return [root[0] + dx / d * along - dy / d * bend, root[1] + dy / d * along + dx / d * bend];
+}
+function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number, time: number, open: number, reduced: boolean, clinging: boolean): void {
+  const m = r.meshes;
+  const effort = reduced ? 0 : Math.sin(time * 2.1) * 0.035;
+  const point = (p: [number, number]): Vec3 => [0, 1, 2].map(i => at[i]! + size * (x[i]! * p[0] + y[i]! * p[1])) as Vec3;
+  putInstance(m.hero, 0, point([0, effort]), x, y, z, [size, size, size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
+  r.drawLit(m.hero, 1);
+  let parts = 0;
+  const segment = (a: [number, number], b: [number, number], width: number, dark = false) => {
+    const start = point(a), end = point(b);
+    const d: Vec3 = [end[0] - start[0], end[1] - start[1], end[2] - start[2]];
+    const ly = normalize(d), lx = normalize(cross(ly, z)), lz = cross(lx, ly);
+    parts = putInstance(m.box, parts, madd(start, d, 0.5), lx, ly, lz, [width * size, Math.hypot(...d), width * size], dark ? [0.2, 0.22, 0.26, 1] : [0.93, 0.94, 0.96, 1]);
+  };
+  for (const side of [-1, 1]) for (const arm of [true, false]) {
+    const root: [number, number] = [side * (arm ? 0.24 : 0.12), (arm ? 0.65 : 0.3) + effort];
+    const end: [number, number] = arm
+      ? (clinging ? [side * 0.42, 1.05] : [side * (0.57 - 0.25 * open), 0.82 + 0.3 * open])
+      : [side * (0.23 - open * 0.06), -0.1 + (reduced ? 0 : Math.sin(time * 2 + side) * (clinging ? 0.025 : 0.08))];
+    const bone = arm ? 0.3 : 0.26, width = arm ? 0.13 : 0.15;
+    const joint = heroJoint(root, end, bone, bone, arm ? side : -side);
+    segment(root, joint, width); segment(joint, end, width);
+    if (!arm) segment(end, [end[0] + side * 0.08, end[1]], 0.17, true);
+  }
+  r.drawLit(m.box, parts);
 }

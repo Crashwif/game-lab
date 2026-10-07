@@ -13,3 +13,9 @@ A man in a suit holds one in inside a packed glass lift. The floor indicator is 
 Arrivals, colour, haze, flicker, the readout, the canary and the indicator all follow the displayed multiplier; nothing in the presentation changes the committed outcome. The burst is seeded from the crash point so a replay fills the cabin the same way every time. A round met late settles into place quietly: the crowd aboard, the readout at the number, the canary already down and the plaque already flipped after a crash. `prefers-reduced-motion` turns off the shake, the flicker, the readout's flashing, the hit-stop and slow motion and the camera punch. Sound is opt-in through the Sound button.
 
 Run `npm run dev` from the repository root and open the Gas Fees URL it prints. Join with 50 local credits, then cash out during a running round to get off at your floor. `npm run build` produces the three publishable files in `dist/gas-fees/`.
+
+## Visual direction and small screens
+
+The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
+
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.

@@ -1,3 +1,4 @@
+import { portrait } from './portrait';
 /**
  * Composes King of the Hill from the room state: the altitude sky, the
  * bonding-curve hill, the coin, the ape, the Lambo that collects him on an
@@ -221,7 +222,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     audio.fx('punch', 0.9);
   }
 
-  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
+  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number, close = false): void {
     const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     // The hit-stop holds the picture for a few frames, then the pancake runs slow before time catches up.
@@ -244,7 +245,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       secured = { x100: view.cashoutX100, payout: view.payout };
       if (running) audio.cashout();
     }
-    const drive: CoinDrive = { x: running || crashed ? 60 + PX_PER_DOUBLING * growth : 60, radius: 40 + 50 * (1 - Math.exp(-growth / 2)), growth, running };
+    const drive: CoinDrive = { seconds: view.elapsed / 1000, x: running || crashed ? 60 + PX_PER_DOUBLING * growth : 60, radius: 40 + 50 * (1 - Math.exp(-growth / 2)), growth, running };
     const ending: Outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
 
     if (previous === null) {
@@ -500,7 +501,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', Math.min(560, 2 * (READOUT_X - readoutWidth - 24 - CAPTION_X)) / k);
       ctx.restore();
     }
-    if (secured && badge.x > 0.02) {
+    if (!close && secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
       ctx.translate(CAPTION_X, 114 + Math.sin(time * 2) * 3);
@@ -515,9 +516,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!running && !outcome) ctx.globalAlpha = 0.85;
     memeText(ctx, readout, READOUT_X, 80, 66, colour, 'right', READOUT_MAX);
     ctx.restore();
-    memeText(ctx, `MCAP ${formatMcap(multiplier)}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    if (!close) memeText(ctx, `MCAP ${formatMcap(multiplier)}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     void W;
   }
 
-  return { draw };
+  return { draw: portrait(draw, 'KING OF THE HILL', () => ({ x: 105, y: 105, w: 510, h: 390 }), v => captionFor(v, Math.max(1, v.currentX100 / 100), outcome, secured)) };
 }

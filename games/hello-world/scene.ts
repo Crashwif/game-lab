@@ -70,6 +70,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.fillStyle = COLOURS.text;
     ctx.font = '600 52px system-ui, sans-serif';
     ctx.fillText(GREETING, 480, 108, 840);
+    ctx.font = '600 21px system-ui, sans-serif';
+    ctx.fillStyle = COLOURS.muted;
+    ctx.fillText('CREATOR TEMPLATE · YOUR SCENE STARTS HERE', 480, 158, 860);
 
     ctx.fillStyle = crashed ? COLOURS.crashed : COLOURS.accent;
     ctx.font = '700 112px ui-monospace, monospace';

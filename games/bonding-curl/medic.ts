@@ -4,6 +4,7 @@
  * over to the curler. A crash met late finds him already parked there.
  * Nothing here changes the outcome.
  */
+import { endurance } from './endurance';
 import { type Spring, clamp, settleSpring, spring, stepSpring } from './motion';
 import { INK, type Point } from './gym';
 
@@ -52,13 +53,15 @@ export function summonMedic(m: Medic): void {
   if (m.mode === 'waiting') { m.mode = 'arriving'; m.bounce.v += 6; }
 }
 
-export interface MedicDrive { running: boolean; multiplier: number }
+export interface MedicDrive { seconds?: number; running: boolean; multiplier: number }
 
 export function stepMedic(m: Medic, drive: MedicDrive, dt: number): void {
   m.time += dt;
   m.events = { enter: false };
   if (m.mode === 'off' && drive.running && drive.multiplier >= MEDIC_AT) { m.mode = 'waiting'; m.events.enter = true; m.bounce.v += 6; }
-  stepSpring(m.x, targetX(m.mode), m.mode === 'arriving' ? 3.5 : 2.5, 0.85, dt);
+  const act = endurance(drive.seconds ?? 0);
+  const prepare = drive.running && m.mode === 'waiting' ? act.effort * (act.act === 3 ? 68 : act.act === 4 ? 110 : 0) : 0;
+  stepSpring(m.x, targetX(m.mode) - prepare, m.mode === 'arriving' ? 3.5 : 2.5, 0.85, dt);
   const rolling = Math.abs(m.x.v) > 20;
   stepSpring(m.bounce, rolling ? 0.5 + 0.5 * Math.sin(m.time * 18) : 0, 12, 0.5, dt);
   stepSpring(m.watch, m.mode === 'waiting' && !rolling && Math.floor(m.time * 0.45) % 2 === 1 ? 1 : 0, 6, 0.7, dt);
@@ -99,9 +102,12 @@ export function drawMedic(ctx: CanvasRenderingContext2D, m: Medic): void {
   ctx.restore();
   // Him: hi-vis, green trousers, a cap, one hand on the handle, the other checking the time.
   for (const side of [-1, 1]) {
-    limb(ctx, { x: side * 10, y: -74 }, { x: side * 12, y: 0 }, 15, '#2e8b57');
+    const walking = Math.abs(m.x.v) > 5;
+    const phase = ((m.time * 1.3 + (side > 0 ? .5 : 0)) % 1);
+    const lift = walking && phase > .6 ? Math.sin((phase - .6) / .4 * Math.PI) * 12 : 0;
+    limb(ctx, { x: side * 10, y: -74 }, { x: side * 12, y: -lift }, 15, '#2e8b57');
     ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect(side * 12 - 12, -6, 24, 10, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(side * 12 - 12, -6 - lift, 24, 10, 4); ctx.fill(); ctx.stroke();
   }
   ctx.fillStyle = '#ffd60a'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-28, -140, 56, 70, 10); ctx.fill(); ctx.stroke();
@@ -110,7 +116,7 @@ export function drawMedic(ctx: CanvasRenderingContext2D, m: Medic): void {
   ctx.fillStyle = '#2e8b57';
   ctx.fillRect(-4, -134, 8, 20); ctx.fillRect(-10, -128, 20, 8);
   const skin = '#e0bda7';
-  limb(ctx, { x: -28, y: -128 }, { x: -8, y: -70 }, 13, skin);
+  limb(ctx, { x: -28, y: -128 }, { x: 4, y: -62 - bounce * 3 }, 13, skin);
   const hand = { x: 28 + 6 * watch, y: -96 - 34 * watch };
   limb(ctx, { x: 28, y: -128 }, hand, 13, skin);
   ctx.fillStyle = '#2b2b30'; ctx.beginPath(); ctx.roundRect(hand.x - 8, hand.y - 4, 14, 8, 3); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();

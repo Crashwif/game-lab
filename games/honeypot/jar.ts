@@ -6,7 +6,7 @@
 import { clamp, mix, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
-export const JAR = { cx: 548, top: 132, w: 188, h: 252 };
+export const JAR = { cx: 548, top: 240, w: 188, h: 190 };
 
 export function sellTax(multiplier: number): number {
   if (multiplier < 1.6) return 1;
@@ -183,7 +183,7 @@ export function honeyColor(glue: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number): void {
+export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number, drawReach?: () => void): void {
   const { cx, top, w, h } = JAR;
   const left = cx - w / 2;
   const level = clamp(j.level.x, 0, 1);
@@ -219,6 +219,9 @@ export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number
     ctx.fill();
   }
   ctx.restore();
+  ctx.save();
+  ctx.translate(cx, top + h); ctx.scale(1 / (1 + squash * 0.07), 1 / (1 - squash * 0.07)); ctx.translate(-cx, -(top + h));
+  drawReach?.(); ctx.restore();
   ink(ctx, 4);
   ctx.strokeStyle = INK;
   ctx.beginPath();
@@ -266,6 +269,13 @@ export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number
   tracked(ctx, `SELL TAX ${j.tax}%`, 0, 0, 13, j.tax >= 49 ? '#c0392b' : INK);
   ctx.restore();
   tracked(ctx, 'BUY TAX 0%', cx, top + 142, 10, '#6b7280', '700 10px system-ui, sans-serif');
+  // Later audits tighten a visible safety band, release it, then try again.
+  if (time > 60 && !j.crashed) {
+    const effort = Math.pow(Math.max(0, Math.sin((time - 60) * Math.PI / 14)), 2);
+    ctx.strokeStyle = '#72512d'; ctx.lineWidth = 5;
+    ctx.strokeRect(left - 5 - effort * 8, top + 52, w + 10 + effort * 16, 12);
+    ctx.fillStyle = '#e6bc62'; ctx.fillRect(cx + w / 2 + 4, top + 46 - effort * 10, 18, 26);
+  }
   drawLid(ctx, j);
   if (j.audit.hit.x > 0.03) drawAudit(ctx, j.audit.hit.x, j.crashed);
   if (j.stamp.x > 0.03 && j.crashed) drawStamp(ctx, j.stamp.x);
@@ -313,7 +323,7 @@ function drawLid(ctx: CanvasRenderingContext2D, j: JarState): void {
   // Open: a disc tipped up behind the lip. Shut: it sits flat across the mouth.
   ctx.save();
   ctx.translate(cx, top + 8 + shut * 6);
-  ctx.rotate(j.angle * (1 - shut));
+  ctx.rotate(Math.sin(j.angle * 0.7) * 0.045 * (1 - shut));
   ctx.scale(1, 0.35 + shut * 0.65);
   ctx.fillStyle = j.crashed ? '#5c3218' : '#c9842a';
   ink(ctx, 3);
@@ -324,15 +334,16 @@ function drawLid(ctx: CanvasRenderingContext2D, j: JarState): void {
   ctx.strokeStyle = '#f8e7b0';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(-22, -18 * (1 - shut));
-  ctx.lineTo(22, -18 * (1 - shut));
+  const groove = Math.sin(j.angle) * 38;
+  ctx.moveTo(groove - 12, -18 * (1 - shut) - 3);
+  ctx.lineTo(groove + 12, -18 * (1 - shut) + 3);
   ctx.stroke();
   ctx.restore();
 }
 
 function drawStamp(ctx: CanvasRenderingContext2D, pop: number): void {
   ctx.save();
-  ctx.translate(JAR.cx, JAR.top + 214);
+  ctx.translate(JAR.cx, JAR.top + 162);
   ctx.rotate(-0.18);
   // Comes down past size and settles, like a stamp hit too hard.
   const k = clamp(pop, 0, 1.3);
