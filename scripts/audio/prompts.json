@@ -5,6 +5,20 @@
     "effects": { "format": "mp3_22050_32", "prompt_influence": 0.45 }
   },
   "games": {
+    "know-your-clown": {
+      "music": { "prompt": "Seamless 12-second instrumental game soundtrack loop, exactly four bars at 80 BPM with a 160 BPM double-time groove. Premium darkly comic electro-funk for a sinister automated bureaucracy. Tight dry breakbeat, deep rubbery syncopated synth bass, plucked analogue synth motif like a corporate telephone hold melody becoming paranoid, subtle metallic typewriter and pneumatic percussion, cold fluorescent atmosphere. D minor, tense and irresistibly bouncy, deadpan swagger, meticulous clean mix, controlled low end, space for game sound effects. Immediate established groove, same groove and harmonic state at both boundaries, no intro, no outro, no fade, no vocals, no speech, no climax or ending, loop indefinitely.", "seconds": 12 },
+      "crash": { "prompt": "Cinematic dark comedy machinery failure stinger: an enormous hydraulic security gate slams shut with a deep tight metal impact, a fast cascade of electrical crackles and printer mechanisms juddering to a halt, ending with one tiny pathetic rubber squeak. Short dry close sound design, punchy controlled bass, no explosion, no music, no voices.", "seconds": 2.8 },
+      "cashout": { "prompt": "A satisfying futuristic emergency extraction: sharp pneumatic latch releases, a polished sci-fi airlock whooshes open, a quick rising crystalline three-note success chime resolves triumphantly. Premium arcade game sound design, clean and punchy, no coins, no cash register, no voices, no background music.", "seconds": 1.8 },
+      "effects": {
+        "beep": { "prompt": "One short sci-fi biometric retinal scan: a delicate electronic chirrup sweeps upward then ends with two crisp computer pips. Precise sterile equipment, isolated dry game UI sound, no music, no voices.", "seconds": 0.7 },
+        "thud": { "prompt": "Loud punchy single impact of a heavy rubber office stamp slammed onto a desk, solid THWACK and a tiny metallic spring recoil. Strong upfront transient, close microphone, full recording level, dry studio sound effect, no background sound.", "seconds": 0.5 },
+        "camera": { "prompt": "One flash photography exposure from an overpowered bureaucratic ID camera: punchy mechanical shutter ka-chunk with a tiny electronic flash recharge fizz. Single dry close sound, no background sound.", "seconds": 0.5 },
+        "ratchet": { "prompt": "A small precision industrial robot arm makes one fast movement and locks into place: rising electric servo whirr followed by a sharp pneumatic click. Mechanical, tactile, slightly menacing, dry isolated game effect, no background hum.", "seconds": 0.8 },
+        "buzz": { "prompt": "Loud clear electronic access denied buzzer: BZZT BZZT, two rude descending nasal square-wave tones, harsh game show wrong-answer sound. Strong upfront midrange, full recording level, dry isolated sound effect, no music, no speech.", "seconds": 0.7 },
+        "coin": { "prompt": "One tiny dry peanut drops from a vending dispenser into an empty metal dish: small hatch tick then delicate hollow plink and a little rolling rattle. Pathetically small anticlimactic reward, close perspective, isolated and quiet, no coins, no music, no voice.", "seconds": 0.6 },
+        "engine": { "prompt": "A short industrial conveyor belt advancing a package: rhythmic rubber belt rollers, a soft low electric motor whirr, finishing with a pneumatic clack. Close, clean, compact, dry isolated machinery sound, no background ambience.", "seconds": 1 }
+      }
+    },
     "balloon-pump": {
       "music": { "prompt": "Upbeat 8-bit chiptune loop, 150 bpm, square-wave arpeggios, bright NES lead, punchy noise drums, playful and slightly anxious, seamless loop, instrumental" },
       "crash": { "prompt": "A huge rubber balloon bursting with a sharp pop, then rubber shreds fluttering down, cartoonish", "seconds": 2.5 },
