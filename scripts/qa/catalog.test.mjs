@@ -24,7 +24,10 @@ test('all catalog bundles play their verified recording, crash and restart witho
     const page=await browser.newPage({viewport:{width:375,height:812}});
     try{
       const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-      await page.clock.install();
+      const clockStart = new Date('2026-01-01T00:00:00Z');
+      await page.clock.install({time:clockStart});
+      // Pause before navigation so an expensive first render cannot consume the betting window.
+      await page.clock.pauseAt(new Date(clockStart.getTime()+60_000));
       await page.goto(`http://127.0.0.1:${server.address().port}/${game}/index.html?mode=replay`);
       await page.clock.runFor(50);
       assert.match(await page.locator('#status').innerText(),/Recorded round · betting/);

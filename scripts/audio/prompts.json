@@ -12,6 +12,49 @@
     }
   },
   "games": {
+    "know-your-clown": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. Darkly comic electro-funk for the Ministry of Airdrops, a sinister automated bureaucracy: an 80 BPM groove with a 160 BPM double-time feel, dry breakbeats, rubbery syncopated synth bass, paranoid corporate hold-music motifs and metallic typewriter percussion in D minor. Develop six distinct 25-second sections: establish the inspection motif, add a dental-scanner counter-melody, introduce a deadpan witness theme, vary the harmony for the ancestry review, strip back to a mechanical CAPTCHA dance, then rebuild with an uneasy soul-appraisal lead and return toward the opening. Keep a clean mix and space for procedure effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      },
+      "crash": {
+        "prompt": "Cinematic dark comedy machinery failure stinger: an enormous hydraulic security gate slams shut with a deep tight metal impact, a fast cascade of electrical crackles and printer mechanisms juddering to a halt, ending with one tiny pathetic rubber squeak. Short dry close sound design, punchy controlled bass, no explosion, no music, no voices.",
+        "seconds": 2.8
+      },
+      "cashout": {
+        "prompt": "A satisfying futuristic emergency extraction: sharp pneumatic latch releases, a polished sci-fi airlock whooshes open, a quick rising crystalline three-note success chime resolves triumphantly. Premium arcade game sound design, clean and punchy, no coins, no cash register, no voices, no background music.",
+        "seconds": 1.8
+      },
+      "effects": {
+        "beep": {
+          "prompt": "One short sci-fi biometric retinal scan: a delicate electronic chirrup sweeps upward then ends with two crisp computer pips. Precise sterile equipment, isolated dry game UI sound, no music, no voices.",
+          "seconds": 0.7
+        },
+        "thud": {
+          "prompt": "Loud sharp heavy stamp impact on a wooden desk. Immediate foreground CLUNK-THWACK, solid punchy attack, short metallic recoil. Close dry recording at full volume. No lead-in, no ambience, no music, no speech.",
+          "seconds": 1.1
+        },
+        "camera": {
+          "prompt": "One flash photography exposure from an overpowered bureaucratic ID camera: punchy mechanical shutter ka-chunk with a tiny electronic flash recharge fizz. Single dry close sound, no background sound.",
+          "seconds": 0.5
+        },
+        "ratchet": {
+          "prompt": "A small precision industrial robot arm makes one fast movement and locks into place: rising electric servo whirr followed by a sharp pneumatic click. Mechanical, tactile, slightly menacing, dry isolated game effect, no background hum.",
+          "seconds": 0.8
+        },
+        "buzz": {
+          "prompt": "Loud clear electronic access denied buzzer: BZZT BZZT, two rude descending nasal square-wave tones, harsh game show wrong-answer sound. Strong upfront midrange, full recording level, dry isolated sound effect, no music, no speech.",
+          "seconds": 0.7
+        },
+        "coin": {
+          "prompt": "One tiny dry peanut drops from a vending dispenser into an empty metal dish: small hatch tick then delicate hollow plink and a little rolling rattle. Pathetically small anticlimactic reward, close perspective, isolated and quiet, no coins, no music, no voice.",
+          "seconds": 0.6
+        },
+        "engine": {
+          "prompt": "A short industrial conveyor belt advancing a package: rhythmic rubber belt rollers, a soft low electric motor whirr, finishing with a pneumatic clack. Close, clean, compact, dry isolated machinery sound, no background ambience.",
+          "seconds": 1
+        }
+      }
+    },
     "hello-world": {
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A minimal friendly chiptune for a Hello World starter game: a gentle square-wave motif at 100 BPM, warm triangle bass and sparse soft percussion. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony, simplify the texture while keeping the pulse, rebuild with a new melodic variation, and finish with a gentle return toward the opening. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
