@@ -100,6 +100,21 @@ export function beds(c: CanvasRenderingContext2D) {
   box(c, -53, -11, 106, 22, '#f5dfae', 3, 2); text(c, 'JUST TOMATOES', 0, 5, 10, '#fff4d3', 'center'); c.restore();
 }
 
+/** A small, bounded moth patrol visits the full-grown beds throughout a long round. */
+export function pollinators(c: CanvasRenderingContext2D, time: number) {
+  for (let i = 0; i < 4; i++) {
+    const phase = time * 0.32 + i * Math.PI / 2;
+    const x = 570 + Math.sin(phase) * (125 + i * 18);
+    const y = 270 + Math.cos(phase * 1.5 + i) * 55;
+    const wing = 2 + 5 * Math.abs(Math.sin(time * 15 + i));
+    c.save(); c.translate(x, y); c.rotate(Math.sin(phase) * 0.35);
+    oval(c, -4, -2, wing, 4, '#f6d894', 1);
+    oval(c, 4, -2, wing, 4, '#ecd2f4', 1);
+    oval(c, 0, 0, 2, 5, '#554353');
+    c.restore();
+  }
+}
+
 export function flyingLeaves(c: CanvasRenderingContext2D, age: number, reduced: boolean) {
   if (age < 0 || age > 2.6 || reduced) return;
   for (let i = 0; i < 21; i++) {

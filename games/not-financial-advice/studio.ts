@@ -49,6 +49,8 @@ export interface Studio {
   /** The sponsor read held to camera: which product, how far up (a spring), and for how long. */
   read: { index: number; hold: Spring; age: number };
   readsShown: number;
+  /** Time between sponsor spots once the opening milestone reads have finished. */
+  encoreClock: number;
   pending: number;
   /** Your subscriber's screenshot: a shutter flash over the video. */
   flash: number;
@@ -79,6 +81,7 @@ export function createStudio(): Studio {
     soldFlash: 0,
     read: { index: -1, hold: spring(0), age: 0 },
     readsShown: 0,
+    encoreClock: 0,
     pending: 0,
     flash: 0,
     truckIn: false,
@@ -104,6 +107,7 @@ export function resetStudio(s: Studio): void {
   s.soldFlash = 0;
   s.read = { index: -1, hold: spring(0), age: 0 };
   s.readsShown = 0;
+  s.encoreClock = 0;
   s.pending = 0;
   s.flash = 0;
   s.truckIn = false;
@@ -184,6 +188,17 @@ export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
     s.read.age = 0;
     s.read.hold.v += 4;
     s.events.read = true;
+    s.encoreClock = 0;
+  }
+  if (drive.running && !s.crashed && s.readsShown >= PRODUCTS.length) {
+    s.encoreClock += dt;
+    if (s.encoreClock >= 12) {
+      s.encoreClock %= 12;
+      s.read.index = (s.read.index + 1) % PRODUCTS.length;
+      s.read.age = 0;
+      s.read.hold.v += 4;
+      s.events.read = true;
+    }
   }
   s.read.age += dt;
   stepSpring(s.read.hold, s.read.index >= 0 && s.read.age < READ_S && !s.crashed ? 1 : 0, 11, 0.5, dt);

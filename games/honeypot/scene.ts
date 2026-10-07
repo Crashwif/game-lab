@@ -264,9 +264,9 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (caption) {
       ctx.save();
-      ctx.translate(400, 58);
+      ctx.translate(340, 58);
       ctx.scale(1 + 0.08 * captionPop.x, 1 + 0.08 * captionPop.x);
-      memeText(ctx, caption, 0, 0, 40, '#1c1f26', 'center', 880);
+      memeText(ctx, caption, 0, 0, 40, '#1c1f26', 'center', 620);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
@@ -277,7 +277,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 24, '#2f7a3a', 'center');
       ctx.restore();
     }
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 936, 64, 56, outcome === 'rekt' ? '#ff4d6d' : '#1c1f26', 'right');
+    memeText(ctx, `${multiplier.toFixed(2)}×`, 936, 64, 56, outcome === 'rekt' ? '#ff4d6d' : '#1c1f26', 'right', 240);
     memeText(ctx, `SELL TAX ${sellTax(multiplier)}%`, 24, 520, 26, sellTax(multiplier) >= 49 ? '#c0392b' : '#1c1f26', 'left');
     memeText(ctx, `HONEY ${Math.round(jar.level.x * 100)}%`, 936, 520, 22, '#1c1f26', 'right');
   }

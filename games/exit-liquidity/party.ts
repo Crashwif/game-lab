@@ -151,7 +151,7 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
   a.modeAge += dt;
   a.fear = fear;
   const want = crowdFor(growth);
-  if (running && !pool.draining && p.holders.filter((h) => !h.airdropped && h.mode !== 'gone').length < want && !p.holders.some((h) => h.mode === 'jumping' && !h.airdropped)) {
+  if (running && !pool.draining && p.holders.length < MAX_HOLDERS && p.holders.filter((h) => !h.airdropped && h.mode !== 'gone').length < want && !p.holders.some((h) => h.mode === 'jumping' && !h.airdropped)) {
     p.holders.push({ x: 840, y: POOL.top - 30, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX: 840, toX: 230 + p.rng() * 520, fromY: POOL.top - 30, spin: 0, scale: 1, airdropped: false });
   }
   // The helicopter: launches a pass it owes, tips a degen out at each drop mark, and leaves off the right.
@@ -167,9 +167,15 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
     // Once the plug is out the pilot wants no part of it and leaves at full throttle.
     h.x += HELI.speed * (pool.draining ? 2.6 : 1) * dt;
     if (h.drops < HELI.drops.length && h.x >= HELI.drops[h.drops]!) {
-      if (running && !pool.draining && p.holders.filter((k) => k.mode !== 'gone').length < MAX_HOLDERS) {
+      if (running && !pool.draining) {
         const fromX = h.x + 8;
-        p.holders.push({ x: fromX, y: HELI.y + 24, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX, toX: clamp(fromX + (p.rng() - 0.5) * 60, POOL.left + 40, POOL.right - 40), fromY: HELI.y + 24, spin: 0, scale: 1, airdropped: true });
+        const jumper: Holder = { x: fromX, y: HELI.y + 24, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX, toX: clamp(fromX + (p.rng() - 0.5) * 60, POOL.left + 40, POOL.right - 40), fromY: HELI.y + 24, spin: 0, scale: 1, airdropped: true };
+        if (p.holders.length < MAX_HOLDERS) p.holders.push(jumper);
+        else {
+          // Later passes give a returning partygoer another jump; the pool's crowd stays bounded.
+          const returning = p.holders.find(k => k.airdropped && k.mode === 'floating');
+          if (returning) Object.assign(returning, jumper);
+        }
         if (h.drops === 0) p.events.drop = true;
       }
       h.drops += 1;

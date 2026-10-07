@@ -184,8 +184,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       const label = ward.label;
       dose(ward, monitor.doseIndex);
       if (!reduced) shake = Math.max(shake, 0.15);
-      audio.fx('beep', 0.6 + 0.08 * monitor.doseIndex);
-      if (ward.label !== label) audio.fx('glug', 1);
+      audio.fx('beep', 0.6 + 0.08 * Math.min(9, monitor.doseIndex));
+      if (ward.label !== label || ward.refill === 1) audio.fx('glug', 1);
     }
     if (running && monitor.beats !== beats) {
       beats = monitor.beats;

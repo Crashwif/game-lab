@@ -104,14 +104,21 @@ export function puff(g: Gym, at: Point, count: number, colour: string, seedOffse
   }
 }
 
-/** The mirror chart's point `elapsed` ms into the round, at `growth` (log2 of the multiplier). */
-const trailPoint = (elapsed: number, growth: number): Point => ({ x: MIRROR.x + 30 + (MIRROR.w - 60) * (1 - Math.exp(-elapsed / 32000)), y: MIRROR.y + MIRROR.h - 20 - (MIRROR.h - 50) * Math.min(growth, 4.2) / 4.2 });
+/** Chart samples store elapsed milliseconds and log2(multiplier), keeping the actual observed curve. */
+const trailPoint = (elapsed: number, growth: number): Point => ({ x: elapsed, y: growth });
 
-/** The mirror's chart as it stands `elapsed` ms in, for a round met late. The curve is exponential, so growth climbs in step with time. */
+/** A late join knows its endpoints; draw that connection until observed samples arrive. */
 export function settleTrail(g: Gym, elapsed: number, growth: number): void {
-  g.trail = [];
-  for (let at = 0; at <= elapsed && g.trail.length < TRAIL_POINTS; at += 100) g.trail.push(trailPoint(at, at > 0 ? (growth * at) / elapsed : 0));
+  g.trail = [trailPoint(0, 0), trailPoint(elapsed, growth)];
   g.trailAt = Math.floor(elapsed / 100);
+}
+
+/** Rescale the mirror chart instead of flattening all multipliers above 18× against its ceiling. */
+function chartPoints(trail: Point[]): Point[] {
+  const end = trail[trail.length - 1]!;
+  const timeScale = Math.max(32_000, end.x / 3);
+  const growthScale = Math.max(4.2, end.y * 1.12);
+  return trail.map(p => ({ x: MIRROR.x + 30 + (MIRROR.w - 60) * (1 - Math.exp(-p.x / timeScale)), y: MIRROR.y + MIRROR.h - 20 - (MIRROR.h - 50) * p.y / growthScale }));
 }
 
 export function finishGym(g: Gym, cheerful: boolean, quiet: boolean): void {
@@ -131,7 +138,9 @@ export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
   g.viewers = Math.round(69 + 420 * (Math.pow(drive.multiplier, 1.4) - 1));
   if (drive.running) {
     const at = Math.floor(drive.elapsed / 100);
-    if (at !== g.trailAt && g.trail.length < TRAIL_POINTS) {
+    if (at !== g.trailAt) {
+      // Thin old history at the cap, retaining the launch and making room for current samples.
+      if (g.trail.length >= TRAIL_POINTS) g.trail = g.trail.filter((_, i) => i % 2 === 0);
       g.trailAt = at;
       g.trail.push(trailPoint(drive.elapsed, drive.growth));
     }
@@ -201,17 +210,18 @@ export function drawGymBack(ctx: CanvasRenderingContext2D, g: Gym, dead: boolean
   ctx.beginPath(); ctx.moveTo(MIRROR.x + 40, MIRROR.y + MIRROR.h - 10); ctx.lineTo(MIRROR.x + 200, MIRROR.y + 10); ctx.stroke();
   // The chart in the mirror.
   if (g.trail.length > 1) {
+    const trail = chartPoints(g.trail);
     ctx.save();
     ctx.beginPath(); ctx.rect(MIRROR.x, MIRROR.y, MIRROR.w, MIRROR.h); ctx.clip();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = dead ? 'rgba(255, 77, 109, 0.55)' : 'rgba(46, 160, 90, 0.55)';
     ctx.fillStyle = ctx.strokeStyle;
     ctx.lineWidth = 9;
-    ctx.beginPath(); ctx.moveTo(g.trail[0]!.x, g.trail[0]!.y);
-    for (const p of g.trail) ctx.lineTo(p.x, p.y);
+    ctx.beginPath(); ctx.moveTo(trail[0]!.x, trail[0]!.y);
+    for (const p of trail) ctx.lineTo(p.x, p.y);
     ctx.stroke();
-    const tip = g.trail[g.trail.length - 1]!;
-    const from = g.trail[Math.max(0, g.trail.length - 8)]!;
+    const tip = trail[trail.length - 1]!;
+    const from = trail[Math.max(0, trail.length - 8)]!;
     let head = tip;
     let angle = Math.atan2(tip.y - from.y, tip.x - from.x);
     if (dead) { head = { x: tip.x + 26, y: MIRROR.y + MIRROR.h - 14 }; angle = Math.atan2(head.y - tip.y, head.x - tip.x); ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(head.x, head.y); ctx.stroke(); }
@@ -416,7 +426,8 @@ export function drawPhoneOverlay(ctx: CanvasRenderingContext2D, g: Gym, live: bo
   ctx.beginPath(); ctx.ellipse(52, 21, 5, 3.2, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(52, 21, 1.6, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#ffffff'; ctx.font = '900 11px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'right';
-  ctx.fillText(g.viewers >= 1000 ? `${(g.viewers / 1000).toFixed(1)}K` : String(g.viewers), 66, 44);
+  const viewers = g.viewers >= 1e9 ? `${(g.viewers / 1e9).toFixed(1)}B` : g.viewers >= 1e6 ? `${(g.viewers / 1e6).toFixed(1)}M` : g.viewers >= 1000 ? `${(g.viewers / 1000).toFixed(1)}K` : String(g.viewers);
+  ctx.fillText(viewers, 66, 44, 56);
   ctx.restore();
   for (const h of g.hearts) {
     if (!h.screen) continue;

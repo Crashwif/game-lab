@@ -49,7 +49,7 @@ Reduced motion removes scanning travel, large escape motion and the rejection st
 | `coin` | Peanut landing |
 | `cashout` | Accepted escape |
 
-Prompts live in `scripts/audio/prompts.json`; raw MP3s and request fingerprints live in `scripts/audio/cache/know-your-clown/`. Generate only this game's clips with `npm run audio -- --game know-your-clown`, using `ELEVENLABS_API_KEY` in the process environment. An unchanged prompt reuses its cached clip. The embedded collection stays below the generator's 200 KB budget.
+Prompts live in `scripts/audio/prompts.json`; raw MP3s and request fingerprints live in `scripts/audio/cache/know-your-clown/`. The committed music is the original twelve-second loop. The current music prompt requests a 150-second score for a future regeneration; its request intentionally differs from the saved loop's fingerprint. Generate that score with `npm run audio -- --game know-your-clown --clip music`, using `ELEVENLABS_API_KEY` in the process environment. This preserves the existing effects and embeds the new score as compact Opus. The complete `clips.json` must stay below the 256 KiB source-file limit. See the root README for dry-run and cache options.
 
 ## Preview and checks
 

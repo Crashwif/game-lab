@@ -23,6 +23,8 @@ export interface PublishedChain {
   nextIndex?: number;
   /** The Solana transaction that published this commitment before its salt slot (chainAnchorMemo). */
   anchorSignature?: string | null;
+  /** The published signing key for this chain; it must belong to the verifier’s trusted keys. */
+  anchorKey?: string | null;
   /** Rounds in the chain; part of the anchored commitment. */
   chainLength?: number;
 }
@@ -33,11 +35,26 @@ export interface AnchorCheck {
   claimed?: boolean;
   /** It claimed the address but landed at or after the salt slot. */
   late?: boolean;
+  /** False when this RPC has no such transaction (not finalized yet, or outside the history it keeps): nothing is proven either way. */
+  settled?: boolean;
   /** Slot the anchor landed in, when found. */
   slot: number | null;
   detail: string;
   /** The commitment the anchor states, when it matched (its minimum round time is what a verifier needs next). */
   commitment?: ChainCommitment;
+}
+
+/** What a check against Solana found: agreement, a contradiction, or a question this RPC cannot settle. */
+export type CheckState = 'ok' | 'failed' | 'unsettled';
+
+export interface SaltCheck {
+  ok: boolean;
+  /** `unsettled` while no finalized block exists at or after the salt slot, when this RPC does not serve that block, or while the salt is not drawn. */
+  state: CheckState;
+  /** The first finalized block at or after the salt slot, when there is one. */
+  slot: number | null;
+  blockhash: string | null;
+  detail: string;
 }
 
 export interface PublishedRound {
@@ -109,15 +126,20 @@ export class RpcError extends Error {
   }
 }
 
-/** Whether `chain.salt` is the blockhash of the first finalized block at or after `chain.saltSlot`. */
-export async function verifySalt(chain: PublishedChain, rpcUrl: string, fetchImpl: FetchLike = globalFetch()): Promise<{ ok: boolean; slot: number | null; blockhash: string | null }> {
+/**
+ * Whether `chain.salt` is the blockhash of the first finalized block at or after `chain.saltSlot`. Only a blockhash
+ * that disagrees with a drawn salt fails: a slot not reached, a block this RPC has pruned and a salt not drawn
+ * yet leave the question unsettled rather than failing the whole verification.
+ */
+export async function verifySalt(chain: PublishedChain, rpcUrl: string, fetchImpl: FetchLike = globalFetch()): Promise<SaltCheck> {
   const blocks = await rpc<number[]>(fetchImpl, rpcUrl, 'getBlocks', [chain.saltSlot, chain.saltSlot + 500, { commitment: 'finalized' }]);
   const slot = blocks.find((b) => b >= chain.saltSlot) ?? null;
-  if (slot === null) return { ok: false, slot: null, blockhash: null };
+  if (slot === null) return { ok: false, state: 'unsettled', slot: null, blockhash: null, detail: `no finalized block at or after slot ${chain.saltSlot} yet` };
   const block = await rpc<{ blockhash: string } | null>(fetchImpl, rpcUrl, 'getBlock', [slot, { commitment: 'finalized', transactionDetails: 'none', rewards: false, maxSupportedTransactionVersion: 0 }]);
-  // An RPC that has pruned the block, or answers nothing, fails the check rather than the whole verification.
-  if (!block || typeof block.blockhash !== 'string') return { ok: false, slot, blockhash: null };
-  return { ok: chain.salt !== null && block.blockhash === chain.salt, slot, blockhash: block.blockhash };
+  if (!block || typeof block.blockhash !== 'string') return { ok: false, state: 'unsettled', slot, blockhash: null, detail: `block ${slot} is not served by this RPC` };
+  if (chain.salt === null) return { ok: false, state: 'unsettled', slot, blockhash: block.blockhash, detail: `the salt is not drawn yet; the chain waits for slot ${chain.saltSlot}` };
+  const ok = block.blockhash === chain.salt;
+  return { ok, state: ok ? 'ok' : 'failed', slot, blockhash: block.blockhash, detail: ok ? `the salt is the blockhash of block ${slot}` : `the salt is not the blockhash of block ${slot}` };
 }
 
 interface ParsedTransaction {
@@ -139,15 +161,17 @@ const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isS
  * `anchorKey` that allocated the chain's anchor address for the Memo program (which can happen only once per
  * game and chain id), whose memo states exactly this chain's commitment, in a slot before the salt slot.
  */
-export async function verifyAnchor(rawGameId: string, chain: PublishedChain, rpcUrl: string, anchorKey: string, fetchImpl: FetchLike = globalFetch()): Promise<AnchorCheck> {
+export async function verifyAnchor(rawGameId: string, chain: PublishedChain, rpcUrl: string, trustedKeys: string | readonly string[], fetchImpl: FetchLike = globalFetch()): Promise<AnchorCheck> {
   // Game ids are lowercase UUIDs wherever they are hashed: accept one typed in capitals.
   const gameId = rawGameId.toLowerCase();
-  if (!chain.anchorSignature) return { ok: false, slot: null, detail: 'the chain was not anchored on Solana' };
+  const anchorKey = trustedAnchorKey(chain, trustedKeys);
+  if (!anchorKey) return { ok: false, slot: null, detail: 'the chain names an anchor key outside the published trusted keys' };
+  if (!chain.anchorSignature) return { ok: false, ...(chain.salt === null && !chain.nextIndex ? { settled: false } : {}), slot: null, detail: 'the chain was not anchored on Solana' };
   if (!isCount(chain.chainId) || !isCount(chain.saltSlot) || !isCount(chain.chainLength ?? -1)) {
     return { ok: false, slot: null, detail: "the server's chain id, salt slot or length isn't a whole number" };
   }
   const tx = await rpc<ParsedTransaction | null>(fetchImpl, rpcUrl, 'getTransaction', [chain.anchorSignature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }]);
-  if (!tx) return { ok: false, slot: null, detail: `anchor ${chain.anchorSignature} not found (or not finalized)` };
+  if (!tx) return { ok: false, settled: false, slot: null, detail: `anchor ${chain.anchorSignature} not found on this RPC (not finalized yet, or outside the history it keeps)` };
   if (tx.meta?.err) return { ok: false, slot: tx.slot, detail: 'the anchor transaction failed' };
   const { accountKeys, instructions } = tx.transaction.message;
   if (!accountKeys.some((k) => k.pubkey === anchorKey && k.signer)) return { ok: false, slot: tx.slot, detail: `the anchor is not signed by ${anchorKey}` };
@@ -201,16 +225,23 @@ export interface ChainSummary {
   nextIndex: number;
   retired: boolean;
   anchorSignature: string | null;
+  anchorKey?: string | null;
+  /** The slot the anchor was finalized in, once the server saw it land before the salt slot; null while it is pending, or when it never landed. */
+  anchorSlot?: number | null;
   createdAt?: string;
 }
 
 export interface AnchorAudit {
+  /** False on any problem, and while any anchor is unsettled. */
   ok: boolean;
   /** False when the audit could not look at every chain (the listing failed, or it lists more than a verifier checks). */
   complete: boolean;
   /** Anchored chains that verified. */
   anchors: number;
+  /** What contradicts the room's history: each one a definite finding against the server. */
   problems: string[];
+  /** Cited anchors this RPC has no transaction for (not finalized yet, or outside the history it keeps), when there are any. */
+  unsettled?: string[];
 }
 
 async function blockTime(fetchImpl: FetchLike, rpcUrl: string, slot: number): Promise<number | null> {
@@ -242,9 +273,23 @@ const HELD_BACK_LOOKAHEAD = 3;
 export const MAX_AUDITED_CHAINS = 10_000;
 
 /** Whether chain `chainId`'s anchor address has been claimed for good (a later chain exists once the next id is). */
-export async function chainAnchored(rawGameId: string, chainId: number, rpcUrl: string, anchorKey: string, fetchImpl: FetchLike = globalFetch()): Promise<boolean> {
+export async function chainAnchored(rawGameId: string, chainId: number, rpcUrl: string, trustedKeys: string | readonly string[], fetchImpl: FetchLike = globalFetch()): Promise<boolean> {
   if (!isCount(chainId)) throw new Error(`chain id ${chainId} is not a whole number`);
-  return claimedAddress(fetchImpl, rpcUrl, chainAnchorAddress(anchorKey, rawGameId.toLowerCase(), chainId));
+  for (const anchorKey of anchorKeys(trustedKeys)) {
+    if (await claimedAddress(fetchImpl, rpcUrl, chainAnchorAddress(anchorKey, rawGameId.toLowerCase(), chainId))) return true;
+  }
+  return false;
+}
+
+function anchorKeys(keys: string | readonly string[]): string[] {
+  return [...new Set((typeof keys === 'string' ? [keys] : keys).filter(Boolean))];
+}
+
+/** A server can select among published keys, but cannot introduce a trusted key. */
+function trustedAnchorKey(chain: { anchorKey?: string | null }, trustedKeys: string | readonly string[]): string | null {
+  const keys = anchorKeys(trustedKeys);
+  const key = chain.anchorKey ?? keys[0];
+  return key && keys.includes(key) ? key : null;
 }
 
 async function claimedAddress(fetchImpl: FetchLike, rpcUrl: string, address: string): Promise<boolean> {
@@ -262,6 +307,8 @@ async function claimedAddress(fetchImpl: FetchLike, rpcUrl: string, address: str
  * - a wasted id: never played, and either never claimed (its anchor never landed) or claimed too late by
  *   the transaction it cites. Honest rooms produce these when an anchor is dropped;
  * - pending: the newest chain, not played yet, whose anchor hasn't finalized;
+ * - unsettled: its anchor address is claimed, but this RPC has no transaction for the anchor it cites (not
+ *   finalized yet, or outside the history the RPC keeps), so another RPC has to settle it;
  * - anything else fails.
  *
  * Then: chain ids run 0, 1, 2, ... without gaps; no id just past the newest is already claimed (a candidate
@@ -273,13 +320,15 @@ export async function auditChains(
   rawGameId: string,
   chains: ChainSummary[],
   rpcUrl: string,
-  anchorKey: string,
+  trustedKeys: string | readonly string[],
   fetchImpl: FetchLike = globalFetch(),
   rules: ChainRules = ADVERTISED_RULES,
 ): Promise<AnchorAudit> {
   const gameId = rawGameId.toLowerCase();
   if (chains.length > MAX_AUDITED_CHAINS) return { ok: false, complete: false, anchors: 0, problems: [`the server lists ${chains.length} chains, more than the ${MAX_AUDITED_CHAINS} a verifier checks`] };
+  const keys = anchorKeys(trustedKeys);
   const problems: string[] = [];
+  const unsettled: string[] = [];
   const sorted = [...chains].sort((a, b) => a.chainId - b.chainId);
   if (sorted.some((c, i) => !isCount(c.chainId) || c.chainId !== i)) problems.push("the server's chain ids aren't 0, 1, 2, ... without gaps");
   // One chain is played at a time: a chain is retired before the next is committed, so only the newest may be active.
@@ -300,7 +349,17 @@ export async function auditChains(
       problems.push(`the server's entry for chain ${String(c.chainId)} isn't well-formed`);
       continue;
     }
-    const check = c.anchorSignature ? await verifyAnchor(gameId, { ...c, salt: null }, rpcUrl, anchorKey, fetchImpl) : null;
+    const anchorKey = trustedAnchorKey(c, keys);
+    if (!anchorKey) {
+      problems.push(`chain ${c.chainId} names an anchor key outside the published trusted keys`);
+      continue;
+    }
+    const claimedKeys: string[] = [];
+    for (const key of keys) {
+      if (await claimedAddress(fetchImpl, rpcUrl, chainAnchorAddress(key, gameId, c.chainId))) claimedKeys.push(key);
+    }
+    if (claimedKeys.length > 1) problems.push(`chain ${c.chainId} has more than one claim across the published anchor keys`);
+    const check = c.anchorSignature ? await verifyAnchor(gameId, { ...c, salt: null }, rpcUrl, keys, fetchImpl) : null;
     if (check?.ok && check.commitment && check.slot !== null) {
       verified.push({ chainId: c.chainId, commitment: check.commitment });
       claims.push({ chainId: c.chainId, slot: check.slot });
@@ -318,11 +377,17 @@ export async function auditChains(
       claims.push({ chainId: c.chainId, slot: check.slot }); // a late claim still counts for pace
       continue;
     }
-    const claimed = await claimedAddress(fetchImpl, rpcUrl, chainAnchorAddress(anchorKey, gameId, c.chainId));
+    const claimed = claimedKeys.length > 0;
     if (!claimed && unplayed) continue; // an anchor that never landed: a wasted id
     // The newest chain, nothing played yet, its anchor not finalized: nothing to hide so far. Once a round is
     // played it must verify like any other.
     if (!claimed && c.nextIndex === 0 && !c.retired && newest) continue;
+    // The address is claimed and the cited anchor is not on this RPC: nothing to hold against the room yet, and
+    // nothing in its favour either, until an RPC that has the transaction settles it.
+    if (claimed && check?.settled === false) {
+      unsettled.push(`chain ${c.chainId}'s anchor ${c.anchorSignature} was not found on this RPC (not finalized yet, or this RPC keeps no history)`);
+      continue;
+    }
     problems.push(
       claimed
         ? `chain ${c.chainId}'s anchor address was claimed, but not by a valid anchor the server cites${check ? ` (${check.detail})` : ''}`
@@ -332,7 +397,7 @@ export async function auditChains(
   // Candidates anchored in advance and held back would show just past the newest listed id.
   const after = sorted.length > 0 && isCount(sorted[sorted.length - 1]!.chainId) ? sorted[sorted.length - 1]!.chainId + 1 : 0;
   for (let id = after; id < after + HELD_BACK_LOOKAHEAD; id++) {
-    if (await claimedAddress(fetchImpl, rpcUrl, chainAnchorAddress(anchorKey, gameId, id))) problems.push(`chain ${id} was anchored but the server doesn't list it`);
+    if (await chainAnchored(gameId, id, rpcUrl, keys, fetchImpl)) problems.push(`chain ${id} was anchored but the server doesn't list it`);
   }
   // Each verified chain must have had time to be played out before the next claim, whatever came of it.
   for (const v of verified) {
@@ -351,7 +416,7 @@ export async function auditChains(
       problems.push(`chain ${next.chainId} was anchored ${end - start}s after chain ${v.chainId}'s salt, less than the ${Math.ceil(neededMs / 1000)}s its ${v.commitment.chainLength} rounds take at least`);
     }
   }
-  return { ok: problems.length === 0, complete: true, anchors: verified.length, problems };
+  return { ok: problems.length === 0 && unsettled.length === 0, complete: true, anchors: verified.length, problems, ...(unsettled.length ? { unsettled } : {}) };
 }
 
 /**
@@ -362,7 +427,7 @@ export async function auditChains(
 function listingMismatch(chain: PublishedChain, chains: ChainSummary[]): string | null {
   const listed = chains.find((c) => c.chainId === chain.chainId);
   if (!listed) return `chain ${chain.chainId} isn't in the server's chain history`;
-  const fields: (keyof ChainSummary & keyof PublishedChain)[] = ['terminalHash', 'saltSlot', 'salt', 'houseEdgeBps', 'chainLength', 'anchorSignature'];
+  const fields: (keyof ChainSummary & keyof PublishedChain)[] = ['terminalHash', 'saltSlot', 'salt', 'houseEdgeBps', 'chainLength', 'anchorSignature', 'anchorKey'];
   const differ = fields.filter((f) => (listed[f] ?? null) !== (chain[f] ?? null));
   const rounds = listed.retired ? listed.nextIndex !== chain.nextIndex : !(typeof listed.nextIndex === 'number' && listed.nextIndex >= (chain.nextIndex ?? 0));
   if (rounds) differ.push('nextIndex');
@@ -375,7 +440,7 @@ export async function verifyRoomChain(
   baseUrl: string,
   rawGameId: string,
   chainId: number,
-  options: { rpcUrl?: string; anchorKey?: string; fetch?: FetchLike; pageSize?: number; maxPages?: number; rules?: ChainRules; onPage?: (state: VerifyState) => void } = {},
+  options: { rpcUrl?: string; anchorKey?: string; anchorKeys?: readonly string[]; fetch?: FetchLike; pageSize?: number; maxPages?: number; rules?: ChainRules; onPage?: (state: VerifyState) => void } = {},
 ): Promise<{
   chain: PublishedChain;
   state: VerifyState;
@@ -417,8 +482,9 @@ export async function verifyRoomChain(
       state = { ...state, failures: [...state.failures, { roundIndex: state.nextIndex, reason: 'truncated', detail: `the server settled ${chain.nextIndex} rounds but served ${state.nextIndex}` }] };
     }
   }
-  const salt = options.rpcUrl && chain ? await verifySalt(chain, options.rpcUrl, fetchImpl) : null;
-  const anchor = options.rpcUrl && options.anchorKey && chain ? await verifyAnchor(gameId, chain, options.rpcUrl, options.anchorKey, fetchImpl) : null;
+  const salt = options.rpcUrl && chain ? await verifySalt(chain, options.rpcUrl, fetchImpl).catch((error: unknown): SaltCheck => ({ ok: false, state: 'unsettled', slot: null, blockhash: null, detail: `Solana RPC could not check the salt: ${(error as Error).message}` })) : null;
+  const trustedKeys = anchorKeys([...(options.anchorKey ? [options.anchorKey] : []), ...(options.anchorKeys ?? [])]);
+  const anchor = options.rpcUrl && trustedKeys.length && chain ? await verifyAnchor(gameId, chain, options.rpcUrl, trustedKeys, fetchImpl).catch((error: unknown): AnchorCheck => ({ ok: false, settled: false, slot: null, detail: `Solana RPC could not check the anchor: ${(error as Error).message}` })) : null;
   // The chain history, fetched once and returned, so whoever shows or compares it uses the listing that was checked.
   const list = async (): Promise<ChainSummary[]> => {
     const response = await fetchImpl(`${base}/rooms/${gameId}/chains`);
@@ -432,18 +498,18 @@ export async function verifyRoomChain(
   let history: AnchorAudit | null = null;
   try {
     listing = await list();
-    if (options.rpcUrl && options.anchorKey) {
-      history = await auditChains(gameId, listing, options.rpcUrl, options.anchorKey, fetchImpl, options.rules);
+    if (options.rpcUrl && trustedKeys.length) {
+      history = await auditChains(gameId, listing, options.rpcUrl, trustedKeys, fetchImpl, options.rules);
       // A chain committed between listing and the look-ahead reads as held back: list again once to tell.
       if (history.problems.some((p) => p.endsWith("the server doesn't list it"))) {
         listing = await list();
-        history = await auditChains(gameId, listing, options.rpcUrl, options.anchorKey, fetchImpl, options.rules);
+        history = await auditChains(gameId, listing, options.rpcUrl, trustedKeys, fetchImpl, options.rules);
       }
     }
   } catch (error) {
     // Reported on its own: a history that can't be checked doesn't take the rounds verdict down with it.
     listingError = `the chain history could not be checked: ${(error as Error).message}`;
-    if (options.rpcUrl && options.anchorKey) history = { ok: false, complete: false, anchors: 0, problems: [listingError] };
+    if (options.rpcUrl && trustedKeys.length) history = { ok: false, complete: false, anchors: 0, problems: [listingError] };
   }
   // The entry for this chain must match what its rounds came with, in whichever listing was finally checked.
   const consistency = chain && listing ? listingMismatch(chain, listing) : null;

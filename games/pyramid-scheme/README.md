@@ -2,7 +2,7 @@
 
 A wealth summit in a hotel ballroom: velvet curtains, a banner that reads EVERYONE WINS (*early), spotlights, and the founder pitching at a `$PONZI` lectern. Your degen stands on the stage with a bag over his head and a CEO sash. Every time the multiplier grows by a third, a row of recruits walks in from the wings underneath and the whole pyramid rises on a spring, so you climb without moving; the recruits' knees wobble and their smiles turn into grimaces, the strain gathering at the base. An accepted cash-out jumps you off the top to the stage floor, where you stand with shades on while the pyramid holds without you. The crash gives the base away: a hit-stop, then everyone tumbles along the crash's seed, bounces once on the stage and lies dazed, and the founder runs off with the money.
 
-Lightweight on purpose: a scene, one part file, the motion toolkit and the page, so the whole source pack fits the platform's browser Studio budget (see [the README](../README.md#lightweight-games-for-the-browser-studio)) and a remix starts in the browser.
+Lightweight on purpose: a scene, one part file, the motion toolkit and the page, so the whole source pack fits the platform's browser Studio budget (see [the README](../../README.md#lightweight-games-for-the-browser-studio)) and a remix starts in the browser.
 
 - `scene.ts`: the ballroom, the round-phase logic, the rows that join, the jump and the collapse choreography, the audio cues and the HUD.
 - `pyramid.ts`: the pyramid's layout (rows, heights, places), the recruit rig, the founder, the seeded collapse and its bodies.

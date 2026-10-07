@@ -1,7 +1,9 @@
 {
-  "fingerprint": "a2a9fe089ac821e8",
+  "fingerprint": "8f868ddeb70906b8",
+  "endpoint": "/v1/music",
   "format": "mp3_44100_64",
-  "bytes": 96175,
-  "prompt": "Late-night lo-fi hip hop loop, 82 bpm, dusty drums, warm Rhodes chords, vinyl crackle, fridge-hum melancholy, seamless loop, instrumental",
-  "at": "2026-09-28T12:59:41.618Z"
+  "bytes": 1199587,
+  "seconds": 150,
+  "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Tense 3 AM kitchen lo-fi at 82 BPM: intimate felt piano, warm Rhodes, muted jazz bass, soft dusty drums and clock-like percussion, bittersweet anxious harmony.",
+  "at": "2026-10-07T09:11:54.394Z"
 }

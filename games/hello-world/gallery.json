@@ -1,0 +1,9 @@
+{
+  "name": "Hello World",
+  "hook": "A small starting point for your first game",
+  "tagline": "A greeting, a multiplier and one moving circle. Copy this template and replace the drawing while the shared shell handles rounds, controls and replay.",
+  "tags": ["Starter template", "Minimal scene", "Browser remix"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": { "seconds": 5 }
+}

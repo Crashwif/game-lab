@@ -125,12 +125,14 @@ test('Know Your Clown displays full high multipliers with their supplied hundred
 });
 
 test('Know Your Clown has a verified replay that reaches every authored act', async () => {
-  const { replayTimeline, verifyReplay } = await import('../../packages/game-sdk/dist/index.js');
+  const { replayCurve, replayTimeline, verifyReplay } = await import('../../packages/game-sdk/dist/index.js');
   const { free } = await import('../../packages/crash-math/dist/index.js');
   const replay = JSON.parse(await readFile(new URL('../../games/know-your-clown/replay.json', import.meta.url), 'utf8'));
   assert.equal(replay.gameId, 'know-your-clown');
   assert.deepEqual(verifyReplay(replay), { ok: true, problems: [] });
-  assert.ok(free.msToReach(replay.crashX100) > 150_000, 'the committed replay runs through the final authored act');
+  const curve = replayCurve(replay);
+  assert.ok(curve, 'the verified replay identifies its recorded curve');
+  assert.ok(free.msToReach(replay.crashX100, curve) > 150_000, 'the committed replay runs through the final authored act');
   const timeline = replayTimeline(replay);
   const lateFrame = timeline.find(({ event }) => event.type === 'tick' && event.elapsedMs >= 150_000);
   assert.ok(lateFrame, 'replay playback contains the late act, beyond poster capture time');
@@ -138,7 +140,7 @@ test('Know Your Clown has a verified replay that reaches every authored act', as
   const crashed = timeline.at(-1).event;
   assert.equal(crashed.type, 'round.crashed');
   assert.equal(crashed.result.crashX100, replay.crashX100);
-  assert.equal(crashed.durationMs, free.msToReach(replay.crashX100));
+  assert.equal(crashed.durationMs, free.msToReach(replay.crashX100, curve));
 });
 
 test('an accepted KYC exit remains an escape when the room later crashes', async () => {

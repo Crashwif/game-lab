@@ -8,6 +8,7 @@
  *     source pack, named so the platform's remix bundler resolves them to the same file, and the
  *     platform's SDK and crash maths, as a remix must;
  *   - every replay.json names its game and passes the built SDK's verifyReplay;
+ *   - game labels never pit an opponent against the player's personal funds;
  *   - every game in BROWSER_REMIX is in GAMES and its source pack fits the browser Studio's AI input budget;
  *   - README.md's reference table links the games in GAMES order.
  *
@@ -17,6 +18,7 @@ import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
+import ts from 'typescript';
 import { bundleOptions } from '../build.mjs';
 import { BROWSER_REMIX, GAMES } from '../games.mjs';
 import { ROOT, readGallery, sourcePack } from './pack.mjs';
@@ -73,6 +75,25 @@ export function budgetProblems(slug, files) {
 export function catalogBudgetProblems(slug, files) {
   const required = Math.ceil(remixInputBound(files) * 1.15);
   return required <= MAX_CATALOG_INPUT_TOKENS ? [] : [`games/${slug}: a remix needs ${required} tokens with 15% input headroom, over the platform catalog's ${MAX_CATALOG_INPUT_TOKENS}; reduce embedded assets or source size`];
+}
+
+/** Match-up labels may name an opponent, never the player's personal funds: credits have no monetary value. */
+export function playerFundsProblems(slug, files) {
+  const problems = [];
+  const matchup = /\b(?:vs\.?|versus)\s+your\s+(?:savings|money|cash)\b/i;
+  for (const [path, text] of Object.entries(files)) {
+    if (!path.endsWith('.ts')) continue;
+    const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+    const visit = (node) => {
+      if (ts.isStringLiteralLike(node) && matchup.test(node.text)) {
+        const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+        problems.push(`games/${slug}/${path}:${line + 1}: the match-up label implies the player's money is at stake; name a fictional opponent`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return problems;
 }
 
 /** Where the allowed packages live here, which their workspace symlinks in node_modules resolve to. */
@@ -193,7 +214,7 @@ export async function check() {
     if (!dirs.includes(slug)) continue;
     attempt(() => readGallery(slug));
     const pack = attempt(() => sourcePack(slug));
-    if (pack) problems.push(...replayProblems(slug, pack.files['replay.json'], verifyReplay), ...catalogBudgetProblems(slug, pack.files));
+    if (pack) problems.push(...replayProblems(slug, pack.files['replay.json'], verifyReplay), ...catalogBudgetProblems(slug, pack.files), ...playerFundsProblems(slug, pack.files));
     if (pack && BROWSER_REMIX.includes(slug)) problems.push(...budgetProblems(slug, pack.files));
     try {
       const { metafile, outputFiles } = await bundle(slug);

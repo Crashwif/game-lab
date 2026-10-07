@@ -61,12 +61,16 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THIS STREAM HAS MORE SPONSORS", "BONUS DISCLOSURE INCOMING", "THE RENTAL METER IS RUNNING", "ANOTHER WORD FROM OUR SPONSOR", "THE COUSIN IS STILL TYPING", "LIKE, SUBSCRIBE, REPEAT", "THE GREEN SCREEN NEEDS A BREAK", "THE LAWYER LEFT THE STREAM"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome === 'rekt') return 'RUGGED';
   if (outcome === 'called') return 'DYOR';
   if (outcome === 'spectator') return 'HE WAS THE DEV';
   if (view.phase !== 'running') return 'LIKE AND SUBSCRIBE';
   if (secured) return 'UNFOLLOWED';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.35) return 'NOT FINANCIAL ADVICE';
   if (multiplier < 1.8) return "I'M NOT SELLING (YET)";
   if (multiplier < 2.6) return '1000X GEM';

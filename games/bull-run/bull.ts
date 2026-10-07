@@ -15,7 +15,7 @@ export interface Dust { x: number; y: number; vx: number; vy: number; r: number;
 export interface Bull { x: Spring; phase: number; hop: number; pitch: Spring; kick: number; landed: boolean }
 /** On the bull the rider follows its seat; in the air or in the dirt he moves on his own. */
 export interface Rider { mode: 'riding' | 'vaulting' | 'fence' | 'thrown' | 'down'; modeAge: number; lean: Spring; arm: Spring; hat: Spring; x: number; y: number; vx: number; vy: number; angle: number; spin: number }
-export interface BullDrive { running: boolean; tension: number; loose: boolean }
+export interface BullDrive { running: boolean; tension: number; loose: boolean; seconds: number }
 
 export const createBull = (): Bull => ({ x: spring(CHUTE_X), phase: 0.75, hop: 0, pitch: spring(0), kick: 0, landed: false });
 export const createRider = (): Rider => ({ mode: 'riding', modeAge: 0, lean: spring(0), arm: spring(1.2), hat: spring(0), x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0 });
@@ -27,12 +27,15 @@ export function seat(b: Bull): { x: number; y: number } {
 }
 
 export function stepBull(b: Bull, drive: BullDrive, dt: number): void {
-  stepSpring(b.x, drive.running || drive.loose ? ARENA_X : CHUTE_X, 3, 0.9, dt);
+  // Long rides alternate a travelling buck, a high kick and a quick double-time shuffle.
+  const routine = drive.running ? Math.floor(drive.seconds / 12) % 3 : 0;
+  const travel = drive.running && routine === 1 ? Math.sin(drive.seconds * 0.7) * 65 : 0;
+  stepSpring(b.x, drive.running || drive.loose ? ARENA_X + travel : CHUTE_X, 3, 0.9, dt);
   // One buck a cycle: the hop is the positive half of the sine; the front dips as the hind legs kick.
-  const rate = drive.running ? 0.9 + 1.7 * drive.tension : drive.loose ? 0.5 : 0;
+  const rate = drive.running ? (0.9 + 1.7 * drive.tension) * (routine === 2 ? 1.14 : 1) : drive.loose ? 0.5 : 0;
   const before = b.phase;
   b.phase += rate * dt;
-  b.hop = Math.max(0, Math.sin(b.phase * Math.PI * 2)) * (drive.running ? 20 + 70 * drive.tension : 12);
+  b.hop = Math.max(0, Math.sin(b.phase * Math.PI * 2)) * (drive.running ? 20 + (routine === 2 ? 45 : 70) * drive.tension : 12);
   b.kick = Math.max(0, Math.sin(b.phase * Math.PI * 2 - 0.6));
   b.landed = rate > 0 && Math.floor(before + 0.5) !== Math.floor(b.phase + 0.5);
   stepSpring(b.pitch, drive.running ? (0.12 + 0.45 * drive.tension) * Math.sin(b.phase * Math.PI * 2 + 1.2) : 0, 14, 0.7, dt);

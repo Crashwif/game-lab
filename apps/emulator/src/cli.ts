@@ -7,12 +7,16 @@
  *                     [--credits 1000] [--game emulator-game] [--serve <dir>] [--quiet]
  *
  * Then point the SDK (or VITE_GAME_SERVER_URL) at ws://127.0.0.1:4500, mint a
- * session with POST /dev/sessions, and read the upcoming crash points from
- * GET /dev/upcoming to write assertions.
+ * session with POST /dev/sessions (its token is offered as a subprotocol, as the
+ * SDK does), and read the upcoming crash points from GET /dev/upcoming to write
+ * assertions.
  */
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { roomSocketProtocols, roomSocketUrl } from '@crashwif/game-sdk/state';
+
+import { GAME_ID } from './engine.js';
 import { SCENARIOS, type Scenario } from './scenarios.js';
 import { EmulatorServer } from './server.js';
 
@@ -67,7 +71,7 @@ export function parseArgs(argv: string[]): { port: number; scenario: Scenario; s
         i++;
         break;
       case '--game':
-        if (!/^[a-z0-9-]{1,64}$/i.test(value ?? '')) throw new Error('--game is a short id');
+        if (!GAME_ID.test(value ?? '')) throw new Error('--game is a short lowercase id (letters, digits and hyphens)');
         out.config.gameId = value;
         i++;
         break;
@@ -96,7 +100,7 @@ export async function main(argv: string[]): Promise<EmulatorServer> {
   if (!args.quiet) {
     console.log(`room ${server.room.cfg.gameId}: chain ${server.room.info().terminalHash.slice(0, 16)}… salt ${(server.room.info().salt ?? '(pending)').slice(0, 16)}…`);
     console.log(`next crash points: ${server.room.upcoming(8).map((u) => (u.crashX100 / 100).toFixed(2)).join(', ')}`);
-    console.log(`sessions: POST http://127.0.0.1:${server.port}/dev/sessions   socket: ws://127.0.0.1:${server.port}/ws?game=${server.room.cfg.gameId}&token=<session>`);
+    console.log(`sessions: POST http://127.0.0.1:${server.port}/dev/sessions   socket: ${roomSocketUrl(`ws://127.0.0.1:${server.port}`, server.room.cfg.gameId)}   subprotocols: ${roomSocketProtocols('<session>').join(', ')}`);
   }
   return server;
 }

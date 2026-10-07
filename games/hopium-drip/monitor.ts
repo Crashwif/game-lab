@@ -10,6 +10,8 @@ import { INK } from './ward';
 export const PANEL = { x: 640, y: 0, w: 320, h: 540 } as const;
 const TRACE = { x: 656, y: 70, w: 288, h: 150 } as const;
 export const DOSES = [1.5, 2, 3, 5, 8, 13, 21, 34, 55];
+/** The nurse brings another tray after the first nine vials. Count stays bounded by logarithmic growth. */
+const doseAt = (index: number): number => DOSES[index] ?? 55 * 2 ** (index - DOSES.length + 1);
 
 export interface Monitor {
   time: number;
@@ -19,9 +21,9 @@ export interface Monitor {
   samples: Float32Array;
   head: number;
   bpm: Spring;
-  /** Doses taken, 0 to DOSES.length. */
+  /** Doses taken, including the nurse's refill trays. */
   doseIndex: number;
-  /** The multiplier of the next dose; Infinity once every dose is taken. */
+  /** The multiplier of the next dose. */
   goal: number;
   fill: Spring;
   pulse: Spring;
@@ -64,15 +66,17 @@ const targetBpm = (running: boolean, tension: number): number => (running ? 72 +
 
 /** Takes every dose the multiplier has passed, the last one included; returns how many. */
 function takeDoses(m: Monitor, multiplier: number): number {
-  let taken = 0;
-  while (m.doseIndex < DOSES.length && multiplier >= m.goal) { m.doseIndex += 1; m.goal = DOSES[m.doseIndex] ?? Infinity; taken += 1; }
+  const count = multiplier < 55 ? DOSES.filter((at) => multiplier >= at).length : DOSES.length + Math.max(0, Math.floor(Math.log2(multiplier / 55)));
+  const taken = Math.max(0, count - m.doseIndex);
+  m.doseIndex = Math.max(m.doseIndex, count);
+  m.goal = doseAt(m.doseIndex);
   return taken;
 }
 
-/** How far the multiplier has come from the last dose to the next: full once every dose is taken. */
+/** How far the multiplier has come from the last dose to the next. */
 function doseProgress(m: Monitor, multiplier: number): number {
   if (!Number.isFinite(m.goal)) return 1;
-  const previous = m.doseIndex === 0 ? 1 : DOSES[m.doseIndex - 1]!;
+  const previous = m.doseIndex === 0 ? 1 : doseAt(m.doseIndex - 1);
   return clamp((multiplier - previous) / (m.goal - previous), 0, 1);
 }
 
@@ -199,7 +203,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   ctx.fillStyle = charging ? '#e6a23c' : m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : tension > 0.7 ? '#e6a23c' : '#2e8b57';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, 14, 92, 24, 5); ctx.fill();
   label(ctx, charging ? 'CHARGING' : m.flat ? 'ASYSTOLE' : m.discharged ? 'DISCHARGED' : tension > 0.7 ? 'UNSTABLE' : 'MONITORING', PANEL.x + 60, 31, 11, '#ffffff', 'center');
-  label(ctx, 'bed 2 · $HOPE', PANEL.x + 118, 31, 13, '#c9d6dc');
+  label(ctx, 'bed 2 · $HOPE', PANEL.x + 14, 48, 10, '#c9d6dc');
   label(ctx, `${multiplier.toFixed(2)}×`, PANEL.x + PANEL.w - 14, 32, 15, m.flat ? '#ff4d6d' : '#7cf67c', 'right', true);
   // The trace screen.
   ctx.fillStyle = '#04100c';
@@ -246,7 +250,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   readout(ctx, PANEL.x + 14, 236, 'HEART', m.flat ? '0' : `${bpm}`, 'bpm', m.flat ? '#ff4d6d' : '#7cf67c', unstable || alarm);
   readout(ctx, PANEL.x + 166, 236, 'HOPIUM', `${hopium}`, '%', hopium < 30 ? '#ffe27a' : '#8fd3ff', unstable && hopium < 30);
   readout(ctx, PANEL.x + 14, 310, 'COPE', m.flat ? 'MAX' : `${Math.round(tension * 100)}`, m.flat ? '' : '%', '#ff9db0', false);
-  readout(ctx, PANEL.x + 166, 310, 'DOSES', `${m.doseIndex}`, `/ ${DOSES.length}`, '#c9a2ff', clamp(m.pulse.x, 0, 1) > 0.3);
+  readout(ctx, PANEL.x + 166, 310, 'DOSES', `${m.doseIndex}`, m.doseIndex >= DOSES.length ? 'refill' : `/ ${DOSES.length}`, '#c9a2ff', clamp(m.pulse.x, 0, 1) > 0.3);
   // Dose ladder.
   const fill = clamp(m.fill.x, 0, 1);
   ctx.fillStyle = '#132027';
@@ -260,16 +264,20 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   ctx.fillStyle = g;
   if (fill > 0.01) { ctx.beginPath(); ctx.roundRect(PANEL.x + 14, PANEL.h - 108, (PANEL.w - 28) * fill, 18, 9); ctx.fill(); }
   // The ladder of vials, filled as taken.
+  const tray = Math.floor(m.doseIndex / DOSES.length) * DOSES.length;
   for (let i = 0; i < DOSES.length; i += 1) {
     const vx = PANEL.x + 22 + i * 32;
-    const taken = i < m.doseIndex;
-    const pulse = i === m.doseIndex - 1 ? clamp(m.pulse.x, 0, 1) : 0;
+    const index = tray + i;
+    const taken = index < m.doseIndex;
+    const pulse = index === m.doseIndex - 1 ? clamp(m.pulse.x, 0, 1) : 0;
     ctx.save();
     ctx.translate(vx, PANEL.h - 52 - pulse * 6);
     ctx.fillStyle = taken ? (m.flat ? '#7a1f28' : '#7cf67c') : '#23343c'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(-8, -18, 16, 30, 4); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#9aa7b5'; ctx.beginPath(); ctx.roundRect(-5, -24, 10, 7, 2); ctx.fill(); ctx.stroke();
-    label(ctx, `${DOSES[i]}×`, 0, 28, 9, taken ? '#ffffff' : '#6b7a84', 'center', true);
+    const at = doseAt(index);
+    const mark = at >= 1e6 ? `${(at / 1e6).toFixed(at < 1e7 ? 1 : 0)}m` : at >= 1000 ? `${(at / 1000).toFixed(at < 10000 ? 1 : 0)}k` : `${at}`;
+    label(ctx, `${mark}×`, 0, 28, 9, taken ? '#ffffff' : '#6b7a84', 'center', true);
     ctx.restore();
   }
   label(ctx, m.flat ? 'nurse, the paperwork' : 'nurse, one more dose please', PANEL.x + 14, PANEL.h - 8, 10, '#6b7a84');

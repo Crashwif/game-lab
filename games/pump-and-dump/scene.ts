@@ -5,7 +5,6 @@
  * with the real frame time, and nothing drawn here changes the committed
  * outcome.
  */
-import { free } from '@crashwif/crash-math';
 import { pageAudio } from './audio';
 import { type Bench, PLATE_AT, benchHead, createBench, drawBench, dumpBar, rackBar, resetBench, settleBench, stepBench } from './bench';
 import { type Gym, INK, cough, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym } from './gym';
@@ -58,10 +57,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE SET HAS NO END", "SPOTTER STILL SCROLLING", "THE BAR WANTS A DAY OFF", "OVERTIME AT THE IRON BANK", "REP COUNT: LOST TRACK", "CHALK UP AND COPE", "ONE MORE MEANS ONE MORE", "THE GYM IS CLOSING"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'SPOTTER SOLD' : outcome === 'called' ? 'RACKED AND JACKED' : 'NO SPOTTER NGMI';
   if (view.phase !== 'running') return 'LOAD THE BAR';
   if (secured) return 'RE-RACKED';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.4) return 'PUMP IT';
   if (multiplier < 1.9) return 'ONE MORE REP';
   if (multiplier < 2.6) return 'BENCH PRESSING MY BAGS';
@@ -212,8 +215,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
     }
     if (settle) {
-      // The mirror's chart as far as the number has come: the crash point's time comes from the curve.
-      settleTrail(gym, running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS, growth);
+      // The mirror chart follows the round's authoritative elapsed time.
+      settleTrail(gym, view.elapsed, growth);
       settleSpring(badge, secured ? 1 : 0);
       settleSpring(natty, running ? 0.12 + 0.88 * tension : 1);
       notified = true;

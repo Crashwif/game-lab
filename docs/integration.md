@@ -2,14 +2,14 @@
 
 ## The same game in two hosts
 
-Every game's `main.ts` is the same page shell (canonical copy: `scripts/shell/main.ts`). It uses `GameClient` when opened locally and `connectEmbedded()` when framed by the platform. Both expose the same room state: `round.phase`, `round.runningSince`, `round.multiplierX100`, `round.crashX100`, and `you`. The shell turns that state into a view, and the game's scene draws it. Neither determines the round's outcome.
+Every game's `main.ts` is the same page shell (canonical copy: `scripts/shell/main.ts`). It uses `GameClient` when opened locally and `connectEmbedded()` when framed by the platform. Both expose the same room state: `round.phase`, `round.runningSince`, `round.multiplierX100`, `round.crashX100`, `room.curve`, and `you`. The shell turns that state into a view, and the game's scene draws it. Neither determines the round's outcome.
 
 1. `betting`: prepare the scene and accept a bet intent.
-2. `running`: animate from the server start time, accounting for `clockOffsetMs`. The shared `free.multiplierAtContinuousX100()` helper smooths the display between ticks. The shell's multiplier runs at most a second ahead of the last server frame, and after 2 s without one it treats the link as lost and stops offering Cash out.
+2. `running`: animate from the server start time, accounting for `clockOffsetMs`. The shared `free.multiplierAtContinuousX100(elapsedMs, state.room.curve)` helper smooths the display between ticks. The shell's multiplier runs at most a second ahead of the last server frame, and after 2 s without one it treats the link as lost and stops offering Cash out.
 3. `crashed`: use the backend's final multiplier, stop pumping, and play the burst.
 4. `waiting`: hold a resting pose until the next round.
 
-`scripts/shell/main.ts` is the integration reference. Balloon Pump's `scene.ts` and `pumper.ts` are ordinary Canvas 2D drawing code; another game can use WebGL (Seed Round renders WebGL2 offscreen and copies each frame in), a 3D engine, or DOM elements with the same shell.
+`scripts/shell/main.ts` is the integration reference. [Hello World](../games/hello-world) is the smallest starting point: its commented `scene.ts` draws a greeting, a multiplier and a circle using the same shell. Balloon Pump's `scene.ts` and `pumper.ts` are richer Canvas 2D examples; another game can use WebGL (Seed Round renders WebGL2 offscreen and copies each frame in), a 3D engine, or DOM elements with the same shell.
 
 ## Drop-in SDK
 
@@ -76,7 +76,17 @@ Production sessions come from the platform's pass flow, not the emulator. Never 
 
 1. Run `npm run build`.
 2. Open Studio, start a blank project, and choose **Your own renderer**.
-3. Upload `index.html`, `game.generated.js`, and `style.css` from `dist/balloon-pump/`; set the entry to `index.html`.
+3. Upload `index.html`, `game.generated.js`, and `style.css` from `dist/hello-world/` (or `dist/<your-slug>/` for your own game); set the entry to `index.html`.
 4. Save and publish to a room you own.
 
 Published frames have an opaque origin and no network access. Keep scripts, fonts, images and audio inside the bundle and use relative paths. The production URL has no `mode=replay` query: the game connects to the platform bridge automatically. The explicit replay mode is for the gallery and the Studio preview only and has no bet controls.
+
+## Long-round presentation
+
+The room publishes its pace as `room.curve`. Use that curve for interpolation, displayed cashout values, and recovering the elapsed time of a completed round. Never compile the platform default into a renderer. Recorded examples use `replayCurve(recording)`; recordings without a curve retain their historical pace. `SceneView.elapsed` remains the authoritative round duration after a crash so a late-entered scene can reconstruct its final pose.
+
+The current platform default grows tenfold every 30 seconds. There is no hard round-duration limit. Keep scene events and bounded animation loops active after 150 seconds; a full music score repeats only after its complete 150 seconds. Long-running controller regressions live in `scripts/gallery/long-round-*.test.mjs`.
+
+For browser presentation review, run `node scripts/qa/scene-review.mjs` after building. Open `http://127.0.0.1:4511/<slug>/index.html?seconds=150&late=1` for a settled late-entry fixture; add `&crash=1`, `&cashout=1`, or `&reduced=1` for those presentation states. Omitting `late` steps the scene sequentially at 30 fps (software WebGL can be slow). The fixture is local test tooling and is excluded from game bundles.
+
+`npm run test:browser` checks the real page shell against room curves and old replays, and exercises full-song playback. Install Playwright Chromium first (`npx playwright install chromium`).
