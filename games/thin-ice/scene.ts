@@ -77,10 +77,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE LAKE KEEPS GOING", "NEW CRACK, SAME CONFIDENCE", "THE DRONE NEEDS A RECHARGE", "ANOTHER LAP ON THIN ICE", "NO BRAKES, JUST SKATES", "FROZEN ASSETS TOUR", "THE SHORE IS A RUMOUR", "STILL MAKING TRACKS"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'LIQUIDATED' : outcome === 'called' ? 'CLOSED THE LONG' : 'ANOTHER ONE FOR THE ICE';
   if (view.phase !== 'running') return 'WEN LEVERAGE?';
   if (secured) return 'DEAL WITH IT';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'SKATING ON 100X';
   if (multiplier < 1.7) return 'LIQUIDITY IS THIN';
   if (multiplier < 2.5) return 'MARGIN IS VIBES';

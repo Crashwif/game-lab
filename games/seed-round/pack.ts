@@ -147,7 +147,13 @@ const overtake = (m: number): number => 15 * Math.log2(Math.max(1, m));
 
 function crowdTarget(sw: Swimmer, m: number, raceTime: number): number {
   if (sw.kind === 'sniper') return sw.rel0 + 46 * smoothstep(0, 2.6, raceTime);
-  if (sw.kind === 'chad') return sw.rel0 + 4 * smoothstep(1.5, 3, m) - 18 * smoothstep(3.6, 5.2, m) - overtake(m) * smoothstep(6, 9, m);
+  if (sw.kind === 'chad') {
+    // The endurance swimmers regroup alongside you after the opening race. Keep the chase populated
+    // without adding swimmers or making the late-round crowd depend on an ever-growing multiplier.
+    const opening = sw.rel0 + 4 * smoothstep(1.5, 3, m) - 18 * smoothstep(3.6, 5.2, m) - overtake(m) * smoothstep(6, 9, m);
+    const escort = 4 + sw.rel0 * 0.8 + Math.sin(raceTime * 0.35 + sw.seed * 6.28) * 6;
+    return mix(opening, escort, smoothstep(18, 35, raceTime));
+  }
   return sw.rel0 - overtake(m) * sw.drift;
 }
 

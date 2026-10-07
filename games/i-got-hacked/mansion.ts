@@ -11,7 +11,6 @@
  * star is a generic cartoon with no likeness of anyone. Nothing here changes
  * the outcome.
  */
-import { free } from '@crashwif/crash-math';
 import { type Spring, clamp, gust, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -126,7 +125,7 @@ export function resetMansion(m: Mansion): void {
 }
 
 /** Jumps the slow springs and the phone chart to where a multiplier already is, for a round joined late. */
-export function settleMansion(m: Mansion, tension: number, multiplier: number): void {
+export function settleMansion(m: Mansion, tension: number, multiplier: number, elapsedMs: number): void {
   settleSpring(m.yachtSize, 0.4 + 0.6 * Math.min(1, Math.log2(multiplier) / 4));
   settleSpring(m.engine, tension > 0.65 ? 1 : 0);
   settleSpring(m.packing, tension > 0.5 ? 1 : 0);
@@ -140,9 +139,9 @@ export function settleMansion(m: Mansion, tension: number, multiplier: number): 
   }
   m.excuse = Math.floor(noise(multiplier * 13.7) * EXCUSES.length);
   m.excuseAge = 10;
-  // The chart as the phone would have sampled it so far: the curve is exponential, so samples evenly spaced
-  // in time climb geometrically from 1.00×. The next live sample then lands on the same spacing.
-  const seconds = Math.log(multiplier) / (free.GROWTH_RATE_PER_MS * 1000);
+  // Fill the decorative chart between its known endpoints. Sample spacing uses the room's elapsed time,
+  // so a late join works with both legacy and accelerating rounds without assuming a growth constant.
+  const seconds = Math.max(0, elapsedMs / 1000);
   m.chart = [];
   m.chartStep = CHART_STEP;
   m.chartAt = m.time;

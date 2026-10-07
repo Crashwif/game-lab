@@ -59,6 +59,18 @@ export const LINES: Line[] = [
   { at: 36, who: 'rick', text: 'the questions are also asking questions' },
   { at: 45, who: 'echo', text: 'ordering: one (1) school board', price: 9999 },
 ];
+const SECONDS: Omit<Line, 'at'>[] = [
+  { who: 'dad', text: 'we have moved on to leftovers, Rick' },
+  { who: 'rick', text: 'exactly. who decides what gets left over' },
+  { who: 'echo', text: 'reordering: aluminum foil, industrial roll', price: 24 },
+  { who: 'niece', text: 'part two just passed part one' },
+  { who: 'rick', text: 'the algorithm fears my potato research' },
+  { who: 'dad', text: 'Dale is still in the truck' },
+  { who: 'rick', text: 'Dale is an independent journalist' },
+  { who: 'echo', text: 'ordering: dog podcast microphone', price: 49 },
+  { who: 'niece', text: 'Grandma is pretending to be asleep' },
+  { who: 'rick', text: 'the nap goes all the way to the top' },
+];
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
   rick: { x: 356, y: 400, tail: { x: 562, y: 404 }, width: 280 },
@@ -82,6 +94,8 @@ export interface Room {
   turkey: Turkey;
   bubbles: Bubble[];
   nextLine: number;
+  secondsClock: number;
+  secondsLine: number;
   /** Lines scheduled to follow an event (grace, the crash), by the queue's own clock. */
   queue: Queued[];
   queueT: number;
@@ -116,6 +130,8 @@ function fresh(): Room {
     turkey: { x: PLATTER.x, y: PLATTER.y, rot: 0, vx: 0, vy: 0, flying: false, landed: false },
     bubbles: [],
     nextLine: 0,
+    secondsClock: 0,
+    secondsLine: 0,
     queue: [],
     queueT: 0,
     bits: [],
@@ -362,6 +378,17 @@ export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
     if (line.who === 'echo') {
       r.cart += line.price ?? 0;
       r.events.order = true;
+    }
+  }
+  if (!r.holding && drive.running && r.nextLine === LINES.length) {
+    r.secondsClock += dt;
+    if (r.secondsClock >= 6) {
+      r.secondsClock %= 6;
+      const line = { at: drive.multiplier, ...SECONDS[r.secondsLine++ % SECONDS.length]! };
+      say(r, line.who, line.text);
+      r.events.line = line;
+      if (line.who === 'rick') { r.listening = 1.1; r.events.listen = true; }
+      if (line.who === 'echo') { r.cart += line.price ?? 0; r.events.order = true; }
     }
   }
   r.queueT += dt;
@@ -808,7 +835,7 @@ function drawSign(ctx: CanvasRenderingContext2D, r: Room): void {
   const shown = f > 0.5 ? 3 : r.days;
   ctx.save();
   ctx.translate(46, 0);
-  ctx.scale(1, Math.max(0.05, 1 - squash * 0.95 + 0.05 * (1 - squash)));
+  ctx.scale(1, Math.max(0.05, squash));
   ctx.fillStyle = '#f7f1dc';
   ink(ctx, 2);
   ctx.beginPath();

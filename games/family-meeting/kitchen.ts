@@ -54,6 +54,19 @@ export const LINES: Line[] = [
   { at: 36, who: 'her', text: 'the pie is also a construct' },
   { at: 45, who: 'her', text: 'I contain multitudes. legally' },
 ];
+/** Dinner keeps going after the scripted ladder, with time to read each exchange. */
+const SECONDS: Omit<Line, 'at'>[] = [
+  { who: 'dad', text: 'can we discuss literally anything else' },
+  { who: 'her', text: 'sure. who owns the leftovers' },
+  { who: 'mom', text: 'the kettle has been screaming for ten minutes' },
+  { who: 'her', text: 'it has a lot to unpack' },
+  { who: 'dad', text: 'I am starting a second casserole' },
+  { who: 'her', text: 'a sequel? in this economy?' },
+  { who: 'mom', text: 'dessert was supposed to be the easy part' },
+  { who: 'her', text: 'wait until we get to the group chat' },
+  { who: 'dad', text: 'why is the cross doing that' },
+  { who: 'her', text: 'even the decorations have questions' },
+];
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
   her: { x: 356, y: 400, tail: { x: 558, y: 410 }, width: 280 },
@@ -73,6 +86,8 @@ export interface Kitchen {
   kettle: Kettle;
   bubbles: Bubble[];
   nextLine: number;
+  secondsClock: number;
+  secondsLine: number;
   /** Lines the crash's aftermath adds (her shrug, or the parents' sigh), played out by crashT. */
   aftermath: { at: number; who: Who; text: string }[];
   bits: Bit[];
@@ -101,6 +116,8 @@ function fresh(): Kitchen {
     kettle: { whistle: 0, lid: spring(0), steam: [], puffClock: 0 },
     bubbles: [],
     nextLine: 0,
+    secondsClock: 0,
+    secondsLine: 0,
     aftermath: [],
     bits: [],
     puffs: [],
@@ -334,6 +351,15 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
     say(k, line.who, line.text);
     k.events.line = line;
     k.nextLine += 1;
+  }
+  if (!k.holding && drive.running && k.nextLine === LINES.length) {
+    k.secondsClock += dt;
+    if (k.secondsClock >= 6) {
+      k.secondsClock %= 6;
+      const line = { at: drive.multiplier, ...SECONDS[k.secondsLine++ % SECONDS.length]! };
+      say(k, line.who, line.text);
+      k.events.line = line;
+    }
   }
   while (k.aftermath.length && k.crashT >= k.aftermath[0]!.at) {
     const line = k.aftermath.shift()!;

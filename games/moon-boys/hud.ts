@@ -150,17 +150,17 @@ export function drawPanel(ctx: CanvasRenderingContext2D, panel: PanelState): voi
   const km = panel.crashed ? 0 : panel.running ? MOON_KM - moonKm(panel.multiplier) : 0;
   ctx.fillStyle = '#c9f76b';
   ctx.font = `700 12px ${UI_FONT}`;
-  ctx.fillText(`ALT ${grouped(km)} km`, x + 12, y + 56);
+  ctx.fillText(`ALT ${grouped(km)} km`, x + 12, y + 56, 98);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#e9ecf6';
-  ctx.fillText(panel.stage, x + w - 12, y + 56, 110);
+  ctx.fillText(panel.stage, x + w - 12, y + 56, 104);
   ctx.textAlign = 'left';
   // The fuel: HOPIUM, then COPIUM, then whatever is left.
   const fuelName = panel.crashed ? 'FUEL: LOL' : panel.fuel > 0.4 ? 'HOPIUM' : panel.fuel > 0.15 ? 'COPIUM' : 'PURE DELUSION';
   const fuelColour = panel.crashed ? '#ff4d6d' : panel.fuel > 0.4 ? '#f4c531' : panel.fuel > 0.15 ? '#5b8fe0' : '#ff7ab6';
   ctx.fillStyle = '#e9ecf6';
   ctx.font = `600 11px ${UI_FONT}`;
-  ctx.fillText(fuelName, x + 12, y + 76);
+  ctx.fillText(fuelName, x + 12, y + 76, 78);
   bar(ctx, x + 96, y + 67, w - 108, 10, panel.crashed ? 0 : panel.fuel, fuelColour);
   ctx.fillStyle = '#e9ecf6';
   ctx.fillText(`HOLDERS ABOARD: ${panel.crashed ? 0 : grouped(panel.holders)}`, x + 12, y + 96);

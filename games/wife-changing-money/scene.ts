@@ -73,6 +73,9 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE KETTLE KNOWS TOO MUCH", "THE GROUP CHAT IS TYPING", "SLEEP SCHEDULE LIQUIDATED", "THE STAIRS HAVE PATCH NOTES", "ONE MORE TRADE, AGAIN", "THE COFFEE WENT COLD", "TYPING A VERY LONG EXPLANATION", "THE KITCHEN NIGHT SHIFT"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, trader: Trader, secured: Secured | null): string {
   if (outcome === 'rekt') return 'WIFE CHANGED';
   if (outcome === 'called') return 'SHE NEVER KNEW';
@@ -80,6 +83,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (view.phase !== 'running') return 'GM DEGEN';
   if (trader.mode === 'upstairs') return 'SHE NEVER KNEW';
   if (trader.mode === 'sneak' || trader.mode === 'closing' || secured) return 'CLOSE THE LID';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.35) return 'JUST ONE MORE TRADE';
   if (multiplier < 1.8) return 'MARGIN ON THE MORTGAGE';
   if (multiplier < 2.6) return "SHE'S ASLEEP";
@@ -261,12 +265,18 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
+    // Reserve the multiplier's measured width so rare six-digit rounds do not cover the caption.
+    const readout = `${multiplier.toFixed(2)}×`;
+    ctx.font = `900 58px ${MEME_FONT}`;
+    const readoutWidth = Math.min(290, ctx.measureText(readout).width);
+    const captionRight = 936 - readoutWidth - 24;
+    const captionCentre = Math.min(470, (30 + captionRight) / 2);
     if (caption) {
       ctx.save();
-      ctx.translate(470, 64);
+      ctx.translate(captionCentre, 64);
       const scale = 1 + 0.08 * captionPop.x;
       ctx.scale(scale, scale);
-      memeText(ctx, caption, 0, 0, 40, '#ffffff', 'center', 620);
+      memeText(ctx, caption, 0, 0, 40, '#ffffff', 'center', Math.min(620, 2 * (captionRight - captionCentre) / scale));
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
@@ -278,7 +288,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     const colour = outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 936, 78, 58, colour, 'right');
+    memeText(ctx, readout, 936, 78, 58, colour, 'right', 290);
     const pct = Math.round(clamp(kitchen.meter.x, 0, 1) * 100);
     const meterWord = pct >= 78 ? 'WIFE CHANGING' : pct >= 45 ? 'LIFE CHANGING' : 'COPING';
     memeText(ctx, `${meterWord} ${pct}%`, 24, 518, 24, outcome ? '#ffb4c2' : '#f0e6c8', 'left');

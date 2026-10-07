@@ -1,7 +1,7 @@
 import { type AndyDrive, type AndyMode, createAndy, drawAndy, drawStream, settleAndy, stepAndy } from './andy';
 import { pageAudio } from './audio';
 import { box, clamp, ease, INK, line, noise, oval, text } from './drawing';
-import { backdrop, beds, flyingLeaves, plant } from './garden';
+import { backdrop, beds, flyingLeaves, plant, pollinators } from './garden';
 import { police } from './police';
 
 export interface SceneView {
@@ -21,6 +21,8 @@ export interface Scene {
 
 const RUNGS = [1.5, 2, 3, 5, 10, 25];
 const CAPTIONS = ['JUST A LITTLE GARDENING', 'THAT IS DEFINITELY NOT BASIL', 'THE NEIGHBORS CAN SMELL IT', 'SUBURBAN RAINFOREST', 'BOTANICAL MAIN CHARACTER'];
+const OVERTIME_CAPTIONS = ['THE NIGHT GARDEN SHIFT', 'THE MOTHS FOUND THE PARTY', 'STILL DEFINITELY TOMATOES', 'THE WATERING CAN WORKS OVERTIME', 'NEIGHBOURHOOD BOTANY CLUB', 'ANOTHER SPRINKLE, ANOTHER EXCUSE', 'THE JUNGLE HAS A WAITLIST', 'ANDY FORGOT BEDTIME'];
+const OVERTIME_BUBBLES = ['the moths get it.', 'just topping them up.', 'organic. probably.', 'the neighbours love it.', 'one more lap of the beds.', 'tomatoes need commitment.'];
 /** Where Andy stands, where his water lands and where the trouble comes from. */
 const HOME_X = 216;
 const GROUND = 480;
@@ -50,7 +52,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running'; const crashed = view.phase === 'crashed';
     const cap = crashed ? secured !== null ? 'ANDY LEFT. THE COPS DID NOT.' : 'SHOULD HAVE GROWN TOMATOES.'
       : secured !== null ? 'HARVEST HOME. FEET UP.'
-      : running ? CAPTIONS[Math.min(4, Math.floor(growth * 5))] : 'A LITTLE WATER. A LOT OF AMBITION.';
+      : running ? view.elapsed >= 45_000 ? OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length] : CAPTIONS[Math.min(4, Math.floor(growth * 5))] : 'A LITTLE WATER. A LOT OF AMBITION.';
     const top = c.createLinearGradient(0, 0, 0, 155); top.addColorStop(0, '#201b36ee'); top.addColorStop(1, '#201b3600');
     c.fillStyle = top; c.fillRect(0, 0, 960, 155);
     text(c, "ANDY'S", 27, 34, 17, '#edc795');
@@ -66,7 +68,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       c.save(); c.translate(222, 178 + (reduced ? 0 : Math.sin(time * 2) * 2));
       box(c, -84, -21, 175, 38, '#fcf0c9', 12, 3);
       c.fillStyle = INK; c.font = 'bold 13px system-ui, sans-serif'; c.textAlign = 'center';
-      c.fillText(growth > 0.7 ? 'bro… they are tomatoes.' : growth > 0.35 ? 'smells like success.' : 'just one more sprinkle.', 3, 3);
+      c.fillText(view.elapsed >= 45_000 ? OVERTIME_BUBBLES[Math.floor(view.elapsed / 9_000) % OVERTIME_BUBBLES.length]! : growth > 0.7 ? 'bro… they are tomatoes.' : growth > 0.35 ? 'smells like success.' : 'just one more sprinkle.', 3, 3, 157);
       line(c, [[-15, 18], [-20, 26], [-2, 18]], INK, 2); c.restore();
     }
     if (crashed) {
@@ -124,6 +126,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     c.save(); c.translate(quake, 0);
     for (let i = 0; i < 3; i++) plant(c, 419 + i * 151, 451, growth * (i === 1 ? 1 : 0.9), time, i + 1, bustAge, reduced);
     beds(c);
+    if (running && growth > 0.7) pollinators(c, reduced ? 0 : view.elapsed / 1000);
     const seen = drawAndy(c, andy, drive);
     if (!reduced) drawStream(c, seen, BED.y + 6, time);
     if (walking && departure > 0.9) {

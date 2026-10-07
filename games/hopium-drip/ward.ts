@@ -43,6 +43,7 @@ export interface Ward {
   eyeOpen: Spring;
   /** 1 full, 0 empty. */
   level: Spring;
+  refill: number;
   label: BagLabel;
   swap: Spring;
   drops: Drop[];
@@ -84,11 +85,12 @@ export interface Ward {
 
 /** One per dose, short enough to sit inside the clipboard: the first lands with the first dose, the ninth with the ninth. */
 const NOTES = ['stable-ish', 'wants more', "won't sell", 'pupils wide', 'said lambo', 'wants 100x', 'sold kidney', 'call wife bf', 'DNR: HODL'];
+const REFILL_NOTES = ['new IV bag', 'still typing', 'more charts', 'nurse on loop', 'shift change', 'chart allergy'];
 
 export function createWard(): Ward {
   return {
     time: 0, lean: spring(0), twitch: spring(0), pupil: spring(0), typing: spring(0), blinkAt: 2, eyeOpen: spring(1),
-    level: spring(1), label: 'HOPIUM', swap: spring(0), drops: [], nextDrop: 0,
+    level: spring(1), refill: 0, label: 'HOPIUM', swap: spring(0), drops: [], nextDrop: 0,
     doctorLean: spring(0), doctorPen: spring(0), noteIndex: -1, wilt: spring(0), petals: [],
     curtain: spring(0), roommateGone: spring(0), roommateFlat: false,
     patient: { mode: 'bed', x: 300, modeAge: 0, suit: spring(0), balloon: spring(0) },
@@ -102,7 +104,7 @@ export function createWard(): Ward {
 
 export function resetWard(w: Ward): void {
   settleSpring(w.lean, 0); settleSpring(w.twitch, 0); settleSpring(w.pupil, 0); settleSpring(w.typing, 0); settleSpring(w.eyeOpen, 1);
-  settleSpring(w.level, 1); w.label = 'HOPIUM'; settleSpring(w.swap, 0); w.drops = []; w.nextDrop = 0;
+  settleSpring(w.level, 1); w.refill = 0; w.label = 'HOPIUM'; settleSpring(w.swap, 0); w.drops = []; w.nextDrop = 0;
   settleSpring(w.doctorLean, 0); settleSpring(w.doctorPen, 0); w.noteIndex = -1; settleSpring(w.wilt, 0); w.petals = [];
   settleSpring(w.curtain, 0); settleSpring(w.roommateGone, 0); w.roommateFlat = false;
   w.patient = { mode: 'bed', x: 300, modeAge: 0, suit: spring(0), balloon: spring(0) };
@@ -118,7 +120,7 @@ export function settleWard(w: Ward, tension: number, doses: number): void {
   settleSpring(w.lean, 0.3 + 0.7 * t); settleSpring(w.pupil, t); settleSpring(w.typing, 1); settleSpring(w.doctorLean, 0.5 * t);
   settleSpring(w.level, 1 - t * 0.95);
   settleSpring(w.wilt, clamp(tension * 1.4 - 0.2, 0, 1));
-  w.noteIndex = Math.min(NOTES.length, doses) - 1;
+  w.noteIndex = doses - 1;
   if (tension > 0.55) { w.roommateFlat = true; settleSpring(w.roommateGone, 1); settleSpring(w.curtain, 1); }
   if (doses >= 4) { w.label = 'COPIUM'; settleSpring(w.swap, 0); }
   if (tension > 0.6) { w.cartIn = true; settleSpring(w.cartX, CART_IN); }
@@ -130,7 +132,8 @@ export function dose(w: Ward, index: number): void {
   w.twitch.v += 14;
   w.lean.v += 6;
   w.doctorPen.v += 12;
-  w.noteIndex = Math.min(NOTES.length, index) - 1;
+  w.noteIndex = index - 1;
+  if (index > NOTES.length) { w.refill = 1; w.swap.v += 10; }
   if (index >= 4 && w.label === 'HOPIUM') { w.label = 'COPIUM'; w.swap.v += 10; }
 }
 
@@ -181,7 +184,8 @@ export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   const blinking = w.time > w.blinkAt && w.time < w.blinkAt + 0.12;
   if (w.time >= w.blinkAt + 0.12) w.blinkAt = w.time + 1.5 + 3 * noise(w.blinkAt) * (1 - 0.6 * t);
   stepSpring(w.eyeOpen, w.dead ? 0.05 : blinking ? 0.1 : 1 + 0.4 * t, 24, 0.9, dt);
-  stepSpring(w.level, w.dead ? 0 : drive.running && alive ? 1 - t * 0.95 : w.level.x, 3, 1, dt);
+  if (drive.running && alive) w.refill = Math.max(0, w.refill - dt / 10);
+  stepSpring(w.level, w.dead ? 0 : drive.running && alive ? Math.max(1 - t * 0.95, w.refill) : w.level.x, 3, 1, dt);
   stepSpring(w.swap, 0, 8, 0.5, dt);
   if (drive.running && alive && w.time > w.nextDrop) {
     w.nextDrop = w.time + mix(0.9, 0.12, t);
@@ -395,7 +399,7 @@ function drawClipboard(ctx: CanvasRenderingContext2D, w: Ward, x: number, y: num
   for (let i = 0; i <= Math.min(w.noteIndex, last); i += 1) {
     const idx = Math.max(0, w.noteIndex - last) + i;
     ctx.fillStyle = idx >= 5 ? '#e63946' : INK;
-    ctx.fillText(`· ${NOTES[idx] ?? ''}`, -27, 2 + i * 9, 50);
+    ctx.fillText(`· ${NOTES[idx] ?? REFILL_NOTES[(idx - NOTES.length) % REFILL_NOTES.length] ?? ''}`, -27, 2 + i * 9, 50);
   }
   if (tod) { ctx.fillStyle = '#e63946'; ctx.font = '900 10px Impact, "Arial Black", sans-serif'; ctx.fillText(`TOD ${(w.deathX100 / 100).toFixed(2)}×`, -25, 42); }
   ctx.restore();

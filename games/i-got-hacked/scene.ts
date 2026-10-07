@@ -128,7 +128,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetParty(party);
       if (running || crashed) {
         settleParty(party, multiplier);
-        settleMansion(mansion, tension, multiplier);
+        settleMansion(mansion, tension, multiplier, view.elapsed);
         engineOn = mansion.engine.x > 0.5;
         if (secured) { leaveParty(party, true); settleSpring(badge, 1); }
       }

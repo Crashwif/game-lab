@@ -53,6 +53,7 @@ export const TEXTS: { at: number; text: string }[] = [
   { at: 14, text: 'DEV: wen? soon™' },
 ];
 const LAST_TEXT = 'DEV left the chat';
+const FOLLOWUPS = ['DEV: another audit incoming', 'DEV: lid upgrade pending', 'DEV: bees are the roadmap', 'DEV: withdrawals soon™', 'DEV: sticky hands win', 'DEV: support is on lunch'];
 /** Where the fox stands to reach the jar, and where he waits off screen. */
 const FOX_STAND = 655;
 const FOX_OFF = 1040;
@@ -71,7 +72,7 @@ export interface Picnic {
   leaving: boolean;
   puddle: number;
   fox: Fox;
-  phone: { shake: Spring; count: number; age: number; last: boolean };
+  phone: { shake: Spring; count: number; age: number; last: boolean; followup: number };
   drops: Drop[];
   flies: number;
   events: { stamp: boolean; msg: boolean; pawFree: boolean; guest: boolean };
@@ -96,7 +97,7 @@ export function createPicnic(): Picnic {
     leaving: false,
     puddle: 0.2,
     fox: { mode: 'away', x: FOX_OFF, arm: spring(0), age: 0, stamped: false, stride: 0 },
-    phone: { shake: spring(0), count: 0, age: 9, last: false },
+    phone: { shake: spring(0), count: 0, age: 9, last: false, followup: -1 },
     drops: [],
     flies: 0,
     events: { stamp: false, msg: false, pawFree: false, guest: false },
@@ -228,6 +229,18 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
     phone.age = 0;
     phone.shake.v = 8;
     p.events.msg = true;
+  }
+  // The dev keeps posting, and the auditor returns, however long the room keeps running.
+  if (drive.running && !p.leaving && count === TEXTS.length && phone.age >= 8) {
+    phone.followup += 1;
+    phone.age = 0;
+    phone.shake.v = drive.reduced ? 0 : 8;
+    p.events.msg = true;
+    if (phone.followup % 3 === 0 && p.fox.mode === 'gone') {
+      p.fox.mode = 'away';
+      p.fox.stamped = false;
+      p.fox.x = FOX_OFF;
+    }
   }
   stepSpring(phone.shake, 0, 30, 0.2, dt);
   for (const d of p.drops) {
@@ -674,7 +687,7 @@ function drawPhone(ctx: CanvasRenderingContext2D, p: Picnic): void {
   ctx.fillStyle = phone.age < 0.6 ? '#dff6ff' : '#8fd0ff';
   ctx.fillRect(-7, -14, 14, 26);
   ctx.restore();
-  const text = phone.last ? LAST_TEXT : phone.count > 0 ? TEXTS[phone.count - 1]!.text : null;
+  const text = phone.last ? LAST_TEXT : phone.followup >= 0 ? FOLLOWUPS[phone.followup % FOLLOWUPS.length]! : phone.count > 0 ? TEXTS[phone.count - 1]!.text : null;
   if (text === null) return;
   const rise = clamp(phone.age / 0.25, 0, 1);
   ctx.save();

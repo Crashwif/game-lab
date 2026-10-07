@@ -1,6 +1,20 @@
 {
   "repository": "Crashwif/crashwif",
-  "commit": "9916a4fa2b34863267aeb8277ab395e91c31b7d6",
-  "paths": ["packages/game-sdk", "packages/crash-math", "apps/emulator"],
-  "policy": "These packages are source snapshots. Protocol and outcome changes originate upstream."
+  "commit": "da64d8bbce7e115f83c104191de87f23c4ec303d",
+  "paths": [
+    "packages/game-sdk",
+    "packages/crash-math",
+    "apps/emulator"
+  ],
+  "policy": "These packages are source snapshots. Protocol and outcome changes originate upstream.",
+  "testFixturePatches": [
+    {
+      "path": "packages/game-sdk/test/state.test.ts",
+      "reason": "The upstream anchor-key test room omitted the now-required curve. Supply free.DEFAULT_CURVE; retain all original integrity assertions. Production source snapshots are unchanged."
+    },
+    {
+      "path": "packages/game-sdk/test/embed.test.ts",
+      "reason": "Supply the required free.DEFAULT_CURVE on the upstream bridge test room fixture; retain all original assertions."
+    }
+  ]
 }

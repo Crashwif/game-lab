@@ -64,7 +64,7 @@ export function stepApe(a: ApeState, drive: ApeDrive, dt: number): void {
   a.fear = drive.fear;
   if (a.mode === 'push' && drive.bump) a.slip.v += 40;
   stepSpring(a.slip, 0, 8, 0.6, dt);
-  if (a.mode === 'push') stepGait(a.gait, drive.anchor.contactX - drive.anchor.r - 44 - a.slip.x, drive.walking, dt);
+  if (a.mode === 'push') stepGait(a.gait, apeBaseX(drive.anchor, a.slip.x), drive.walking, dt);
   stepSpring(a.lean, a.mode === 'push' ? 0.35 + 0.5 * drive.fear : a.mode === 'brace' ? -0.3 : 0, a.mode === 'brace' ? 14 : 6, 0.6, dt);
   const shock = a.mode === 'pancake' || a.mode === 'brace';
   const blinking = a.time > a.blinkAt && a.time < a.blinkAt + 0.13;
@@ -77,9 +77,22 @@ export function stepApe(a: ApeState, drive: ApeDrive, dt: number): void {
 /** World anchor points for the rig behind the coin. */
 export interface ApeAnchor { contactX: number; centre: Point; r: number }
 
+/** Keep his distance behind the coin along the slope, not horizontally across a steep cliff. */
+export const apeBaseX = (anchor: ApeAnchor, slip = 0): number => anchor.contactX - (anchor.r + 44 + slip) * Math.cos(slopeAngle(anchor.contactX));
+
+/** Grip points rotate with the hill's tangent so the arms still reach the downhill side of the rim. */
+export function apeHands(anchor: ApeAnchor): [Point, Point] {
+  const slope = slopeAngle(anchor.contactX);
+  return [0.5, -0.12].map(angle => {
+    const along = -Math.cos(angle) * anchor.r;
+    const normal = Math.sin(angle) * anchor.r;
+    return { x: anchor.centre.x + Math.cos(slope) * along - Math.sin(slope) * normal, y: anchor.centre.y + Math.sin(slope) * along + Math.cos(slope) * normal };
+  }) as [Point, Point];
+}
+
 /** The dev sold: he lets go where he stands and throws his hands up at what is coming back down. */
 export function brace(a: ApeState, anchor: ApeAnchor): void {
-  a.braceX = anchor.contactX - anchor.r - 44 - a.slip.x;
+  a.braceX = apeBaseX(anchor, a.slip.x);
   a.mode = 'brace';
   a.modeAge = 0;
   a.lean.v -= 4;
@@ -87,7 +100,7 @@ export function brace(a: ApeState, anchor: ApeAnchor): void {
 
 /** Shared placement for the hips, planted soles and ankles, including the cashout hop. */
 export function apeFooting(a: ApeState, anchor: ApeAnchor) {
-  const baseX = a.mode === 'brace' ? a.braceX : anchor.contactX - anchor.r - 44 - a.slip.x;
+  const baseX = a.mode === 'brace' ? a.braceX : apeBaseX(anchor, a.slip.x);
   // Average the footing beneath the body so entering the ramp does not snap the hips.
   const slope = Math.atan2(heightAt(baseX + 18) - heightAt(baseX - 18), 36);
   const along = { x: Math.cos(slope), y: Math.sin(slope) };
@@ -157,8 +170,7 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
   const lean = a.lean.x;
   const shoulder = add(hip, 50 * Math.cos(lean) - 6, 42 + 26 * Math.sin(lean));
   const head = add(shoulder, 24, 26);
-  const handA = { x: anchor.centre.x - Math.cos(0.5) * anchor.r, y: anchor.centre.y + Math.sin(0.5) * anchor.r };
-  const handB = { x: anchor.centre.x - Math.cos(0.12) * anchor.r, y: anchor.centre.y - Math.sin(0.12) * anchor.r };
+  const [handA, handB] = apeHands(anchor);
   const up = a.mode === 'brace' ? clamp(a.modeAge / 0.18, 0, 1) : 0;
   const wave = Math.sin(a.time * 22) * 6 * up;
   const hands = boarding ? [add(hip, -20, 60), add(hip, 10, 64)] : up > 0 ? [add(shoulder, -26 + wave, 60 * up + 10), add(shoulder, 10 - wave, 66 * up + 12)] : [handA, handB];

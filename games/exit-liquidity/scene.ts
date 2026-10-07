@@ -71,10 +71,14 @@ function readoutWidth(ctx: CanvasRenderingContext2D, text: string): number {
   return Math.min(READOUT_MAX, ctx.measureText(text).width);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["POOL PARTY: EXTENDED", "THE WHALE WANTS ANOTHER LAP", "THE DJ WORKS OVERTIME", "ANOTHER SPLASH OF LIQUIDITY", "THE LIFEGUARD IS ON BREAK", "THE PLUG IS STILL THERE", "INFLATABLE CONVICTION", "DEEP END AFTERPARTY"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'YOU ARE THE LIQUIDITY' : outcome === 'called' ? 'DRY AND RICH' : 'DOWN THE DRAIN';
   if (view.phase !== 'running') return 'WEN POOL PARTY?';
   if (secured) return 'OUT BEFORE THE DRAIN';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'CANNONBALL, DEGENS';
   if (multiplier < 1.6) return 'THE WATER IS FINE';
   if (multiplier < 2.5) return 'WHO PEED IN THE LP';
@@ -248,7 +252,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (running || crashed) {
         settlePool(pool, growth);
         settleParty(party, pool, growth, secured !== null);
-        rung = RUNGS.filter((r) => multiplier >= r).length;
+        rung = RUNGS.filter((r) => multiplier >= r).length + Math.floor(Math.max(0, view.elapsed - 45_000) / 12_000);
         notches = Math.floor(tension * 4);
       }
       if (crashed) rug(view, ending, true);
@@ -298,7 +302,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (party.events.drop) audio.fx('scream', 0.7);
     if (party.events.shutter) audio.fx('camera', 1);
     if (running) {
-      const index = RUNGS.filter((r) => multiplier >= r).length;
+      const index = RUNGS.filter((r) => multiplier >= r).length + Math.floor(Math.max(0, view.elapsed - 45_000) / 12_000);
       audio.milestone(index);
       if (index > rung) {
         if (index >= AIRDROP_FROM) airdrop(party);

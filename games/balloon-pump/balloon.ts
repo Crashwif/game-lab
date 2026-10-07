@@ -168,10 +168,16 @@ export interface BalloonGeometry {
 /** The balloon's current shape in world space: centre, semi-axes, tether angle. */
 export function balloonGeometry(b: BalloonState): BalloonGeometry {
   const rise = clamp(b.rise.x, 0, 1);
-  const radius = Math.max(8, b.radius.x + b.puff.x);
-  const j = b.jiggle.x;
-  const rx = radius * (0.9 + 0.5 * j) * mix(1.12, 1, rise);
-  const ry = radius * (1.06 - 0.45 * j) * mix(0.72, 1, rise);
+  let radius = Math.max(8, b.radius.x + b.puff.x);
+  const j = clamp(b.jiggle.x, -0.35, 0.45);
+  let rx = radius * (0.9 + 0.5 * j) * mix(1.12, 1, rise);
+  let ry = radius * (1.06 - 0.45 * j) * mix(0.72, 1, rise);
+  // Keep the full silhouette below the headline even on the biggest round and an extra pump pulse.
+  // Fitting both axes also contains a rotated balloon; its face and tether use this same geometry.
+  const fit = Math.min(1, (TETHER.y - 110 - NECK) / (2 * Math.max(rx, ry)));
+  radius *= fit;
+  rx *= fit;
+  ry *= fit;
   const angle = b.sway.x;
   const length = ry + NECK;
   return { centre: { x: TETHER.x + Math.sin(angle) * length, y: TETHER.y - Math.cos(angle) * length }, rx, ry, angle, length, radius, rise };

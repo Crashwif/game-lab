@@ -4,9 +4,14 @@ import {
   payout,
   rallyPercent,
   multiplierAtX100,
+  multiplierAtContinuousX100,
   msToReach,
+  validCurve,
+  DEFAULT_CURVE,
   DEFAULT_EDGE_BPS,
+  MAX_GROWTH_RATE_PER_MS,
   rallyBlockAt,
+  type Curve,
 } from '../src/free.js';
 import { testSeed, testSalt } from './helpers.js';
 
@@ -97,20 +102,55 @@ describe('payout', () => {
 });
 
 describe('multiplier curve', () => {
+  const slow: Curve = { kind: 'exponential', growthRatePerMs: 0.00001 };
+
   it('starts at 1.00x and grows', () => {
-    expect(multiplierAtX100(0)).toBe(100);
-    expect(multiplierAtX100(10_000)).toBeGreaterThan(multiplierAtX100(5_000));
+    expect(multiplierAtX100(0, DEFAULT_CURVE)).toBe(100);
+    expect(multiplierAtX100(10_000, DEFAULT_CURVE)).toBeGreaterThan(multiplierAtX100(5_000, DEFAULT_CURVE));
   });
 
   it('treats negative or NaN time as the start of the round', () => {
-    expect(multiplierAtX100(-5)).toBe(100);
-    expect(multiplierAtX100(Number.NaN)).toBe(100);
+    expect(multiplierAtX100(-5, DEFAULT_CURVE)).toBe(100);
+    expect(multiplierAtX100(Number.NaN, DEFAULT_CURVE)).toBe(100);
+  });
+
+  it("runs the platform's rooms at a tenfold every 30 seconds", () => {
+    // To the millisecond: the integer curve rounds the boundary one way or the other.
+    const within1ms = (x100: number, ms: number) => expect(Math.abs(msToReach(x100, DEFAULT_CURVE) - ms), `${x100 / 100}x`).toBeLessThanOrEqual(1);
+    within1ms(1_000, 30_000);
+    within1ms(10_000, 60_000);
+    within1ms(100_000, 90_000);
+    within1ms(1_000_000, 120_000);
+    expect(multiplierAtContinuousX100(30_000, DEFAULT_CURVE)).toBeCloseTo(1_000, 6);
   });
 
   it.each([100, 101, 150, 200, 1000, 10000])('msToReach(%s) is the first ms the curve reaches it', (x) => {
-    const ms = msToReach(x);
-    expect(multiplierAtX100(ms)).toBeGreaterThanOrEqual(x);
-    if (ms > 0) expect(multiplierAtX100(ms - 1)).toBeLessThan(x);
+    for (const curve of [DEFAULT_CURVE, slow]) {
+      const ms = msToReach(x, curve);
+      expect(multiplierAtX100(ms, curve)).toBeGreaterThanOrEqual(x);
+      if (ms > 0) expect(multiplierAtX100(ms - 1, curve)).toBeLessThan(x);
+    }
+  });
+
+  it('follows the curve it is given, so a room can refine its pace without a game changing', () => {
+    expect(msToReach(1_000, slow)).toBeGreaterThan(msToReach(1_000, DEFAULT_CURVE));
+    expect(multiplierAtX100(10_000, slow)).toBeLessThan(multiplierAtX100(10_000, DEFAULT_CURVE));
+  });
+
+  it('accepts only an exponential with a finite, positive, bounded rate', () => {
+    expect(validCurve(DEFAULT_CURVE)).toBe(true);
+    expect(validCurve({ kind: 'exponential', growthRatePerMs: MAX_GROWTH_RATE_PER_MS })).toBe(true);
+    for (const bad of [null, undefined, 0.00006, {}, { kind: 'linear', growthRatePerMs: 0.00006 }, { kind: 'exponential' }, { kind: 'exponential', growthRatePerMs: 0 }, { kind: 'exponential', growthRatePerMs: -1 }, { kind: 'exponential', growthRatePerMs: Number.NaN }, { kind: 'exponential', growthRatePerMs: Number.POSITIVE_INFINITY }, { kind: 'exponential', growthRatePerMs: MAX_GROWTH_RATE_PER_MS * 2 }, { kind: 'exponential', growthRatePerMs: '0.00006' }]) {
+      expect(validCurve(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('refuses to run without a usable curve rather than fall back to a pace of its own', () => {
+    const missing = undefined as unknown as Curve;
+    expect(() => multiplierAtX100(1_000, missing)).toThrow(RangeError);
+    expect(() => multiplierAtContinuousX100(1_000, missing)).toThrow(RangeError);
+    expect(() => msToReach(200, missing)).toThrow(RangeError);
+    expect(() => msToReach(200, { kind: 'exponential', growthRatePerMs: 0 })).toThrow(RangeError);
   });
 });
 

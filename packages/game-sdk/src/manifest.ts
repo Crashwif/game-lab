@@ -18,6 +18,10 @@ export type Renderer = (typeof RENDERERS)[number];
 export const LICENCES = ['all-rights-reserved', 'derivatives-royalty', 'open'] as const;
 export type Licence = (typeof LICENCES)[number];
 
+/** The cues a bundle may carry as recorded clips: the music loop and the game events of @crashwif/game-audio. */
+export const AUDIO_CLIPS = ['music', 'roundStart', 'betPlaced', 'multiplierTick', 'targetReached', 'crash', 'highMultiplier', 'rally', 'queued', 'passEnded'] as const;
+export type AudioClip = (typeof AUDIO_CLIPS)[number];
+
 export interface ThemeSpec {
   category: string;
   mood: string;
@@ -31,6 +35,8 @@ export interface AudioSpec {
   /** Optional per-event overrides by preset name. */
   events?: Partial<Record<'bet' | 'lock' | 'tick' | 'cashout' | 'crash' | 'rally', string>>;
   volume?: number;
+  /** Bundle file path of a recorded clip by cue; the clip plays instead of the cue's synthesised sound, and `music` loops through each round. */
+  clips?: Partial<Record<AudioClip, string>>;
 }
 
 export interface GameManifest {
@@ -42,6 +48,8 @@ export interface GameManifest {
   theme: ThemeSpec;
   /** Bundle file path by asset slot; the file's sha256 is in the bundle's file list. */
   assets: Partial<Record<AssetSlot, string>>;
+  /** A preview frame used as the room's lobby and sharing image. */
+  cover?: string;
   audio: AudioSpec;
   renderer: Renderer;
   /** For a custom renderer: the HTML entry inside the bundle. */
@@ -92,9 +100,19 @@ export function validateManifest(raw: unknown): { ok: true; manifest: GameManife
       else if (typeof path !== 'string' || !PATH.test(path)) problems.push({ path: `assets.${slot}`, message: 'a relative path inside the bundle' });
     }
   }
+  if (m.cover !== undefined && (typeof m.cover !== 'string' || !PATH.test(m.cover) || m.cover.startsWith('/') || m.cover.includes('//'))) problems.push({ path: 'cover', message: 'a relative image path inside the bundle' });
   const audio = (m.audio ?? {}) as Record<string, unknown>;
   if (typeof m.audio !== 'object' || m.audio === null || typeof audio.preset !== 'string' || !/^[a-z0-9_-]{1,32}$/.test(audio.preset)) problems.push({ path: 'audio.preset', message: 'audio.preset names a preset (or "none")' });
   if (audio.volume !== undefined && (typeof audio.volume !== 'number' || audio.volume < 0 || audio.volume > 1)) problems.push({ path: 'audio.volume', message: 'volume is 0 to 1' });
+  if (audio.clips !== undefined) {
+    if (typeof audio.clips !== 'object' || audio.clips === null || Array.isArray(audio.clips)) problems.push({ path: 'audio.clips', message: 'clips maps cues to bundle paths' });
+    else {
+      for (const [cue, path] of Object.entries(audio.clips as Record<string, unknown>)) {
+        if (!(AUDIO_CLIPS as readonly string[]).includes(cue)) problems.push({ path: `audio.clips.${cue}`, message: `unknown cue; one of ${AUDIO_CLIPS.join(', ')}` });
+        else if (typeof path !== 'string' || !PATH.test(path)) problems.push({ path: `audio.clips.${cue}`, message: 'a relative path inside the bundle' });
+      }
+    }
+  }
   if (!(RENDERERS as readonly string[]).includes(m.renderer as string)) problems.push({ path: 'renderer', message: `renderer is one of ${RENDERERS.join(', ')}` });
   if (m.renderer === 'custom' && (typeof m.entry !== 'string' || !PATH.test(m.entry) || !/\.html$/.test(m.entry))) problems.push({ path: 'entry', message: 'a custom renderer names its HTML entry inside the bundle' });
   if (m.renderer !== 'custom' && m.entry !== undefined) problems.push({ path: 'entry', message: 'only a custom renderer has an entry' });
@@ -113,7 +131,13 @@ export function validateManifest(raw: unknown): { ok: true; manifest: GameManife
       templateId: (m.templateId as string | undefined) ?? null,
       theme: { category: theme.category as string, mood: theme.mood as string, colors: { ...(theme.colors as Record<string, string>) } },
       assets: { ...(assets as Partial<Record<AssetSlot, string>>) },
-      audio: { preset: audio.preset as string, ...(audio.events ? { events: audio.events as AudioSpec['events'] } : {}), ...(audio.volume !== undefined ? { volume: audio.volume as number } : {}) },
+      ...(m.cover !== undefined ? { cover: m.cover as string } : {}),
+      audio: {
+        preset: audio.preset as string,
+        ...(audio.events ? { events: audio.events as AudioSpec['events'] } : {}),
+        ...(audio.volume !== undefined ? { volume: audio.volume as number } : {}),
+        ...(audio.clips ? { clips: { ...(audio.clips as AudioSpec['clips']) } } : {}),
+      },
       renderer: m.renderer as Renderer,
       ...(m.renderer === 'custom' ? { entry: m.entry as string } : {}),
       licence: m.licence as Licence,

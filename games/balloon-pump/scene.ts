@@ -4,7 +4,6 @@
  * lasers, the burst text). All motion is stepped here with the real frame time,
  * and nothing drawn here changes the committed outcome.
  */
-import { free } from '@crashwif/crash-math';
 import { pageAudio } from './audio';
 import { TETHER, type BalloonDrive, balloonGeometry, burstBalloon, createBalloon, drawBalloon, drawBalloonShadow, resetBalloon, settleBalloon, stepBalloon } from './balloon';
 import { airPacket, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
@@ -79,10 +78,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "STILL FULL OF HOT AIR", "LUNG DAY NEVER ENDS", "THE STRING HAS TRUST ISSUES", "INFLATION: EXTENDED EDITION", "THE SNIPER MISSED LUNCH", "ONE MORE BREATH", "AIR SUPPLY: QUESTIONABLE"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'BLEW UP IN MY FACE' : outcome === 'called' ? 'HAVE FUN STAYING POOR' : 'IT WAS ALL HOT AIR';
   if (view.phase !== 'running') return 'WEN PUMP?';
   if (secured) return 'DEAL WITH IT';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.5) return 'PUMP IT';
   if (multiplier < 2) return 'UP ONLY';
   if (multiplier < 3) return 'BACKED BY HOT AIR';
@@ -125,8 +128,12 @@ function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], red
 }
 
 /** The round's multiplier over time as a rising line, red and pointing down once it crashed. */
-function drawTrail(ctx: CanvasRenderingContext2D, trail: Point[], dead: boolean): void {
-  if (trail.length < 2) return;
+function drawTrail(ctx: CanvasRenderingContext2D, samples: Point[], dead: boolean): void {
+  if (samples.length < 2) return;
+  const end = samples[samples.length - 1]!;
+  const timeScale = Math.max(32_000, end.x / 3);
+  const growthScale = Math.max(4.2, end.y * 1.12);
+  const trail = samples.map(p => ({ x: 80 + 800 * (1 - Math.exp(-p.x / timeScale)), y: 440 - 352.8 * p.y / growthScale }));
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -152,14 +159,12 @@ function drawTrail(ctx: CanvasRenderingContext2D, trail: Point[], dead: boolean)
   ctx.restore();
 }
 
-/** The chart's point `elapsed` ms into the round, at `growth` (log2 of the multiplier). */
-const trailPoint = (elapsed: number, growth: number): Point => ({ x: 80 + 800 * (1 - Math.exp(-elapsed / 32000)), y: 440 - 84 * Math.min(growth, 4.2) });
+/** Samples retain elapsed time and log2(multiplier), so the chart can expand in long rounds. */
+const trailPoint = (elapsed: number, growth: number): Point => ({ x: elapsed, y: growth });
 
-/** The chart as it stands `elapsed` ms in, for a round met late. The curve is exponential, so growth climbs in step with time. */
+/** Connect the known endpoints on a late join; subsequent samples trace the observed curve. */
 function settleTrail(elapsed: number, growth: number): Point[] {
-  const trail: Point[] = [];
-  for (let at = 0; at <= elapsed && trail.length < TRAIL_POINTS; at += 100) trail.push(trailPoint(at, at > 0 ? (growth * at) / elapsed : 0));
-  return trail;
+  return [trailPoint(0, 0), trailPoint(elapsed, growth)];
 }
 
 function drawGround(ctx: CanvasRenderingContext2D): void {
@@ -393,8 +398,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
     if (settle && (running || crashed)) {
-      // The chart as far as the number has come: the crash point's time comes from the curve.
-      const elapsed = running ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS;
+      // The chart uses the elapsed time supplied by the round, including its final crash frame.
+      const elapsed = view.elapsed;
       trail = settleTrail(elapsed, growth);
       trailAt = Math.floor(elapsed / 100);
     }
@@ -446,7 +451,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
     if (running) {
       const at = Math.floor(view.elapsed / 100);
-      if (at !== trailAt && trail.length < TRAIL_POINTS) {
+      if (at !== trailAt) {
+        if (trail.length >= TRAIL_POINTS) trail = trail.filter((_, i) => i % 2 === 0);
         trailAt = at;
         trail.push(trailPoint(view.elapsed, growth));
       }

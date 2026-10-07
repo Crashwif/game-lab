@@ -51,9 +51,23 @@ export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, growth: nu
   ctx.fillRect(0, 0, 960, 540);
   for (const [i, s] of STARS.entries()) {
     ctx.globalAlpha = space * (reduced ? 0.8 : 0.7 + 0.3 * Math.sin(time * s.k + i));
-    disc(ctx, s.x, s.y + scroll * 0.02, s.r, '#ffffff');
+    disc(ctx, s.x, (s.y + scroll * 0.02) % 540, s.r, '#ffffff');
   }
   ctx.globalAlpha = 1;
+  // Recurring satellite traffic gives deep space depth after the launch scenery has scrolled away.
+  if (growth > 4) {
+    const pass = reduced ? 0.25 : (time % 18) / 18;
+    ctx.save();
+    ctx.translate(-100 + pass * 1160, 330 + Math.sin(pass * Math.PI * 2) * 80);
+    ctx.rotate(reduced ? 0.2 : time * 0.25);
+    ctx.fillStyle = '#477bac';
+    ctx.fillRect(-66, -16, 48, 32); ctx.fillRect(18, -16, 48, 32);
+    ctx.strokeStyle = '#92c7f5'; ctx.lineWidth = 2;
+    for (const x of [-66, -50, -34, 18, 34, 50]) ctx.strokeRect(x, -16, 16, 32);
+    ctx.fillStyle = '#dce4ec'; ctx.fillRect(-16, -20, 32, 40);
+    disc(ctx, 0, -22, 10, '#f6cf62');
+    ctx.restore();
+  }
   // The moon grows with the climb and never gets any closer.
   const r = 26 + 112 * smoothstep(0, 4.6, growth);
   disc(ctx, 800, 120, r, '#f4ecd2');

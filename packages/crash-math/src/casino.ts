@@ -8,8 +8,8 @@
  *   P(X >= m) = rtp / m          for every m >= 1, so  m * P(X >= m) = rtp
  *   crash = max(1.00x, floor(100 * X) / 100), optionally capped at maxX100
  *
- * A cap only lowers the RTP of targets above the cap. The RTP must still be
- * proven by simulation before certification (Phase 3).
+ * A cap only lowers the RTP of targets above the cap. Certification proves
+ * the RTP of every variant offered, capped or not, by simulating this module.
  */
 import { TWO_POW_52, first52Bits, roundHash } from './core.js';
 

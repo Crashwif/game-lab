@@ -4,7 +4,6 @@
  * sound cued from what they do. All motion is stepped here with the real
  * frame time, and nothing drawn here changes the committed outcome.
  */
-import { free } from '@crashwif/crash-math';
 import { pageAudio } from './audio';
 import { type Curler, SLEEVE_AT, burstBicep, createCurler, drawCurler, marketCap, poseCurler, resetCurler, settleCurler, stepCurler } from './curler';
 import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym, swoon, walkOut } from './gym';
@@ -57,10 +56,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "THE MEDIC CHECKED HIS WATCH", "ANOTHER CURL, ANOTHER PEAK", "THE TAPE MEASURE RESIGNED", "STILL SKIPPING LEG DAY", "BICEP AUDIT PENDING", "THE MIRROR NEEDS INSURANCE", "REST DAY IS A RUMOUR"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'NOODLE ARM' : outcome === 'called' ? 'SOLD THE PEAK' : 'PROTEIN SHAKE';
   if (view.phase !== 'running') return 'WE GO JIM';
   if (secured) return 'CURLS FOR THE GIRLS';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'ONE MORE REP';
   if (multiplier < 1.7) return 'PUMP SEASON';
   if (multiplier < SLEEVE_AT) return 'THE PEAK IS FORMING';
@@ -92,6 +95,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let milestone = 0;
+  let encoreAt = 0;
   let freeze = 0;
   let slow = 0;
   /** The green of an accepted exit, fading. */
@@ -101,8 +105,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   function settleRound(view: SceneView, multiplier: number, growth: number): void {
     settleCurler(curler, multiplier, growth, secured !== null);
     while (milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) milestone += 1;
-    // A crashed round no longer keeps its running time, so the crash point's time comes from the curve.
-    settleTrail(gym, view.phase === 'running' ? view.elapsed : Math.log(multiplier) / free.GROWTH_RATE_PER_MS, growth);
+    // Keep the final elapsed time supplied by the round through its crash.
+    settleTrail(gym, view.elapsed, growth);
     settleSpring(badge, secured ? 1 : 0);
     settleMedic(medic, multiplier, view.phase === 'crashed');
     // The mirror's cracks, which hold through the crash once finishGym has run.
@@ -171,6 +175,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetCurler(curler);
       resetMedic(medic);
       if (running || crashed) settleRound(view, multiplier, growth);
+      encoreAt = view.elapsed + 8_000;
       if (crashed) {
         outcome = ending;
         snap(view, true);
@@ -189,6 +194,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = null;
         secured = null;
         milestone = 0;
+        encoreAt = 0;
         freeze = slow = 0;
       }
       previous = view.phase;
@@ -204,6 +210,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       heckle(gym, HECKLES[milestone % HECKLES.length]!, milestone % 2 === 0);
       milestone += 1;
       if (!reduced) shake = Math.max(shake, 0.2);
+    }
+    if (running && milestone === MILESTONES.length && view.elapsed >= encoreAt) {
+      const round = Math.floor(view.elapsed / 8_000);
+      heckle(gym, HECKLES[round % HECKLES.length]!, round % 2 === 0);
+      if (round % 3 === 0) swoon(gym);
+      encoreAt = view.elapsed + 8_000;
     }
     if (running) audio.milestone(MILESTONES.filter((m) => multiplier >= m).length);
     if (curler.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.04 + 0.16 * tension); audio.fx('creak', 0.4 + 0.6 * tension); }

@@ -65,10 +65,14 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
+/** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
+const OVERTIME_CAPTIONS = ["THE NIGHT SHIFT CLOCKED IN", "COAL BUDGET: EXTENDED", "ANOTHER PRESSURE CHECK", "THE PRINTER NEEDS A HOLIDAY", "STEAM POWERED OVERTIME", "THE GAUGE RAN OUT OF NUMBERS", "SHIFT CHANGE: MORE RETAIL", "BRRR HAS NO OFF SWITCH"];
+
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'ABSOLUTELY COOKED' : outcome === 'called' ? 'OFFSHORE BEFORE THE RAID' : 'MONEY PRINTER GO BOOM';
   if (view.phase !== 'running') return 'WEN PRINT?';
   if (secured) return 'HIDING OFFSHORE';
+  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
   if (multiplier < 1.3) return 'SHOVEL IN THE RETAIL';
   if (multiplier < 1.7) return 'PRINTER GO BRRR';
   if (multiplier < 2.5) return 'MORE RETAIL, BOYS';
