@@ -6,8 +6,10 @@
 import { clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
-export const DESK = { x: 468, y: 448 };
-export const LAPTOP = { x: 300, y: 352, w: 156, h: 108 };
+export const DESK = { x: 450, y: 448 };
+export const LAPTOP = { x: 300, y: 372, w: 156, h: 108 };
+/** Shared world-space contacts: the actor and keyboard use the same sockets. */
+export const KEYBOARD_HANDS = [{ x: LAPTOP.x + LAPTOP.w - 44, y: LAPTOP.y + 21 }, { x: LAPTOP.x + LAPTOP.w - 24, y: LAPTOP.y + 21 }] as const;
 
 const LINES: { at: number; text: string; her: boolean }[] = [
   { at: 1.15, text: 'honey?', her: true },
@@ -47,7 +49,7 @@ const COUNTER_REST = 416;
 const PHOTO_REST = 398;
 /** Where the cursor rests on the laptop's screen, and the SELL button it is drawn toward. Screen coordinates with the lid open. */
 const CURSOR_HOME = { x: 328, y: 286 } as const;
-export const SELL_BTN = { x: 404, y: 330, w: 42, h: 18 } as const;
+export const SELL_BTN = { x: 404, y: LAPTOP.y - 22, w: 42, h: 18 } as const;
 const SELL_CENTRE = { x: SELL_BTN.x + SELL_BTN.w / 2, y: SELL_BTN.y + SELL_BTN.h / 2 } as const;
 
 export interface Kitchen {
@@ -674,7 +676,7 @@ export function drawRoom(ctx: CanvasRenderingContext2D, k: Kitchen, time: number
   for (let i = 0; i < 7; i += 1) {
     const y = 180 + i * 40;
     ctx.beginPath();
-    ctx.moveTo(780 + i * 8, y);
+    ctx.moveTo(700 + (470 - y) / 2, y);
     ctx.lineTo(960, y);
     ctx.stroke();
   }
@@ -887,7 +889,7 @@ export function drawLaptop(ctx: CanvasRenderingContext2D, k: Kitchen, lid: numbe
   const { x, y, w, h } = LAPTOP;
   const chartDead = k.chartDead;
   const deadAge = k.crashT;
-  const shake = fear > 0.45 && lid < 0.5 ? Math.sin(time * 48) * 1.4 : 0;
+  const shake = 0; // A planted keyboard stays still; nervous motion belongs to the shoulders.
   ctx.save();
   ctx.translate(shake, 0);
   ctx.fillStyle = '#2a3038';
@@ -1025,7 +1027,7 @@ function drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, time: numb
   ctx.restore();
 }
 
-export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: number, time: number): void {
+export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: number, time: number, dialogue = true): void {
   if (!k.catInCase) drawCat(ctx, k.catX, k.catY, time, LAPTOP.x);
   const n = visibleMugs(multiplier);
   for (let i = 0; i < k.mugs.length; i += 1) {
@@ -1051,7 +1053,7 @@ export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: n
   ctx.stroke();
   ctx.fillStyle = '#8fd0ff';
   ctx.fillRect(172, 430, 20, 28);
-  const shown = k.bubbles.slice(-4);
+  const shown = dialogue ? k.bubbles.slice(-4) : [];
   shown.forEach((bubble, index) => {
     const rise = clamp(bubble.age / 0.25, 0, 1);
     const y = 292 - index * 26 - (1 - rise) * 10;

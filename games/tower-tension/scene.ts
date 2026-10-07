@@ -8,7 +8,7 @@ import { pageAudio } from './audio';
 import { type CraneState, createCrane, drawCrane, drawPile, jolt, loadPose, resetCrane, settleCrane, stepCrane } from './crane';
 import { clamp, fract, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { type OfficeDrive, type OfficeState, createOffice, drawOffice, resetOffice, scatterQueue, sellPenthouse, sellUnit, settleOffice, stepOffice } from './office';
-import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, towerHeight, towerTopY } from './tower';
+import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, collapseCamera, runningCameraFrame, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, towerHeight, towerTopY } from './tower';
 import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, settleSafe, stepWorker, towerFell } from './worker';
 
 export interface SceneView {
@@ -104,11 +104,11 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 /** World to screen for a layer: parallax below 1 makes it scroll slower than the tower. */
-function worldTransform(ctx: CanvasRenderingContext2D, camY: number, scale: number, parallax = 1): void {
+function worldTransform(ctx: CanvasRenderingContext2D, camY: number, scale: number, parallax = 1, camX = W / 2): void {
   const layerCam = GROUND_CAM_Y + (camY - GROUND_CAM_Y) * parallax;
   ctx.translate(W / 2, H / 2);
   ctx.scale(scale, scale);
-  ctx.translate(-W / 2, -layerCam);
+  ctx.translate(-camX, -layerCam);
 }
 
 function drawSky(ctx: CanvasRenderingContext2D, camY: number, scale: number, time: number, stars: Star[], reduced: boolean): void {
@@ -167,16 +167,16 @@ function drawClouds(ctx: CanvasRenderingContext2D, camY: number, scale: number, 
 
 function drawGround(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = '#7c8189';
-  ctx.fillRect(-1200, GROUND_Y, 3400, 2200);
+  ctx.fillRect(-20000, GROUND_Y, 40000, 40000);
   ctx.fillStyle = '#5b5f66';
-  ctx.fillRect(-1200, GROUND_Y, 3400, 16);
+  ctx.fillRect(-20000, GROUND_Y, 40000, 16);
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(-1200, GROUND_Y); ctx.lineTo(2200, GROUND_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-20000, GROUND_Y); ctx.lineTo(20000, GROUND_Y); ctx.stroke();
   ctx.strokeStyle = '#d7d2c4';
   ctx.lineWidth = 3;
   ctx.setLineDash([26, 22]);
-  ctx.beginPath(); ctx.moveTo(-1200, GROUND_Y + 62); ctx.lineTo(2200, GROUND_Y + 62); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-20000, GROUND_Y + 62); ctx.lineTo(20000, GROUND_Y + 62); ctx.stroke();
   ctx.setLineDash([]);
   // The developer's billboard, up on posts behind the site fence.
   ctx.fillStyle = '#9aa0a8';
@@ -235,7 +235,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const crane: CraneState = createCrane();
   const worker: WorkerState = createWorker();
   const office: OfficeState = createOffice();
-  const cam = { y: spring(GROUND_CAM_Y), scale: spring(1) };
+  const cam = { x: spring(W / 2), y: spring(GROUND_CAM_Y), scale: spring(1) };
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
@@ -265,27 +265,28 @@ export function createScene(options: SceneOptions = {}): Scene {
   let thuds = 0;
   let workerMode = worker.mode;
 
-  function cameraTarget(): { y: number; s: number } {
-    const inFall = tower.collapsed && tower.fallAge < 2.6;
-    const height = tower.collapsed ? (inFall ? tower.fallHeight : 0) : towerHeight(tower);
-    let s = clamp(430 / (height + 270), 0.5, 1);
+  function cameraTarget(): { x: number; y: number; s: number } {
+    if (tower.collapsed) return collapseCamera(tower);
+    const height = towerHeight(tower);
+    let { x, s } = runningCameraFrame(tower, clamp(430 / (height + 270), 0.5, 1));
     let y: number;
     if (worker.mode === 'boarding' || worker.mode === 'riding') {
       s = Math.max(s, 0.85);
+      x = worker.cage.x;
       y = worker.cage.y - 80;
     } else if (worker.mode === 'safe' && worker.modeAge < 1.8) {
       s = 1;
+      x = W / 2;
       y = GROUND_CAM_Y;
-    } else if (inFall) {
-      y = GROUND_Y - tower.fallHeight * 0.45;
     } else {
-      y = towerTopY(tower) + 120 / s;
+      y = towerTopY(tower) + 80 / s;
     }
-    return { y: Math.min(y, GROUND_Y - 230 / s), s };
+    return { x, y: Math.min(y, GROUND_Y - 230 / s), s };
   }
 
   function settleCamera(): void {
     const target = cameraTarget();
+    settleSpring(cam.x, target.x);
     settleSpring(cam.y, target.y);
     settleSpring(cam.scale, target.s);
   }
@@ -474,6 +475,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     const target = cameraTarget();
+    stepSpring(cam.x, target.x, 3, 1, dt);
+    if (tower.collapsed) { settleSpring(cam.x, target.x); settleSpring(cam.y, target.y); settleSpring(cam.scale, target.s); }
     stepSpring(cam.y, target.y, 2.4, 1, dt);
     stepSpring(cam.scale, target.s, 2.4, 1, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
@@ -496,7 +499,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the tipping stack and eases back out.
       const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
-      const px = W / 2 + (TOWER_X - W / 2) * s;
+      const px = W / 2 + (TOWER_X - cam.x.x) * s;
       const py = H / 2 + (GROUND_Y - tower.fallHeight * 0.4 - camY) * s;
       ctx.translate(px, py);
       ctx.scale(k, k);
@@ -507,7 +510,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawClouds(ctx, camY, s, clouds, time);
     drawSkyline(ctx, camY, s, near, 0.6, 'rgba(48, 70, 118, 0.72)');
     ctx.save();
-    worldTransform(ctx, camY, s);
+    worldTransform(ctx, camY, s, 1, cam.x.x);
     drawGround(ctx);
     drawOffice(ctx, office, officeDrive);
     drawPile(ctx);
@@ -523,7 +526,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawDust(ctx, tower);
     ctx.restore();
     if (outcome && pop.x > 0.02) {
-      const sx = W / 2 + (TOWER_X - W / 2) * s;
+      const sx = W / 2 + (TOWER_X - cam.x.x) * s;
       const sy = clamp(H / 2 + (GROUND_Y - tower.fallHeight * 0.5 - camY) * s, 130, 420);
       ctx.save();
       ctx.translate(sx, sy);
@@ -534,6 +537,20 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
+
+    // A close view preserves the worker's grip and the foundation while the main camera shows the height.
+    if (!tower.collapsed && floorCount(tower) > 24) {
+      const foundation = Math.floor(view.elapsed / 14000) % 2 === 1;
+      ctx.save(); ctx.beginPath(); ctx.roundRect(22, 104, 188, 162, 10); ctx.clip();
+      ctx.fillStyle = '#203754'; ctx.fillRect(22, 104, 188, 162);
+      ctx.translate(116, 234); ctx.scale(foundation ? 1.2 : 1.7, foundation ? 1.2 : 1.7);
+      ctx.translate(-(foundation ? TOWER_X : worker.x), -(foundation ? GROUND_Y : worker.y));
+      if (!foundation) drawCrane(ctx, crane);
+      drawTower(ctx, tower, fear, time);
+      if (!foundation) drawWorker(ctx, worker);
+      ctx.restore();
+      memeText(ctx, foundation ? 'FOUNDATION' : 'ROOFTOP', 116, 126, 16, '#ffe27a', 'center', 168);
+    }
 
     // HUD in screen space. The readout grows leftward from x 930, so the caption centred on 430 narrows to
     // keep 24 px clear of it however long the number gets.

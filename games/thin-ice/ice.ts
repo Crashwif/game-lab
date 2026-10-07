@@ -76,6 +76,19 @@ export function resetIce(ice: IceState): void {
 const SIGNS: [string, string][] = [['BUY', 'THE DIP'], ['STILL', 'EARLY'], ['DCA', 'BABY'], ["IT'S A", 'FEATURE'], ['WAGMI', '(2021)'], ['NOT', 'SELLING']];
 
 /** A seeded random walk with one branch, starting near a point on the ice. */
+/** Distance travelled when joining late, integrating the current growth over the elapsed presentation. */
+export function journeyDistance(seconds: number, growth: number): number {
+  const g = Math.max(0, growth) / 2;
+  return Math.max(0, seconds) * (120 + 220 * (g < 1e-5 ? g / 2 : 1 - (1 - Math.exp(-g)) / g));
+}
+
+/** Reconstruct only the visible wake: deterministic, bounded and independent of outcome selection. */
+export function settleJourney(ice: IceState, x: number, y: number, tension: number, seconds: number): void {
+  const count = Math.min(12, Math.floor(seconds / 2));
+  for (let i = 0; i < count; i += 1) spawnCrack(ice, x - 540 + i * 57, y + Math.sin(i * 2.3) * 24, tension, Math.floor(seconds / 12) * 100 + i);
+  for (const crack of ice.cracks) crack.growth = 1;
+}
+
 export function spawnCrack(ice: IceState, x: number, y: number, tension: number, seed: number): void {
   const rng = mulberry32(Math.floor(seed * 1000));
   const walk = (sx: number, sy: number, heading: number, steps: number, scale: number): Point[] => {

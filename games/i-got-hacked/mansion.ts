@@ -27,7 +27,9 @@ interface Wake { x: number; y: number; age: number; life: number; size: number }
 /** The paparazzi drone: parked off the right edge, hovering over the bay, or diving on the balcony for the money shot. */
 interface Drone { x: Spring; y: Spring; tilt: Spring; flash: number; nextFlash: number; shots: number; mode: 'away' | 'hover' | 'dive' }
 /** The draft post's excuses, in the order the phone happens to land on them. */
-const EXCUSES = ['my nephew did it', 'i was phished', 'it was the intern', 'dog ate my seed phrase', 'sim swapped at the spa', 'the yacht wifi did it', 'an AI wrote that post', 'i was asleep 6 months', 'my thumbs got hacked', 'password was password', 'the manager typed it', 'i got hacked'];
+export const EXCUSES = ['my nephew did it', 'i was phished', 'it was the intern', 'dog ate my seed phrase', 'sim swapped at the spa', 'the yacht wifi did it', 'an AI wrote that post', 'i was asleep 6 months', 'my thumbs got hacked', 'password was password', 'the manager typed it', 'i got hacked'];
+/** Reading time includes typing and an unbroken full-sentence hold. */
+export const excuseDuration = (text: string): number => text.length * .028 + 1.8;
 /** Where the drone hovers, and where it dives to at the crash: left of the star's head, at the cheek the tear rolls down. */
 const HOVER = { x: 640, y: 150 } as const;
 const DIVE = { x: 140, y: 72 } as const;
@@ -212,7 +214,7 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   m.excuseAge += dt;
   if (drive.running && !m.ended && m.draft.x > 0.05 && m.time >= m.excuseAt) {
     m.excuse = (m.excuse + 1 + Math.floor(noise(m.time * 3.1) * (EXCUSES.length - 1))) % EXCUSES.length;
-    m.excuseAt = m.time + mix(1.6, 0.35, smoothstep(0.45, 1, drive.tension)) * (0.8 + 0.4 * noise(m.time * 7.7));
+    m.excuseAt = m.time + excuseDuration(EXCUSES[m.excuse]!);
     m.excuseAge = 0;
     m.excusePop.v = 8;
     m.events.excuse = true;

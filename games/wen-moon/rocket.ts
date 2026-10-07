@@ -9,7 +9,7 @@ export const INK = '#1c1f26';
 /** The ground line, the pad's x, the height the rocket climbs to before the world scrolls under it, and world px per doubling. */
 export const GROUND = 468;
 export const PAD_X = 480;
-const HOVER = 290;
+const HOVER = 375;
 export const PX_PER_DOUBLING = 520;
 
 export interface Piece { x: number; y: number; vx: number; vy: number; a: number; spin: number; kind: number; s: number }
@@ -67,6 +67,19 @@ export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, growth: nu
     ctx.fillStyle = '#dce4ec'; ctx.fillRect(-16, -20, 32, 40);
     disc(ctx, 0, -22, 10, '#f6cf62');
     ctx.restore();
+  }
+  // Passing debris fields alternate with clear space in later acts.
+  if (time > 45) {
+    const cycle = Math.floor((time - 45) / 18);
+    const pass = ((time - 45) % 18) / 18;
+    const side = cycle % 2 ? -1 : 1;
+    for (let i = 0; i < 4; i++) {
+      const x = 480 + side * (200 + Math.sin(pass * Math.PI) * 110) + i * 36;
+      const y = -60 + pass * 680 + i * 55;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(reduced ? 0.3 : time * 0.3 + i);
+      ctx.fillStyle = cycle % 3 === 0 ? '#8490a5' : '#516f9f';
+      ctx.fillRect(-12 - i * 2, -6, 24 + i * 4, 13); ctx.restore();
+    }
   }
   // The moon grows with the climb and never gets any closer.
   const r = 26 + 112 * smoothstep(0, 4.6, growth);
@@ -153,7 +166,7 @@ export function drawRocket(ctx: CanvasRenderingContext2D, drive: RocketDrive): v
   fin(ctx, -21, -74, -1, 18);
   fin(ctx, 21, -74, 1, 18);
   hull(ctx, -196, -74, 42);
-  cone(ctx, -196, 42);
+  if (drive.piloted) cone(ctx, -196, 42);
   ctx.save();
   ctx.translate(0, -88);
   ctx.rotate(-Math.PI / 2);

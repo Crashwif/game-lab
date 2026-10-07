@@ -1,3 +1,4 @@
+import { portrait } from './portrait';
 /**
  * Composes Thin Ice from the room state: the winter sky and aurora, the far
  * shore, the scrolling lake with its cracks and trails, the skater and her
@@ -6,7 +7,7 @@
  */
 import { pageAudio } from './audio';
 import { type EngineDrive, type EngineState, createEngine, drawEngine, engineLine, settleEngine, stepEngine } from './engine';
-import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawBagholders, drawCracks, drawIce, drawShatter, drawThinning, resetIce, shatterIce, spawnCrack, stepBagholders, stepIce } from './ice';
+import { FORESHORTEN, ICE_FAR_Y, type IceState, type Point, addTrail, createIce, drawBagholders, drawCracks, drawIce, drawShatter, drawThinning, resetIce, journeyDistance, settleJourney, shatterIce, spawnCrack, stepBagholders, stepIce } from './ice';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { type SkaterDrive, type SkaterState, createSkater, drawSkater, footScreen, headForShore, iceBroke, iceScale, iceY, resetSkater, settleSkater, stepScarf, stepSkater } from './skater';
 
@@ -307,7 +308,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     sirenIn = 0.8;
   }
 
-  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
+  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number, close = false): void {
     const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     // The hit-stop holds the picture for a few frames, then the plunge runs slow before time catches up.
@@ -339,6 +340,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       // an old crash quiet and takes the outcome from the player's bet.
       const live = running || crashed;
       settleSkater(skater, live, live && secured !== null, drive);
+      if (live) {
+        skater.x = journeyDistance(view.elapsed / 1000, growth);
+        settleJourney(ice, skater.x, iceY(skater.depth.x), tension, view.elapsed / 1000);
+      }
       // The camera is a critically damped spring at ω 3, so it trails a skater at speed v by 2v/3: start it there.
       camera.x = skater.x - SKATER_SCREEN_X - (skater.speed * 2) / 3;
       camera.v = skater.speed;
@@ -348,7 +353,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         settleSpring(exitSign, 1);
         onBank = true;
       }
-      settleEngine(engine, { running, crashed: false, tension, safe: skater.mode === 'shore' || skater.mode === 'toShore', holeX: null, line: engineLine(crashed ? 'running' : view.phase, multiplier, secured !== null, null) });
+      settleEngine(engine, { seconds: view.elapsed / 1000, running, crashed: false, tension, safe: skater.mode === 'shore' || skater.mode === 'toShore', holeX: null, line: engineLine(crashed ? 'running' : view.phase, multiplier, secured !== null, null) });
       previous = crashed ? 'running' : view.phase;
     }
     if (view.phase !== previous) {
@@ -415,7 +420,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(camera, skater.x - SKATER_SCREEN_X, 3, 1, dt);
     const cameraX = camera.x;
     const depth = clamp(skater.depth.x, 0, 1);
-    const place = { x: skater.x - cameraX, y: iceY(depth) - (skater.mode === 'shore' ? 6 : 0), scale: iceScale(depth) };
+    const place = { x: skater.x - cameraX, y: iceY(depth) - (skater.mode === 'shore' ? 6 : 0), scale: iceScale(depth) * 1.18 };
     const onIce = skater.mode === 'skating' || skater.mode === 'idle' || (skater.mode === 'toShore' && depth < 0.95);
     // The bank: a whistle and a burst of confetti as she climbs out, once.
     if (skater.mode === 'shore' && !onBank) {
@@ -499,6 +504,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // The liquidation engine: it closes in with the tension, backs off when she is safe, and hovers over the hole.
     const engineDrive: EngineDrive = {
+      seconds: view.elapsed / 1000,
       running, crashed: ice.shattered, tension: running ? tension : 0, safe: skater.mode === 'shore' || skater.mode === 'toShore',
       holeX: ice.shattered ? ice.shatterAt.x - cameraX : null,
       line: engineLine(fuse >= 0 ? 'running' : view.phase, multiplier, secured !== null, outcome),
@@ -634,5 +640,5 @@ export function createScene(options: SceneOptions = {}): Scene {
     void FORESHORTEN;
   }
 
-  return { draw };
+  return { draw: portrait(draw, 'THIN ICE', () => ({ x: Math.max(0, Math.min(480, skater.x - camera.x - 240)), y: 130, w: 480, h: 365 }), v => captionFor(v, Math.max(1, v.currentX100 / 100), outcome, secured)) };
 }

@@ -102,7 +102,7 @@ export function endStream(s: Stream, seed: number, quiet: boolean): void {
   s.monitor.v += 14;
 }
 
-export interface StreamDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
+export interface StreamDrive { running: boolean; tension: number; multiplier: number; reduced: boolean; attention?: number }
 
 export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
@@ -118,7 +118,7 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   s.shortFlash = Math.max(0, s.shortFlash - dt / 1.2);
   s.cash = Math.max(0, s.cash - dt / 0.8);
   const glanceOn = drive.running && drive.tension > 0.55 && !s.ended && Math.floor(s.time * 0.8) % 3 === 0;
-  stepSpring(s.glance, s.ended ? 1 : glanceOn ? 1 : 0, 8, 0.8, sdt);
+  stepSpring(s.glance, s.ended ? 1 : drive.attention ?? (glanceOn ? 1 : 0), 8, 0.8, sdt);
   stepSpring(s.handle, s.ended ? 1 : drive.running && drive.tension > 0.7 ? 0.5 + 0.5 * Math.sin(s.time * 2) : 0, 5, 0.7, sdt);
   // Anticipation: the door rattles in its frame as the handle works, harder the higher it goes. Not under reduced motion.
   s.rattle = drive.running && !s.ended && !drive.reduced && drive.tension > 0.6 ? Math.sin(s.time * 38) * 1.8 * (drive.tension - 0.6) / 0.4 : 0;
@@ -371,6 +371,20 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.strokeRect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h);
 }
 
+/** Equal lengths admit the close-to-shoulder wave without changing sleeve length. */
+export function sleeveElbow(a: Point, b: Point, side: number): Point {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(.001, Math.hypot(dx, dy));
+  const h = Math.sqrt(Math.max(0, 48 * 48 - d * d / 4));
+  return { x: (a.x + b.x) / 2 - dy / d * h * side, y: (a.y + b.y) / 2 + dx / d * h * side };
+}
+function sleeve(ctx: CanvasRenderingContext2D, a: Point, b: Point, side: number, color: string): void {
+  const e = sleeveElbow(a, b, side);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [width, ink] of [[20, INK], [16, color]] as const) {
+    ctx.lineWidth = width; ctx.strokeStyle = ink; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(e.x, e.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+}
+
 /** The queen at her desk: hoodie, cat ears, big eyes, the wave and the kiss, the glance at the door. */
 function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): void {
   const bounce = clamp(s.bounce.x, -1, 1.5);
@@ -384,18 +398,16 @@ function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): v
   ctx.beginPath(); ctx.moveTo(-70, 0); ctx.quadraticCurveTo(-74, -110, -30, -128); ctx.lineTo(30, -128); ctx.quadraticCurveTo(74, -110, 70, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = 'rgba(28, 31, 38, 0.3)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(-12, -120); ctx.lineTo(-16, -60); ctx.moveTo(12, -120); ctx.lineTo(16, -60); ctx.stroke();
-  // Arms: on the desk, waving, or hands to the face in shock.
+  // A fixed-length sleeve follows a continuous hand target through wave, kiss and shock.
   const wave = clamp(s.wave.x, 0, 1);
-  const kiss = clamp(s.kiss.x, 0, 1);
-  if (shock > 0.4) { limb(ctx, { x: -60, y: -80 }, { x: -30, y: -150 }, 16, hoodie); limb(ctx, { x: 60, y: -80 }, { x: 30, y: -150 }, 16, hoodie); }
-  else {
-    limb(ctx, { x: -60, y: -80 }, { x: -70, y: -6 }, 16, hoodie);
-    const hand = { x: mix(60, 84, wave), y: mix(-6, -170 - Math.sin(s.time * 12) * 10 * wave, wave) };
-    const kissHand = { x: 30, y: -140 };
-    limb(ctx, { x: 60, y: -80 }, kiss > 0.3 ? kissHand : hand, 16, hoodie);
+  const kiss = smoothstep(0, .65, clamp(s.kiss.x, 0, 1));
+  for (const side of [-1, 1]) {
+    const rest = { x: side * 70, y: -6 };
+    const raised = side > 0 ? { x: mix(rest.x, 92, wave), y: mix(rest.y, -153 - Math.sin(s.time * 12) * 5 * wave, wave) } : rest;
+    const hand = { x: mix(mix(raised.x, side * 30, kiss), side * 30, shock), y: mix(mix(raised.y, -140, kiss), -150, shock) };
+    sleeve(ctx, { x: side * 60, y: -80 }, hand, side, hoodie);
     ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    const hp = kiss > 0.3 ? kissHand : hand;
-    ctx.beginPath(); ctx.arc(hp.x, hp.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hand.x, hand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   // Head.
   const hy = -166;

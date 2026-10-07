@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 /**
  * Composes Blanket Champ from the room state: the bedroom and its props,
  * the bleachers and the crowd, the bookie's board, the commentary booth, the
@@ -127,6 +129,7 @@ function drawFireBrigade(ctx: CanvasRenderingContext2D, time: number, k: number)
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("BLANKET CHAMP", [170, 150, 590, 345], '#f0d99c');
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'phonk', crash: 'trombone' });
   const room: RoomState = createRoom(reduced ? 0 : 1);
@@ -190,8 +193,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const act = actAt(view.elapsed, reduced);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -236,7 +240,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running) collectWinnings(crowd);
     audio.update(view.phase, tension);
 
-    stepRoom(room, growth, running, dt);
+    stepRoom(room, growth, running, dt, act.effort);
     stepCrowd(crowd, tension, multiplier, room.events.beat, running, dt);
     if (room.events.beat && !reduced) shake = Math.max(shake, 0.06 + 0.18 * tension);
     if ((room.events.glassFell || room.events.fist) && !reduced) shake = Math.max(shake, 0.2);
@@ -287,6 +291,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawConfetti(ctx, crowd);
     drawFloorAndFurniture(ctx, room);
     drawBed(ctx, room);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     if (outcome && pop.x > 0.02) {
       ctx.save();
       ctx.translate(514, 350);
@@ -298,6 +303,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(430, 68);
@@ -325,6 +331,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     // after the crash reads right too.
     const seconds = Math.floor(view.elapsed / 1000);
     memeText(ctx, `STAMINA ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, 26, 514, 26, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "ROOM NEWS", room.headline.join(' · '));
+
   }
 
   return { draw };

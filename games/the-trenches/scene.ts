@@ -1,3 +1,5 @@
+import { endurance } from './endurance';
+import { portrait } from './portrait';
 /**
  * Composes The Trenches from the room state: the sky and the ridge, the
  * squad on the field, the trench in front, then the HUD, with the sound
@@ -7,7 +9,7 @@
  * punch into the ridge.
  */
 import { pageAudio } from './audio';
-import { type Field, H, INK, RIDGE_X, W, createField, drawCloud, drawGround, drawNukeFront, drawSky, nuke, resetField, stepField } from './field';
+import { type Field, H, INK, RIDGE_X, W, createField, drawCloud, drawGround, drawAdvance, drawNukeFront, drawSky, nuke, resetField, stepField } from './field';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { type Squad, createSquad, diveBack, drawSquad, drawTrench, frogXs, killSquad, resetSquad, settleSquad, stepSquad } from './squad';
 
@@ -64,6 +66,8 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (outcome) return outcome === 'kia' ? 'DIED FOR A FROG COIN' : outcome === 'survived' ? 'SURVIVED' : 'NUKED';
   if (view.phase !== 'running') return 'GM SOLDIER';
   if (secured) return 'BACK IN THE TRENCH';
+  const act = endurance(view.elapsed / 1000).act;
+  if (act) return ['', 'COVER AHEAD. KEEP LOW.', 'THE MUD WANTS YOUR BOOTS', 'BRACE. PASS THE FLAG.', 'STILL MARCHING. STILL HOLDING.'][act]!;
   if (multiplier < 1.3) return 'OVER THE TOP';
   if (multiplier < 1.9) return 'CHARGE THE CHART';
   if (multiplier < 2.6) return 'HOLD THE LINE';
@@ -122,7 +126,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     audio.crash('boom');
   }
 
-  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
+  function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number, close = false): void {
     const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
     // The hit-stop holds the flash frame, then the blast runs slow before time catches up.
@@ -179,7 +183,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     audio.update(view.phase, tension);
 
     stepField(field, { running, tension, multiplier, reduced }, dt);
-    stepSquad(squad, { running, tension, multiplier, progress, reduced }, dt);
+    stepSquad(squad, { seconds: view.elapsed / 1000, running, tension, multiplier, progress, reduced }, dt);
     const fe = field.events;
     const se = squad.events;
     if (running && se.whistle) audio.fx('whistle', 1);
@@ -217,6 +221,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     drawSky(ctx, field, tension, multiplier, reduced);
     drawGround(ctx, field, tension, progress);
+    if (running) drawAdvance(ctx, view.elapsed / 1000, reduced);
     drawCloud(ctx, field, tension, reduced);
     drawSquad(ctx, squad, progress, tension, view.stake !== null);
     drawTrench(ctx, squad, tension, view.stake !== null, progress);
@@ -255,14 +260,16 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
       ctx.restore();
     }
-    const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
-    ctx.save();
-    if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
-    ctx.restore();
-    const metres = Math.round((multiplier - 1) * 42);
-    memeText(ctx, `${metres} METRES`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    if (!close) {
+      const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
+      ctx.save();
+      if (!running && !outcome) ctx.globalAlpha = 0.85;
+      memeText(ctx, `${multiplier.toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
+      ctx.restore();
+      const metres = Math.round((multiplier - 1) * 42);
+      memeText(ctx, `${metres} METRES`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    }
   }
 
-  return { draw };
+  return { draw: portrait(draw, 'THE TRENCHES', () => ({ x: 135, y: 165, w: 620, h: 325 }), v => captionFor(v, Math.max(1, v.currentX100 / 100), outcome, secured)) };
 }

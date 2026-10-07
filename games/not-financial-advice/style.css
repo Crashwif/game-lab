@@ -37,3 +37,13 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){button:active{transform:none}}
 /* game */
 :root{--bg:#1b1b1f}
+
+/* Portrait direction keeps the hero and current line readable inside the canonical shell. */
+@media(max-width:600px) and (min-height:500px){
+  .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}
+@media(max-width:600px){
+  :root[data-mode=embedded] .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root[data-mode=embedded] .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}

@@ -6,6 +6,7 @@
  */
 import { CYAN, FONT, GOLD, INK, LIME, MONO, PINK, type Point, ellipse, line, panel, poly, text } from './art';
 import { COIN_VALUE, FAR, HALF, RAMP, ROOF, RUNNER_Z, type Obstacle, type Pickup, type World } from './course';
+import { endurance } from './endurance';
 import { clamp, noise } from './motion';
 
 export const W = 960;
@@ -32,6 +33,7 @@ export function project(x: number, z: number, h: number, cam: Camera): Projected
 }
 
 export interface TrackView {
+  seconds?: number;
   time: number;
   distance: number;
   tension: number;
@@ -78,7 +80,8 @@ function onPlane(ctx: CanvasRenderingContext2D, topA: Projected, topB: Projected
 function backdrop(ctx: CanvasRenderingContext2D, view: TrackView): void {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, '#07061a');
-  sky.addColorStop(0.32, '#1a1240');
+  const act = endurance(view.seconds ?? 0);
+  sky.addColorStop(0.32, ['#1a1240','#123739','#392a17','#162946','#3c1831'][act.act]!);
   sky.addColorStop(0.5, '#120d2c');
   sky.addColorStop(1, '#0a0818');
   ctx.fillStyle = sky;
@@ -103,12 +106,14 @@ function walls(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera): voi
     for (const side of [-1, 1]) {
       const x = side * WALL_X;
       const a = project(x, z0, 0, cam), b = project(x, z1, 0, cam), c = project(x, z1, WALL_H, cam), d = project(x, z0, WALL_H, cam);
-      poly(ctx, quad(a, b, c, d), n % 2 ? '#1b1636' : '#201a3f');
+      const act = endurance(view.seconds ?? 0);
+      const paint = ['#201a3f','#174146','#463824','#223859','#492641'][act.act]!;
+      poly(ctx, quad(a, b, c, d), n % 2 ? '#1b1636' : paint);
       // A pillar at each joint and a grime line along the foot.
       line(ctx, [[a.X, a.Y], [d.X, d.Y]], '#2c2452', Math.max(1, a.s * 0.05));
       line(ctx, [[a.X, a.Y + a.s * 0.02], [b.X, b.Y + b.s * 0.02]], '#0d0a1c', Math.max(1, a.s * 0.02));
       if (b.s < 12) continue;
-      const which = Math.floor(noise(n * 7 + side * 3) * 1000);
+      const which = Math.floor(noise(n * 7 + side * 3 + act.act * 17) * 1000);
       // Lettering reads from the left of the picture: the near end on the left wall, the far end on the right.
       const [topA, topB, bottomA] = side < 0 ? [d, c, a] : [c, d, b];
       onPlane(ctx, topA, topB, bottomA, z1 - z0, WALL_H, () => {

@@ -40,3 +40,13 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 :root{--bg:#242237;--fg:#f9edcf;--accent:#c4e78b;--on-accent:#253e36;--canvas:#352b48}
 .controls{border-top:2px solid #746077;background:#29263b}
 #cashout{background:#f3cf88}
+
+/* Portrait direction keeps the hero and current line readable inside the canonical shell. */
+@media(max-width:600px) and (min-height:500px){
+  .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}
+@media(max-width:600px){
+  :root[data-mode=embedded] .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root[data-mode=embedded] .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}

@@ -3,7 +3,7 @@
  * the lid closing, the tiptoe up the stairs, and the caught pose.
  * Nothing here chooses the round outcome.
  */
-import { DESK } from './kitchen';
+import { DESK, KEYBOARD_HANDS } from './kitchen';
 import { clamp, noise, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
@@ -108,13 +108,17 @@ export function joltTrader(t: Trader): void {
   t.jolt.v = -16;
 }
 
-function moveToward(value: number, target: number, speed: number, dt: number): number {
-  const delta = target - value;
-  const step = speed * dt;
-  if (Math.abs(delta) <= step) return target;
-  return value + Math.sign(delta) * step;
+/** Floor travel precedes ascent. The stair edge is x=700+(470-y)/2. */
+export function exitPose(age: number): Point {
+  if (age < .25) return { x: DESK.x, y: DESK.y + 22 * clamp(age / .25, 0, 1) };
+  const floor = clamp((age - .25) / 1.8, 0, 1);
+  if (floor < 1) return { x: DESK.x + (724 - DESK.x) * floor, y: 470 };
+  const ascent = clamp((age - 2.05) / 2.8, 0, 1);
+  return { x: 724 + 168 * ascent, y: 470 - 320 * ascent };
 }
-
+export function typingHands(x: number, y: number, offsetY: number, tap: number): Point[] {
+  return KEYBOARD_HANDS.map((p, i) => ({ x: p.x - x, y: p.y - y - offsetY - Math.max(0, i ? -tap : tap) }));
+}
 export function stepTrader(t: Trader, drive: TraderDrive, dt: number): void {
   if (drive.leaving && t.mode === 'hunch') {
     t.mode = 'closing';
@@ -131,9 +135,9 @@ export function stepTrader(t: Trader, drive: TraderDrive, dt: number): void {
     t.modeAge = 0;
   }
   if (t.mode === 'sneak') {
-    t.x = moveToward(t.x, 900, 150, dt);
-    t.y = moveToward(t.y, 110, 120, dt);
-    if (t.x > 870 && t.y < 140) t.mode = 'upstairs';
+    const pose = exitPose(t.modeAge);
+    t.x = pose.x; t.y = pose.y;
+    if (t.modeAge >= 4.85) t.mode = 'upstairs';
   }
 }
 
@@ -177,16 +181,16 @@ function face(ctx: CanvasRenderingContext2D, mood: 'focus' | 'shock' | 'shh', gl
 }
 
 /** Draws the trader at his feet. The chair and laptop belong to the kitchen. */
-export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'green' | 'red' | 'off', time: number, fear: number): void {
+export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'green' | 'red' | 'off', time: number, fear: number, listening = false): void {
   if (t.mode === 'upstairs') return;
   const typing = t.mode === 'hunch' || t.mode === 'caught';
-  const bob = typing ? Math.sin(time * (5 + fear * 8)) * (2 + fear * 3) : Math.sin(t.modeAge * 14) * 2;
-  const twitch = t.mode === 'caught' ? 0 : fear > 0.55 && noise(Math.floor(time * 9)) > 0.72 ? 1.6 : 0;
+  const bob = listening ? 0 : typing ? Math.sin(time * (5 + fear * 8)) * (2 + fear * 3) : Math.sin(t.modeAge * 14) * 2;
+  const twitch = listening ? 2 : t.mode === 'caught' ? 0 : fear > 0.55 && noise(Math.floor(time * 9)) > 0.72 ? 1.6 : 0;
   ctx.save();
   ctx.translate(t.x, t.y + bob + t.jolt.x * 12);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  if (t.mode === 'sneak') ctx.rotate(-0.55);
+  // Feet remain in world axes while the character traverses the floor and stairs.
   const lean = typing ? 16 : 0;
   const sneaking = t.mode === 'sneak';
   const stride = sneaking ? t.modeAge * 10 : 0;
@@ -227,11 +231,10 @@ export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'gree
     const swing = { x: -24 + Math.sin(t.modeAge * 8) * 6, y: -22 };
     limb(ctx, { x: -12, y: -48 }, swing, 18, 16, 1, 5, SKIN);
   } else {
-    const tap = Math.sin(time * 16) * (t.mode === 'caught' ? 0 : 3);
-    const left = { x: -36, y: -8 + tap };
-    const right = { x: 40, y: -6 - tap };
+    const tap = Math.sin(time * 16) * (t.mode === 'caught' || listening ? 0 : 1.5);
+    const [left, right] = typingHands(t.x, t.y, bob + t.jolt.x * 12, tap) as [Point, Point];
     limb(ctx, { x: -14, y: -46 }, left, 26, 24, left.y >= -46 ? 1 : -1, 6, '#3d4d73');
-    limb(ctx, { x: 14, y: -46 }, right, 26, 24, right.y >= -46 ? -1 : 1, 6, '#3d4d73');
+    limb(ctx, { x: 14, y: -46 }, right, 26, 24, -1, 6, '#3d4d73');
     ctx.fillStyle = SKIN;
     ctx.strokeStyle = INK;
     ctx.lineWidth = 2;
@@ -246,7 +249,7 @@ export function drawTrader(ctx: CanvasRenderingContext2D, t: Trader, glow: 'gree
   }
   ctx.translate(lean, typing ? -84 : -78);
   if (t.mode === 'caught') ctx.rotate(-0.2);
-  face(ctx, t.mode === 'caught' ? 'shock' : t.mode === 'sneak' ? 'shh' : 'focus', glow, twitch, t.shades.x);
+  face(ctx, t.mode === 'caught' ? 'shock' : t.mode === 'sneak' || listening ? 'shh' : 'focus', glow, twitch, t.shades.x);
   if (t.sweat > 0.2 && t.mode !== 'sneak') {
     const drop = ((time * 40) % 28);
     ctx.globalAlpha = clamp(1 - drop / 28, 0, 0.8) * t.sweat;

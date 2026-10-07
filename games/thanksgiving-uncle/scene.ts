@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait, isPortrait } from './portrait';
 /**
  * Composes Thanksgiving Uncle from the room state: the dining room, the family behind the table, Grandma at
  * the end, Rick in front of it, the conversation that follows the multiplier, grace on an accepted cash-out,
@@ -90,6 +92,7 @@ function captionFor(view: SceneView, rung: number, outcome: Outcome | null, secu
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("THANKSGIVING UNCLE", [175, 155, 620, 355], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Dad's dinner playlist, warm and dusty, which tightens with the multiplier; the crash is a boom.
   const audio = pageAudio({ style: 'lofi', crash: 'boom' });
@@ -175,7 +178,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 3.6, 0, 1);
+    const act = actAt(view.elapsed, reduced);
+    const tension = clamp(Math.log2(multiplier) / 3.6, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
@@ -264,25 +268,27 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const r of family) drawRelative(ctx, r, time, reduced);
     drawGran(ctx, gran, time);
     drawTable(ctx, room, time);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawTruckInRoom(ctx, room, time, reduced);
     drawRick(ctx, rick, time, reduced);
     drawRickChair(ctx);
-    drawBubbles(ctx, room);
+    if (!isPortrait(ctx.canvas)) drawBubbles(ctx, room);
     drawAir(ctx, room);
-    if (outcome && pop.x > 0.02) {
+    if (outcome && pop.x > 0.02 && (view.phase !== 'crashed' || view.crashAge >= 1300)) {
       ctx.save();
-      ctx.translate(480, 250);
+      ctx.translate(480, 116);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.25);
       ctx.scale(scale, scale);
       const word = outcome === 'rekt' ? 'DALE, NO' : outcome === 'called' ? 'GRACE SAVED US' : 'NOT MY FAMILY';
-      memeText(ctx, word, 0, 0, outcome === 'rekt' ? 90 : 64, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 700);
+      memeText(ctx, word, 0, 0, outcome === 'rekt' ? 42 : 36, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 700);
       ctx.restore();
     }
     ctx.restore();
     drawFlash(ctx, room);
 
     // The HUD: the caption, the secured badge, the multiplier, Dad's civility and the speaker's cart.
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(430, 62);
@@ -305,6 +311,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const civility = wrecked ? 0 : Math.round((1 - clamp(dad.heat.x, 0, 1)) * 100);
     memeText(ctx, `CIVILITY ${civility}%`, 24, 520, 22, civility < 40 ? '#ffb4c2' : '#f4ead8', 'left');
     memeText(ctx, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, 936, 520, 22, room.cart > 500 ? '#ffb4c2' : '#f4ead8', 'right', 320);
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, room.bubbles.at(-1)?.text ?? 'Could someone pass the gravy?', view.phase === 'crashed' ? [260, 155, 690, 355] : undefined);
+
   }
 
   return { draw };

@@ -1,10 +1,4 @@
-/**
- * Procedural geometry: every model in the game is built here from lathes,
- * ellipsoids, boxes, discs and quads at start-up, so the bundle carries no
- * model files. A vertex has a position, a smooth normal, a colour and four
- * extras: a texture u and v, the `part` the shader treats it as (PART) and,
- * for a print, the atlas cell code it shows (0 takes the instance's).
- */
+/** Procedural mesh builders. Vertex extras select material, atlas cell and print coordinates. */
 import { PRINT } from './atlas';
 import { type Vec3, cross, normalize, rotateAbout, sub } from './math3d';
 
@@ -307,7 +301,7 @@ export function stickerMesh(): MeshData {
 // ---- People ---------------------------------------------------------------------------------------------------
 
 /** An astronaut a unit tall facing +z, with a visor that shows the instance's face: clinging, flailing or standing. */
-export function astronautMesh(pose: 'cling' | 'flail' | 'stand'): MeshData {
+export function astronautMesh(pose: 'cling' | 'flail' | 'stand' | 'torso'): MeshData {
   const b = new Builder();
   const suit = WHITE;
   dome(b, [0, 0.98, 0], 0.3, suit, VISOR);
@@ -329,7 +323,7 @@ export function astronautMesh(pose: 'cling' | 'flail' | 'stand'): MeshData {
     limb(b, [0.29, 0.66, 0.04], arm, suit, Math.PI / 2 + 0.25, 0);
     limb(b, [-0.12, 0.32, 0], leg, suit, -0.35, -0.7, boot);
     limb(b, [0.12, 0.32, 0], leg, suit, 0.35, 0.5, boot);
-  } else {
+  } else if (pose === 'stand') {
     limb(b, [-0.29, 0.66, 0.04], arm, suit, -0.2, 0);
     limb(b, [0.29, 0.66, 0.04], arm, suit, 0.2, 0);
     limb(b, [-0.12, 0.32, 0], leg, suit, -0.06, 0, boot);

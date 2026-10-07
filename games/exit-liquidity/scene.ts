@@ -227,6 +227,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
+    if (view.phase === 'running') party.time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);

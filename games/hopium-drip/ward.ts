@@ -461,7 +461,7 @@ function drawWife(ctx: CanvasRenderingContext2D, w: Ward): void {
   // Legs and shoes; the near foot taps.
   for (const side of [-1, 1]) {
     const lift = side > 0 ? tap : 0;
-    limb(ctx, { x: side * 9, y: -80 }, { x: side * 11, y: -lift }, 46, 42, -side, 12, skin);
+    limb(ctx, { x: side * 9, y: -80 }, { x: side * 11, y: -lift }, 41, 40, -side, 12, skin);
     ctx.fillStyle = '#5a1e5a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(side * 11, 3 - lift, 10, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
@@ -541,7 +541,7 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): Point[] {
   // Legs, shoes, and a coat hem that shifts as he leans in to write.
   for (const side of [-1, 1]) {
     const plant = Math.sin(w.time * 1.3) * side * 2;
-    limb(ctx, { x: side * 12, y: -90 }, { x: side * 16 + plant, y: 0 }, 52, 48, -side, 14, '#3d5f8f');
+    limb(ctx, { x: side * 12, y: -90 }, { x: side * 16 + plant, y: side < 0 ? 0 : -3 }, 46, 45, -side, 14, '#3d5f8f');
     ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(side * 16 + plant, 3, 11, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }

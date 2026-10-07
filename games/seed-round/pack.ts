@@ -366,7 +366,7 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
     const wiggle = Math.sin(pack.time * 1.7 + sw.seed * 40) * 0.12;
     const forward = rotateAbout(f.tangent, f.up, heading + wiggle);
     const [bx, by, bz] = basisFrom(forward, f.up, Math.sin(pack.time + sw.seed * 9) * 0.3);
-    const tint = sw.state === 'swim' ? (sw.kind === 'sniper' ? [0.8, 0.9, 1, 1] : sw.kind === 'chad' ? [0.92, 0.94, 1, 1] : PEARL) : [1, 0.62 + 0.38 * (1 - sw.turn), 0.62 + 0.38 * (1 - sw.turn), 1];
+    const tint = sw.state === 'swim' ? (sw.kind === 'sniper' ? [0.8, 0.9, 1, 1] : sw.kind === 'chad' ? [0.45, 0.85, 1, 1] : PEARL) : [1, 0.62 + 0.38 * (1 - sw.turn), 0.62 + 0.38 * (1 - sw.turn), 1];
     const k = sw.size * shrink * (sw.kind === 'chad' ? 1.12 : 1);
     putInstance(swimmers, n, p, bx, by, bz, [k, k, k], tint, [sw.phase, amplitude, sw.face, 0]);
     n += 1;

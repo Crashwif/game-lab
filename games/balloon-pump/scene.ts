@@ -4,6 +4,7 @@
  * lasers, the burst text). All motion is stepped here with the real frame time,
  * and nothing drawn here changes the committed outcome.
  */
+import { endurance } from './endurance';
 import { pageAudio } from './audio';
 import { TETHER, type BalloonDrive, balloonGeometry, burstBalloon, createBalloon, drawBalloon, drawBalloonShadow, resetBalloon, settleBalloon, stepBalloon } from './balloon';
 import { airPacket, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
@@ -83,6 +84,7 @@ const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "STILL FULL OF HOT AIR", "LU
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'BLEW UP IN MY FACE' : outcome === 'called' ? 'HAVE FUN STAYING POOR' : 'IT WAS ALL HOT AIR';
+  if (view.phase === 'crashed') return 'HOLD YOUR BREATH';
   if (view.phase !== 'running') return 'WEN PUMP?';
   if (secured) return 'DEAL WITH IT';
   if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
@@ -341,6 +343,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const fear = clamp((growth - 0.35) / 2.8, 0, 1);
     const tension = 1 - Math.exp(-growth / 2.2);
     const running = view.phase === 'running';
+    const act = endurance(view.elapsed / 1000);
+    const effort = running && !reduced ? act.effort : 0;
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
@@ -348,6 +352,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     const balloonDrive: BalloonDrive = {
       radius: running || crashed ? 40 + 150 * (1 - Math.exp(-growth / 2.3)) : 36,
+      tug: act.act === 1 ? effort * .18 : act.act === 4 ? -effort * .12 : 0,
       fear,
       stretch: smoothstep(0.8, 4.2, growth),
       inflow: false,
@@ -407,7 +412,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     // Step the rig, then the balloon it feeds, then the meme layer's springs.
     const pumperDrive: PumperDrive = {
       pumping: running,
-      rate: Math.min(2.1, 0.85 + 1.2 * (1 - Math.exp(-growth / 2.2))),
+      rate: Math.min(2.1, 0.85 + 1.2 * (1 - Math.exp(-growth / 2.2))) * (1 - .48 * effort * (act.act === 2 ? 1 : .3)),
+      regrip: act.act === 2 ? effort : 0,
       fear,
       fallen: crashed && !balloon.alive,
       crying: outcome === 'rekt',
@@ -429,12 +435,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepBalloon(balloon, balloonDrive, dt);
     const geometry = balloonGeometry(balloon);
     pumperDrive.gaze = balloon.alive ? geometry.centre : { x: TETHER.x, y: TETHER.y - 80 };
-    stepSniper(sniper, { growth, running, target: balloon.alive ? geometry.centre : null }, dt);
+    stepSniper(sniper, { growth, running, target: balloon.alive ? { x: geometry.centre.x, y: geometry.centre.y - (act.act === 4 ? effort * 70 : 0) } : null }, dt);
     if (sniper.events.up) audio.fx('creak', 0.7);
     if (sniper.events.notch) audio.fx('ratchet', 0.6);
     if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     stepSpring(laser, lasers, 8, 1, dt);
-    pumperDrive.laser = clamp(laser.x, 0, 1);
+    pumperDrive.laser = clamp(laser.x, 0, 1) * (act.act ? .2 + .55 * (1 - effort) : 1);
     if (pumperDrive.laser > 0.5 && !laserOn) {
       laserOn = true;
       audio.fx('zap', 0.8);
@@ -476,6 +482,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawBalloonShadow(ctx, balloon);
     const pumperView = drawPumper(ctx, pumper, pumperDrive);
     drawBalloon(ctx, balloon);
+    if (running && act.act === 3) {
+      ctx.save(); ctx.globalAlpha = .65 * effort; ctx.strokeStyle = "#e7faff"; ctx.lineWidth = 4;
+      for (let i = 0; i < 4; i++) { const u = reduced ? i / 4 : (time * .7 + i / 4) % 1; ctx.beginPath(); ctx.arc(365 + u * 34, 365 - u * 50, 4 + u * 9, -.8, 1.8); ctx.stroke(); }
+      ctx.restore();
+    }
     drawStone(ctx, sniper);
     if (pumperDrive.laser > 0.02 && balloon.alive) drawLasers(ctx, pumperView.eyes, geometry.centre, pumperDrive.laser, time, reduced);
     if (outcome && pop.x > 0.02) drawPop(ctx, balloon.burstAt, outcome === 'rekt' ? 'REKT' : 'POP!', clamp(pop.x, 0, 1.3));
@@ -484,7 +495,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The readout grows leftward with every digit, so the caption gets the width left between them, 24 units clear.
     const readout = `${multiplier.toFixed(2)}×`;
     drawCaption(ctx, caption, 1 + 0.1 * captionPop.x, Math.min(560, 2 * (READOUT_X - readoutWidth(ctx, readout) - 24 - CAPTION_X)));
-    drawReadout(ctx, view, readout, outcome !== null);
+    drawReadout(ctx, view, readout, crashed);
   }
 
   return { draw };

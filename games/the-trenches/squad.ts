@@ -4,6 +4,7 @@
  * the whistle, your frog's dive back into the trench, and the KIA state
  * after the nuke. Nothing here changes the outcome.
  */
+import { endurance } from './endurance';
 import { INK, RIDGE_Y, TRENCH_Y, W } from './field';
 import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
@@ -35,6 +36,7 @@ export interface SquadEvents { whistle: boolean; step: boolean; phone: boolean; 
 interface Fleck { x: number; y: number; vx: number; vy: number; age: number; cash: boolean }
 
 export interface Squad {
+  act: number; effort: number;
   time: number;
   frogs: Frog[];
   over: Spring;
@@ -67,7 +69,7 @@ function makeFrog(i: number): Frog {
 
 export function createSquad(): Squad {
   return {
-    time: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), whistle: spring(0), ring: spring(0), bubble: '', bubbleAge: 9, dead: false, deadAge: 0, phoneNext: 4,
+    act: 0, effort: 0, time: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), whistle: spring(0), ring: spring(0), bubble: '', bubbleAge: 9, dead: false, deadAge: 0, phoneNext: 4,
     flag: spring(0), flagDown: 0, glareNext: 0, glareAge: 9, glares: 0, days: 1, flip: spring(0), flecks: [], stepNext: 0, whistled: false,
     events: { whistle: false, step: false, phone: false, clang: false, glare: false, flip: false },
   };
@@ -108,8 +110,8 @@ export function settleSquad(s: Squad, tension = 0): void {
 /** Where a marching frog stands on the field at `progress`. */
 export function marchPosition(f: Frog, progress: number, over: number): { x: number; y: number; scale: number } {
   const p = clamp(progress, 0, 1);
-  const y = mix(TRENCH_Y - 6, RIDGE_Y + 34, p) - 70 * (1 - over) * 0.35;
-  const scale = mix(1, 0.56, p);
+  const y = mix(TRENCH_Y - 6, RIDGE_Y + 62, p) - 70 * (1 - over) * 0.35;
+  const scale = mix(1, 0.82, p);
   const drift = Math.sin(f.seed * 3 + p * 6) * 26 * p;
   return { x: f.x + drift, y, scale };
 }
@@ -152,7 +154,7 @@ export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
   }
 }
 
-export interface SquadDrive { running: boolean; tension: number; multiplier: number; progress: number; reduced: boolean }
+export interface SquadDrive { seconds?: number; running: boolean; tension: number; multiplier: number; progress: number; reduced: boolean }
 
 export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
   const e = s.events;
@@ -169,7 +171,9 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
   stepSpring(s.over, out ? 1 : 0, 6, 0.6, dt);
   stepSpring(s.whistle, drive.running && s.over.x < 0.9 ? 1 : 0, 10, 0.5, dt);
   if (!s.whistled && s.whistle.x > 0.15) { s.whistled = true; e.whistle = true; }
-  const cadence = 3 + 9 * drive.tension;
+  const act = endurance(drive.seconds ?? 0);
+  s.act = act.act; s.effort = drive.running ? act.effort : 0;
+  const cadence = marchCadence(drive.tension) * (1 - (act.act === 2 ? .55 : .12) * s.effort);
   for (const f of s.frogs) {
     // The whistle blows: the squad goes over the top.
     if (f.mode === 'trench' && drive.running) f.mode = 'marching';
@@ -263,6 +267,15 @@ interface Pose {
 
 type Point = { x: number; y: number };
 
+/** Full stride cycles per second, with at least thirteen frames per cycle at 30 fps. */
+export const marchCadence = (tension: number): number => 1.25 + .85 * clamp(tension, 0, 1);
+/** Sixty percent of each step is a planted support phase. */
+export function marchFoot(stride: number, side: number, mud = 0): Point {
+  const u = ((stride + (side > 0 ? 0 : .5)) % 1 + 1) % 1;
+  const swing = u < .6 ? 0 : Math.sin((u - .6) / .4 * Math.PI);
+  return { x: side * (17 - 4 * mud) + swing * side * 7, y: -swing * (15 - 4 * mud) + mud * 3 };
+}
+
 function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
   const dx = end.x - root.x;
   const dy = end.y - root.y;
@@ -291,18 +304,16 @@ export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, sc
   ctx.translate(x, y);
   ctx.scale(scale, scale);
   if (pose.lying) { ctx.rotate(Math.PI / 2); ctx.translate(-10, 20); }
-  else ctx.rotate(Math.sin(pose.stride * Math.PI * 2) * 0.05);
+  // Keep the planted feet in the ground frame; the torso supplies the weight shift.
   const sq = 1 + 0.18 * pose.squash;
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const mud = pose.mud ?? 0;
   const t = pose.time ?? 0;
   // Knees point out. Mud pulls the foot in so the joint folds, and a plant leaves a puddle.
   for (const side of [-1, 1]) {
-    const phase = pose.stride * Math.PI * 2 + (side > 0 ? 0 : Math.PI);
-    const lift = Math.max(0, Math.sin(phase)) * (7 + 8 * (1 - mud * 0.45));
-    const reach = Math.cos(phase) * (4 + 5 * (1 - mud));
     const hip = { x: side * 8, y: -18 };
-    const foot = { x: side * (13 + 4 * (1 - mud)) + reach, y: -lift + mud * 3 };
+    const foot = marchFoot(pose.stride, side, mud);
+    const lift = mud * 3 - foot.y;
     bone(ctx, hip, foot, 16, 15, foot.y >= hip.y ? -side : side, 6.5, '#4a9440');
     ctx.fillStyle = '#3d7a34'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 1, 7, 3.2, side * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -363,7 +374,7 @@ export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, sc
     for (const side of [-1, 1]) {
       const phase = pose.stride * Math.PI * 2 + (side > 0 ? Math.PI : 0);
       const swing = Math.sin(phase) * (7 + 3 * mud);
-      const shoulder = { x: side * 16, y: -40 };
+      const shoulder = { x: side * 16 * sq, y: -40 / sq };
       const holdWhistle = Boolean(pose.whistle) && side > 0;
       const holdBag = pose.bag && side > 0;
       const hand = holdWhistle
@@ -425,7 +436,7 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       if (s.over.x < 0.02) continue;
       const stride = f.phase % 1;
       const expression = tension > 0.75 ? 'shock' : tension > 0.35 ? 'grit' : 'hype';
-      drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false, mud: tension, phone: f !== s.frogs[YOURS], time: s.time });
+      drawFrog(ctx, at.x, at.y, at.scale, { stride, squash: f.squash.x + (s.act === 3 ? .9 : s.act === 4 ? .4 : 0) * s.effort, expression, shades: false, cigar: false, bag: false, helmetLift: tension > 0.75 ? Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4 : 0, lying: false, mud: s.act === 2 ? Math.max(tension, s.effort) : tension * .65, phone: f !== s.frogs[YOURS], time: s.time });
       if (f === s.frogs[FLAG_FROG] && s.flag.x > 0.03) drawFlag(ctx, at.x - 24 * at.scale, at.y - 30 * at.scale, clamp(s.flag.x, 0, 1.2), s.time);
       if (enlisted && f === s.frogs[YOURS]) {
         ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;

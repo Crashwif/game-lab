@@ -95,6 +95,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now; time += dt; alertAge += dt;
     const first = previous === null;
     const running = view.phase === 'running', crashed = view.phase === 'crashed';
+    if (view.phase === 'running') time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
     const tension = clamp(1 - Math.exp(-growth / 2.3), 0, 1);

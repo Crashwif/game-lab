@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 /**
  * Composes OnlyFrens from the room state: the stream, the chat, the simps,
  * then the HUD over the video, with the sound cued from what they do. All
@@ -5,7 +7,7 @@
  * changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type Chat, GOALS, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
+import { type Chat, GOALS, TIP_MENU, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { INK, type Stream, VIDEO, cashFlash, celebrate, createStream, drawStream, endStream, resetStream, stepStream } from './stream';
 
@@ -73,6 +75,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("ONLYFRENS", [110, 90, 435, 350], '#f0d99c');
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'synthwave', crash: 'static' });
   const stream: Stream = createStream();
@@ -126,8 +129,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const act = actAt(view.elapsed, reduced);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -175,7 +179,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (running) audio.milestone(GOALS.filter((g) => multiplier >= g).length);
     // Tips register, never more than a couple a second however fast the chat runs.
     if (running && chat.events.tip && time > tipSoundAt) { tipSoundAt = time + 0.45; audio.fx('notify', 0.45 + 0.3 * tension); }
-    stepStream(stream, { running, tension, multiplier, reduced }, dt);
+    stepStream(stream, { running, tension, multiplier, reduced, attention: act.stage > 0 ? act.effort < .65 ? 1 : 0 : undefined }, dt);
     // The handle creaks each time it works round, at most one every couple of seconds.
     if (running && !stream.ended) {
       if (stream.handle.x > 0.45 && !creaked && time > creakAt) { creaked = true; creakAt = time + 1.8; audio.fx('creak', 0.6 + 0.3 * tension); }
@@ -201,6 +205,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
     drawStream(ctx, stream, tension, reduced, multiplier);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawSimps(ctx, chat, tension, outcome !== null, outcome === 'called');
     if (outcome && pop.x > 0.02 && stream.endAge > 0.5) {
       ctx.save();
@@ -216,6 +221,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     drawChat(ctx, chat, multiplier, viewers, !outcome);
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(VIDEO.w / 2, 56);
@@ -240,6 +246,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, `${multiplier.toFixed(2)}×`, VIDEO.w - 18, VIDEO.h - 18, 52, colour, 'right');
     ctx.restore();
     memeText(ctx, `${stream.bags} BAGS`, 18, VIDEO.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, stream.ended ? 'STREAM OFFLINE' : `NEXT GOAL ${chat.goal.toFixed(1)}×`, stream.ended ? 'The reveal was the boyfriend.' : `${TIP_MENU[chat.menuIndex]!.join(' · ')}. ${chat.messages.at(-1)?.text ?? 'Chat is waiting for the reveal.'}`);
+
   }
 
   return { draw };

@@ -107,12 +107,12 @@ export function setHeadline(r: RoomState, lines: [string, string]): boolean {
   return true;
 }
 
-export function stepRoom(r: RoomState, growth: number, running: boolean, dt: number): void {
+export function stepRoom(r: RoomState, growth: number, running: boolean, dt: number, effort = 1): void {
   r.time += dt;
   r.events = noEvents();
   const multiplier = Math.pow(2, growth);
-  r.tension = clamp(growth / 3.3, 0, 1);
-  r.tempo = running && !r.finished ? tempoAt(growth) : 0;
+  r.tension = clamp(growth / 3.3, 0, 1) * effort;
+  r.tempo = running && !r.finished ? tempoAt(growth) * (.45 + .55 * effort) : 0;
   if (r.tempo > 0) {
     const before = r.beatPhase;
     r.beatPhase += r.tempo * dt;
@@ -312,17 +312,17 @@ export function drawWall(ctx: CanvasRenderingContext2D, r: RoomState): void {
   const fist = clamp(r.fist.x, 0, 20);
   if (fist > 0.5) {
     ctx.save();
-    ctx.translate(560, 96);
+    ctx.translate(25, 340);
     ctx.fillStyle = '#1b1b1f';
     ctx.beginPath(); ctx.moveTo(-18, -6); ctx.lineTo(-4, -26); ctx.lineTo(14, -14); ctx.lineTo(30, -24); ctx.lineTo(34, 8); ctx.lineTo(18, 26); ctx.lineTo(-6, 22); ctx.lineTo(-20, 10); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.roundRect(-10, -18 + fist * 0.4, 36 + fist * 1.2, 36, 10); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.roundRect(40 + fist * 1.2, -46, 130, 34, 8); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(-5, -58, 155, 30, 8); ctx.fill(); ctx.stroke();
     ctx.fillStyle = INK;
     ctx.font = '900 14px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('KEEP IT DOWN!', 105 + fist * 1.2, -24);
+    ctx.fillText('KEEP IT DOWN!', 72, -38);
     ctx.restore();
   }
 }

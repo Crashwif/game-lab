@@ -42,7 +42,7 @@ const LIT_UNIFORMS = ['uViewProj', 'uTime', 'uCamera', 'uFogColor', 'uFogDensity
 const SPRITE_UNIFORMS = ['uView', 'uProj', 'uFogDensity'] as const;
 const SKY_UNIFORMS = ['uRight', 'uUp', 'uForward', 'uTanHalf', 'uAspect', 'uSpace', 'uSunDir', 'uTime', 'uStudio', 'uFlash'] as const;
 
-export type MeshName = 'booster' | 'core' | 'upper' | 'capsule' | 'nose' | 'porthole' | 'sticker' | 'cling' | 'flail' | 'stand' | 'chute' | 'earth' | 'moon' | 'disc' | 'box' | 'sphere' | 'cone' | 'mic' | 'glove' | 'bird' | 'wing' | 'lizard' | 'cart' | 'clapper' | 'stick' | 'lamp' | 'chair' | 'flag' | 'dish' | 'trailer' | 'doghouse' | 'pool' | 'tower' | 'pad' | 'bag';
+export type MeshName = 'booster' | 'core' | 'upper' | 'capsule' | 'nose' | 'porthole' | 'sticker' | 'cling' | 'flail' | 'stand' | 'hero' | 'chute' | 'earth' | 'moon' | 'disc' | 'box' | 'sphere' | 'cone' | 'mic' | 'glove' | 'bird' | 'wing' | 'lizard' | 'cart' | 'clapper' | 'stick' | 'lamp' | 'chair' | 'flag' | 'dish' | 'trailer' | 'doghouse' | 'pool' | 'tower' | 'pad' | 'bag';
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -97,6 +97,7 @@ export class Renderer {
       cling: uploadMesh(gl, astronautMesh('cling'), 160),
       flail: uploadMesh(gl, astronautMesh('flail'), 200),
       stand: uploadMesh(gl, astronautMesh('stand'), 24),
+      hero: uploadMesh(gl, astronautMesh('torso'), 1),
       chute: uploadMesh(gl, chuteMesh(), 2),
       earth: uploadMesh(gl, earthPlateMesh(), 1),
       moon: uploadMesh(gl, moonPlateMesh(), 1),

@@ -126,6 +126,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
+    if (view.phase === 'running') rally.time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = clamp(Math.log2(multiplier) / 3.3, 0, 1);
     const running = view.phase === 'running';

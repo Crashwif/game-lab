@@ -142,6 +142,17 @@ export const towerTopY = (t: TowerState): number => GROUND_Y - t.floors.length *
 export const topOffset = (t: TowerState): number => (t.floors.length ? t.floors[t.floors.length - 1]!.x : 0);
 export const topVelocity = (t: TowerState): number => (t.floors.length ? t.floors[t.floors.length - 1]!.vx : 0);
 
+/** Keep the swaying stack and fixed crane together even after minutes of accumulated lateral travel. */
+export function runningCameraFrame(t: TowerState, scale: number): { x: number; s: number } {
+  let left = 150, right = 730;
+  for (const floor of t.floors) {
+    left = Math.min(left, TOWER_X + floor.x - FLOOR_W / 2 - 25);
+    right = Math.max(right, TOWER_X + floor.x + RAIL_DX + 25);
+  }
+  return { x: (left + right) / 2, s: Math.min(scale, 760 / (right - left)) };
+}
+
+
 /** Lateral offset of the stack at a world height, for the hoist rail and cage. */
 export function offsetAtY(t: TowerState, y: number): number {
   const level = (GROUND_Y - y) / FLOOR_H;
@@ -522,4 +533,14 @@ export function drawDust(ctx: CanvasRenderingContext2D, t: TowerState): void {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+export function collapseCamera(t: TowerState): { x: number; y: number; s: number } {
+  const pad = FLOOR_W;
+  const left = Math.min(TOWER_X - pad, ...t.debris.map(d => d.x - pad));
+  const right = Math.max(TOWER_X + pad, ...t.debris.map(d => d.x + pad));
+  const top = Math.min(GROUND_Y - 150, ...t.debris.map(d => d.y - pad));
+  const bottom = GROUND_Y + 45;
+  const s = Math.min(0.85, 800 / (right - left), 370 / (bottom - top));
+  return { x: (left + right) / 2, y: (top + bottom) / 2 - 35 / s, s };
 }

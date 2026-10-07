@@ -112,7 +112,7 @@ export function settleStoker(s: StokerState, running: boolean, crashed: boolean,
     settleSpring(s.goggles, 1);
   } else if (crashed) {
     setMode(s, 'floored');
-    s.fall = { x: 240, y: FLOOR_Y - 26, vx: 0, vy: 0, angle: -Math.PI / 2, spin: 0 };
+    s.fall = { x: 78, y: FLOOR_Y - 26, vx: 0, vy: 0, angle: -Math.PI / 2, spin: 0 };
     s.soot = 1;
     s.shovelDropped = true;
   } else if (running) {
@@ -134,7 +134,7 @@ export function blastStoker(s: StokerState, quiet: boolean): void {
     s.soot = 1;
     if (quiet) {
       setMode(s, 'floored');
-      s.fall = { x: 240, y: FLOOR_Y - 26, vx: 0, vy: 0, angle: -Math.PI / 2, spin: 0 };
+      s.fall = { x: 78, y: FLOOR_Y - 26, vx: 0, vy: 0, angle: -Math.PI / 2, spin: 0 };
     } else {
       setMode(s, 'blasted');
       s.fall = { x: s.x, y: HIP_Y, vx: -300, vy: -300, angle: 0, spin: -6 };
@@ -150,21 +150,13 @@ export function blastStoker(s: StokerState, quiet: boolean): void {
 }
 
 /** Shovel geometry through the cycle: where the blade and the grip are, and whether coal is on it. */
-function shovelPose(u: number): { blade: Point; grip: Point; tip: number; carrying: boolean } {
-  if (u < 0.28) {
-    const t = smoothstep(0, 0.28, u);
-    return { blade: lerp({ x: 150, y: 420 }, { x: 100, y: 454 }, t), grip: lerp({ x: 228, y: 340 }, { x: 190, y: 360 }, t), tip: 0, carrying: false };
-  }
-  if (u < 0.62) {
-    const t = smoothstep(0, 1, (u - 0.28) / 0.34);
-    return { blade: quad({ x: 100, y: 454 }, { x: 200, y: 330 }, { x: 335, y: 404 }, t), grip: quad({ x: 190, y: 360 }, { x: 240, y: 300 }, { x: 225, y: 352 }, t), tip: 0, carrying: true };
-  }
-  if (u < 0.7) {
-    const t = (u - 0.62) / 0.08;
-    return { blade: lerp({ x: 335, y: 404 }, { x: 352, y: 400 }, t), grip: lerp({ x: 225, y: 352 }, { x: 212, y: 344 }, t), tip: t, carrying: t < 0.5 };
-  }
-  const t = smoothstep(0.7, 1, u);
-  return { blade: quad({ x: 352, y: 400 }, { x: 230, y: 360 }, { x: 150, y: 420 }, t), grip: quad({ x: 212, y: 344 }, { x: 250, y: 322 }, { x: 228, y: 340 }, t), tip: 0, carrying: false };
+export const SHOVEL_LENGTH = 122;
+export function shovelPose(u: number): { blade: Point; grip: Point; tip: number; carrying: boolean } {
+  const phase = ((u % 1) + 1) % 1;
+  const swing = smoothstep(0.24, 0.64, phase) * (1 - smoothstep(0.72, 1, phase));
+  const grip = { x: 200 + 22 * swing, y: 340 - 24 * Math.sin(swing * Math.PI) };
+  const angle = mix(2.15, 0.45, swing);
+  return { grip, blade: { x: grip.x + Math.cos(angle) * SHOVEL_LENGTH, y: grip.y + Math.sin(angle) * SHOVEL_LENGTH }, tip: 0, carrying: phase >= 0.25 && phase < 0.67 };
 }
 
 type Mood = 'calm' | 'nervous' | 'panic' | 'shock' | 'smug' | 'dazed';
@@ -187,7 +179,10 @@ export function stepStoker(s: StokerState, drive: StokerDrive, dt: number): void
   let nodTarget = 0;
   switch (s.mode) {
     case 'stoking': {
-      s.phase += drive.rate * dt;
+      // Work, catch a breath, and brace against another pressure surge.
+      const fatigue = s.time > 45 ? Math.pow(Math.max(0, Math.sin((s.time - 45) * Math.PI / 15)), 6) : 0;
+      s.phase += drive.rate * (1 - fatigue * 0.78) * dt;
+      s.wipe.v += fatigue * dt * 2;
       const u = s.phase - Math.floor(s.phase);
       if ((u0 < 0.62 && u >= 0.62) || (u < u0 && u >= 0.62)) s.events.throw = true;
       const pose = shovelPose(u);
@@ -219,7 +214,7 @@ export function stepStoker(s: StokerState, drive: StokerDrive, dt: number): void
       s.fall.x += s.fall.vx * dt;
       s.fall.y += s.fall.vy * dt;
       s.fall.angle += s.fall.spin * dt;
-      s.fall.x = Math.max(240, s.fall.x);
+      if (s.fall.x < 78) { s.fall.x = 78; s.fall.vx = 0; }
       if (s.fall.y >= FLOOR_Y - 26) {
         s.fall.y = FLOOR_Y - 26;
         s.fall.angle = -Math.PI / 2;
@@ -299,7 +294,7 @@ function drawShovel(ctx: CanvasRenderingContext2D, grip: Point, blade: Point, ti
 }
 
 export function drawShovelOnFloor(ctx: CanvasRenderingContext2D): void {
-  drawShovel(ctx, { x: 190, y: 456 }, { x: 300, y: 462 }, 0, false);
+  drawShovel(ctx, { x: 190, y: 456 }, { x: 190 + Math.sqrt(SHOVEL_LENGTH ** 2 - 36), y: 462 }, 0, false);
 }
 
 export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void {
@@ -360,7 +355,7 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
     frontHand = lerp(grip, blade, 0.4);
   } else if (s.mode === 'idle') {
     grip = { x: s.x + 52, y: 350 };
-    blade = { x: s.x + 46, y: FLOOR_Y - 8 };
+    blade = { x: grip.x, y: grip.y + SHOVEL_LENGTH };
     frontHand = lerp(grip, blade, 0.06);
     const wipe = clamp(s.wipe.x, 0, 1);
     backHand = lerp({ x: s.x - 22, y: hip.y - 40 }, { x: head.x + 8, y: head.y - 20 }, wipe);

@@ -37,3 +37,9 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){button:active{transform:none}}
 /* game */
 :root{--bg:#2b1410;--fg:#fbeedc;--accent:#d5fb6d;--on-accent:#1c1f26}
+
+/* Close portrait composition; retains the shell backing store. */
+@media(max-width:600px){
+  .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:0 0}
+}

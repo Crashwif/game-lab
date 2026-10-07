@@ -36,3 +36,14 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 @media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
 @media (prefers-reduced-motion:reduce){button:active{transform:none}}
 /* game */
+
+/* Close portrait composition, using the shell's canonical 16:9 backing store. */
+@media(max-width:600px) and (min-height:500px){
+  .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:top left}
+  .controls{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
+@media(max-width:600px){
+  :root[data-mode=embedded] .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  :root[data-mode=embedded] .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:top left}
+}

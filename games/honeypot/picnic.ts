@@ -80,7 +80,7 @@ export interface Picnic {
 
 export function createPicnic(): Picnic {
   return {
-    bear: { mode: 'stuck', age: 0, x: 300, paw: 0, shades: spring(0) },
+    bear: { mode: 'stuck', age: 0, x: 420, paw: 0, shades: spring(0) },
     guests: [
       { kind: 'raccoon', x: 210, at: 2.2, lean: spring(0), stuck: false },
       { kind: 'frog', x: 700, at: 4.2, lean: spring(0), stuck: false },
@@ -181,10 +181,10 @@ export function auditDone(p: Picnic): boolean {
 export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; reduced: boolean; }
 
 export function pawPoint(p: Picnic, level: number): { x: number; y: number } {
-  const inside = { x: JAR.cx - 10, y: surfaceY(level) + 16 };
-  const free = { x: p.bear.x + 70, y: 400 };
+  void level;
   const t = p.bear.paw;
-  return { x: inside.x + (free.x - inside.x) * t, y: inside.y + (free.y - inside.y) * t };
+  if (t <= 0.3) return { x: mix(JAR.cx - 30, 490, t / 0.3), y: mix(JAR.top + 20, 250, t / 0.3) };
+  return { x: p.bear.x + mix(70, 40, (t - 0.3) / 0.7), y: bearBaseY(p) - 30 };
 }
 
 export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
@@ -195,6 +195,8 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
   if (bear.mode === 'pulling') {
     // The pull eases in, so the paw tears free with a snap rather than sliding out.
     bear.paw = Math.min(1, bear.paw + dt * (0.5 + bear.paw * 1.2));
+    const stepOff = clamp((bear.paw - 0.3) / 0.35, 0, 1);
+    bear.x = mix(420, 310, stepOff * stepOff * (3 - 2 * stepOff));
     if (bear.paw >= 1) {
       bear.mode = 'walking';
       bear.age = 0;
@@ -402,13 +404,13 @@ function drawLureSign(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time: number): void {
+export function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time: number): void {
   const bear = p.bear;
   if (bear.mode === 'gone') return;
   const paw = pawPoint(p, level);
   const bob = bear.mode === 'walking' ? Math.sin(bear.age * 12) * 3 : bear.mode === 'trapped' ? Math.sin(time * 28) * 2 : 0;
   ctx.save();
-  ctx.translate(bear.x, 430 + bob);
+  ctx.translate(bear.x, bearBaseY(p) + bob);
   ink(ctx, 3);
   ctx.fillStyle = FUR;
   ctx.beginPath();
@@ -471,18 +473,6 @@ function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time:
     ctx.stroke();
   }
   ctx.restore();
-  // Two-bone reach into the jar. The jar is drawn later, so the paw reads as inside it.
-  const shoulder = { x: bear.x + 26, y: 400 + bob };
-  const span = Math.hypot(paw.x - shoulder.x, paw.y - shoulder.y);
-  const bone = Math.max(24, span * 0.54);
-  // Elbow sags under the reach instead of spearing up over the jar.
-  limb(ctx, shoulder, paw, bone, bone, paw.y < shoulder.y ? 1 : -1, 10, FUR);
-  ctx.fillStyle = MUZZLE;
-  ink(ctx, 2);
-  ctx.beginPath();
-  ctx.ellipse(paw.x, paw.y, 12, 8, 0.4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
   if (bear.mode === 'walking') {
     // A little jar under the arm, the one he actually got out with.
     ctx.fillStyle = '#f0b030';
@@ -491,6 +481,26 @@ function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time:
     ctx.fill();
     ctx.stroke();
   }
+}
+/** The mouth stays reachable without changing the length of either arm bone. */
+export function bearBaseY(p: Picnic): number {
+  const down = clamp((p.bear.paw - 0.65) / 0.35, 0, 1);
+  return 280 + 150 * down * down * (3 - 2 * down);
+}
+export function bearReach(p: Picnic, level: number, time = 0): { shoulder: Point; paw: Point; elbow: Point } {
+  const shoulder = { x: p.bear.x + 26, y: bearBaseY(p) - 30 + (p.bear.mode === 'walking' ? Math.sin(p.bear.age * 12) * 3 : p.bear.mode === 'trapped' ? Math.sin(time * 28) * 2 : 0) };
+  const paw = pawPoint(p, level);
+  return { shoulder, paw, elbow: bendJoint(shoulder, paw, 56, 56, -1) };
+}
+
+/** Draw between the rear honey and front glass, so the trapped paw remains visible. */
+export function drawBearReach(ctx: CanvasRenderingContext2D, p: Picnic, level: number, time = 0): void {
+  if (p.bear.mode === 'gone') return;
+  const { shoulder, paw } = bearReach(p, level, time);
+  limb(ctx, shoulder, paw, 56, 56, -1, 10, FUR);
+  ctx.fillStyle = MUZZLE;
+  ink(ctx, 2);
+  ctx.beginPath(); ctx.ellipse(paw.x, paw.y, 12, 8, 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 
 function drawGuest(ctx: CanvasRenderingContext2D, guest: Guest, time: number): void {
@@ -754,8 +764,9 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
   const count = Math.round(8 + tension * 20);
   for (let i = 0; i < count; i += 1) {
     const bee = p.bees[i % p.bees.length]!;
-    const homeX = p.leaving ? JAR.cx : p.hiveX;
-    const homeY = p.leaving ? 300 : 230;
+    const patrol = time > 45 ? Math.max(0, Math.sin((time - 45) * Math.PI / 12)) : 0;
+    const homeX = p.leaving ? JAR.cx : mix(p.hiveX, JAR.cx, patrol);
+    const homeY = p.leaving ? 300 : mix(230, JAR.top - 18, patrol);
     const x = homeX + Math.cos(bee.angle) * bee.orbit * (p.leaving ? 1.4 : 1);
     const y = homeY + Math.sin(bee.angle) * bee.orbit * 0.55;
     ctx.save();
@@ -777,6 +788,9 @@ export function drawPicnic(ctx: CanvasRenderingContext2D, p: Picnic, level: numb
   }
   for (const guest of p.guests) drawGuest(ctx, guest, time);
   drawPhone(ctx, p);
+  ctx.fillStyle = '#8b613b'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.fillRect(354, 294, 130, 137); ctx.strokeRect(354, 294, 130, 137);
+  ctx.beginPath(); ctx.moveTo(360, 300); ctx.lineTo(478, 425); ctx.moveTo(478, 300); ctx.lineTo(360, 425); ctx.stroke();
   drawBear(ctx, p, level, time);
   // Honey off the paw.
   ctx.fillStyle = '#f0b030';

@@ -7,6 +7,7 @@
  * while the arm keeps growing. The crash bursts it into a seeded cloud of
  * protein powder and leaves a noodle. Nothing here changes the outcome.
  */
+import { endurance } from './endurance';
 import { type Spring, clamp, fract, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { INK, type Point } from './gym';
 
@@ -36,6 +37,8 @@ export interface Curler {
   radius: Spring;
   puff: Spring;
   tension: number;
+  act: number;
+  effort: number;
   stretch: number;
   /** The displayed multiplier, for the market cap on the cuff. */
   multiplier: number;
@@ -58,7 +61,7 @@ export interface Curler {
 const freshShaker = (): Shaker => ({ hop: spring(0), tip: spring(0), spill: 0, lid: { x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, flying: false, down: false } });
 
 export function createCurler(): Curler {
-  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, multiplier: 1, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 }, tear: spring(0), shaker: freshShaker(), events: { rep: false, sleeve: false, dropped: false, hop: false } };
+  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, act: 0, effort: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, multiplier: 1, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 }, tear: spring(0), shaker: freshShaker(), events: { rep: false, sleeve: false, dropped: false, hop: false } };
 }
 
 export function resetCurler(c: Curler): void {
@@ -84,7 +87,7 @@ export function resetCurler(c: Curler): void {
   c.shaker = freshShaker();
 }
 
-export const radiusFor = (growth: number): number => 16 + 128 * (1 - Math.exp(-growth / 2.6));
+export const radiusFor = (growth: number): number => 16 + 94 * (1 - Math.exp(-growth / 2.6));
 
 /** The market cap the cuff reads: the number squared, in a currency nobody asked about; nothing once it bursts. */
 export function marketCap(multiplier: number, burst: boolean): string {
@@ -124,10 +127,10 @@ export function poseCurler(c: Curler): void {
 /** Where the bicep is drawn from: centre and radius in world space. */
 export function bicepGeometry(c: Curler): { centre: Point; r: number; rx: number; ry: number } {
   const r = Math.max(8, c.radius.x + c.puff.x);
-  const mid = { x: mix(SHOULDER.x, ELBOW.x, 0.5) + 6 + r * 0.55, y: mix(SHOULDER.y, ELBOW.y, 0.5) - r * 0.1 };
+  const mid = { x: ELBOW.x + 20 + r * .65, y: 316 + r * .16 };
   // Anticipation: the throb quickens and deepens with the load (about two beats a second at the top).
   const throb = (0.08 + 0.06 * c.tension) * Math.sin(c.time * (2 + 11 * c.tension * c.tension));
-  return { centre: mid, r, rx: r * (1 + throb), ry: r * 0.86 };
+  return { centre: mid, r, rx: r * (1 + throb * .45), ry: Math.min(73, r * .7) };
 }
 
 /** The bicep goes. `quiet` skips the effects for a crash that already happened. */
@@ -162,18 +165,19 @@ export function burstBicep(c: Curler, seed: number, quiet: boolean): void {
   }
 }
 
-export interface CurlerDrive { running: boolean; multiplier: number; growth: number; tension: number }
+export interface CurlerDrive { running: boolean; multiplier: number; growth: number; tension: number; seconds?: number }
 
 export function stepCurler(c: Curler, drive: CurlerDrive, dt: number): void {
   c.time += dt;
   c.modeAge += dt;
   c.tension = drive.tension;
+  const act = endurance(drive.seconds ?? 0); c.act = act.act; c.effort = drive.running ? act.effort : 0;
   c.multiplier = drive.multiplier;
   c.events = { rep: false, sleeve: false, dropped: false, hop: false };
   if (c.mode === 'idle' && drive.running) { c.mode = 'curling'; c.modeAge = 0; }
   if (c.mode === 'curling' && drive.running && !c.burst) {
     const before = c.phase;
-    c.phase += (0.7 + 0.9 * (1 - Math.exp(-drive.growth / 2))) * dt;
+    c.phase += (0.7 + 0.9 * (1 - Math.exp(-drive.growth / 2))) * (1 - (c.act === 2 ? .7 : .25) * c.effort) * dt;
     if (fract(before) < 0.5 && (fract(c.phase) >= 0.5 || Math.floor(c.phase) > Math.floor(before))) {
       c.events.rep = true;
       c.puff.v += 40 + 60 * drive.tension;
@@ -200,7 +204,8 @@ export function stepCurler(c: Curler, drive: CurlerDrive, dt: number): void {
       else { sh.lid.down = true; sh.lid.angle = 0.3; }
     }
   }
-  const target = c.mode === 'curling' ? 0.5 - 0.5 * Math.cos(c.phase * Math.PI * 2) : c.mode === 'posing' ? 1 : 0.1;
+  const rep = .5 - .5 * Math.cos(c.phase * Math.PI * 2);
+  const target = c.mode === 'curling' ? c.act === 2 ? mix(rep, .45, c.effort * .8) : rep : c.mode === 'posing' ? 1 : 0.1;
   stepSpring(c.curl, c.burst ? 0 : target, c.mode === 'curling' ? 30 : 6, 0.9, dt);
   if (!c.burst) {
     stepSpring(c.radius, drive.running || c.mode === 'posing' ? radiusFor(drive.growth) : 16, 6, 0.95, dt);
@@ -415,7 +420,7 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
     fill.addColorStop(0, `rgb(${Math.round(mix(235, 255, red))}, ${Math.round(mix(235, 200, red))}, ${Math.round(mix(235, 195, red))})`);
     fill.addColorStop(1, `rgb(${Math.round(mix(160, 200, red))}, ${Math.round(mix(160, 70, red))}, ${Math.round(mix(160, 70, red))})`);
     ctx.fillStyle = fill; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(0, 0, g.rx, g.ry, -0.35, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, g.rx, g.ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     const veins = Math.floor(clamp(c.tension, 0, 1) * 6);
     ctx.strokeStyle = `rgba(90, 40, 120, ${0.4 + 0.5 * c.tension})`; ctx.lineWidth = 1.5 + 2 * c.tension; ctx.lineCap = 'round';
     for (let i = 0; i < veins; i += 1) {
@@ -428,9 +433,16 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
     ctx.beginPath(); ctx.ellipse(-g.rx * 0.38, -g.ry * 0.42, g.rx * 0.18, g.ry * 0.3, -0.5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (c.sleeve) { ctx.fillStyle = TEE; ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(SHOULDER.x - 16, SHOULDER.y - 12); ctx.lineTo(SHOULDER.x + 22 + g.r * 0.4, SHOULDER.y + 4); ctx.lineTo(SHOULDER.x + 14 + g.r * 0.4, SHOULDER.y + 34); ctx.lineTo(SHOULDER.x - 20, SHOULDER.y + 26); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-    drawCuff(ctx, { x: ELBOW.x - 6, y: ELBOW.y - 22 }, 1 - Math.exp(-Math.log2(1 + (g.r - 16) / 20)), t, marketCap(c.multiplier, false), false);
+    limb(ctx, SHOULDER, ELBOW, 16, GRAY_SHADE);
+    ctx.beginPath(); ctx.arc(ELBOW.x, ELBOW.y, 11, 0, Math.PI * 2); ctx.fillStyle = GRAY; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    drawCuff(ctx, { x: ELBOW.x - 6, y: ELBOW.y - 22 + (c.act === 1 ? c.effort * 14 : 0) }, 1 - Math.exp(-Math.log2(1 + (g.r - 16) / 20)), t, marketCap(c.multiplier, false), false);
     limb(ctx, ELBOW, hand, 18, GRAY);
     ctx.beginPath(); ctx.arc(hand.x, hand.y, 12, 0, Math.PI * 2); ctx.fillStyle = GRAY; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  if (!c.burst && (c.act === 3 || c.act === 4)) {
+    ctx.save(); ctx.strokeStyle = c.act === 3 ? '#ffe27a' : '#d74a64'; ctx.lineWidth = 5; ctx.setLineDash(c.act === 3 ? [8, 5] : []);
+    const g = bicepGeometry(c); const sweep = c.effort * .6;
+    ctx.beginPath(); ctx.ellipse(g.centre.x, g.centre.y, g.rx + 8, g.ry + 8, 0, -.8 - sweep, .8 + sweep); ctx.stroke(); ctx.restore();
   }
   // The dumbbell: in the hand, dropped on the floor, or through it.
   const d = c.dumbbell;

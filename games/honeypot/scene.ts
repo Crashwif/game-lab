@@ -16,7 +16,7 @@ import {
   stepJar,
   type JarState,
 } from './jar';
-import { auditDone, createPicnic, drawFox, drawPicnic, pawPoint, pullPaw, resetPicnic, settlePicnic, stepPicnic, trapPicnic, type Picnic } from './picnic';
+import { auditDone, createPicnic, drawFox, drawPicnic, drawBearReach, pawPoint, pullPaw, resetPicnic, settlePicnic, stepPicnic, trapPicnic, type Picnic } from './picnic';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -157,6 +157,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += reduced ? dt * 0.2 : dt;
+    if (view.phase === 'running') time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
@@ -171,6 +172,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       // The first frame can land anywhere in a round (a page that joins mid-round or on the crash, or a scene made
       // fresh for a round whose betting it missed), so it settles into the round rather than playing it out.
       previous = view.phase;
+      time = view.elapsed / 1000;
       if (crashed) beginCrash(view, multiplier, true);
       else settle(view, multiplier);
     } else if (view.phase !== previous) {
@@ -244,7 +246,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
     }
     drawPicnic(ctx, picnic, jar.level.x, time, tension);
-    drawJar(ctx, jar, time);
+    drawJar(ctx, jar, time, () => drawBearReach(ctx, picnic, jar.level.x, time));
     drawFox(ctx, picnic);
     if (jar.glue.x > 0.02) {
       ctx.fillStyle = `rgba(80, 60, 30, ${jar.glue.x * 0.22})`;
@@ -252,12 +254,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(250, 236);
+      ctx.translate(480, 198);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);
       const word = outcome === 'called' ? 'PAW FREE' : outcome === 'rekt' ? "CAN'T SELL" : 'HONEYPOT';
-      memeText(ctx, word, 0, 0, 72, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center', 860);
+      memeText(ctx, word, 0, 0, 72, outcome === 'called' ? '#ffe27a' : '#ff4d6d', 'center', 640);
       ctx.restore();
     }
     ctx.restore();

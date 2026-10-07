@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait, isPortrait } from './portrait';
 /**
  * Composes Family Meeting from the room state: the kitchen, the parents behind the table, the daughter in
  * front of it, the conversation that follows the multiplier, her exit on an accepted cash-out, the seeded
@@ -87,6 +89,7 @@ function captionFor(view: SceneView, rung: number, outcome: Outcome | null, secu
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("FAMILY MEETING", [205, 150, 545, 360], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Dinner muzak with an organ under it that tightens with the multiplier; the crash is a boom.
   const audio = pageAudio({ style: 'elevator', crash: 'boom' });
@@ -170,7 +173,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 3.6, 0, 1);
+    const act = actAt(view.elapsed, reduced);
+    const tension = clamp(Math.log2(multiplier) / 3.6, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
@@ -262,24 +266,26 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const p of parents) drawChairBack(ctx, p.x);
     for (const p of parents) drawParent(ctx, p, time, reduced);
     drawTable(ctx, kitchen, time);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawDaughter(ctx, daughter, time, tension, reduced);
     drawDaughterChair(ctx);
-    drawBubbles(ctx, kitchen);
+    if (!isPortrait(ctx.canvas)) drawBubbles(ctx, kitchen);
     drawAir(ctx, kitchen);
-    if (outcome && pop.x > 0.02) {
+    if (outcome && pop.x > 0.02 && (view.phase !== 'crashed' || view.crashAge >= 1300)) {
       ctx.save();
-      ctx.translate(480, 250);
+      ctx.translate(480, 116);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.25);
       ctx.scale(scale, scale);
       const word = outcome === 'rekt' ? 'MIND BLOWN' : outcome === 'called' ? 'WENT TO MY ROOM' : 'THOUGHTS & PRAYERS';
-      memeText(ctx, word, 0, 0, outcome === 'rekt' ? 84 : 64, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 700);
+      memeText(ctx, word, 0, 0, outcome === 'rekt' ? 42 : 36, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 700);
       ctx.restore();
     }
     ctx.restore();
     drawFlash(ctx, kitchen);
 
     // The HUD: the caption, the secured badge, the multiplier, the blood pressure and the pronouns of the moment.
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(430, 62);
@@ -303,6 +309,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const bp = dad.exploded ? 'BP —/—' : `BP ${Math.round(120 + 150 * heat)}/${Math.round(80 + 90 * heat)}`;
     memeText(ctx, bp, 24, 520, 22, dad.exploded ? '#ff4d6d' : heat > 0.6 ? '#ffb4c2' : '#f7eadb', 'left');
     memeText(ctx, `PRONOUNS ${PRONOUNS[Math.min(rung, PRONOUNS.length - 1)]}`, 936, 520, 22, '#f7eadb', 'right', 320);
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "AT THE TABLE", kitchen.bubbles.at(-1)?.text ?? 'Pass the potatoes.');
+
   }
 
   return { draw };

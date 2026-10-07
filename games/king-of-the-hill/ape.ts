@@ -10,8 +10,8 @@ import { type Camera, type Point, heightAt, slopeAngle, toScreen } from './hill'
 import { createGait, stepGait, type Gait } from './gait';
 
 const INK = '#1c1f26';
-const FUR = '#3b2f2f';
-const FUR_LIGHT = '#5a4646';
+const FUR = '#827066';
+const FUR_LIGHT = '#bca48a';
 const MUZZLE = '#d9b99b';
 
 export type ApeMode = 'push' | 'boarding' | 'brace' | 'gone' | 'pancake';

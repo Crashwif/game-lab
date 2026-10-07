@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 /**
  * Composes Not Financial Advice: the video, the chrome, the desktop it
  * minimises onto, and the HUD. Nothing drawn here changes the outcome.
@@ -16,7 +18,7 @@ import {
   unfollow,
   type Overlay,
 } from './overlay';
-import { VIDEO_H, VIDEO_W, createStudio, drawStudio, endStudio, resetStudio, screenshot, settleStudio, stepStudio, type Studio } from './studio';
+import { VIDEO_H, VIDEO_W, PRODUCTS, createStudio, drawStudio, endStudio, resetStudio, screenshot, settleStudio, stepStudio, type Studio } from './studio';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -101,6 +103,7 @@ function drawDesktop(ctx: CanvasRenderingContext2D): void {
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("NOT FINANCIAL ADVICE", [15, 200, 395, 320], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Trap for the shill, and the crash is the record scratch of the reveal.
   const audio = pageAudio({ style: 'trap', crash: 'scratch' });
@@ -173,7 +176,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 3.4, 0, 1);
+    const act = actAt(view.elapsed, reduced);
+    const tension = clamp(Math.log2(multiplier) / 3.4, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
@@ -292,6 +296,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.fillText('not-financial-advice.mp4', 8, -6);
     }
     drawStudio(ctx, studio, tension, shownTime);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawBurn(ctx, overlay, multiplier, tension, shownTime);
     ctx.strokeStyle = '#111';
     ctx.lineWidth = 4;
@@ -323,6 +328,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(400, 48);
@@ -341,6 +347,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : '#ffffff';
     memeText(ctx, `${multiplier.toFixed(2)}×`, 936, 48, 42, colour, 'right');
     memeText(ctx, `${Math.round(overlay.follower.x).toLocaleString('en-US')} followers`, 20, 528, 18, '#c9d4e4', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, studio.read.hold.x > .15 ? 'CURRENT SPONSOR' : 'CURRENT COMMENT', studio.read.hold.x > .15 && studio.read.index >= 0 ? PRODUCTS[studio.read.index]!.name : overlay.comments.at(-1)?.text ?? 'The disclosure is getting smaller.');
+
   }
 
   return { draw };

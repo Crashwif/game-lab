@@ -101,6 +101,24 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
   for (let i = 0; i < 14; i += 1) objects.push({ z: i * 145 + 35 - view.distance % 145, kind: 'lamp', index: i, side: 0 });
   for (let i = 0; i < 4; i += 1) objects.push({ z: i * 550 + 90 - view.distance % 550, kind: 'sign', index: i + Math.floor(view.distance / 550), side: i % 2 ? -1 : 1 });
   for (let i = 0; i < 5; i += 1) objects.push({ z: ((i * 321 + 260 - view.distance * (0.4 + i * 0.04)) % 1600 + 1600) % 1600, kind: 'car', index: i, side: [-0.69, 0.68, -0.72, 0.72, -0.66][i]! });
+  if (view.time > 45 && view.wreck === 0 && view.parked < 0.1) {
+    const cycle = (view.time - 45) / 16;
+    const phase = cycle % 1;
+    if (phase < 0.7) {
+      const z = 900 * (1 - phase / 0.7) + 24;
+      const side = Math.floor(cycle) % 2 ? -1 : 1;
+      objects.push({ z, kind: 'car', index: 2, side: side * (0.65 - Math.sin(phase / 0.7 * Math.PI) * 0.42) });
+      objects.push({ z: z + 180, kind: 'car', index: 3, side: -side * 0.68 });
+    }
+    if (Math.floor(cycle) % 3 === 1) {
+      for (let k = 5; k >= 0; k--) {
+        const z = k * 230 + 90 - view.distance % 230;
+        if (z < 10) continue;
+        const l = project(z, -1.12), r = project(z, 1.12), roof = l.y - 210 * l.s;
+        line(ctx, [[l.x, l.y], [l.x, roof], [r.x, roof], [r.x, r.y]], '#82969f', Math.max(2, 10 * l.s));
+      }
+    }
+  }
   for (const object of objects.sort((a, b) => b.z - a.z)) {
     if (object.z < 8) continue;
     const p = project(object.z, object.side);

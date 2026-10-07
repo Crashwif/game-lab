@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait } from './portrait';
 /**
  * Composes I Got Hacked from the room state: the mansion and the bay, the
  * pool party, the phone close-up and the ticker, then the HUD. All motion
@@ -5,7 +7,7 @@
  * the committed outcome.
  */
 import { pageAudio } from './audio';
-import { INK, type Mansion, STAGE, celebrate, createMansion, drawBarbecue, drawDrone, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
+import { INK, type Mansion, STAGE, EXCUSES, celebrate, createMansion, drawBarbecue, drawDrone, drawMansion, drawPhone, endMansion, resetMansion, settleMansion, stepMansion } from './mansion';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 import { POPS, TICKER, type Party, createParty, drainParty, drawParty, drawTicker, leaveParty, resetParty, settleParty, stepParty } from './party';
 
@@ -84,6 +86,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("I GOT HACKED", [95, 35, 385, 290], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Celebrity pool party trap; the crash is the post going out, so it gets the sad trombone.
   const audio = pageAudio({ style: 'trap', crash: 'trombone' });
@@ -112,8 +115,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const act = actAt(view.elapsed, reduced);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -202,6 +206,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
     drawMansion(ctx, mansion, tension, reduced);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     drawDrone(ctx, mansion, reduced);
     drawParty(ctx, party, tension, outcome !== null, outcome === 'called', reduced);
     drawBarbecue(ctx, mansion, reduced);
@@ -228,6 +233,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.fillRect(0, 0, STAGE.w, STAGE.h);
     }
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.font = `900 42px ${MEME_FONT}`;
@@ -256,6 +262,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, `${multiplier.toFixed(2)}×`, STAGE.w - 18, STAGE.h - 18, 52, colour, 'right');
     ctx.restore();
     memeText(ctx, `${party.popIndex} ${party.popIndex === 1 ? 'POP' : 'POPS'}`, 190, STAGE.h - 18, 24, outcome ? '#ff9db0' : '#ffffff', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, mansion.posted ? 'PUBLIC STATEMENT' : 'DRAFT — NOT POSTED', mansion.posted ? 'i got hacked' : EXCUSES[mansion.excuse]!.slice(0, Math.floor(mansion.excuseAge / .028)) || '…');
+
   }
 
   return { draw };

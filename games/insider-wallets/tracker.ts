@@ -61,7 +61,21 @@ export function drawTracker(
   ctx.font = '900 16px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('INSIDER WALLETS', 12, 24);
-  ROWS.forEach((row, index) => {
+  const compact = (ctx.canvas?.clientWidth || 960) < 600;
+  if (compact) {
+    const active = Math.floor(time / 8) % ROWS.length;
+    for (let slot = 0; slot < 2; slot++) {
+      const row = ROWS[(active + slot) % ROWS.length]!;
+      const y = 64 + slot * 106;
+      ctx.fillStyle = '#d7dde8'; ctx.font = '700 25px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText(row.name, 12, y, 244);
+      ctx.fillStyle = crashed ? '#ff4d6d' : '#ffe08a'; ctx.font = '900 23px system-ui';
+      ctx.fillText(crashed ? 'SOLD · $0' : tension >= row.pending ? 'PENDING' : 'HOLDING', 12, y + 32, 244);
+      ctx.fillStyle = '#7cf67c'; ctx.font = '700 22px system-ui';
+      ctx.fillText(money(rowBalance(multiplier, row.salt)), 12, y + 59, 244);
+    }
+  }
+  if (!compact) ROWS.forEach((row, index) => {
     const y = 50 + index * 29;
     const pending = !crashed && tension >= row.pending;
     const blink = pending && Math.sin(time * 10 + index) > 0;
@@ -100,7 +114,7 @@ export function drawTracker(
   ctx.beginPath();
   ctx.arc(px, py, pr, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.font = '700 10px ui-monospace, monospace';
+  ctx.font = compact ? '700 15px ui-monospace, monospace' : '700 10px ui-monospace, monospace';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8b93a7';
   ctx.fillText('ALLOCATION', 82, 300);

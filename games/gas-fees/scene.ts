@@ -1,3 +1,5 @@
+import { actAt, drawAct } from './acts';
+import { createPortrait, isPortrait } from './portrait';
 /**
  * Composes Gas Fees from the room state: the shaft, the cabin, whoever is
  * in the lobby, the doors, the riders inside, the air, then the HUD. All
@@ -77,6 +79,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
+  const { capture, present } = createPortrait("GAS FEES", [190, 82, 580, 425], '#f0d99c');
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'elevator', crash: 'trombone' });
   const cabin: Cabin = createCabin(reduced ? 0 : 1);
@@ -122,8 +125,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    const act = actAt(view.elapsed, reduced);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -252,6 +256,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const r of inside) r.draw();
     ctx.restore();
     drawCabinFront(ctx, cabin);
+    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
     // The bubbles keep out from under the outcome stamp at rest: six slices of it, each as high as the tilt has it there.
     const stamp = outcome === 'rekt' ? 'RIPPED' : outcome === 'called' ? 'CROP DUSTED' : 'GAS LEAK';
     const stampSize = outcome === 'called' ? 78 : 96;
@@ -265,7 +270,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         avoid.push({ x: 480 + u - half / 6, y: y - stampSize * 0.8 - 8 - (half / 6) * Math.sin(0.1), w: half / 3, h: stampSize * 0.9 + 16 });
       }
     }
-    drawLines(ctx, crowd, suit, cabin.bounce.x, { left: CABIN.left + 6, right: CABIN.right - 6, top: 96 }, avoid);
+    if (!isPortrait(ctx.canvas)) drawLines(ctx, crowd, suit, cabin.bounce.x, { left: CABIN.left + 6, right: CABIN.right - 6, top: 96 }, avoid);
     if (outcome && pop.x > 0.02) {
       ctx.save();
       ctx.translate(480, 290);
@@ -277,6 +282,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
 
+    capture(ctx);
     if (caption) {
       ctx.save();
       ctx.translate(480, 46);
@@ -303,6 +309,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, `${Math.round(view.currentX100)} GWEI`, 20, 514, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     memeText(ctx, 'GAS', 20, 90, 30, '#8fd3ff', 'left');
     memeText(ctx, 'FEES', 20, 124, 30, '#8fd3ff', 'left');
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "IN THE LIFT", crowd.lines.at(-1)?.text ?? 'Nobody is admitting anything.');
+
   }
 
   return { draw };
