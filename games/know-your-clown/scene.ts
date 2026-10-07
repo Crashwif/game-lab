@@ -1,4 +1,5 @@
 import { pageAudio, type Effect } from './audio';
+import { drawPortrait, isPortrait } from './portrait';
 import { drawApplicant, drawDog } from './character';
 import { directionAt, ease, mix, multiplierLabel, type Direction } from './direction';
 import { C, box, label, line, mono, oval } from './ink';
@@ -22,6 +23,7 @@ const CUES: Effect[] = ['beep', 'camera', 'thud', 'ratchet', 'beep', 'beep', 'ra
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'techno', bpm: 160, music: .48, effects: .8, crash: 'slam' });
+  const transcript = typeof document === 'undefined' ? null : document.querySelector<HTMLOutputElement>('#inspection');
   let previous: SceneView['phase'] | null = null;
   let lastElapsed = 0;
   let lastNow: number | null = null;
@@ -82,6 +84,15 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     const exit = accepted === null ? 0 : ease((now - exitAt) / (reduced ? 1 : 1400));
     const ministry: MinistryView = { d, time: reduced ? 0 : time, reduced, running, crash: crashAge, escaped: accepted !== null };
+    const caption = accepted !== null ? `Claim abandoned. Cashed out at ${multiplierLabel(accepted)}. Privacy intact.`
+      : crashed ? 'Round crashed. Identity exported. Final allocation: one fictional peanut.'
+      : running ? `${d.title}. ${d.demand} ${d.line}` : 'Waiting for the next applicant.';
+    if (transcript && transcript.textContent !== caption) transcript.textContent = caption;
+    if (isPortrait(c.canvas)) {
+      drawPortrait(c, ministry, view, accepted, exit);
+      previous = view.phase; lastElapsed = view.elapsed; lastNow = now;
+      return;
+    }
     c.save();
     drawBackdrop(c, ministry);
     drawBay(c, ministry);
@@ -98,7 +109,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (accepted !== null) {
       drawApplicant(c, { x: mix(511, 143, exit), y: 427 - (reduced ? 0 : Math.sin(exit * Math.PI) * 62), scale: mix(1, .63, exit),
-        time: reduced ? 0 : time, tension: .15, stage: d.stage, level: d.level, action: d.action, reduced, mode: 'escape', progress: exit });
+        time: reduced || exit >= 1 ? 0 : time, tension: .15, stage: d.stage, level: d.level, action: d.action, reduced, mode: 'escape', progress: exit });
       if (exit > .95) {
         box(c, 67, 427, 154, 22, 5, C.lime, C.ink, 2);
         label(c, 'PRIVACY INTACT', 144, 443, 12, C.ink, 'center');
@@ -138,7 +149,7 @@ function drawHeader(c: CanvasRenderingContext2D, view: SceneView, accepted: numb
   box(c, 409, 37, 158, 24, 12, '#2c4947', '#627569', 1);
   oval(c, 422, 49, 3, 3, accepted !== null ? C.mint : view.phase === 'crashed' ? C.coral : C.lime, C.ink, 0);
   mono(c, accepted !== null ? 'CLAIM ABANDONED' : view.phase === 'crashed' ? 'ROUND CRASHED' : running ? 'AUDIT IN PROGRESS' : 'APPLICANT WAITING', 494, 53, 9, C.cream, 'center', 131);
-  label(c, multiplierLabel(view.currentX100), 933, 59, 47, view.phase === 'crashed' ? C.coral : C.lime, 'right', 338, 900);
+  label(c, multiplierLabel(accepted ?? view.currentX100), 933, 59, 47, accepted !== null ? C.mint : view.phase === 'crashed' ? C.coral : C.lime, 'right', 338, 900);
   mono(c, accepted !== null ? `CASHED OUT ${multiplierLabel(accepted)}` : 'ROUND MULTIPLIER', 932, 20, 10, accepted !== null ? C.mint : '#b7c4ae', 'right', 333);
 }
 

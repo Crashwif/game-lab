@@ -41,7 +41,7 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
   oval(c, 525, 449, 165, 13, '#19343b26', C.ink, 0);
   box(c, 281, 437, 463, 30, 12, C.ink, C.ink, 2);
   box(c, 288, 437, 449, 13, 6, '#728985', C.ink, 1);
-  const beltTime = reduced || !running || crash !== null ? 0 : time * 35;
+  const beltTime = reduced || !running || crash !== null || v.escaped ? 0 : time * 35;
   c.save(); c.beginPath(); c.rect(291, 438, 443, 11); c.clip();
   for (let i = -1; i < 20; i++) line(c, [291 + i * 28 + beltTime % 28, 438, 284 + i * 28 + beltTime % 28, 449], '#3d5454', 2);
   c.restore();

@@ -39,3 +39,17 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 :root{--bg:#102b31;--fg:#fff2d4;--accent:#d6ed73;--on-accent:#102b31}
 canvas{background:#e9dec3}
 .controls{border-top:2px solid #304c50}
+
+main{position:relative}
+.inspection-transcript{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:600px) and (min-height:500px){
+  .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  /* Oversampling preserves portrait detail with the shell’s 16:9 backing store. */
+  :root .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:top left}
+  .controls{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
+@media(max-width:600px){
+  :root[data-mode=embedded] .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  :root[data-mode=embedded] .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:top left}
+  :root[data-mode=embedded] .controls{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
