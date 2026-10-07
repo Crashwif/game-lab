@@ -92,7 +92,7 @@ function captionFor(view: SceneView, rung: number, outcome: Outcome | null, secu
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
-  const { capture, present } = createPortrait("THANKSGIVING UNCLE", [175, 155, 620, 355], '#f0d99c');
+  const { capture, present } = createPortrait("THANKSGIVING UNCLE", [175, 140, 620, 395], '#f0d99c');
   const reduced = options.reducedMotion === true;
   // Dad's dinner playlist, warm and dusty, which tightens with the multiplier; the crash is a boom.
   const audio = pageAudio({ style: 'lofi', crash: 'boom' });
@@ -311,7 +311,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const civility = wrecked ? 0 : Math.round((1 - clamp(dad.heat.x, 0, 1)) * 100);
     memeText(ctx, `CIVILITY ${civility}%`, 24, 520, 22, civility < 40 ? '#ffb4c2' : '#f4ead8', 'left');
     memeText(ctx, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, 936, 520, 22, room.cart > 500 ? '#ffb4c2' : '#f4ead8', 'right', 320);
-    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, room.bubbles.at(-1)?.text ?? 'Could someone pass the gravy?', view.phase === 'crashed' ? [260, 155, 690, 355] : undefined);
+    present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, room.bubbles.at(-1)?.text ?? 'Could someone pass the gravy?', view.phase === 'crashed' ? [260, 140, 690, 395] : undefined);
 
   }
 
