@@ -18,6 +18,8 @@ The room supplies the multiplier and committed crash. `direction.ts` maps elapse
 | 150–174 seconds | Final Final Check | Surveillance eyes and a mechanical stamp keep reviewing the review |
 | From 174 seconds | Recurring audits | Six procedures rotate in eighteen-second appointments with distinct copy and a continuing appointment number |
 
+Clown makeup and the inspection light bank accumulate through the first eight appointments and persist through recurring audits.
+
 Inspection motions cycle independently of the capped physical dimensions. Paper piles, prop counts and motion amplitudes are bounded; case numbers and appointments continue. The tension envelope increases over minutes and retains a breathing cycle during exceptionally long rounds. The current appointment comes directly from elapsed time, so seeking and joining an ongoing round do not require simulating missed frames. An appointment is theatrical pacing, never an indication of the time left before a crash.
 
 ## Outcomes and accessibility

@@ -2,6 +2,7 @@ export interface ApplicantPose {
   time: number;
   tension: number;
   stage: number;
+  level: number;
   action: number;
   x: number;
   y: number;
@@ -141,7 +142,7 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
   const scanning = pose.mode === 'scan';
-  const clown = pose.stage >= 3;
+  const clown = pose.level >= 3;
   ctx.save();
   ctx.rotate(headAngle);
   oval(ctx, -31, 2, 7, 11, SKIN_SHADE, 2.4);
@@ -154,7 +155,7 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   shape(ctx, 'M-29 -18 Q-31 -34 -7 -38 Q20 -39 29 -23 L31 12 Q29 31 12 36 Q-9 40 -23 26 Q-33 15 -29 -18Z', skin, 3.2);
   shape(ctx, 'M-28 4 Q-22 16 -23 22 Q-20 32 -5 36 Q-23 34 -28 23Z', SKIN_SHADE, 0);
 
-  if (pose.stage >= 5) {
+  if (pose.level >= 5) {
     shape(ctx, 'M-20 -19 Q-15 -25 -7 -17 Q-4 -3 -8 11 L-18 12 Q-25 -3 -20 -19Z', CREAM, 0);
     shape(ctx, 'M8 -20 Q17 -25 25 -14 L26 7 L13 12 Q6 -1 8 -20Z', CREAM, 0);
     shape(ctx, 'M-21 12 L-12 25 L-8 12Z', TEAL, 0);
@@ -193,7 +194,7 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
     shape(ctx, 'M3 2 L0 11 Q5 15 11 11', '#efc19b', 1.6, '#bd8c72');
   }
 
-  if (pose.stage >= 7) {
+  if (pose.level >= 7) {
     shape(ctx, 'M-10 23 Q4 18 21 23 Q19 36 6 36 Q-6 36 -10 23Z', CREAM, 0);
   }
   if (boxed) {

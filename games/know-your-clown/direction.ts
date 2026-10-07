@@ -26,6 +26,7 @@ const REAUDITS = [
 export interface Direction {
   seconds: number;
   stage: number;
+  level: number;
   serial: number;
   age: number;
   cycle: number;
@@ -53,7 +54,7 @@ export function directionAt(elapsedMs: number): Direction {
   const action = (age % 4.8) / 4.8;
   const envelope = seconds / (seconds + 100);
   const breath = Math.sin(age / 4.8 * Math.PI * 2) * 0.035;
-  return { ...check, ...extra, seconds, stage, serial: audit >= 0 ? CHECKS.length + audit : stage,
+  return { ...check, ...extra, seconds, stage, level: audit >= 0 ? 7 : stage, serial: audit >= 0 ? CHECKS.length + audit : stage,
     age, cycle, action, tension: clamp(0.14 + envelope * 0.82 + breath, 0.1, 0.94) };
 }
 

@@ -97,7 +97,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     if (accepted !== null) {
       drawApplicant(c, { x: mix(511, 143, exit), y: 427 - (reduced ? 0 : Math.sin(exit * Math.PI) * 62), scale: mix(1, .63, exit),
-        time: reduced ? 0 : time, tension: .15, stage: d.stage, action: d.action, reduced, mode: 'escape', progress: exit });
+        time: reduced ? 0 : time, tension: .15, stage: d.stage, level: d.level, action: d.action, reduced, mode: 'escape', progress: exit });
       if (exit > .95) {
         box(c, 67, 427, 154, 22, 5, C.lime, C.ink, 2);
         label(c, 'PRIVACY INTACT', 144, 443, 12, C.ink, 'center');
@@ -105,7 +105,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     } else if (crashAge === null || !reduced && crashAge < 1.4) {
       const packing = crashAge === null ? 0 : ease(crashAge / 1.4);
       drawApplicant(c, { x: 511, y: 427 + packing * 85, scale: 1 - packing * .25,
-        time: reduced ? 0 : time, tension: d.tension, stage: d.stage, action: d.action, reduced,
+        time: reduced ? 0 : time, tension: d.tension, stage: d.stage, level: d.level, action: d.action, reduced,
         mode: crashAge !== null ? 'boxed' : !running ? 'idle' : d.stage === 4 ? 'dance' : 'scan', progress: packing });
     }
 

@@ -31,7 +31,7 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
   line(c, [64, 110, 64, 102, 898, 102, 898, 211], C.brass, 6);
   for (let i = 0; i < 8; i++) {
     const x = 345 + i * 43;
-    const active = crash !== null ? i % 2 === 0 : i <= d.stage;
+    const active = crash !== null ? i % 2 === 0 : i <= d.level;
     box(c, x, 105, 32, 6, 2, active ? crash !== null ? C.red : C.mint : '#a49f85', C.ink, .7);
   }
   // The floor carries long perspective seams and a conveyor with a readable direction of travel.
