@@ -14,8 +14,8 @@ export const NIECE_X = 592;
 const HEAD_Y = -52;
 /** Where Rick sits: the chair's foot, at the near edge of the table. Grandma's seat at the far left end. */
 export const RICK_X = 604;
-/** The seat of his chair: the rig's origin, so the chair's legs show under it. */
-const CHAIR_Y = 506;
+/** The seat leaves floor space under the legs through the camera's crash punch. */
+const CHAIR_Y = 460;
 export const GRAN = { x: 182, y: 362 } as const;
 /** Dad's wine glass, in the room, for the shards. */
 export const GLASS_AT = { x: DAD_X - 46, y: SEAT_Y + 34 } as const;
@@ -259,18 +259,15 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
     ctx.stroke();
     ctx.fillStyle = '#2a2a30';
     ctx.beginPath();
-    ctx.moveTo(-24, -12);
-    ctx.lineTo(24, -12);
-    ctx.lineTo(0, 44);
-    ctx.closePath();
+    ctx.roundRect(-26, -2, 52, 76, 8);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#f7f3ea';
     ctx.font = '900 8px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SOFT', 0, 2);
-    ctx.fillText('PUNK', 0, 12);
+    ctx.fillText('SOFT', 0, 26);
+    ctx.fillText('PUNK', 0, 36);
     ctx.fillStyle = '#6a7a56';
     for (const y of [40, 60, 80]) {
       ctx.beginPath();
@@ -290,8 +287,10 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
   }
   ink(ctx, 2.5);
   ctx.fillStyle = blend(SKIN, FLUSH, heat * 0.6);
-  ctx.fillRect(-12, -22, 24, 14);
-  ctx.strokeRect(-12, -22, 24, 14);
+  ctx.beginPath();
+  ctx.roundRect(-12, -22, 24, r.kind === 'niece' ? 34 : 14, r.kind === 'niece' ? 7 : 0);
+  ctx.fill();
+  ctx.stroke();
 }
 
 function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, reduced: boolean): void {
@@ -305,10 +304,18 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
   ctx.rotate(bow * 0.3 * (r.kind === 'dad' ? 1 : -1));
   ink(ctx, 2.5);
   if (r.kind === 'niece') {
-    // Long dark hair behind the face.
+    // The bob frames the cheeks with separate ends and an open neckline.
     ctx.fillStyle = '#2a1a12';
     ctx.beginPath();
-    ctx.ellipse(0, 10, 52, 54, 0, 0, Math.PI * 2);
+    ctx.moveTo(-44, -30);
+    ctx.quadraticCurveTo(-59, -5, -50, 32);
+    ctx.quadraticCurveTo(-45, 37, -37, 31);
+    ctx.quadraticCurveTo(-42, 10, -34, -18);
+    ctx.quadraticCurveTo(0, -35, 36, -18);
+    ctx.quadraticCurveTo(42, 10, 38, 31);
+    ctx.quadraticCurveTo(47, 38, 53, 30);
+    ctx.quadraticCurveTo(59, -2, 44, -30);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
   }
@@ -565,7 +572,23 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
   ctx.save();
   ctx.translate(GRAN.x, GRAN.y);
   ink(ctx, 2.5);
-  // The chair: a seat and a back behind her.
+  // The chair's legs reach the floor behind the table's left edge.
+  ctx.fillStyle = 'rgba(42, 30, 20, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(-5, 60, 42, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#2a2a30';
+  for (const x of [-30, 16]) {
+    ctx.beginPath();
+    ctx.roundRect(x, 6, 8, 54, 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.roundRect(-26, 36, 46, 6, 2);
+  ctx.fill();
+  ctx.stroke();
+  // The seat and back stay planted while she stands for grace.
   ctx.fillStyle = '#2a2a30';
   ctx.beginPath();
   ctx.roundRect(-34, -110, 10, 112, 4);
@@ -961,4 +984,3 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   ctx.globalAlpha = 1;
   ctx.restore();
 }
-
