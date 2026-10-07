@@ -1,5 +1,5 @@
 {
-  "$comment": "Thirty distinct 150-second instrumental scores use ElevenLabs Music only. Masters remain in cache; the generator embeds full-length mono Opus at 8 kbps to meet the platform 256 KiB clips.json bound, preserving existing effects. Music refusals never fall back to the sound-effects model.",
+  "$comment": "Distinct 150-second instrumental score prompts use ElevenLabs Music only. Hello World ships with procedural sound; its recording is optional. Masters remain in cache; the generator embeds full-length mono Opus at 8 kbps to meet the platform 256 KiB clips.json bound, preserving existing effects. Music refusals never fall back to the sound-effects model.",
   "defaults": {
     "music": {
       "via": "music",
@@ -12,6 +12,11 @@
     }
   },
   "games": {
+    "hello-world": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A minimal friendly chiptune for a Hello World starter game: a gentle square-wave motif at 100 BPM, warm triangle bass and sparse soft percussion. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony, simplify the texture while keeping the pulse, rebuild with a new melodic variation, and finish with a gentle return toward the opening. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
     "balloon-pump": {
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Playful anxious 8-bit chiptune at 150 BPM: springy square-wave melody, bubbly arpeggios, balloon-like pitch bends, rubbery bass and crisp noise-channel drums."

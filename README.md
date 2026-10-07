@@ -1,21 +1,66 @@
 # Crashwif Games
 
-Working game references and ideas for creators building beyond the graph. [**Game Lab**](https://devnet.crashwif.com/game-lab) in the Crashwif lobby is the companion gallery.
+Build a game from the [Hello World template](games/hello-world), or study the playable references below. [Game Lab](https://devnet.crashwif.com/game-lab) in the Crashwif lobby is the companion gallery.
 
-## Run Balloon Pump
+Game code controls presentation and sends player intents; the backend supplies the committed round outcome. Credits have no monetary value.
 
-Use Node 24.11 or later within 24.x, and npm 11. CI uses the version in `.nvmrc` (`nvm install` reads it):
+## Start with Hello World
+
+Use the Node 24 version pinned in [`.nvmrc`](.nvmrc) and npm 11. If you use nvm, run `nvm install` and `nvm use` after cloning.
 
 ```sh
 git clone https://github.com/Crashwif/game-lab.git
 cd game-lab
 npm ci --include=dev --bin-links=true
-npm run preview -- balloon-pump
+npm run preview -- hello-world
 ```
 
-The selected-game preview builds only Balloon Pump, serves its media from a private temporary directory, and prints its recorded-preview URL. Replace `balloon-pump` with a game or imported remix listed in `scripts/games.mjs`. Stop and restart the preview to include edits.
+The preview builds only Hello World and the shared packages, starts the local emulator, and prints the recorded-preview URL:
 
-Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` prints a live and a `?mode=replay` URL for every game. The local emulator supplies valueless credits and verified rounds. Join a round and cash out before the balloon bursts, with the buttons or Space. The `?mode=replay` URL plays the included recorded example without betting. Every game has a Sound button: a custom 150-second ElevenLabs score and game effects are off until you turn them on, and the choice is remembered.
+- [Recorded preview](http://127.0.0.1:4500/bundle/hello-world/index.html?mode=replay): watch the verified example and use **Restart replay** to play it again. Betting is hidden.
+- [Live play](http://127.0.0.1:4500/bundle/hello-world/index.html): **Join round** during betting, then **Cash out** while running. Space performs the available action unless another control has focus.
+
+Change `GREETING` or `COLOURS` in [`games/hello-world/scene.ts`](games/hello-world/scene.ts) for your first edit. The template draws a greeting, a multiplier and a circle; joining, confirmed cash-outs, replay and optional sound already work. No artwork or API keys are needed. **Sound** cycles off, on and effects only, and remembers your choice.
+
+Stop and restart the preview after edits; it does not reload changes automatically. To explore another reference, replace `hello-world` with a slug from [`scripts/games.mjs`](scripts/games.mjs). `npm run dev` builds the entire catalog and prints each game's live and replay URLs. Both commands use port 4500, so stop one before starting the other.
+
+Keep Windows checkouts outside OneDrive. Stop preview/dev processes before reinstalling dependencies and resolve installation errors before building. TypeScript is installed locally with the development dependencies; no global install is needed.
+
+## Build your own
+
+Copy `games/hello-world/` to `games/<your-slug>/` and follow the [template's guide](games/hello-world/README.md#make-it-yours) to rename it, update its replay ID and register it in the catalog. Start with `scene.ts`; customize the page in `index.html` and the styles after `/* game */` in `style.css`. Keep `main.ts`, `audio.ts` and the shared CSS block in sync with [the page shell](#the-page-shell).
+
+Read the [integration guide](docs/integration.md) for embedded games, direct SDK clients, emulator setup and publishing. [Contributing](CONTRIBUTING.md) describes the source-pack rules, gallery metadata and [submitting a game from a fork](CONTRIBUTING.md#submit-a-game-from-a-fork).
+
+`npm run build` writes three publishable files per game to `dist/<slug>/`: `index.html`, `game.generated.js` and `style.css`. In Studio, choose **Your own renderer**, upload those three files and set the entry to `index.html`. For the unchanged template, use `dist/hello-world/`.
+
+Published frames have no network access. Embed runtime assets in the game's supported source files and use relative script and stylesheet paths. The selected-game preview can serve extra local media, but the build and gallery export do not copy arbitrary media files into the three-file bundle.
+
+## Validate your game
+
+Run these commands from the repository root. Build first because the workspaces import each other's compiled output.
+
+```sh
+npm run build
+npm run typecheck
+npm run check
+npm test
+```
+
+`npm run check` reports all gallery-contract problems together: game registration and README order, metadata, source-pack size and imports, browser remix budgets, verified replays and game-label rules. `npm test` includes those checks, shared-shell consistency, gallery tooling and the SDK, crash-math and emulator tests.
+
+For browser checks, install Chromium once, then run:
+
+```sh
+npx playwright install chromium
+npm run test:browser
+```
+
+The browser suite covers catalog replay/crash/restart on a small screen, the shell's room-curve handling and audio playback. Also exercise live waiting, betting, normal play, instant crash, accepted cash-out, a disconnected host and reduced motion. The [integration guide](docs/integration.md#long-round-presentation) includes fixtures for reviewing long rounds and late entry.
+
+## Reference games
+
+The table follows the gallery order in `scripts/games.mjs`. Use these examples to study richer presentation after starting with Hello World; [the idea shelf](docs/concepts.md) also contains unfinished concepts.
 
 | Reference | What to study | Status |
 | --- | --- | --- |
@@ -49,90 +94,104 @@ Open **http://127.0.0.1:4500/bundle/balloon-pump/index.html**; `npm run dev` pri
 | [Up Only](games/up-only) | The lab's second skill game, one tap: a side-view flap against gravity between a support line and a resistance line, candles laid from a seeded generator with coins down their gaps, traps and power-ups in the open, a FUD cloud that closes in on every clip and strikes on the second, a copy-trading bot that flaps until the player does, a private jet on cash-out and a crash that flips every candle red and pulls the floor | Playable |
 | [Family Meeting](games/family-meeting) | A suburban kitchen at dinner: two parents facing the camera whose colour, brows, veins, steam and swelling follow the multiplier, a daughter seen from behind with rainbow hair who explains with her hands, a dialogue keyed to the curve, a cross that rattles on its nail, a kettle that joins in, a seeded double head burst that drops the cross in the casserole | Playable |
 | [Thanksgiving Uncle](games/thanksgiving-uncle) | The other side of the table: an uncle seen from behind whose theories deepen with the curve, a dad whose smile freezes wider and a niece whose eyes roll further, a smart speaker that mishears and orders, a sign that flips to zero, a dog revving the truck in the window, Grandma's grace on a cash-out, a seeded truck through the wall with the turkey on the hood | Playable |
+| [Hello World](games/hello-world) | A minimal creator template: a commented scene, a greeting, a multiplier and a circle, with the shared controls and replay already connected | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
-
-## Build your own
-
-Read the [integration guide](docs/integration.md) for embedded games, direct SDK clients, emulator setup, and publishing. [Contributing](CONTRIBUTING.md) describes the example layout and how to add a game.
-
-`npm run build` creates a self-contained bundle per game under `dist/`. Upload a game's three files through Studio with the custom renderer entry `index.html`. Assets and dependencies are bundled locally so the game's sandbox requires no network access.
-
-`npm test` (after `npm run build`) also checks the shells and the contract the gallery and remixes rely on: `scripts/games.mjs` lists every game directory once; each `gallery.json` and source pack passes the platform's rules; each game bundles, and its own files import only source pack files beside them, named as the platform's remix bundler resolves them, `@crashwif/game-sdk` and `@crashwif/crash-math`; each `replay.json` names its game and verifies; game labels do not pit an opponent against the player's personal funds; each game in `BROWSER_REMIX` fits the browser Studio's budget (below); and the reference table above lists the games in `scripts/games.mjs` order. `npm run check` lists every contract problem at once.
 
 ### Lightweight games for the browser Studio
 
-The platform's browser Studio sends a remix step's files to the model in full. Its input bound counts the UTF-8 bytes of the system prompt and every source file, `clips.json` by its clip names alone, plus 2,048. Every catalog origin must fit the platform's 330,000-token input limit with 15% headroom for edits; `npm run check` enforces this before export. Embedded artwork counts toward the bound, so keep runtime encodings compact and retain image masters separately.
+Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
 
-The lightweight references in `scripts/games.mjs`'s `BROWSER_REMIX` list also stay within a 120,000-token budget. Their shared `main.ts` and `audio.ts` take about 84 KB, leaving roughly 27 KB for a game's own files. Wen Moon, Bull Run and Pyramid Scheme use a scene, one part file, the motion toolkit and the page. `npm test` enforces both budgets, and `npm run check` reports every game's bound with headroom.
+These are conservative input bounds calculated from UTF-8 source bytes, the system prompt and an allowance; `clips.json` counts by clip names rather than embedded audio. Artwork embedded in source does count. Run `npm run check` for the current totals instead of estimating from file count. See [`scripts/gallery/check.mjs`](scripts/gallery/check.mjs) for the calculation and [`CONTRIBUTING.md`](CONTRIBUTING.md) for source-pack limits.
 
 ## The page shell
 
-Every game's `main.ts` is the same file: the page shell. It connects to the room, or plays the recorded round, keeps the view the game's `scene.ts` draws from, and runs the controls. Every game's `audio.ts` is the same file too: the page's sound, which the game's scene flavours. Every `style.css` starts with the shell's block too; a game's own tokens and rules follow its `/* game */` line. The canonical copies are in `scripts/shell/`. Edit them there and run `npm run shell -- --write` to copy them into every game. `npm test` fails when a copy drifts or an `index.html` lacks an element the shell or the audio drives. The shell is copied rather than imported because a source pack holds only the game's own directory.
+Every game's `main.ts` and `audio.ts` are copies of the canonical files in [`scripts/shell/`](scripts/shell/). Each `style.css` starts with the canonical CSS block; game-specific rules follow `/* game */`. Copies keep a game's source pack self-contained. Make shared changes under `scripts/shell/`, then run `npm run shell -- --write`. `npm test` detects drift and missing HTML elements.
 
-The shell:
+The shell connects to the local emulator or the platform's embedded bridge, drives `scene.ts` from room state, and handles controls, status, notices, resizing and replay. It stops offering cash-out after two seconds without a server frame. Embedded games hide Join because the host owns betting, keep Cash out, and report their height to the host. Replay uses the frame clock and pauses while the picture is hidden. See [embedded mode](docs/integration.md#embedded-mode) for the host contract.
 
-- writes the status line in plain words: the betting window, your bet, a bet queued because the round is full, your cash-out and payout, the crash result, a lost connection and an ended session;
-- shows a readout under it: the seconds left to join, what cashing out is worth now, the credits left (standalone only) and the Space hint;
-- makes Space join during betting and cash out while a round runs, unless another control has focus;
-- shows a room error or a refusal as a notice, and stops offering Cash out when no server frame has arrived for 2 s;
-- framed by the platform, hides Join, keeps Cash out and reports the page's height so the host can size the frame (see [embedded mode](docs/integration.md#embedded-mode));
-- in replay mode, plays `replay.json` by the frame clock, so slow frames and a hidden tab never make the recording drift.
+A scene calls `pageAudio({ style, crash })` from `./audio`, then `update(phase, tension)` each frame and cues such as `cashout()`, `crash()` and `fx(name)` when appropriate. [`audio.ts`](scripts/shell/audio.ts) lists the available styles, effects and options. The helper owns the Sound button and page lifecycle, and goes quiet while the page or picture is hidden.
 
-The audio (`audio.ts`) combines embedded recordings with procedural Web Audio; bundles stay self-contained and source packs stay text. A scene calls `pageAudio({ style, crash })` once, with a genre from fifteen presets (phonk, chiptune, eurodance, trap, lofi, techno, synthwave, dnb, hardstyle, elevator, casino, ambient, military, club, hospital) and the stinger its crash makes, then feeds it the round each frame (`update(phase, tension)`) and its own cues (`fx(name)`, `milestone(index)`, `cashout()`, `crash()`). The procedural fallback is a step sequencer scheduled ahead of the audio clock: the tempo, the filter, the layers (hats, arpeggio, lead, a riser) and snare rolls follow the tension, betting plays a thinned beat, the first running frame drops, a cash-out ducks the music under a register and a fanfare, and the crash tape-stops it into the stinger. The Sound button cycles off, on and effects only, remembers the choice, and a remembered choice starts with the next click or key (the user activation autoplay rules want). It goes quiet while the page is hidden or the picture is scrolled out of view. A game with its own sounds (Boiler Room's hiss, chuff, ping and blast) builds them on the engine's context and bus, so one button governs everything.
-
-Recorded clips can stand in for any of it. Every game has a `clips.json` beside `audio.ts` (`{}` for none): clip names (`music`, `crash`, `cashout`, or any effect name such as `airhorn` or `scream`) to data URLs, which the engine decodes when sound is turned on and plays instead of the synthesised music loop, stinger, register or effect; full-length music plays at its authored speed and restarts when a round starts running, so its 150 seconds are not consumed by the betting window. Recordings become active as soon as decoding finishes, retain their mastered timbre, and repeat only after the complete track; legacy short loops can still hurry up to a tenth at the top. `pageAudio({ clips })` overrides the file. Base64 keeps the pack text-only, as the platform needs. Full-length scores are embedded as mono Opus at 8 kb/s (about 204 KiB of base64 for 150 seconds), leaving room for effects inside the platform's 256 KiB per source-file limit. This is a compact preview encoding; the higher-quality MP3 masters remain in `scripts/audio/cache/<slug>/music.mp3`.
+Every game has a `clips.json`: `{}` uses procedural sound, as Hello World does. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
 
 ### Generating clips with ElevenLabs
 
-`scripts/audio/prompts.json` holds a distinct 150-second instrumental score for every playable game, with six evolving musical sections, plus existing crash, cash-out and signature-effect prompts. `npm run audio` writes selected recordings into each game’s `clips.json`, preserving the other clips:
+Audio generation is optional. [`scripts/audio/prompts.json`](scripts/audio/prompts.json) contains the requests; Hello World's music prompt is ready to use, but the template ships without a recording. Supply `ELEVENLABS_API_KEY` through your environment only. Music packing also needs FFmpeg with libopus on PATH, or `FFMPEG_PATH` pointing to it.
 
 ```sh
-ELEVENLABS_API_KEY=… npm run audio -- --clip music          # all 30 complete scores
-npm run audio -- --game gas-fees --clip crash               # one clip
-npm run audio -- --dry-run                                  # print the requests, call nothing
-npm run audio -- --clip music --cached-only                  # rebuild from matching masters, no API calls
-node scripts/audio/verify.mjs                               # decode every score and check duration/content
-node scripts/audio/verify.mjs --report scripts/audio/generation-status.json # refresh the per-game audit
+# Inspect the template's request without calling the API or writing files.
+npm run audio -- --game hello-world --clip music --dry-run
+
+# Generate the selected recording; requires ELEVENLABS_API_KEY in the environment.
+npm run audio -- --game hello-world --clip music
+
+# Verify recordings that already have cached Music masters.
+node scripts/audio/verify.mjs --available
 ```
 
-Music goes only to ElevenLabs Music (`/v1/music`, instrumental, `music_length_ms: 150000`); effects go to Sound Effects (`/v1/sound-generation`). A refused music request fails clearly and preserves existing audio. It never substitutes a short effects loop. Raw audio and request metadata are kept under `scripts/audio/cache/`, keyed by the request and committed with the `clips.json` they produced; matching cached masters need no API key or repeated generation charge. `--force` regenerates. Packing requires FFmpeg with libopus on PATH, or `FFMPEG_PATH` set to its executable. The script checks the master’s duration before embedding the entire recording, uses no time stretching or repetition to fill it, and refuses a `clips.json` over 256 KiB. The key lives in the environment, never in the repository, and commercial use of the audio needs a paid ElevenLabs plan. Crashwif's Game Studio desktop runs this script for the selected game with a key pasted for that run, and imports a `clips.json` made in the browser Studio. Listen before committing: open the game with `npm run dev`, turn the sound on, and replace any clip whose prompt missed by editing the manifest and running that one clip again.
+Music uses ElevenLabs Music, with 150 seconds by default; effects use Sound Effects. A refused music request fails without substituting an effects loop. The generator preserves other clips, keeps masters and request metadata under `scripts/audio/cache/<slug>/`, and reuses matching masters. `--cached-only` requires an existing matching master and makes no API calls; `--force` regenerates. Omitting `--game` selects the whole prompt catalog.
+
+Complete music is packed as mono Opus at 8 kb/s. `clips.json` must fit the 256 KiB source-file limit; higher-quality MP3 masters stay in the cache. The verifier's `--available` flag skips games without generated masters, including the unmodified template. Add `--report scripts/audio/generation-status.json` to refresh the audio audit. Preview and listen after changing recordings.
 
 ## Game Lab deploy
 
-Every playable reference carries a `games/<slug>/gallery.json` with the copy the gallery shows: `name`, a one-line `hook` for the page intro, a `tagline`, three `tags`, the `renderer`, `interactive` (`true` for a skill game the player steers, which the gallery badges and filters on), the `licence` under which the platform offers it as a remix origin (`open` for the platform's own games, which earn no royalty; `derivatives-royalty` with `royaltyBps` for a contributed game whose author should), and `poster.seconds` (at most 120), the moment after page load at which its poster is captured from replay mode. [Contributing](CONTRIBUTING.md#galleryjson) has the exact rules, and `npm test` checks them. The list and order come from `scripts/games.mjs`, which the build, the dev server, the checks and the export share.
+This section is for gallery maintainers. Creators can publish their own renderer through Studio or [submit a game from a fork](CONTRIBUTING.md#submit-a-game-from-a-fork).
 
-`npm run gallery:export` builds the export the platform serves: `gallery-out/<short-commit>/<slug>/` with the three bundle files and `poster.png`, `gallery-out/sources/<slug>.json` with the game's own source files, `manifest.json` for the Game Lab page, and `SOURCE.json` with the source commit, each game's poster moment and a SHA-256 per file. A **source pack** holds the game's own `.ts`, `.json`, `.html` and `.css` files, except `gallery.json` (and the README, which is not source). The export reads the packs and each `gallery.json` from the commit, not the working tree, so untracked files and uncommitted edits never reach a pack; the bundles and posters come from `dist/`. Pass `--sources worktree --commit <full SHA>` for a copy without `.git`. The platform's Studio starts a remix from a source pack: a creator describes a change, a model edits the files, the platform bundles them against its own SDK and crash maths, and the result publishes as a derivative whose lineage points back at the game here.
+Each game's `gallery.json` supplies the gallery copy, three tags, renderer, remix licence and poster time; `interactive: true` marks a game the player steers. [Contributing](CONTRIBUTING.md#galleryjson) defines the fields. The catalog order comes from `scripts/games.mjs`.
 
-Posters need Playwright's Chromium: Playwright is a dev dependency, so after `npm ci` run `npx playwright install chromium` (CI adds `--with-deps` for the system libraries). A game whose page throws or logs an error while it plays, or whose poster is a single colour, fails the export. `--skip-posters` leaves posters out, keeping any already exported for the same commit.
+### Export locally
 
-`node scripts/gallery/export.mjs --cache .game-lab-cache --plan` reports which games need builds and poster captures. Without `--plan`, the command builds those games and writes a complete export, reusing verified bundles and posters for the rest. It requires a clean checkout of the selected commit and reads source packs from git. When builds are needed, install dependencies and build `@crashwif/crash-math` then `@crashwif/game-sdk` first; when captures are needed, install Playwright's Chromium too. The default export without `--cache` reads a finished `dist/` build as above.
+Use a clean checkout of the commit being exported, with dependencies installed. The default exporter reads an existing `dist/` build; it does not build games itself:
 
-Each cached bundle is keyed by the game's source-pack contents, shared repository inputs, Node version, operating system, architecture and capture environment. Shared SDK, dependency-lock, build, exporter and workflow changes invalidate all games; unknown shared files do too. Game additions build only the added games. README edits, catalog order and gallery copy do not invalidate runtime assets, while a changed `poster.seconds` recaptures that game's poster. Every cached output is hash-checked before reuse; missing or corrupt entries are rebuilt. Cache loss is a full export. Removed games are absent from the current manifest and source packs. Every export records the selected source commit and complete file hashes, including reused assets.
+```sh
+npm run build
+npx playwright install chromium
+npm run gallery:export
+```
 
-`node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform checkout>` applies an export to the platform repository. It checks the whole export before it changes anything, and refuses an export without a poster for every game unless you pass `--allow-missing-posters`. A game whose bundle files and poster moment match the previous release reuses that release's poster, so an unchanged game adds nothing new to the platform's history. Earlier versioned asset directories stay so pages opened before a gallery release can still load their previews: every release that was live within the last 7 days (`--keep-days`), never fewer than the last 3 to go live (`--keep-min`), and always the new release and the one it replaces. `apps/web/public/assets/game-lab/releases.json` there lists them, and other release directories are deleted. The first sync with no `releases.json` lists every release directory already there and deletes none, and re-syncing the live release leaves the list unchanged. The page manifest, `SOURCE.json`, remix catalog and origin sources describe the active release.
+The export writes versioned bundles and posters to `gallery-out/<short-commit>/<slug>/`, source packs to `gallery-out/sources/<slug>.json`, and catalog/provenance records to `manifest.json` and `SOURCE.json` under `gallery-out/`. Source packs contain the game's own flat `.ts`, `.json`, `.html` and `.css` files except `gallery.json`; READMEs and arbitrary media are excluded.
 
-The **Deploy Game Lab** workflow (`.github/workflows/game-lab-deploy.yml`) runs those steps after CI passes on `main` (a push, or a CI run started on `main` by hand or by the merge workflow below), or on a manual run from `main`, which may name an earlier `main` commit that passed CI to roll back to. Pull request runs, forks included, never start it. It has two jobs:
+By default, source packs and gallery metadata come from the selected git commit (`HEAD` unless `--commit` is supplied), while bundles come from `dist/`. Build from the same commit so they agree. For a source export without `.git`, pass `--sources worktree --commit <full SHA>` using the commit the copy came from. Posters are captured from verified replay mode at `poster.seconds`; browser errors and single-colour posters fail the export.
 
-- `export` restores the game-output cache, plans the affected games, builds and captures only those games, and uploads the complete export as an artifact. With every bundle and poster cached, it skips dependency, font and browser installation. It saves the cache only after a successful export. The first run, cache loss or shared-input changes build and capture every game. A rollback uses the selected commit's exporter; commits without incremental export support build in full. It holds no secrets and can only read this repository.
-- `publish` applies the artifact to a fresh checkout of the platform repository with `sync-platform.mjs` from the workflow's own commit on `main`. It opens a pull request there with the new bundles, posters, `SOURCE.json`, manifest and source packs (`packages/game-lab` there), or reuses the open one for the same commit. It waits for the platform's checks on the pushed commit, merges it and closes the `game-lab/<short commit>` pull requests it supersedes. The platform's Railway workflow then deploys `main`. `publish` installs no packages and runs no code from the build, and only its last step sees the token.
+For incremental export, first plan the work:
 
-A creator submits a game from a fork as a pull request ([Contributing](CONTRIBUTING.md#submit-a-game-from-a-fork)). CI's **contribution** job sorts what the pull request changes into the game, the game list and docs, and platform files. Once CI passes and a maintainer (write, maintain or admin permission here) approves the head commit, the **Merge approved games** workflow (`.github/workflows/game-lab-merge.yml`) merges it, makes sure CI runs on the merge commit, and Deploy Game Lab follows. It merges a pull request from a fork only when it changes game files alone; one that touches the shell, the build, the checks, the workflows or the packages is merged by hand after review, and `.github/CODEOWNERS` names who reviews those. [Repository settings](CONTRIBUTING.md#repository-settings) lists the branch protection and Actions settings that go with it.
+```sh
+node scripts/gallery/export.mjs --cache .game-lab-cache --plan
+```
 
-It needs the repository secret `GAME_LAB_PLATFORM_TOKEN`: a fine-grained personal access token (resource owner Crashwif) or a GitHub App, limited to the platform repository, with Contents read and write, Pull requests read and write, Checks read, Commit statuses read, Actions read and Metadata read, and nothing else. An App's installation token lasts an hour, so it would be minted per run rather than stored. Never use a personal gh CLI token (`gh auth token`) or a classic PAT: those reach every repository their owner can. The optional variable `GAME_LAB_PLATFORM_REPOSITORY` names the platform repository (default `Crashwif/crashwif`). Without the secret the publish job skips with a notice.
+This requires a clean checkout of the selected commit. If the plan needs builds, install dependencies and build `@crashwif/crash-math` then `@crashwif/game-sdk`; if it needs captures, install Playwright's Chromium too. Run the same command without `--plan` to build missing or changed games and write a complete export using verified cached outputs for the rest. Shared build inputs invalidate the cache; README changes and gallery copy do not. A poster-time change recaptures only that poster. Missing or corrupt outputs are rebuilt.
+
+The non-cached exporter accepts `--skip-posters`, preserving posters already exported for that commit and reporting missing ones. It cannot be combined with `--cache`. Platform sync requires every poster unless `--allow-missing-posters` is explicitly passed.
+
+[`scripts/gallery/sync-platform.mjs`](scripts/gallery/sync-platform.mjs) applies a checked export to a platform checkout:
+
+```sh
+node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform-checkout>
+```
+
+It reuses unchanged posters and retains releases for open previews: by default, releases live within the last seven days, at least the last three releases, and the active and immediately previous releases. `--keep-days` and `--keep-min` adjust retention.
+
+### Automated publishing
+
+The [Deploy Game Lab workflow](.github/workflows/game-lab-deploy.yml) follows successful CI on `main`, or a manual run from `main` selecting a commit on `main` that passed CI. Pull-request CI does not deploy.
+
+- `export` plans, builds and captures affected games, reuses verified cached outputs, and uploads the complete export. It has read access to this repository and no platform token.
+- `publish` applies the artifact using the workflow's trusted sync script, opens or reuses a platform pull request, waits for its checks, then merges it. The platform's Railway workflow handles deployment. The platform token is used only in this job, including its configuration check, platform checkout and push/PR step.
+
+Publishing requires the `GAME_LAB_PLATFORM_TOKEN` repository secret: a token scoped to the platform repository with Contents and Pull requests read/write, and Checks, Commit statuses, Actions and Metadata read. Use a fine-grained token or mint a scoped GitHub App installation token for the run; do not copy a broad personal gh CLI token or classic PAT. `GAME_LAB_PLATFORM_REPOSITORY` optionally selects the target repository (default `Crashwif/crashwif`). Without the secret, publishing skips with a notice.
+
+The [Merge approved games workflow](.github/workflows/game-lab-merge.yml) can merge eligible game contributions after CI and a maintainer's approval of the current head commit. Changes to platform files require manual review and merging. See [Contributing](CONTRIBUTING.md#submit-a-game-from-a-fork) and [repository settings](CONTRIBUTING.md#repository-settings) for the exact scope and setup.
 
 ## Repository boundaries
 
 - `games/`: game presentation and interactions. Games never select crash points.
-- `packages/game-sdk/`: the shared client, protocol, embedded bridge and replay support.
-- `packages/crash-math/`: the SDK's verification dependency; the platform's outcome implementation.
-- `apps/emulator/`: the local development server. Its development controls are not production endpoints.
-- `scripts/`: the game list, the page shell, the build, the dev server, the checks and the gallery export.
+- `packages/game-sdk/`: shared client, protocol, embedded bridge and replay support.
+- `packages/crash-math/`: verification dependency and outcome implementation.
+- `apps/emulator/`: local development server; its development controls are not production endpoints.
+- `scripts/`: catalog, shared shell, build, preview, checks, audio generation and gallery export.
 - `docs/`: integration and design references.
 
-The SDK, maths and emulator are pinned source snapshots from the platform. [UPSTREAM.json](UPSTREAM.json) records the commit and paths. Changes to those packages belong in the platform repository, then are synchronized here. Games develop here independently. The gallery serves a checked-in build of each recorded example, refreshed by the Deploy Game Lab workflow, and links to its source.
-
-Credits have no monetary value. The real backend supplies the committed round; game code controls only its presentation and sends player intents.
+The SDK, crash maths and emulator are pinned platform snapshots recorded in [UPSTREAM.json](UPSTREAM.json). Changes to them originate in the platform repository and are synchronized here; games develop here independently.
 
 ## Coding assistants
 
-[AGENTS.md](AGENTS.md) gives Codex and other coding agents the remix boundaries and validation commands. `CLAUDE.md` imports those instructions for Claude Code. Keep the clone in a local folder outside OneDrive on Windows; file locks during `npm ci` can leave local build tools unavailable. Resolve installation errors before running the build.
+[AGENTS.md](AGENTS.md) gives coding assistants the remix boundaries and validation commands; [CLAUDE.md](CLAUDE.md) imports those instructions for Claude Code.
