@@ -120,11 +120,11 @@ Published games use full character and environment animation. The shell calls `c
 
 A scene calls `pageAudio({ style, crash })` from `./audio`, then `update(phase, tension)` each frame and cues such as `cashout()`, `crash()` and `fx(name)` when appropriate. [`audio.ts`](scripts/shell/audio.ts) lists the available styles, effects and options. The helper owns the Sound button and page lifecycle, and goes quiet while the page or picture is hidden.
 
-Every game has a `clips.json`: `{}` uses procedural sound, as Hello World does. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
+Every game has a `clips.json`: `{}` uses procedural sound, as Hello World, Rage Quit, Beyond the Colony and MUMU Bull Run do. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
 
 ### Generating clips with ElevenLabs
 
-Audio generation is optional. [`scripts/audio/prompts.json`](scripts/audio/prompts.json) contains the requests; Hello World's music prompt is ready to use, but the template ships without a recording. Supply `ELEVENLABS_API_KEY` through your environment only. Music packing also needs FFmpeg with libopus on PATH, or `FFMPEG_PATH` pointing to it.
+Audio generation is optional. [`scripts/audio/prompts.json`](scripts/audio/prompts.json) contains a music request for every game; games with procedural sound ship without a recording. Supply `ELEVENLABS_API_KEY` through your environment only. Music packing also needs FFmpeg with libopus on PATH, or `FFMPEG_PATH` pointing to it.
 
 ```sh
 # Inspect the template's request without calling the API or writing files.

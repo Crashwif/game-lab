@@ -660,6 +660,21 @@
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Lavish comic sales-convention lounge at 114 BPM: piano, muted brass, plucked bass, crisp swing drums, climbing chord inversions and sly musical winks."
       }
+    },
+    "rage-quit": {
+      "music": {
+        "prompt": "Furious absurdist office hardstyle at 150 BPM: distorted rubbery kicks, clattering keyboard percussion, a twitchy minor-key synth riff and sarcastically cheerful corporate elevator chords. The escalating arrangement follows a fictional office worker fighting intrusive software, scam gurus and his own rage. Compose one complete original instrumental game score lasting exactly 150 seconds. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony and percussion, simplify the texture while keeping the pulse, rebuild with a fresh lead variation, then return toward the opening for a seamless repeat after the full track. Leave room for game effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "beyond-the-colony": {
+      "music": {
+        "prompt": "Existential Antarctic adventure drum-and-bass at 170 BPM: crisp rolling breaks, warm sub-bass, luminous icy pads, a determined scarfed-penguin melody and absurdly pompous office brass flourishes. Build wonder and defiance as a tiny explorer dodges compliance drones, seal managers and cosmic bureaucracy. Compose one complete original instrumental game score lasting exactly 150 seconds. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony and percussion, simplify the texture while keeping the pulse, rebuild with a fresh lead variation, then return toward the opening for a seamless repeat after the full track. Leave room for game effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "mumu-bull-run": {
+      "music": {
+        "prompt": "Satirical white-bull arena phonk at 140 BPM: gritty cowbell syncopation, deep sliding bass, stomping drums, brash synth fanfares and playful bear-podcast hold-music motifs. Energetic physical comedy drives galloping approaches, FUD-stall confrontations and absurd trading-guru encounters. Compose one complete original instrumental game score lasting exactly 150 seconds. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony and percussion, simplify the texture while keeping the pulse, rebuild with a fresh lead variation, then return toward the opening for a seamless repeat after the full track. Leave room for game effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
     }
   }
 }
