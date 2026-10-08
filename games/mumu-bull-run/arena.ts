@@ -3,7 +3,8 @@ import { floorAt, type Routine } from './motion';
 import { bear } from './rig';
 
 const SPONSORS = ['TRUST ME BRO RESEARCH', 'BEARS HAVE A PODCAST NOW', 'MY THESIS IS STILL VALID', 'COPIUM IS A LIFESTYLE', 'ALL OPINIONS. NO REFUNDS.'];
-export function arena(c: CanvasRenderingContext2D, time: number, lap: number, reduced: boolean): void {
+/** `roar` lifts the crowd to its feet after each contact; the big board keeps the running score. */
+export function arena(c: CanvasRenderingContext2D, time: number, lap: number, reduced: boolean, roar = 0, sign = 'MUMU BULL RUN'): void {
   const gradient = c.createLinearGradient(0, 0, 0, 540);
   gradient.addColorStop(0, '#11291f'); gradient.addColorStop(0.58, '#306b48'); gradient.addColorStop(1, '#b2ad64');
   c.fillStyle = gradient; c.fillRect(-15, -15, 990, 570);
@@ -20,8 +21,8 @@ export function arena(c: CanvasRenderingContext2D, time: number, lap: number, re
     const y = 160 + row * 43;
     for (let i = 0; i < 29; i += 1) {
       const x = i * 36 + row * 14 - 36;
-      const cheer = reduced ? (i % 3 === 0 ? 1 : 0) : (0.5 + 0.5 * Math.sin(time * (2.6 + i % 3 * 0.4) + i * 1.4));
-      const cy = y + Math.abs(i - 14) * 1.5 - cheer * 7;
+      const cheer = reduced ? (i % 3 === 0 ? 1 : 0) : clamp(0.5 + 0.5 * Math.sin(time * (2.6 + i % 3 * 0.4) + i * 1.4) + roar * 0.8);
+      const cy = y + Math.abs(i - 14) * 1.5 - cheer * 7 - roar * (8 + i % 3 * 5);
       const skin = [CREAM, '#bb945f', '#84b383', '#ad9abb'][i % 4]!;
       line(c, [[x - 7, cy + 18], [x - 15, cy + 10 - cheer * 16], [x - 19, cy + 3 - cheer * 23]], skin, 4);
       line(c, [[x + 7, cy + 17], [x + 16, cy + 9 - cheer * 14], [x + 21, cy + 3 - cheer * 23]], skin, 4);
@@ -33,7 +34,7 @@ export function arena(c: CanvasRenderingContext2D, time: number, lap: number, re
   }
   c.save(); c.translate(490, 133); c.rotate(-0.012);
   box(c, -286, -46, 572, 76, '#072619', 9, 5);
-  text(c, 'MUMU BULL RUN', 0, -9, 51, '#91ed8f', 'center', 543);
+  text(c, sign, 0, -9, 51, '#91ed8f', 'center', 543);
   c.restore();
   const banner = SPONSORS[Math.floor(time / 6.8 + lap) % SPONSORS.length]!;
   box(c, 34, 279, 892, 43, '#d9c982', 4, 4);

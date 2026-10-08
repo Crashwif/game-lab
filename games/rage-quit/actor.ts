@@ -1,11 +1,11 @@
-import { type Act, type ActorPose, type ActingInput, type Point, limb } from './acting';
+import { type Act, type ActorPose, type ActingInput, type HandStyle, type Point, limb } from './acting';
 import { box, clamp, GOLD, GREEN, INK, label, line, mug, PAPER, RED, shape } from './ink';
 
 const SKIN = '#fff4d9';
 const SHADOW = '#d5b391';
 const stroke = (c: CanvasRenderingContext2D, a: Point, b: Point, width: number, color: string) => line(c, [[a.x, a.y], [b.x, b.y]], color, width);
 
-function arm(c: CanvasRenderingContext2D, root: Point, target: Point, pole: number, front: boolean): Point {
+function arm(c: CanvasRenderingContext2D, root: Point, target: Point, pole: number, front: boolean): { elbow: Point; end: Point } {
   const solved = limb(root, target, 112, 111, pole);
   const width = front ? 23 : 19;
   stroke(c, root, solved.elbow, width + 6, INK);
@@ -16,20 +16,37 @@ function arm(c: CanvasRenderingContext2D, root: Point, target: Point, pole: numb
   stroke(c, root, sleeve, width + 11, INK);
   stroke(c, root, sleeve, width + 5, RED);
   line(c, [[solved.elbow.x - 7, solved.elbow.y + 4], [solved.elbow.x + 4, solved.elbow.y + 8]], '#a8755b', 2);
-  return solved.end;
+  return solved;
 }
 
-function hand(c: CanvasRenderingContext2D, p: Point, angle: number, rude = false): void {
-  c.save(); c.translate(p.x, p.y); c.rotate(angle);
-  shape(c, [[-14, -9], [-4, -15], [11, -13], [17, -6], [17, 11], [-11, 13]], SKIN, 3);
-  for (let i = 0; i < 3; i += 1) line(c, [[-5 + i * 6, -9], [-4 + i * 6, 2]], '#986f57', 2);
-  if (rude) {
-    line(c, [[2, -6], [2, -49]], INK, 13);
-    line(c, [[2, -6], [2, -49]], SKIN, 8);
-    line(c, [[-2, -35], [5, -35]], '#986f57', 1.5);
+/** The far arm's elbow hangs while its hand is low and swings back over the shoulder as the fist rises. */
+const backPole = (root: Point, target: Point): number => 1 - 2 * clamp((root.y - target.y - 10) / 70);
+/** A hand lies flat at the desk and turns with its forearm as it lifts, so a raised fist points where it swings. */
+function handAngle(elbow: Point, end: Point, flat: number): number {
+  const along = Math.atan2(end.y - elbow.y, end.x - elbow.x);
+  return flat + (along - flat) * clamp((396 - end.y) / 70);
+}
+
+function hand(c: CanvasRenderingContext2D, p: Point, angle: number, style: HandStyle, squash = 0): void {
+  c.save(); c.translate(p.x, p.y); c.rotate(angle); c.scale(1 + squash, 1 - squash);
+  if (style === 'fist') {
+    shape(c, [[-14, -10], [-2, -16], [12, -14], [18, -4], [15, 9], [2, 14], [-12, 11]], SKIN, 3);
+    for (let i = 0; i < 3; i += 1) line(c, [[-1 + i * 6, -13], [1 + i * 6, -6]], '#986f57', 2);
+    line(c, [[-7, 1], [3, 5]], '#986f57', 2);
+  } else {
+    shape(c, [[-14, -9], [-4, -15], [11, -13], [17, -6], [17, 11], [-11, 13]], SKIN, 3);
+    for (let i = 0; i < 3; i += 1) line(c, [[-5 + i * 6, -9], [-4 + i * 6, 2]], '#986f57', 2);
+    if (style === 'rude') {
+      line(c, [[2, -6], [2, -49]], INK, 13);
+      line(c, [[2, -6], [2, -49]], SKIN, 8);
+      line(c, [[-2, -35], [5, -35]], '#986f57', 1.5);
+    }
   }
   c.restore();
 }
+
+/** A striking fist flattens against the desk on the impact ring. */
+const strikeSquash = (act: Act, end: Point, style: HandStyle): number => style === 'fist' ? Math.max(0, act.impact) * 0.12 * clamp((end.y - 330) / 60) : 0;
 
 export function drawFace(c: CanvasRenderingContext2D, x: number, y: number, scale: number, angle: number, mouth: number, eye: number, heat: number, calm: boolean, time: number, squash = 0): void {
   c.save(); c.translate(x, y); c.rotate(angle); c.scale(scale * (1 + squash), scale * (1 - squash));
@@ -112,7 +129,7 @@ export function drawActorBack(c: CanvasRenderingContext2D, p: ActorPose, input: 
     line(c, [[leg.end.x - 13, leg.end.y + 12], [leg.end.x + 31, leg.end.y + 12]], RED, 4);
   }
   const leftRoot = { x: p.shoulder.x - 28, y: p.shoulder.y + 5 };
-  arm(c, leftRoot, p.leftHand, -1, false);
+  const left = arm(c, leftRoot, p.leftHand, backPole(leftRoot, p.leftHand), false);
   stroke(c, p.hip, p.shoulder, 95, INK);
   stroke(c, p.hip, p.shoulder, 85, RED);
   c.save(); c.translate((p.hip.x + p.shoulder.x) / 2, (p.hip.y + p.shoulder.y) / 2);
@@ -121,14 +138,16 @@ export function drawActorBack(c: CanvasRenderingContext2D, p: ActorPose, input: 
   stroke(c, p.shoulder, { x: p.head.x, y: p.head.y + 43 }, 37, INK);
   stroke(c, p.shoulder, { x: p.head.x, y: p.head.y + 43 }, 27, SKIN);
   drawFace(c, p.head.x, p.head.y, 1.2, p.headAngle, p.mouth, p.eye, input.heat, p.calm, input.reduced ? 0 : act.clock, p.headSquash);
-  const l = limb(leftRoot, p.leftHand, 112, 111, -1).end;
-  hand(c, l, -0.1, p.rude);
+  const angle = p.leftStyle === 'fist' ? handAngle(left.elbow, left.end, -0.1) : -0.1;
+  hand(c, left.end, angle, p.leftStyle, strikeSquash(act, left.end, p.leftStyle));
 }
 
 export function drawActorFront(c: CanvasRenderingContext2D, p: ActorPose, input: ActingInput, act: Act): void {
   const root = { x: p.shoulder.x + 30, y: p.shoulder.y + 1 };
-  const h = arm(c, root, p.rightHand, 1, true);
-  hand(c, h, -0.2 + p.keyboardAngle);
+  const right = arm(c, root, p.rightHand, 1, true);
+  const h = right.end;
+  const angle = p.rightStyle === 'fist' ? handAngle(right.elbow, h, -0.2) : -0.2 + p.keyboardAngle;
+  hand(c, h, angle, p.rightStyle, strikeSquash(act, h, p.rightStyle));
   if (p.magnifier) {
     c.save(); c.translate(h.x, h.y); c.rotate(0.17);
     line(c, [[0, 0], [3, -36]], INK, 12); line(c, [[0, 0], [3, -36]], GOLD, 6);

@@ -1,8 +1,19 @@
-import { actAt, between, clamp, recoil, smooth, TAU, windowAt, type Act } from './motion';
+import { actAt, between, clamp, recoil, smooth, TAU, turn, windowAt, type Act } from './motion';
 import type { PenguinPose } from './penguin';
 
-export interface Performance { pose: PenguinPose; travel: number; sag: number; gale: number; landAge: number; act: Act }
+export interface Performance { pose: PenguinPose; travel: number; sag: number; gale: number; landAge: number; spray: number; act: Act }
+/** Follow-through comes from the pose a moment earlier: the head lags a fast body turn and the scarf streams with speed. */
 export function perform(seconds: number, active: boolean, idleTime: number, reduced: boolean): Performance {
+  const now = poseAt(seconds, active, idleTime, reduced);
+  if (reduced) return now;
+  const lag = .07;
+  const before = poseAt(Math.max(0, seconds - lag), active, idleTime - lag, reduced).pose;
+  const p = now.pose;
+  p.head -= clamp(turn(before.angle, p.angle) * 2.5, -.45, .45);
+  p.scarf = Math.max(p.scarf, clamp(Math.abs(p.x - before.x) / lag / 420, 0, 1.6));
+  return now;
+}
+function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boolean): Performance {
   const act = actAt(seconds);
   const a = act.age;
   // Each scene pauses for the confrontation, then the camera catches up during the recovery.
@@ -18,6 +29,7 @@ export function perform(seconds: number, active: boolean, idleTime: number, redu
   let landAge = -1;
   let sag = 0;
   let gale = .2;
+  let spray = 0;
   if (!active) {
     p.walk = false; p.gait = 0; p.mood = 'bored';
     p.angle = reduced ? -.05 : Math.sin(time * 1.8) * .065;
@@ -25,7 +37,7 @@ export function perform(seconds: number, active: boolean, idleTime: number, redu
     p.head = reduced ? -.3 : Math.sin(time * 1.1) * .8;
     p.look = reduced ? -1 : Math.sin(time * .8) > .2 ? -1 : 1;
     p.crouch = reduced ? .1 : .12 + Math.sin(time * 2) * .1;
-    return { pose: p, travel: 0, sag: 0, gale, landAge, act };
+    return { pose: p, travel: 0, sag: 0, gale, landAge, spray, act };
   }
   const leap = (start: number, end: number, height: number, forward: number, spin = 0): void => {
     if (a < start || a > end) return;
@@ -49,8 +61,9 @@ export function perform(seconds: number, active: boolean, idleTime: number, redu
       break;
     }
     case 1: {
+      // The body pivots about its centre, so the slide drops it until the belly meets the ice.
       const slide = windowAt(a, 1.4, 4.8, .7);
-      p.x += slide * 86; p.y += slide * 25; p.angle = slide * 1.42;
+      p.x += slide * 86; p.y += slide * 38; p.angle = slide * 1.5; spray = slide;
       p.walk = walk && slide < .15; p.airborne = slide > .3;
       p.arm = -.45 + slide * .7; p.head = -slide * 1.2;
       p.mood = slide > .4 ? 'panic' : 'defiant'; p.scarf = 1.5;
@@ -120,7 +133,7 @@ export function perform(seconds: number, active: boolean, idleTime: number, redu
     if (act.kind === 1) p.y += 15;
     p.crouch = act.kind === 6 ? .45 : 0; p.arm = act.kind === 5 ? 1.6 : .6; p.walk = false;
     p.airborne = false; p.stretch = 0; p.scale = 1.12; p.gait = 0; p.time = 0;
-    sag = 0; landAge = -1;
+    sag = 0; landAge = -1; spray = 0;
   }
-  return { pose: p, travel: reduced ? act.index * 810 : route * 150, sag, gale, landAge, act };
+  return { pose: p, travel: reduced ? act.index * 810 : route * 150, sag, gale, landAge, spray, act };
 }
