@@ -78,7 +78,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (before.index !== act.index) audio.fx(CUES[act.kind]!, .32);
       for (const cue of [1.4, 2.15, 3.3, 5.8]) {
         if (before.index === act.index && before.age < cue && act.age >= cue) {
-          const fx = act.kind === 1 ? 'squeak' : act.kind === 2 ? cue === 3.3 ? 'punch' : 'slam' : act.kind === 4 ? 'creak' : act.kind === 5 ? 'zap' : act.kind === 7 ? 'gasp' : 'whoosh';
+          const fx = act.kind === 1 ? 'squeak' : act.kind === 2 ? cue === 3.3 ? 'punch' : 'thud' : act.kind === 4 ? 'creak' : act.kind === 5 ? 'zap' : act.kind === 7 ? 'gasp' : 'whoosh';
           audio.fx(fx, cue === 2.15 || cue === 3.3 ? .42 : .25);
         }
       }

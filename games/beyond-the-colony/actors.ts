@@ -60,7 +60,8 @@ function seal(c: CanvasRenderingContext2D, time: number, act: Act, reduced: bool
   const x = 1030 - enter * 258; const y = 417;
   const windup = reduced ? .2 : windowAt(act.age, .8, 2.1, .35);
   const hit = reduced ? .6 : between(2.05, 2.18, act.age) * (1 - between(3.0, 3.7, act.age));
-  c.save(); c.translate(x, y);
+  c.save(); c.translate(x + (reduced ? 0 : recoil(act.age - 3.3, 21)), y);
+  c.rotate(reduced ? 0 : recoil(act.age - 3.3, .09));
   ellipse(c, 0, 7, 121, 14, 'rgba(0,22,36,.25)');
   const squash = reduced ? 0 : recoil(act.age - 2.15, 9);
   ellipse(c, 0, -47 + squash, 96, 57, '#879a8c', -.1, 4);
@@ -75,7 +76,7 @@ function seal(c: CanvasRenderingContext2D, time: number, act: Act, reduced: bool
   c.save(); c.translate(-61, -56); c.rotate(-.3 - windup * 1.1 + hit * .8);
   ellipse(c, -26, -2, 45, 16, '#7e9587', 0, 3);
   box(c, -99, -73, 89, 100, '#c38e65', 4, 4); box(c, -89, -64, 69, 79, '#f4e7bf', 2);
-  words(c, 'REVIEW', -54, -45, 17, INK, 64); words(c, act.tier ? 'NO.' : '1/10', -54, -13, 32, CORAL, 62); box(c, -67, -80, 29, 14, '#75978c', 3, 2);
+  words(c, act.age > 3.3 ? 'DENIED' : 'REVIEW', -54, -45, 17, INK, 64); words(c, act.tier ? 'NO.' : '1/10', -54, -13, 32, CORAL, 62); box(c, -67, -80, 29, 14, '#75978c', 3, 2);
   c.restore();
   if (act.tier > 1) { polygon(c, [[-87, headY - 43], [-90, headY - 74], [-62, headY - 55], [-41, headY - 83], [-22, headY - 57], [4, headY - 72], [0, headY - 40]], GOLD, 3); }
   c.restore();
@@ -138,8 +139,8 @@ function cosmic(c: CanvasRenderingContext2D, time: number, act: Act, reduced: bo
     const a = i * TAU / 16 + (reduced ? 0 : time * .11); const r = 124 + (reduced ? 0 : Math.sin(time * 7 + i) * 13);
     line(c, [[x + Math.cos(a) * r, y + Math.sin(a) * r], [x + Math.cos(a) * (r + 58), y + Math.sin(a) * (r + 58)]], i % 2 ? GOLD : JADE, 3);
   }
-  ellipse(c, 466, 174, 55, 12, 'rgba(255,222,149,.08)', 0, 3); c.strokeStyle = GOLD; c.lineWidth = 5; c.beginPath(); c.ellipse(466, 174, 55, 12, 0, 0, TAU); c.stroke();
-  words(c, act.prop, 486, 111, 28, GOLD, 600, 'center', true);
+  ellipse(c, 466, 111, 55, 12, 'rgba(255,222,149,.08)', 0, 3); c.strokeStyle = GOLD; c.lineWidth = 5; c.beginPath(); c.ellipse(466, 111, 55, 12, 0, 0, TAU); c.stroke();
+  words(c, act.prop, 746, 156, 25, GOLD, 365, 'center', true);
   c.restore();
 }
 

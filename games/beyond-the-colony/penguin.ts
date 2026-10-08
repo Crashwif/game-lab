@@ -11,15 +11,15 @@ export interface PenguinPose {
 
 /** Grounded stance is linear against the belt speed; the returning foot clears the ice on a high arc. */
 function footAt(phase: number, walk: boolean, airborne: boolean): Point {
-  if (airborne) return { x: phase < .5 ? -34 : 36, y: -18 - Math.sin(phase * TAU) * 12 };
-  if (!walk) return { x: phase < .5 ? -24 : 25, y: 0 };
   const p = fract(phase);
+  if (airborne) return { x: p < .5 ? -34 : 36, y: -18 - Math.sin(p * TAU) * 12 };
+  if (!walk) return { x: p < .5 ? -24 : 25, y: 0 };
   if (p < .62) return { x: 31 - p / .62 * 62, y: 0 };
   const u = (p - .62) / .38;
   return { x: -31 + 62 * (1 - Math.cos(u * Math.PI)) / 2, y: -Math.sin(u * Math.PI) * 25 };
 }
 function leg(c: CanvasRenderingContext2D, root: Point, foot: Point, side: number, far: boolean): void {
-  const knee = joint(root, foot, 32, side);
+  const knee = joint(root, foot, 36, side);
   line(c, [[root.x, root.y], [knee.x, knee.y], [foot.x, foot.y - 4]], INK, far ? 13 : 16);
   line(c, [[root.x, root.y], [knee.x, knee.y], [foot.x, foot.y - 4]], far ? '#c37d56' : GOLD, far ? 8 : 10);
   c.save(); c.translate(foot.x, foot.y); c.rotate(foot.y < -2 ? -.25 : 0);

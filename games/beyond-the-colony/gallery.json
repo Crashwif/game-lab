@@ -1,16 +1,16 @@
 {
   "name": "Beyond the Colony",
-  "hook": "Small feet. An unreasonable mountain.",
-  "tagline": "A little penguin leaves the colony and climbs a luminous Antarctic ridge. Follow the aurora, reach a warm refuge on confirmed cash-out, and find a soft landing when the ice gives way. An independent community game for Nietzschean Penguin.",
+  "hook": "I resign from being normal.",
+  "tagline": "An unhinged existential action comedy: a penguin belly-slides past compliance drones, rejects a seal boss and becomes a cosmic overman. Cash out to ghost HR; the backend crash dumps the walkout straight back into a cubicle. Independent Nietzschean Penguin community concept.",
   "tags": [
-    "Penguin expedition",
-    "Aurora skies",
-    "Icy ledges"
+    "Existential slapstick",
+    "Articulated penguin",
+    "Workplace satire"
   ],
   "renderer": "Canvas 2D",
   "licence": "open",
   "royaltyBps": 0,
   "poster": {
-    "seconds": 16
+    "seconds": 15
   }
 }
