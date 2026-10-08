@@ -76,8 +76,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       c.translate(Math.sin(input.crashAge * 57) * kick, dead ? Math.cos(input.crashAge * 41) * kick : kick);
     }
     drawBackground(c, input, act);
-    drawActorBack(c, p, input, act);
+    if (!safe) drawActorBack(c, p, input, act);
     drawDesk(c, input, act, p);
+    if (safe) drawActorBack(c, p, input, act);
     drawActorFront(c, p, input, act);
     drawProps(c, input, act);
     drawForeground(c, input, act, p);
