@@ -1,4 +1,4 @@
-import { clamp, noise, TAU } from './motion';
+import { clamp, fract, noise, TAU } from './motion';
 import { box, ellipse, GOLD, INK, JADE, line, polygon, WHITE, words } from './drawing';
 
 export function sky(c: CanvasRenderingContext2D, time: number, chapter: number, reduced: boolean): void {
@@ -83,6 +83,17 @@ export function impactSnow(c: CanvasRenderingContext2D, x: number, y: number, ag
     ellipse(c, x + Math.cos(a) * age * speed, y + Math.sin(a) * age * speed + age * age * 80, (4 + noise(i + 74) * 10 + age * 11) * size, (4 + age * 7) * size, WHITE);
   }
   c.restore();
+}
+
+/** Powder thrown back from the belly during a slide. */
+export function slideSpray(c: CanvasRenderingContext2D, x: number, y: number, time: number, strength: number): void {
+  if (strength <= .02) return;
+  for (let i = 0; i < 12; i += 1) {
+    const u = fract(time * 2.2 + i / 12);
+    c.globalAlpha = (1 - u) * strength * .75;
+    ellipse(c, x - 36 - u * 130 - noise(i) * 24, y - 4 - u * (14 + noise(i + 9) * 34) + u * u * 34, 4 + u * 12, 3 + u * 8, WHITE);
+  }
+  c.globalAlpha = 1;
 }
 
 export function avalanche(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {

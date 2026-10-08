@@ -48,15 +48,22 @@ export function routineAt(seconds: number, reduced: boolean): Routine {
   return { index, kind, lap: Math.floor(index / 6), age, windup, impact, recovery, propX, hop, duck };
 }
 
+/** A transverse gallop: the hind pair drives, the fore pair catches, and one short suspension lifts the body each cycle. */
+export const STANCE = 0.42;
+export const SUSPEND = 0.88;
+const SPAN = 21;
 export function runningPose(seconds: number, reduced: boolean, routine = routineAt(seconds, reduced)): BullPose {
   const cycle = seconds * 2.1 + 0.1 * Math.sin(seconds * 0.7);
-  const gallop = Math.cos(cycle * TAU);
+  const u = frac(cycle);
+  // The body is highest in suspension and lowest as the fore hooves take the weight.
+  const bound = 0.5 + 0.5 * Math.cos((u - SUSPEND) * TAU);
+  const rock = Math.sin(u * TAU);
   const baseX = 324 + (reduced ? 0 : Math.sin(seconds * 0.77) * 14 + routine.windup * 21);
   const b: BullPose = {
     x: baseX, y: floorAt(baseX), scale: 1.24,
-    body: reduced ? routine.duck * 12 : -6 - 11 * Math.max(0, Math.sin(cycle * TAU)) + routine.windup * 9 + routine.duck * 13,
-    pitch: reduced ? -0.025 : -0.05 + gallop * 0.06 + routine.duck * 0.11 - routine.hop * 0.15,
-    head: reduced ? (routine.age < CONTACT ? 0.14 : -0.14) : -0.07 + Math.sin(cycle * TAU - 0.85) * 0.16 + routine.windup * 0.35 - routine.impact * 0.5,
+    body: reduced ? routine.duck * 12 : -3 - 12 * bound + routine.windup * 9 + routine.duck * 13,
+    pitch: reduced ? -0.025 : -0.03 - rock * 0.075 + routine.duck * 0.11 - routine.hop * 0.15,
+    head: reduced ? (routine.age < CONTACT ? 0.14 : -0.14) : -0.07 + rock * 0.05 + Math.sin(cycle * TAU - 1.5) * 0.13 + routine.windup * 0.35 - routine.impact * 0.5,
     stride: reduced ? 0.19 : cycle, time: reduced ? 0 : seconds,
     effort: 0.55 + routine.windup * 0.45, gait: routine.hop > 0.16 ? 'air' : 'run',
     face: routine.windup > 0.3 || routine.duck > 0.2 ? 'charge' : 'smug',
@@ -81,20 +88,29 @@ export function idlePose(seconds: number, reduced: boolean): BullPose {
   };
 }
 
-/** A planted foot travels back through stance, then returns through a raised arc. */
+/**
+ * Hoof targets in the bull's ground frame, so the solved legs stay planted while the body bounces and pitches.
+ * A planted hoof travels back at the track's speed; the returning hoof clears the ground on a cosine arc.
+ */
 export function hoofAt(pose: BullPose, hipX: number, offset: number): { x: number; y: number } {
   const p = frac(pose.stride + offset);
-  if (pose.gait === 'air') return { x: hipX + (hipX > 0 ? -17 : -31), y: -43 - pose.tuck * 15 };
-  if (pose.gait === 'sit') return { x: hipX + (hipX > 0 ? 25 : -17), y: -18 };
+  const fore = hipX > 0;
+  const slope = (x: number): number => -(hipX + x) * 0.047;
+  if (pose.gait === 'air') return { x: hipX + (fore ? -14 : -30), y: -42 - pose.tuck * 15 };
+  if (pose.gait === 'sit') return { x: hipX + (fore ? 25 : -17), y: -18 };
   if (pose.gait === 'idle') {
-    const fore = hipX > 0;
     const scuff = fore ? Math.sin(pose.time * 5) * 15 * (1 - pose.rear) : 0;
-    return { x: hipX + scuff + pose.rear * (fore ? -32 : -5), y: -pose.rear * (fore ? 63 : 0) - (fore ? Math.max(0, Math.sin(pose.time * 5)) * 9 : 0) };
+    const x = scuff + pose.rear * (fore ? -32 : -5);
+    return { x: hipX + x, y: slope(x) - pose.rear * (fore ? 63 : 0) - (fore ? Math.max(0, Math.sin(pose.time * 5)) * 9 : 0) };
   }
-  const stance = 0.57;
-  const x = p < stance ? 37 - p / stance * 74 : -37 + ease((p - stance) / (1 - stance)) * 74;
-  const lift = p < stance ? 0 : Math.sin((p - stance) / (1 - stance) * Math.PI) * 45;
-  return { x: hipX + x, y: -lift - (hipX + x) * 0.047 };
+  if (p < STANCE) {
+    const x = SPAN - p / STANCE * 2 * SPAN;
+    return { x: hipX + x, y: slope(x) };
+  }
+  const u = (p - STANCE) / (1 - STANCE);
+  const x = -SPAN + (1 - Math.cos(u * Math.PI)) * SPAN;
+  const lift = Math.sin(u * Math.PI) * (fore ? 44 : 38) * (0.7 + 0.3 * pose.effort);
+  return { x: hipX + x, y: slope(x) - lift };
 }
 
 export function impactAge(r: Routine): number { return clamp(r.age - CONTACT, 0, 10); }

@@ -1,7 +1,7 @@
 import { pageAudio } from './audio';
 import { actCaption, actTitle, drawAct, idleBear } from './acts';
 import { arena, crashStamp, dust, impact, parade, supportDesk, track } from './arena';
-import { box, bubble, clamp, CREAM, ease, GOLD, GREEN, INK, mix, RED, text } from './art';
+import { box, bubble, clamp, CREAM, ease, GOLD, GREEN, INK, mix, pulse, RED, text } from './art';
 import { BEAT_SECONDS, CONTACT, floorAt, idlePose, routineAt, runningPose, type BullPose, type Routine } from './motion';
 import { bull } from './rig';
 import { isPortrait, presentPortrait, type Framing } from './portrait';
@@ -130,7 +130,8 @@ export function createScene(options: SceneOptions = {}): Scene {
         ctx.translate(430, 300); ctx.scale(1 + kick * 0.025, 1 + kick * 0.025); ctx.translate(-430, -300);
         ctx.translate(Math.sin(clock * 83) * kick * 6, Math.cos(clock * 67) * kick * 3);
       }
-      arena(ctx, motion, r.lap, reduced);
+      const sign = secured ? 'MUMU LEFT · BEARS SEETHE' : crashed ? 'BEARS 1 · MUMU 0' : idle ? 'MUMU BULL RUN' : `BEARS 0 · MUMU ${r.index + (r.age >= CONTACT ? 1 : 0)}`;
+      arena(ctx, motion, r.lap, reduced, running && !secured && !reduced ? pulse(r.age, CONTACT, CONTACT + 0.8) : 0, sign);
       track(ctx, reduced ? 0 : idle ? idleTime * 0.04 : seconds, crashed, age, reduced);
       if (idle) idleBear(ctx, idleTime, reduced);
       else if (!crashed) drawAct(ctx, r, reduced ? 0 : seconds, reduced);

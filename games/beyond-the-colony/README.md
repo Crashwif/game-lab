@@ -33,9 +33,9 @@ Only backend-confirmed cash-out launches a smug escape to a floating cloud loung
 ## Structure and presentation
 
 - `scene.ts` composes authoritative phases, outcomes, effects and the compact HUD.
-- `choreography.ts` reconstructs pose, terrain travel, contacts, takeoffs and landings directly from elapsed round time.
+- `choreography.ts` reconstructs pose, terrain travel, contacts, takeoffs and landings directly from elapsed round time, and evaluates the pose a moment earlier as well so the head lags fast body turns and the scarf streams with speed. The belly slide drops the body onto the ice and throws spray.
 - `motion.ts` supplies analytic easing, deterministic decorative noise and the timed comedy script.
-- `penguin.ts` articulates two-bone legs, flippers, body, head, expression, pack and scarf.
+- `penguin.ts` articulates two-bone legs, flippers, body, head, expression, pack and scarf. Both legs share one solver with a clamped reach and forward knees: the stance leg is nearly straight, the swing leg folds under the body and lifts its foot toe-up.
 - `actors.ts` draws the colony, drones, seal boss, kiosks, fan, cosmic effects and airborne fish.
 - `landscape.ts` draws the sky, shelves, snow, avalanche, cubicle and cloud lounge.
 - `portrait.ts` composes narrow screens as a large acting close-up, readable captions and multiplier, plus a wide inset retaining secondary actors and surrounding danger.
