@@ -276,7 +276,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawAir(ctx, room);
     if (outcome && pop.x > 0.02 && (view.phase !== 'crashed' || view.crashAge >= 1300)) {
       ctx.save();
-      ctx.translate(480, 116);
+      // Under the sign and above the family's bubbles, which are short after a crash.
+      ctx.translate(480, 146);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.25);
       ctx.scale(scale, scale);
@@ -294,15 +295,16 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(430, 62);
       const scale = 1 + 0.08 * captionPop.x;
       ctx.scale(scale, scale);
-      memeText(ctx, caption, 0, 0, 40, '#ffffff', 'center', 600);
+      memeText(ctx, caption, 0, 0, 40, '#ffffff', 'center', 560);
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
+      // Under the multiplier, over the window's top, where no sign or bubble sits.
       ctx.save();
-      ctx.translate(430, 104);
+      ctx.translate(936, 100);
       ctx.scale(clamp(badge.x, 0, 1.2), clamp(badge.x, 0, 1.2));
-      memeText(ctx, text, 0, 0, 24, '#7cf67c', 'center');
+      memeText(ctx, text, 0, 0, 22, '#7cf67c', 'right', 300);
       ctx.restore();
     }
     const colour = outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
@@ -310,7 +312,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const dad = family[0]!;
     const civility = wrecked ? 0 : Math.round((1 - clamp(dad.heat.x, 0, 1)) * 100);
     memeText(ctx, `CIVILITY ${civility}%`, 24, 520, 22, civility < 40 ? '#ffb4c2' : '#f4ead8', 'left');
-    memeText(ctx, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, 936, 520, 22, room.cart > 500 ? '#ffb4c2' : '#f4ead8', 'right', 320);
+    memeText(ctx, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, 936, 520, 22, room.cart > 500 ? '#ffb4c2' : '#f4ead8', 'right', 250);
     present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, `SPEAKER CART $${room.cart.toLocaleString('en-US')}`, room.bubbles.at(-1)?.text ?? 'Could someone pass the gravy?', view.phase === 'crashed' ? [260, 140, 690, 395] : undefined);
 
   }

@@ -77,8 +77,8 @@ const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: numbe
   dad: { x: 300, y: 134, tail: { x: 350, y: 176 }, width: 230 },
   niece: { x: 672, y: 134, tail: { x: 622, y: 176 }, width: 230 },
   echo: { x: 118, y: 212, tail: { x: SPEAKER.x + 6, y: SPEAKER.y - 34 }, width: 190 },
-  gran: { x: 252, y: 204, tail: { x: 208, y: 250 }, width: 150 },
-  dale: { x: 852, y: 104, tail: { x: 806, y: 134 }, width: 90 },
+  gran: { x: 290, y: 176, tail: { x: 208, y: 250 }, width: 150 },
+  dale: { x: 860, y: 176, tail: { x: 806, y: 134 }, width: 90 },
 };
 
 export interface Bubble { who: Who; text: string; age: number; life: number; pop: Spring }
@@ -1068,26 +1068,31 @@ export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: nu
   }
 }
 
-/** A chair back behind one of the family, drawn before them. */
+/**
+ * A ladder-back chair behind one of the family, drawn before them and pulled up to the table: its posts run
+ * down to the table's far edge, and the top rail and the posts show beside the head and above the shoulders.
+ */
 export function drawChairBack(ctx: CanvasRenderingContext2D, x: number): void {
   ctx.save();
   ctx.translate(x, 0);
   ink(ctx, 2.5);
   ctx.fillStyle = '#2a2a30';
-  ctx.beginPath();
-  ctx.roundRect(-46, 172, 92, 12, 6);
-  ctx.fill();
-  ctx.stroke();
-  for (const s of [-40, 40]) {
+  for (const s of [-58, 58]) {
     ctx.beginPath();
-    ctx.roundRect(s - 4, 182, 8, 150, 3);
+    ctx.roundRect(s - 5, 176, 10, TABLE.far + 2 - 176, 3);
     ctx.fill();
     ctx.stroke();
   }
   ctx.beginPath();
-  ctx.roundRect(-40, 196, 80, 40, 6);
+  ctx.roundRect(-64, 168, 128, 14, 6);
   ctx.fill();
   ctx.stroke();
+  for (const y of [200, 226, 252]) {
+    ctx.beginPath();
+    ctx.roundRect(-58, y, 116, 9, 3);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
