@@ -9,20 +9,23 @@ function bodyPoint(p: BullPose, x: number, y: number): Point {
 /** A two-bone leg holds its hoof target while compression changes the hip height. */
 function leg(c: CanvasRenderingContext2D, p: BullPose, hipX: number, phase: number, far: boolean): void {
   const hip = bodyPoint(p, hipX, 26);
-  const foot = hoofAt(p, hipX, phase);
-  const dx = foot.x - hip.x, dy = foot.y - hip.y;
-  const distance = Math.max(0.001, Math.hypot(dx, dy));
-  const reach = clamp(distance, 6.01, 98.99);
+  const target = hoofAt(p, hipX, phase);
+  const dx = target.x - hip.x, dy = target.y - 9 - hip.y;
+  const distance = Math.hypot(dx, dy);
+  const ux = distance > 0.001 ? dx / distance : 0;
+  const uy = distance > 0.001 ? dy / distance : 1;
   const upper = 46, lower = 53;
+  const reach = clamp(distance, Math.abs(lower - upper) + 0.01, upper + lower - 0.01);
+  const ankle = { x: hip.x + ux * reach, y: hip.y + uy * reach };
   const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
   const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * (hipX > 0 ? -1 : 1);
-  const knee = { x: hip.x + dx / distance * along + dy / distance * bend, y: hip.y + dy / distance * along - dx / distance * bend };
+  const knee = { x: hip.x + ux * along + uy * bend, y: hip.y + uy * along - ux * bend };
   const fill = far ? '#809e8c' : '#f6f2d9';
-  line(c, [[hip.x, hip.y], [knee.x, knee.y], [foot.x, foot.y - 9]], INK, far ? 22 : 26);
-  line(c, [[hip.x, hip.y], [knee.x, knee.y], [foot.x, foot.y - 9]], fill, far ? 14 : 18);
+  line(c, [[hip.x, hip.y], [knee.x, knee.y], [ankle.x, ankle.y]], INK, far ? 22 : 26);
+  line(c, [[hip.x, hip.y], [knee.x, knee.y], [ankle.x, ankle.y]], fill, far ? 14 : 18);
   oval(c, knee.x, knee.y, 10, 9, fill, 3);
-  box(c, foot.x - 15, foot.y - 12, 32, 16, INK, 5, 3);
-  line(c, [[foot.x + 6, foot.y - 11], [foot.x + 6, foot.y - 1]], '#607365', 2);
+  box(c, ankle.x - 15, ankle.y - 3, 32, 16, INK, 5, 3);
+  line(c, [[ankle.x + 6, ankle.y - 2], [ankle.x + 6, ankle.y + 8]], '#607365', 2);
 }
 
 function head(c: CanvasRenderingContext2D, p: BullPose): void {

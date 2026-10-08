@@ -44,6 +44,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let idleStarted: number | null = null;
   let exitAt: number | null = null;
   let exitFrom: BullPose | null = null;
+  let settledClockOffset = 0;
   let lastStep = -1;
   let lastIdle = 0;
   let surface: HTMLCanvasElement | null = null;
@@ -54,11 +55,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     const seconds = Math.max(0, view.elapsed / 1000);
     const age = crashed ? Math.max(0, view.crashAge / 1000) : 0;
     const secured = view.cashoutX100 !== null;
-    const reset = seconds < previousElapsed || idle && view.phase !== previousPhase;
+    // The settled crash duration may trail the shell's last interpolated running frame.
+    const reset = running && seconds < previousElapsed || idle && view.phase !== previousPhase;
     const fresh = previousPhase === null || reset;
     if (idleStarted === null || reset) idleStarted = now;
     const idleTime = Math.max(0, (now - idleStarted) / 1000);
-    if (reset) { exitAt = null; exitFrom = null; lastStep = -1; previousCashout = null; }
+    if (reset) { exitAt = null; exitFrom = null; settledClockOffset = 0; lastStep = -1; previousCashout = null; }
+    if (crashed && previousPhase === 'running') settledClockOffset = Math.max(0, previousElapsed - seconds);
     const r = routineAt(seconds, reduced);
     const basePose = idle ? idlePose(idleTime, reduced) : runningPose(seconds, reduced, r);
     if (secured && previousCashout === null) {
@@ -90,9 +93,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (idle && !fresh && idleStomp !== lastIdle) audio.fx('stomp', 0.25);
     lastIdle = idleStomp;
 
-    const clock = idle ? idleTime : seconds + (crashed ? age : 0);
+    const clock = idle ? idleTime : seconds + (crashed ? age + settledClockOffset : 0);
     const motion = reduced ? 0 : clock;
-    const exit = secured ? reduced ? 1 : ease((seconds - (exitAt ?? seconds - 2) + age) / 1.1) : 0;
+    const exit = secured ? reduced ? 1 : ease((clock - (exitAt ?? clock - 2)) / 1.1) : 0;
     let pose = basePose;
     if (secured) {
       const from = exitFrom ?? basePose;
