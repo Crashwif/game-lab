@@ -7,7 +7,7 @@ import { portrait } from './portrait';
  * drawn here changes the committed outcome.
  */
 import { type AirdropState, createAirdrop, drawAirdrop, resetAirdrop, sendPlane, stepAirdrop } from './airdrop';
-import { type ApeState, brace, createApe, drawApe, resetApe, stepApe } from './ape';
+import { type ApeState, boardApe, frameApe, brace, createApe, drawApe, resetApe, stepApe } from './ape';
 import { pageAudio } from './audio';
 import { type CoinDrive, type CoinState, coinPose, crashCoin, createCoin, drawCoin, settleCoin, stepCoin } from './coin';
 import { type DevState, cloudAt, createDev, drawDev, pullLever, resetDev, settleDev, stepDev } from './dev';
@@ -397,7 +397,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       const target = pose.contact.x - (pose.r + 124) * Math.cos(pose.angle);
       lambo.x = Math.min(target, lambo.x + 380 * dt);
       lambo.wheel += 380 * dt / 14;
-      if (lambo.x >= target - 0.5) { lambo.mode = 'waiting'; ape.mode = 'boarding'; ape.modeAge = 0; }
+      if (lambo.x >= target - 0.5) { lambo.mode = 'waiting'; boardApe(ape, { contactX: pose.contact.x, centre: pose.centre, r: pose.r }); }
     } else if (lambo.mode === 'waiting') {
       if (ape.mode === 'boarding' && ape.modeAge > 0.55) {
         ape.mode = 'gone';
@@ -424,7 +424,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       stepSpring(cam.x, pose.contact.x + 40, 4, 1, dt);
       stepSpring(cam.y, pose.contact.y + (lambo.mode === 'arriving' || lambo.mode === 'waiting' ? 30 : 70), 4, 1, dt);
     }
-    const camera: Camera = { x: cam.x.x, y: cam.y.x };
+    let camera: Camera = { x: cam.x.x, y: cam.y.x };
+    if (ape.mode === 'push' || ape.mode === 'boarding' || ape.mode === 'brace') {
+      camera = frameApe(camera, ape, { contactX: pose.contact.x, centre: pose.centre, r: pose.r });
+      // Remove lag that would put a contact outside the picture on steep downhill recovery.
+      if (camera.x !== cam.x.x) { cam.x.x = camera.x; cam.x.v = 0; }
+      if (camera.y !== cam.y.x) { cam.y.x = camera.y; cam.y.v = 0; }
+    }
     // The REKT holds off until the coin has actually reached someone.
     const landed = outcome !== null && (ape.mode === 'pancake' || communityFlat || (ape.mode === 'gone' && coin.crashAge > 2.5) || fuse < 0 && coin.crashed && ape.mode !== 'brace' && ape.mode !== 'gone');
     stepSpring(pop, landed ? 1 : 0, 16, 0.45, dt);

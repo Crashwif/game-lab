@@ -39,6 +39,17 @@ const PHASE_LABELS = {
 };
 const formatX = (x100: number) => `${(x100 / 100).toFixed(2)}×`;
 
+/** Carry the circle's position and velocity into a quiet, damped landing. */
+export function circleBob(view: Pick<SceneView, 'phase' | 'elapsed' | 'crashAge'>, reduced = false): number {
+  if (reduced || (view.phase !== 'running' && view.phase !== 'crashed')) return 0;
+  const angle = view.elapsed / 250;
+  const position = Math.sin(angle) * 12;
+  if (view.phase === 'running') return position;
+  const age = Math.max(0, view.crashAge / 1000);
+  const velocity = Math.cos(angle) * 48;
+  return (position + (velocity + 10 * position) * age) * Math.exp(-10 * age);
+}
+
 export function createScene(options: SceneOptions = {}): Scene {
   // clips.json is empty: the shared helper makes all sounds locally, opt-in.
   // The helper owns its page lifecycle; do not close it when replacing a scene.
@@ -80,7 +91,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // Replace this circle with your character or scene. Motion follows elapsed
     // round time and keeps going in long rounds; reduced motion holds it still.
-    const bob = running && !options.reducedMotion ? Math.sin(view.elapsed / 250) * 12 : 0;
+    const bob = circleBob(view, options.reducedMotion);
     ctx.beginPath();
     ctx.arc(480, 360 + bob, 18 + tension * 12, 0, Math.PI * 2);
     ctx.fill();

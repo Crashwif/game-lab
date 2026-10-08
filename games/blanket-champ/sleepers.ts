@@ -156,8 +156,10 @@ export interface SleeperFoot {
 
 export function sleeperFeet(pose: SleeperPose): SleeperFoot[] {
   return ([[645, 326, true], [680, 338, true], [670, 359, false], [711, 371, false]] as const).map(([x, y, sock], index) => {
-    const beat = Math.sin(pose.beat + (index % 2) * 0.35);
-    const kick = Math.max(0, pose.lift) * (5 + pose.tension * 5);
+    const delay = [0, .48, 1.35, 1.9][index]!;
+    const beat = Math.sin(pose.beat - delay);
+    const impulse = pose.active ? .35 + .65 * Math.max(0, beat) : 1;
+    const kick = Math.max(0, pose.lift) * (5 + pose.tension * 5) * impulse;
     const angle = -0.12 + (pose.active ? beat * (0.07 + pose.tension * 0.12) : 0) + pose.rest * 0.55;
     const footY = y - pose.lift * 6 - kick + pose.rest * 5;
     return {

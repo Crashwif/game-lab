@@ -6,6 +6,7 @@
  * Innuendo only: nothing is ever revealed but him. Nothing here changes
  * the outcome.
  */
+import { solveLimb, stepFoot } from './kinematics';
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -108,6 +109,7 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
   s.hold = s.ended && !drive.reduced && s.endAge > 0.72 && s.endAge < 0.9;
   const sdt = s.hold ? 0 : dt;
+  const previousTime = s.time;
   s.time += sdt;
   stepSpring(s.bounce, 0, 10, 0.4, sdt);
   stepSpring(s.wave, 0, 6, 0.5, sdt);
@@ -129,8 +131,12 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
     s.endAge += dt;
     stepSpring(s.boyfriendX, 470, 4, 0.9, sdt);
     stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, sdt);
-  } else if (drive.running && drive.tension > 0.2 && noise(Math.floor(s.time * 8)) > 0.7 - 0.3 * drive.tension && s.hearts.length < 40) {
-    s.hearts.push({ x: 60 + noise(s.time * 13) * 500, y: VIDEO.h - 60, vx: (noise(s.time * 7) - 0.5) * 30, age: 0, life: 2.2 + noise(s.time) * 1, size: 6 + noise(s.time * 3) * 8 });
+  } else if (drive.running && !drive.reduced && drive.tension > .2) {
+    for (let tick = Math.floor(previousTime * 8 + 1e-9) + 1; tick <= Math.floor((s.time + 1e-9) * 8); tick++) {
+      if (noise(tick) <= .7 - .3 * drive.tension || s.hearts.length >= 40) continue;
+      const born = tick / 8;
+      s.hearts.push({ x: 60 + noise(tick * 13) * 500, y: VIDEO.h - 60, vx: (noise(tick * 7) - .5) * 30, age: previousTime - born, life: 2.2 + noise(tick), size: 6 + noise(tick * 3) * 8 });
+    }
   }
   for (const h of s.hearts) { h.age += sdt; h.x += h.vx * sdt; h.y -= 70 * sdt; }
   s.hearts = s.hearts.filter((h) => h.age < h.life);
@@ -216,13 +222,19 @@ function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, 
 }
 
 /** Gigachad in the doorway, carrying the bag. */
-function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, time: number): void {
+function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, speed: number, reduced: boolean): void {
   ctx.save();
   ctx.translate(x, footY);
   ctx.scale(0.86, 0.86);
   ctx.lineJoin = 'round';
-  const stride = Math.abs(Math.sin(time * 9)) * 6;
-  for (const side of [-1, 1]) limb(ctx, { x: side * 12, y: -80 }, { x: side * 14, y: -(side > 0 ? stride : 0) }, 16, '#2b2b30');
+  const weight = reduced ? 0 : clamp(Math.abs(speed) / 80, 0, 1);
+  for (const side of [-1, 1]) {
+    const step = stepFoot((760 - x) / .86, 72, side > 0 ? .5 : 0, 14);
+    const hip = { x: side * 12, y: -80 };
+    const foot = { x: side * 14 - step.x * weight, y: step.y * weight };
+    const knee = solveLimb(hip, foot, 46, 44, -side).joint;
+    limb(ctx, hip, knee, 16, '#2b2b30'); limb(ctx, knee, foot, 15, '#2b2b30');
+  }
   ctx.fillStyle = '#f2f2f2'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-40, -150, 80, 74, 12); ctx.fill(); ctx.stroke();
   limb(ctx, { x: -40, y: -136 }, { x: -52, y: -90 }, 16, '#cfcfcf');
@@ -292,7 +304,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   if (open > 0.02) {
     ctx.fillStyle = '#ffe9b0';
     ctx.fillRect(door.x, door.y, door.w, door.h);
-    drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.time);
+    drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.boyfriendX.v, reduced);
     ctx.fillStyle = '#5a4470';
     ctx.beginPath(); ctx.moveTo(door.x, door.y); ctx.lineTo(door.x + door.w * (1 - open) * 0.6, door.y + 12 * open); ctx.lineTo(door.x + door.w * (1 - open) * 0.6, door.y + door.h - 12 * open); ctx.lineTo(door.x, door.y + door.h); ctx.closePath(); ctx.fill(); ctx.stroke();
   } else {
@@ -335,7 +347,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.beginPath(); ctx.arc(80, 300, 44, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(80, 344); ctx.lineTo(80, 440); ctx.stroke();
-  drawQueen(ctx, s, tension);
+  drawQueen(ctx, s, tension, reduced);
   for (const h of s.hearts) { ctx.globalAlpha = 1 - h.age / h.life; heart(ctx, h.x, h.y, h.size, '#ff4d6d'); }
   ctx.globalAlpha = 1;
   // The end: a freeze frame, a hard cut to static, then the card.
@@ -386,9 +398,9 @@ function sleeve(ctx: CanvasRenderingContext2D, a: Point, b: Point, side: number,
 }
 
 /** The queen at her desk: hoodie, cat ears, big eyes, the wave and the kiss, the glance at the door. */
-function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): void {
-  const bounce = clamp(s.bounce.x, -1, 1.5);
-  const sway = Math.sin(s.time * 1.4) * 4;
+function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean): void {
+  const bounce = reduced ? 0 : clamp(s.bounce.x, -1, 1.5);
+  const sway = reduced ? 0 : Math.sin(s.time * 1.4) * 4;
   const shock = clamp(s.shock.x, 0, 1);
   ctx.save();
   ctx.translate(300 + sway, 372 - bounce * 12);
@@ -402,7 +414,7 @@ function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): v
   const wave = clamp(s.wave.x, 0, 1);
   const kiss = smoothstep(0, .65, clamp(s.kiss.x, 0, 1));
   for (const side of [-1, 1]) {
-    const rest = { x: side * 70, y: -6 };
+    const rest = { x: side * 70 - sway, y: -6 + bounce * 12 };
     const raised = side > 0 ? { x: mix(rest.x, 92, wave), y: mix(rest.y, -153 - Math.sin(s.time * 12) * 5 * wave, wave) } : rest;
     const hand = { x: mix(mix(raised.x, side * 30, kiss), side * 30, shock), y: mix(mix(raised.y, -140, kiss), -150, shock) };
     sleeve(ctx, { x: side * 60, y: -80 }, hand, side, hoodie);

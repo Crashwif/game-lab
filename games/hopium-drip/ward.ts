@@ -6,6 +6,7 @@
  * at the crash, the sheet over the laptop and the time of death. Nothing
  * here changes the outcome.
  */
+import { walkingFoot } from './kinematics';
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -70,6 +71,8 @@ export interface Ward {
   paddles: Spring;
   lunge: Spring;
   clipDrop: Spring;
+  clipOrigin: Point;
+  clipAngle: number;
   /** Shocks given, and how long since the last CLEAR and the last zap. */
   shocks: number;
   clearAge: number;
@@ -95,7 +98,7 @@ export function createWard(): Ward {
     curtain: spring(0), roommateGone: spring(0), roommateFlat: false,
     patient: { mode: 'bed', x: 300, modeAge: 0, suit: spring(0), balloon: spring(0) },
     dead: false, deadAge: 0, sheet: spring(0), deathX100: 100, shock: spring(0), lights: 0,
-    cartX: spring(CART_OUT), cartIn: false, paddles: spring(0), lunge: spring(0), clipDrop: spring(0),
+    cartX: spring(CART_OUT), cartIn: false, paddles: spring(0), lunge: spring(0), clipDrop: spring(0), clipOrigin: { x: 506, y: 320 }, clipAngle: -.25,
     shocks: 0, clearAge: 9, zapAge: 9, clearPop: spring(0),
     wifeX: spring(WIFE_OUT), wifeIn: false, wifeMood: 'papers', moodAge: 9,
     events: { roommate: false, wife: false, wifeLeave: false, walk: false, cart: false, clear: false, zap: false, tod: false },
@@ -150,6 +153,8 @@ export function settleDischarge(w: Ward): void {
 /** The flatline. `quiet`, for a crash that already happened, skips the effects and settles into the aftermath. */
 export function flatline(w: Ward, crashX100: number, quiet: boolean): void {
   if (w.dead) return;
+  w.clipOrigin = doctorPoint(w, { x: -14, y: -150 });
+  w.clipAngle = -.25 - .12 * clamp(w.doctorLean.x, 0, 1) - .16 * clamp(w.lunge.x, 0, 1.1);
   w.dead = true;
   w.deathX100 = crashX100;
   w.deadAge = quiet ? 10 : 0;
@@ -174,6 +179,7 @@ export interface WardDrive { running: boolean; tension: number; multiplier: numb
 export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   const e = w.events;
   e.roommate = e.wife = e.wifeLeave = e.walk = e.cart = e.clear = e.zap = e.tod = false;
+  const previousTime = w.time;
   w.time += dt;
   const t = drive.tension;
   const alive = !w.dead && w.patient.mode === 'bed';
@@ -196,8 +202,11 @@ export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   stepSpring(w.doctorLean, w.dead ? 1 : drive.running ? 0.5 * t : 0, 5, 0.8, dt);
   stepSpring(w.doctorPen, 0, 10, 0.4, dt);
   stepSpring(w.wilt, drive.running || w.dead ? clamp(t * 1.4 - 0.2, 0, 1) + (w.dead ? 1 : 0) : w.wilt.x, 2, 1, dt);
-  if ((drive.running || w.dead) && w.wilt.x > 0.3 && noise(Math.floor(w.time * 6) * 1.7) > 0.85 - 0.3 * w.wilt.x && w.petals.length < 24) {
-    w.petals.push({ x: 560 + noise(w.time * 9) * 30, y: 236, vx: (noise(w.time * 5) - 0.5) * 20, vy: 10, rot: noise(w.time) * 6, age: 0 });
+  if ((drive.running || w.dead) && !drive.reduced && w.wilt.x > .3) {
+    for (let tick = Math.floor(previousTime * 6 + 1e-9) + 1; tick <= Math.floor((w.time + 1e-9) * 6); tick++) {
+      if (noise(tick * 1.7) <= .85 - .3 * w.wilt.x || w.petals.length >= 24) continue;
+      w.petals.push({ x: 560 + noise(tick * 9) * 30, y: 236, vx: (noise(tick * 5) - .5) * 20, vy: 10, rot: noise(tick) * 6, age: 0 });
+    }
   }
   for (const p of w.petals) { p.age += dt; p.x += p.vx * dt + Math.sin(p.age * 4) * 12 * dt; p.y += (p.vy + 40 * p.age) * dt; p.rot += dt * 2; }
   w.petals = w.petals.filter((p) => p.y < 400);
@@ -525,6 +534,15 @@ function drawWife(ctx: CanvasRenderingContext2D, w: Ward): void {
   ctx.restore();
 }
 
+/** Maps rig points into ward coordinates exactly once; never reads the device transform. */
+export function doctorPoint(w: Ward, point: Point, inverse = false): Point {
+  const angle = -.12 * clamp(w.doctorLean.x, 0, 1) - .16 * clamp(w.lunge.x, 0, 1.1);
+  const x = 520 - 45 * clamp(w.lunge.x, 0, 1.1), sway = Math.sin(w.time * 1.3) * 2;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  if (inverse) { const dx = point.x - x, dy = point.y - 470; return { x: c * dx + s * dy - sway, y: -s * dx + c * dy }; }
+  return { x: x + c * (point.x + sway) - s * point.y, y: 470 + s * (point.x + sway) + c * point.y };
+}
+
 /** The doctor at the foot of the bed with the clipboard, or lunging at the laptop with the paddles. Returns the paddles' positions when they are up. */
 function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): Point[] {
   const lean = clamp(w.doctorLean.x, 0, 1);
@@ -567,11 +585,9 @@ function drawDoctor(ctx: CanvasRenderingContext2D, w: Ward): Point[] {
   limb(ctx, { x: 40, y: -205 }, rightHand, 36, 34, -1, 14, '#f4f7fb');
   if (w.clipDrop.x < 0.02) drawClipboard(ctx, w, -14, -150, -0.25);
   if (up > 0.05) {
-    const m = ctx.getTransform();
     for (const hand of [leftHand, rightHand]) {
       drawPaddle(ctx, hand.x, hand.y, up, charged);
-      const pt = m.transformPoint(new DOMPoint(hand.x, hand.y));
-      paddles.push({ x: pt.x, y: pt.y });
+      paddles.push(doctorPoint(w, hand));
     }
   }
   // Hands (the pen only while he is writing).
@@ -666,6 +682,8 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
   const p = w.patient;
   if (p.mode === 'gone') return;
   const inBed = p.mode === 'bed' || p.mode === 'unplugging';
+  const stand = inBed ? 0 : p.mode === 'dressing' ? smoothstep(0, .9, p.modeAge) : 1;
+  const unfold = 86 * (1 - stand);
   const suit = clamp(p.suit.x, 0, 1);
   const lean = clamp(w.lean.x, 0, 1.2);
   const twitch = clamp(w.twitch.x, -1, 1.5);
@@ -673,7 +691,7 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
   const dead = w.dead;
   ctx.save();
   if (inBed) ctx.translate(300, 380 - lean * 8 + twitch * 3);
-  else { ctx.translate(p.x, 470); if (p.mode === 'walking') ctx.translate(0, -Math.abs(Math.sin(w.time * 10)) * 5); }
+  else ctx.translate(p.x, mix(380 - lean * 8 + twitch * 3, 470, stand));
   ctx.lineJoin = 'round';
   const gown = suit > 0.5 ? '#2b2b30' : '#bfe0ec';
   const skin = '#f3dccb';
@@ -737,17 +755,16 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
     ctx.restore();
   } else {
     // Standing: knees that lift, a hem that lags the step, the balloon string in the hand.
-    const stride = p.mode === 'walking' ? w.time * 10 : w.time * 1.4;
-    const walking = p.mode === 'walking' ? 1 : 0.18;
+    const walking = p.mode === 'walking';
     const trouser = suit > 0.5 ? '#2b2b30' : '#bfe0ec';
     for (const side of [-1, 1]) {
-      const phase = stride + (side > 0 ? Math.PI : 0);
-      const lift = Math.max(0, Math.sin(phase)) * 16 * walking;
-      const reach = Math.cos(phase) * 12 * walking;
-      limb(ctx, { x: side * 10, y: -96 }, { x: side * 12 + reach, y: -lift }, 54, 50, -side, 15, trouser);
+      const step = walking ? walkingFoot(p.x - 300, 74, side > 0 ? .5 : 0, 16) : { x: 0, y: 0 };
+      const foot = { x: mix(48 + side * 14, side * 12, stand) + step.x, y: mix(22, 0, stand) + step.y };
+      limb(ctx, { x: side * 10, y: -96 + unfold }, foot, 57, 54, -side, 15, trouser);
       ctx.fillStyle = suit > 0.5 ? '#111114' : skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.ellipse(side * 12 + reach, 3 - lift, 10, 4.5, reach * 0.02, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 3, 10, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
+    ctx.save(); ctx.translate(0, unfold);
     const hem = Math.sin(w.time * (p.mode === 'walking' ? 8 : 2.2)) * (p.mode === 'walking' ? 8 : 2);
     ctx.fillStyle = gown; ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath();
@@ -773,8 +790,9 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
       if (balloon > 0.7) memeSmall(ctx, 'GAINS', 66, by + 7, 18, '#ffffff');
     }
   }
+  if (!inBed) ctx.restore();
   // Head: big pupils that grow with the hopium, sunken with the death.
-  const hy = inBed ? -150 - lean * 6 : -236;
+  const hy = mix(-150 - lean * 6, -236, stand);
   ctx.save();
   if (inBed) ctx.translate(lean * 18, 0);
   ctx.fillStyle = dead ? '#dcd3cf' : skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -886,7 +904,7 @@ export function drawWard(ctx: CanvasRenderingContext2D, w: Ward, tension: number
   const drop = clamp(w.clipDrop.x, 0, 1);
   if (drop >= 0.02) {
     const k = smoothstep(0, 1, drop);
-    drawClipboard(ctx, w, mix(498, 440, k), mix(322, 466, k * k), mix(-0.25, -1.35, k));
+    drawClipboard(ctx, w, mix(w.clipOrigin.x, 440, k), mix(w.clipOrigin.y, 466, k * k), mix(w.clipAngle, -1.35, k));
   }
   // The cables from the cart to the paddles, and the shock itself: bolts between the paddles and round the laptop.
   if (paddles.length === 2) {

@@ -7,7 +7,7 @@
 import { type Spring, clamp, mix, settleSpring, spring, stepSpring } from './motion';
 import { FLOOR_H, GROUND_Y, RAIL_DX, TOWER_X, type TowerState, offsetAtY, topOffset, topVelocity, towerTopY } from './tower';
 
-export type WorkerMode = 'top' | 'calling' | 'boarding' | 'riding' | 'safe' | 'falling' | 'down';
+export type WorkerMode = 'top' | 'calling' | 'boarding' | 'rescuing' | 'riding' | 'safe' | 'falling' | 'down';
 export const SAFE_X = TOWER_X + 190;
 const GRAVITY = 900;
 const INK = '#1c1f26';
@@ -32,17 +32,20 @@ export interface WorkerState {
   /** Standing on the block that is still coming down. */
   onLoad: boolean;
   lastSurface: number;
+  rescue?: { x: number; y: number; cageY: number; duration: number };
+  walked: number;
 }
 
 /** The incoming block while it is close enough to climb onto: its centre x and top surface. */
 export interface Landing { x: number; topY: number }
 
 export function createWorker(): WorkerState {
-  return { mode: 'top', time: 0, modeAge: 0, x: TOWER_X - 12, y: GROUND_Y, hop: spring(0), lean: spring(0), arms: spring(0), shades: spring(0), duck: spring(0), cage: { x: TOWER_X + RAIL_DX, y: GROUND_Y, active: false, speed: 260 }, fall: { vx: 0, vy: 0, angle: 0, spin: 0 }, fear: 0, onLoad: false, lastSurface: GROUND_Y };
+  return { mode: 'top', time: 0, modeAge: 0, x: TOWER_X - 12, y: GROUND_Y, hop: spring(0), lean: spring(0), arms: spring(0), shades: spring(0), duck: spring(0), cage: { x: TOWER_X + RAIL_DX, y: GROUND_Y, active: false, speed: 260 }, fall: { vx: 0, vy: 0, angle: 0, spin: 0 }, fear: 0, onLoad: false, lastSurface: GROUND_Y, walked: 0 };
 }
 
 export function resetWorker(w: WorkerState): void {
   w.mode = 'top';
+  w.walked = 0; w.rescue = undefined;
   w.modeAge = 0;
   w.x = TOWER_X - 12;
   w.y = GROUND_Y;
@@ -87,7 +90,7 @@ export function settleSafe(w: WorkerState): void {
 }
 
 /** The joints let go. `quiet` skips to how it ended, for a collapse the scene did not see happen. */
-export function towerFell(w: WorkerState, tower: TowerState, dir: number, quiet = false): void {
+export function towerFell(w: WorkerState, tower: TowerState, dir: number, quiet = false, inheritedVelocity = topVelocity(tower)): void {
   if (quiet) {
     // Flat by the rubble if he was still up there, clear of it if the exit was accepted.
     if (w.mode === 'top' || w.mode === 'falling') {
@@ -97,19 +100,22 @@ export function towerFell(w: WorkerState, tower: TowerState, dir: number, quiet 
     } else if (w.mode !== 'down') settleSafe(w);
   } else if (w.mode === 'top') {
     setMode(w, 'falling');
-    w.fall = { vx: topVelocity(tower) + dir * 90, vy: -160, angle: 0, spin: dir * 5 };
+    w.fall = { vx: inheritedVelocity + dir * 90, vy: -160, angle: 0, spin: dir * 5 };
   } else if (w.mode === 'calling' || w.mode === 'boarding' || w.mode === 'riding') {
     // The exit was accepted: the cage drops him clear on its emergency brake.
-    setMode(w, 'riding');
+    if (w.mode !== 'riding') {
+      w.rescue = { x: w.x, y: w.y, cageY: w.cage.y, duration: Math.max(0.3, Math.min(0.85, Math.abs(w.cage.y - w.y) / 1400)) };
+      setMode(w, 'rescuing');
+    }
     w.cage.active = true;
     w.cage.speed = 700;
-    w.x = w.cage.x;
   } else if (w.mode === 'safe') {
     w.duck.v += 8;
   }
 }
 
 export function stepWorker(w: WorkerState, tower: TowerState, fear: number, landing: Landing | null, dt: number): void {
+  const previousX = w.x;
   w.time += dt;
   w.modeAge += dt;
   w.fear = fear;
@@ -155,6 +161,14 @@ export function stepWorker(w: WorkerState, tower: TowerState, fear: number, land
       if (k >= 1) { setMode(w, 'riding'); w.cage.speed = 260; }
       break;
     }
+    case 'rescuing': {
+      const r = w.rescue!, t = clamp(w.modeAge / r.duration, 0, 1), k = t * t * (3 - 2 * t);
+      w.cage.y = mix(r.cageY, r.y, k);
+      w.x = mix(r.x, w.cage.x, k); w.y = r.y - Math.sin(Math.PI * t) * 10;
+      stepSpring(w.arms, 1, 12, 0.8, dt);
+      if (t >= 1) setMode(w, 'riding');
+      break;
+    }
     case 'riding':
       w.cage.y = Math.min(GROUND_Y, w.cage.y + w.cage.speed * dt);
       w.cage.x = railX(w.cage.y);
@@ -186,6 +200,7 @@ export function stepWorker(w: WorkerState, tower: TowerState, fear: number, land
     case 'down':
       break;
   }
+  if (w.mode === 'boarding' || w.mode === 'safe') w.walked += Math.abs(w.x - previousX);
 }
 
 function drawFace(ctx: CanvasRenderingContext2D, w: WorkerState, mood: 'calm' | 'worried' | 'panic' | 'smug' | 'out'): void {
@@ -234,23 +249,25 @@ export function drawWorker(ctx: CanvasRenderingContext2D, w: WorkerState): void 
   ctx.translate(w.x, w.y);
   if (w.mode === 'down') { ctx.translate(0, -6); ctx.rotate(-Math.PI / 2); ctx.translate(0, 8); }
   else if (w.mode === 'falling') { ctx.translate(0, -24); ctx.rotate(w.fall.angle); ctx.translate(0, 24); }
-  else ctx.rotate(w.lean.x);
-  const duck = clamp(w.duck.x, 0, 1);
-  ctx.translate(0, duck * 8);
-  ctx.scale(1, 1 - duck * 0.18);
+
+  const duck = clamp(w.duck.x + Math.abs(w.hop.v) * 0.002, 0, 1);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   const line = (x0: number, y0: number, x1: number, y1: number, width: number, colour: string) => {
     ctx.strokeStyle = INK; ctx.lineWidth = width + 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
   };
-  // Legs and boots.
-  const stride = w.mode === 'falling' ? 10 : w.mode === 'boarding' ? Math.sin(w.modeAge * 14) * 5 : 0;
-  line(-5, -20, -7 - stride, 0, 5, '#2f3f5c');
-  line(5, -20, 7 + stride, 0, 5, '#2f3f5c');
-  ctx.fillStyle = '#4a3728';
-  ctx.beginPath(); ctx.roundRect(-12 - stride, -3, 10, 5, 2); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(2 + stride, -3, 10, 5, 2); ctx.fill();
+  const shift = Math.sin(w.lean.x) * 24, sink = duck * 6;
+  for (const side of [-1, 1]) {
+    const p = ((w.walked / 22 + (side > 0 ? 0.5 : 0)) % 1), moving = w.mode === 'boarding' || w.mode === 'safe';
+    const f = moving ? (p < 0.6 ? 0.3 - p : -0.3 + ((p - 0.6) / 0.4) ** 2 * (3 - 2 * (p - 0.6) / 0.4)) * 22 : 0;
+    const fx = side * 7 + f, fy = moving && p > 0.6 ? -Math.sin(Math.PI * (p - 0.6) / 0.4) * 7 : 0;
+    const hx = side * 5 + shift, hy = -20 + sink, dx = fx - hx, dy = fy - hy, d = Math.max(0.001, Math.hypot(dx, dy)), bend = Math.sqrt(Math.max(0, 20 ** 2 - d * d / 4));
+    const kx = (hx + fx) / 2 + dy / d * bend, ky = (hy + fy) / 2 - dx / d * bend;
+    line(hx, hy, kx, ky, 5, '#2f3f5c'); line(kx, ky, fx, fy, 5, '#2f3f5c');
+    ctx.fillStyle = '#4a3728'; ctx.beginPath(); ctx.roundRect(fx - 5, fy - 3, 10, 5, 2); ctx.fill();
+  }
+  ctx.translate(shift, sink); ctx.translate(0, -20); ctx.rotate(w.lean.x * 0.45); ctx.translate(0, 20);
   // Body in the vest.
   ctx.fillStyle = '#ff8c1a';
   ctx.strokeStyle = INK;
@@ -285,6 +302,7 @@ export function drawWorker(ctx: CanvasRenderingContext2D, w: WorkerState): void 
 export function drawCage(ctx: CanvasRenderingContext2D, w: WorkerState, front: boolean): void {
   if (!w.cage.active) return;
   const { x, y } = w.cage;
+  if (!front && w.mode === 'rescuing') { ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, Math.min(y, w.y) - 75); ctx.lineTo(w.x, w.y - 48); ctx.stroke(); }
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.5;
   ctx.lineJoin = 'round';

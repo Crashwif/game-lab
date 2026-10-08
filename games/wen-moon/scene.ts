@@ -1,17 +1,10 @@
-/**
- * Composes Wen Moon from the room state: the world scrolling under the rocket with its altitude, the
- * booster separation, the jeets bailing out at each rung, the escape pod of an accepted cash-out, the
- * seeded burst of the crash, and the HUD. Everything follows the SceneView and the frame time; nothing
- * here changes the committed outcome.
- */
 import { pageAudio } from './audio';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
-import { GROUND, INK, PAD_X, PX_PER_DOUBLING, type Jeet, type Piece, type Pod, camera, disc, drawJeet, drawPieces, drawPod, drawRocket, drawWorld, shred, stepPieces } from './rocket';
+import { GROUND, INK, PAD_X, PX_PER_DOUBLING, type Jeet, type Piece, type Pod, camera, createPod, stepPod, disc, drawJeet, drawPieces, drawPod, drawRocket, drawWorld, shred, stepPieces } from './rocket';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
-  /** The displayed multiplier in hundredths; the crash point once crashed. */
-  currentX100: number;
+    currentX100: number;
   elapsed: number;
   crashAge: number;
   stake: number | null;
@@ -22,17 +15,14 @@ export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
-/** The caption ladder: a milestone stinger at each rung, a jeet bailing out from the second, the booster gone at the third. */
 const RUNGS = [1.3, 1.7, 2.3, 3.2, 5, 8, 15];
 const CAPTIONS = ['WE HAVE LIFTOFF', 'THROTTLE UP', 'STAGE ONE SEPARATED', 'PAST THE ATMOSPHERE', 'MOON IN SIGHT', 'ESCAPE VELOCITY', 'NEXT STOP: VALHALLA', 'BEYOND THE CHART'];
 const SEPARATION = 3;
-/** The burst's hit-stop, then slow motion at a third speed. */
 const FREEZE_S = 0.07;
 const SLOW_S = 0.4;
 type Outcome = 'rekt' | 'called' | 'rugged';
 type Secured = { x100: number; payout: number | null };
 
-/** Meme caption lettering: heavy, bordered, tracked so Impact's letters don't fuse. */
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
   ctx.letterSpacing = `${Math.round(size * 0.1)}px`;
@@ -64,6 +54,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let alt = 0;
+  let wobble = 0, wobbleV = 0, climb = 0;
+  const framing = spring(0);
   let booster = true;
   let rung = 0;
   let traffic = 0;
@@ -79,7 +71,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let fire = -1;
 
   function reset(): void {
-    alt = 0;
+    alt = 0; wobble = wobbleV = climb = 0; settleSpring(framing, 0);
     booster = true;
     rung = 0;
     traffic = 0;
@@ -94,17 +86,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     settleSpring(badge, 0);
   }
 
-  /** The pod leaves the nose; `quiet` puts it far below already, for a cash-out met late. */
-  function eject(quiet: boolean): void {
-    pod = quiet ? { x: -80, h: alt - 900, vx: 0, vy: -55, chute: spring(1), age: 9 } : { x: 0, h: alt + 190, vx: -170, vy: 60, chute: spring(0), age: 0 };
+    function eject(quiet: boolean): void {
+    pod = quiet ? { x: -80, h: alt - 900, vx: 0, vy: -55, chute: spring(1), age: 9, angle: spring(0) } : createPod(alt, wobble, climb, wobbleV);
     if (!quiet) {
       audio.cashout();
       audio.fx('pop', 1.2);
     }
   }
 
-  /** The burst: the fireball, the seeded pieces, the outcome and the sound; `quiet` lands on the aftermath. */
-  function burst(view: SceneView, quiet: boolean): void {
+    function burst(view: SceneView, quiet: boolean): void {
     outcome = view.stake === null ? 'rugged' : secured ? 'called' : 'rekt';
     fire = quiet ? 3 : 0;
     pieces = quiet ? [] : shred(PAD_X, camera(alt).y, view.currentX100, pod === null);
@@ -142,7 +132,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
+    const oldAlt = alt, oldWobble = wobble;
     if (running || crashed) alt = growth * PX_PER_DOUBLING;
+    wobble = reduced ? 0 : Math.sin(time * 3) * 0.03 * tension + (view.elapsed > 45000 ? Math.sin(time * Math.PI / 9) * 0.07 : 0);
+    if (real > 0 && !fresh) { climb += ((alt - oldAlt) / real - climb) * (1 - Math.exp(-real * 12)); wobbleV = (wobble - oldWobble) / real; }
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
       eject(fresh || crashed);
@@ -192,13 +185,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const screenY = (h: number): number => GROUND - h + cam.scroll;
     if (pod) {
       // Up and away from the nose, then the chute opens and the pod drifts down out of the picture.
-      pod.age += dt;
-      if (pod.chute.x < 0.01 && pod.age > 0.55) audio.fx('whoosh', 0.5);
-      stepSpring(pod.chute, pod.age > 0.55 ? 1 : 0, 10, 0.55, dt);
-      pod.vy = pod.chute.x > 0.5 ? pod.vy + (-55 - pod.vy) * (1 - Math.exp(-dt * 4)) : pod.vy - 420 * dt;
-      pod.vx *= Math.exp(-0.9 * dt);
-      pod.x += (pod.vx + Math.sin(time * 1.5) * 25 * pod.chute.x) * dt;
-      pod.h += pod.vy * dt;
+      if (pod.age <= 0.55 && pod.age + dt > 0.55) audio.fx('whoosh', 0.5);
+      stepPod(pod, dt, reduced);
     }
     for (const j of jeets) {
       j.x += j.vx * dt;
@@ -210,6 +198,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
+    stepSpring(framing, pod && pod.age < 3.5 ? Math.max(0, 220 - screenY(pod.h)) : 0, 6, 1, dt);
     const frog = { fear: crashed && pod === null ? 1 : tension, shades: secured !== null };
 
     ctx.save();
@@ -217,12 +206,14 @@ export function createScene(options: SceneOptions = {}): Scene {
       const rumble = running ? tension * tension * 3 : 0;
       ctx.translate(Math.sin(time * 140) * (9 * shake * shake + rumble), Math.cos(time * 117) * (6 * shake * shake + rumble));
     }
-    drawWorld(ctx, alt, growth, time, reduced);
+    // Reframe the whole world continuously; the pod retains its physical trajectory.
+    ctx.translate(0, framing.x);
+    drawWorld(ctx, alt, growth, time, reduced, framing.x);
     for (const j of jeets) drawJeet(ctx, PAD_X + j.x, screenY(j.h), time);
     if (fire < 0) {
       ctx.save();
       ctx.translate(PAD_X, cam.y);
-      drawRocket(ctx, { booster, piloted: pod === null, frog, flame: running ? 30 + 130 * tension : 0, flicker: reduced ? 0 : noise(Math.floor(time * 40)), wobble: reduced ? 0 : Math.sin(time * 3) * 0.03 * tension + (view.elapsed > 45000 ? Math.sin(time * Math.PI / 9) * 0.07 : 0) });
+      drawRocket(ctx, { booster, piloted: pod === null, frog, flame: running ? 30 + 130 * tension : 0, flicker: reduced ? 0 : noise(Math.floor(time * 40)), wobble });
       ctx.restore();
     } else if (fire < 2) {
       // The fireball blooms and fades.
@@ -236,9 +227,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     drawPieces(ctx, pieces);
     if (pod) {
-      // Keep the entire canopy and pilot in the safe area during the accepted exit.
-      const framedY = pod.age < 3.5 ? Math.max(230, screenY(pod.h)) : screenY(pod.h);
-      drawPod(ctx, pod, framedY, frog, time);
+      drawPod(ctx, pod, screenY(pod.h), frog, time);
     }
     if (fire >= 0 && fire < 0.3) {
       ctx.fillStyle = `rgba(255, 255, 255, ${(0.3 - fire) * (reduced ? 0.8 : 2.5)})`;

@@ -27,7 +27,7 @@ export interface Frog {
   phase: number;
   squash: Spring;
   diveAge: number;
-  diveFrom: { x: number; y: number };
+  diveFrom: { x: number; y: number; scale: number; stride: number; squash: number };
   clang: Spring;
 }
 
@@ -64,7 +64,7 @@ export interface Squad {
 }
 
 function makeFrog(i: number): Frog {
-  return { mode: 'trench', x: 210 + i * 130, seed: i * 7.3 + 1, phase: i * 1.3, squash: spring(0), diveAge: 0, diveFrom: { x: 0, y: 0 }, clang: spring(0) };
+  return { mode: 'trench', x: 210 + i * 130, seed: i * 7.3 + 1, phase: i * 1.3, squash: spring(0), diveAge: 0, diveFrom: { x: 0, y: 0, scale: 1, stride: 0, squash: 0 }, clang: spring(0) };
 }
 
 export function createSquad(): Squad {
@@ -129,7 +129,7 @@ export function diveBack(s: Squad, progress: number, quiet = false): void {
   const at = marchPosition(f, progress, s.over.x);
   f.mode = 'diving';
   f.diveAge = 0;
-  f.diveFrom = { x: at.x, y: at.y };
+  f.diveFrom = { ...at, stride: f.phase, squash: f.squash.x + (s.act === 3 ? .9 : s.act === 4 ? .4 : 0) * s.effort };
 }
 
 /** The nuke landed. `quiet` skips the effects for a crash that already happened. Marching frogs arc back into the trench. */
@@ -147,7 +147,7 @@ export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
     if (f.mode !== 'marching' && f.mode !== 'trench') continue;
     if (!quiet && f.mode === 'marching') {
       const at = marchPosition(f, progress, s.over.x);
-      f.diveFrom = { x: at.x, y: at.y };
+      f.diveFrom = { ...at, stride: f.phase, squash: f.squash.x + (s.act === 3 ? .9 : s.act === 4 ? .4 : 0) * s.effort };
       f.diveAge = 0;
       f.mode = 'flung';
     } else f.mode = 'dead';
@@ -447,9 +447,9 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       const k = smoothstep(0, 0.75, f.diveAge);
       const x = mix(f.diveFrom.x, f.x, k);
       const y = mix(f.diveFrom.y, TRENCH_FLOOR, k) - Math.sin(k * Math.PI) * 90;
-      const scale = mix(0.75, 1, k);
+      const scale = mix(f.diveFrom.scale, 1, k);
       ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI * 0.35 * Math.sin(k * Math.PI)); ctx.translate(-x, -y);
-      drawFrog(ctx, x, y, scale, { stride: f.diveAge * 6, squash: 0, expression: 'shock', shades: false, cigar: false, bag: true, helmetLift: 0.6, lying: false, time: s.time });
+      drawFrog(ctx, x, y, scale, { stride: f.diveFrom.stride + smoothstep(0, .3, f.diveAge) * f.diveAge * 1.5, squash: f.diveFrom.squash * (1 - smoothstep(0, .2, f.diveAge)), expression: 'shock', shades: false, cigar: false, bag: true, helmetLift: 0.6, lying: false, time: s.time });
       ctx.restore();
     } else if (f.mode === 'flung') {
       const k = smoothstep(0, 1.05, f.diveAge);
@@ -460,7 +460,7 @@ export function drawSquad(ctx: CanvasRenderingContext2D, s: Squad, progress: num
       ctx.translate(x, y);
       ctx.rotate(spin);
       ctx.translate(-x, -y);
-      drawFrog(ctx, x, y, mix(0.7, 0.95, k), { stride: 0.2, squash: Math.sin(k * Math.PI), expression: k > 0.62 ? 'dead' : 'shock', shades: false, cigar: false, bag: false, helmetLift: 0.15 + k * 1.35, lying: false, time: s.time });
+      drawFrog(ctx, x, y, mix(f.diveFrom.scale, 0.95, k), { stride: f.diveFrom.stride, squash: mix(f.diveFrom.squash, Math.sin(k * Math.PI), smoothstep(0, .2, f.diveAge)), expression: k > 0.62 ? 'dead' : 'shock', shades: false, cigar: false, bag: false, helmetLift: 0.15 + k * 1.35, lying: false, time: s.time });
       ctx.restore();
     }
   }

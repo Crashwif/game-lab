@@ -265,7 +265,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     // ---- The chart -----------------------------------------------------------------------------------------
-    const off = jet.x > 0.05 || fallen;
+    const off = secured !== null || crashed || fallen;
     const flaps = playerFlaps ? input.take() : autopilot(world, dt);
     stepWorld(world, flaps, { running: running && !fallen, multiplier, tension, off }, dt);
     const e = world.events;
@@ -319,7 +319,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // ---- The jet and the fall -------------------------------------------------------------------------------
     stepSpring(jet, secured ? 1 : 0, 3, 0.9, dt);
-    stepSpring(berth, secured && jet.x > 0.85 ? 1 : 0, 2.2, 0.9, dt);
+    stepSpring(berth, secured && jet.x > 0.995 ? 1 : 0, 2.2, 0.9, dt);
     stepSpring(bagShown, world.bag, 12, 0.7, dt);
     if (crashed && crashAge >= 0) {
       crashAge += dt;
@@ -327,7 +327,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       rugX = mix(W + 120, BIRD_X - 80, progress);
       // Each candle goes as the edge reaches it; whatever stands behind the shiba goes with the last of it.
       for (const c of world.candles) if (c.rugged < 0 && (c.x > rugX || progress >= 1)) c.rugged = 0;
-      if (!fallen && rugX <= BIRD_X + 20 && jet.x < 0.5) {
+      if (!fallen && !secured && rugX <= BIRD_X + 20 && jet.x < 0.5) {
         fallen = true;
         fallAge = 0;
         fallY = b.y;
@@ -370,15 +370,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     else if (!reduced && running && !off) ctx.translate(0, Math.sin(time * 90) * 1.2 * speedK * speedK);
     const fall = fallen ? clamp(fallAge / 1.2, 0, 1) : 0;
     // The jet comes in from the right under the shiba, then carries him to the berth.
-    const jetIn = { x: mix(W + 220, BIRD_X + 6, jet.x), y: b.y + 34 };
+    const jetIn = { x: mix(W + 220, BIRD_X + 4, clamp(jet.x, 0, 1)), y: b.y + 34 };
     const jetAt = { x: mix(jetIn.x, BERTH.x, berth.x), y: mix(jetIn.y, BERTH.y, berth.x) + (reduced ? 0 : Math.sin(time * 1.8) * 6 * berth.x) };
-    const birdAt = fallen ? { x: BIRD_X - 60 * fall, y: fallY + fallAge * fallAge * 900 } : secured && jet.x > 0.85 ? { x: jetAt.x - 4, y: jetAt.y - 34 } : { x: BIRD_X, y: b.y };
+    const boarding = secured ? smoothstep(.85, 1, jet.x) : 0;
+    const birdAt = fallen ? { x: BIRD_X - 60 * fall, y: fallY + fallAge * fallAge * 900 } : { x: mix(BIRD_X, jetAt.x - 4, boarding), y: mix(b.y, jetAt.y - 34, boarding) };
     birdScreen = birdAt;
     drawChart(ctx, world, chart, BIRD_X - world.distance, () => {
       if (secured && jet.x > 0.02) drawJet(ctx, { x: jetAt.x, y: jetAt.y, time, bank: -0.08 * (1 - berth.x) - 0.04 * berth.x, reduced });
       if (birdAt.y > H + 80) return;
       drawShiba(ctx, {
-        x: birdAt.x, y: birdAt.y, tilt: secured ? 0 : b.tilt.x, flapAge: b.flapAge, stun: b.stun, bag: bagShown.x, drip, rocket: world.rocket > 0 && !off, magnet: world.magnet > 0 && !off,
+        x: birdAt.x, y: birdAt.y, tilt: b.tilt.x * (1 - boarding), flapAge: b.flapAge, wingMotion: { beat: b.wing.x, lag: b.wingLag.x, feather: b.feather.x }, perched: boarding, stun: b.stun, bag: bagShown.x, drip, rocket: world.rocket > 0 && !off, magnet: world.magnet > 0 && !off,
         fall, struck: world.fud >= 0 ? clamp(1 - world.fud / 0.5, 0, 1) : 0, time, reduced,
       });
     });

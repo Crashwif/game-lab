@@ -9,6 +9,8 @@ export interface CockpitView {
   multiplier: number;
   gear: number;
   steering: number;
+  headRoll: number;
+  headPitch: number;
   crashAge: number;
   crashed: boolean;
   cashout: number | null;
@@ -19,16 +21,17 @@ export interface CockpitView {
 function pepe(ctx: CanvasRenderingContext2D, view: CockpitView): void {
   const wrecked = view.crashed && view.cashout === null;
   ctx.save(); ctx.translate(755, 103);
-  ctx.rotate(wrecked ? -0.12 : Math.sin(view.time * 1.5) * 0.015);
   // Broad cheeks, high frog eyes and the unmistakably unimpressed mouth.
   ellipse(ctx, 0, 45, 68, 32, '#202c34', '#080e13');
   line(ctx, [[-28, 24], [-16, 45], [16, 45], [28, 24]], '#dec269', 3);
+  // The shoulders stay in the seat while the head lags turns and braking.
+  ctx.translate(0, 27 + view.headPitch); ctx.rotate(view.headRoll); ctx.translate(0, -27);
   ellipse(ctx, 0, 4, 53, 36, '#548e42', '#18382a');
   ellipse(ctx, -26, -23, 22, 23, '#65a04c', '#18382a'); ellipse(ctx, 24, -24, 23, 24, '#65a04c', '#18382a');
   ellipse(ctx, 0, 19, 43, 17, '#8bb55a');
   ellipse(ctx, -39, 12, 10, 6, '#73a84c'); ellipse(ctx, 38, 12, 10, 6, '#73a84c');
   // Heavy black sunglasses remain on, even after the airbag deploys.
-  ctx.save(); ctx.rotate(wrecked ? 0.12 : 0);
+  ctx.save(); ctx.rotate(wrecked ? smoothstep(0.35, 0.7, view.crashAge) * 0.12 : 0);
   for (const x of [-27, 26]) {
     panel(ctx, x - 23, -31, 46, 30, '#101625', '#070b12', 9);
     poly(ctx, [[x - 17, -26], [x - 7, -27], [x + 17, -8], [x + 8, -5]], '#3c6871');

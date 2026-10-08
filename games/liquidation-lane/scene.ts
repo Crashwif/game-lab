@@ -3,7 +3,7 @@ import { pageAudio } from './audio';
 import { CYAN, FONT, LIME, MONO, PINK, line, panel, text } from './art';
 import { drawCockpit, drawDamage, type CockpitView } from './cockpit';
 import { clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
-import { drawRoad } from './road';
+import { drawRoad, roadBend } from './road';
 import { engineSound } from './sound';
 
 export interface SceneView {
@@ -78,6 +78,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const audio = pageAudio({ style: 'phonk', bpm: 132, tempoRise: 0.3, crash: 'shatter', music: 0.58 });
   const engine = engineSound(audio);
   const speed = spring(0), steering = spring(0), parked = spring(0);
+  const headRoll = spring(0), headPitch = spring(0);
   let previous: SceneView['phase'] | null = null;
   let last: number | null = null;
   let time = 0, distance = 0, crashAge = 0;
@@ -87,6 +88,7 @@ export function createScene(options: SceneOptions = {}): Scene {
 
   function reset(): void {
     settleSpring(speed, 0); settleSpring(steering, 0); settleSpring(parked, 0);
+    settleSpring(headRoll, 0); settleSpring(headPitch, 0);
     distance = 0; crashAge = 0; secured = null; stage = 0; alertAge = 10; lastGear = 1; impactPlayed = false;
   }
 
@@ -132,8 +134,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const driving = running && secured === null;
     stepSpring(speed, driving ? targetSpeed : 0, crashed ? 7 : secured !== null ? 3.5 : 2.5, 1, dt);
     stepSpring(parked, secured === null ? 0 : 1, 3, 1, dt);
-    const steer = driving ? Math.sin(time * (0.9 + tension)) * (0.09 + tension * 0.3) + (reduced ? 0 : Math.sin(time * 7) * tension ** 3 * 0.2) : secured !== null ? Math.sin(parked.x * Math.PI) * -1.15 : crashed ? 0.7 : 0;
+    const steer = driving ? roadBend(distance, tension) / 180 + (reduced ? 0 : Math.sin(time * 7) * tension ** 3 * 0.05) : secured !== null ? Math.sin(parked.x * Math.PI) * -1.15 : crashed ? 0.7 : 0;
     stepSpring(steering, steer, 8, 0.85, dt);
+    const restingRoll = crashed && secured === null ? -0.12 : 0;
+    if (first) settleSpring(headRoll, restingRoll);
+    stepSpring(headRoll, restingRoll + (reduced ? 0 : clamp(-steering.v * 0.07 - steering.x * Math.min(1, speed.x / 200) * 0.12, -0.18, 0.18)), 9, 0.65, dt);
+    stepSpring(headPitch, reduced ? 0 : clamp(-speed.v * 0.025, -4, 7), 11, 0.7, dt);
     distance += Math.max(0, speed.x) * dt * 1.45;
     const gear = Math.min(7, 1 + Math.floor(growth / 0.65));
     if (driving && gear > lastGear) audio.fx('engine', 0.3);
@@ -141,7 +147,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     engine.update(driving ? 0.3 + (growth / 0.65 % 1) * 0.6 : 0.1, driving || view.phase === 'betting' || view.phase === 'waiting');
     audio.update(view.phase, secured === null ? tension : 0.05);
 
-    const car: CockpitView = { time, tension, speed: Math.max(0, speed.x), multiplier, gear, steering: steering.x, crashAge, crashed, cashout: secured, running, reduced };
+    const car: CockpitView = { time, tension, speed: Math.max(0, speed.x), multiplier, gear, steering: steering.x, headRoll: headRoll.x, headPitch: headPitch.x, crashAge, crashed, cashout: secured, running, reduced };
     const wreck = crashed && secured === null;
     ctx.save();
     if (!reduced) {

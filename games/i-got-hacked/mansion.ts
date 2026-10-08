@@ -11,6 +11,7 @@
  * star is a generic cartoon with no likeness of anyone. Nothing here changes
  * the outcome.
  */
+import { solveLimb } from './kinematics';
 import { type Spring, clamp, gust, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -376,29 +377,37 @@ function drawYacht(ctx: CanvasRenderingContext2D, m: Mansion, tension: number): 
   void tension;
 }
 
+/** Reachable, continuous wrist target across rest, wave and the apology. */
+export function starFreeHand(wave: number, shrug: number, time: number): Point {
+  wave = clamp(wave, 0, 1); shrug = clamp(shrug, 0, 1);
+  const target = { x: mix(mix(64, 74, wave), 62, shrug), y: mix(mix(-78, -176 - Math.sin(time * 11) * 8 * wave, wave), -138, shrug) };
+  return solveLimb({ x: 50, y: -126 }, target, 36, 32, -1).end;
+}
+
 /** The manager beside the star, leaning in to whisper. */
 function drawManager(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: number, tension: number): void {
   const lean = clamp(m.whisper.x, 0, 1);
   ctx.save();
   ctx.translate(x, footY);
-  ctx.rotate(-0.25 * lean);
+  // The waist turns over planted legs; the feet remain on the pool deck.
   ctx.lineJoin = 'round';
   const suit = '#2b2b30';
   for (const side of [-1, 1]) {
-    const plant = side > 0 ? lean * 16 : -lean * 6;
+    const plant = 0;
     limb(ctx, { x: side * 9, y: -74 }, { x: side * 12 + plant, y: 0 }, 42, 38, -side, 13, suit);
     ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(side * 12 + plant, 3, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
+  ctx.translate(0, -74); ctx.rotate(-.25 * lean); ctx.translate(0, 74);
   ctx.fillStyle = suit; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-28, -130, 56, 64, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff';
   ctx.beginPath(); ctx.moveTo(-8, -130); ctx.lineTo(8, -130); ctx.lineTo(0, -96); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.moveTo(-3, -128); ctx.lineTo(3, -128); ctx.lineTo(1, -100); ctx.lineTo(-1, -100); ctx.closePath(); ctx.fill();
   const whisperHand = { x: mix(36, -8, lean), y: mix(-68, -152, lean) };
-  limb(ctx, { x: 26, y: -120 }, whisperHand, 36, 34, whisperHand.y >= -120 ? -1 : 1, 12, suit);
+  limb(ctx, { x: 26, y: -120 }, whisperHand, 36, 34, -1, 12, suit);
   const phoneHand = { x: -42 + Math.sin(m.time * 1.6) * 3, y: -66 };
-  limb(ctx, { x: -26, y: -120 }, phoneHand, 34, 32, phoneHand.y >= -120 ? 1 : -1, 12, suit);
+  limb(ctx, { x: -26, y: -120 }, phoneHand, 34, 32, 1, 12, suit);
   ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(whisperHand.x, whisperHand.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // A phone in the free hand, bobbing with the arm.
@@ -475,9 +484,9 @@ function drawStar(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: n
   ctx.beginPath(); ctx.moveTo(-54, -60); ctx.lineTo(54, -60); ctx.stroke();
   // Arms: the phone hand, and a free hand that waves or shrugs.
   const phoneHand = { x: -34 + 6 * typing, y: -96 - shrug * 30 };
-  limb(ctx, { x: -50, y: -126 }, phoneHand, 34, 30, phoneHand.y >= -126 ? 1 : -1, 15, robe);
-  const freeHand = shrug > 0.3 ? { x: 62, y: -128 - shrug * 10 } : wave > 0.2 ? { x: 74, y: -176 - Math.sin(m.time * 11) * 12 * wave } : { x: 64, y: -78 };
-  limb(ctx, { x: 50, y: -126 }, freeHand, 36, 32, freeHand.y >= -126 ? -1 : 1, 15, robe);
+  limb(ctx, { x: -50, y: -126 }, phoneHand, 34, 30, 1, 15, robe);
+  const freeHand = starFreeHand(wave, shrug, m.time);
+  limb(ctx, { x: 50, y: -126 }, freeHand, 36, 32, -1, 15, robe);
   ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(freeHand.x, freeHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(phoneHand.x, phoneHand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();

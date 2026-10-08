@@ -1,3 +1,4 @@
+import { solveLimb, walkingFoot } from './kinematics';
 /**
  * The family of Family Meeting: the father and the mother behind the table, facing us, whose colour, brows,
  * veins, steam, swelling and shaking follow the tension until the crash blows their heads off; and the
@@ -200,7 +201,17 @@ function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
   ctx.lineCap = 'round';
 }
 
+/** Anticipate, contact at the audio threshold, then a small recoil. */
+export function fistLift(phase: number): number {
+  const ease = (u: number) => u * u * (3 - 2 * u);
+  if (phase < .3) return 30 * ease(clamp(phase / .3, 0, 1));
+  if (phase < .55) return 30 * (1 - ease((phase - .3) / .25));
+  if (phase < .8) return 4 * Math.sin(Math.PI * (phase - .55) / .25) ** 2;
+  return 0;
+}
 function arm(ctx: CanvasRenderingContext2D, color: string, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string): void {
+  const solved = solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, 48, 38, sx < 0 ? 1 : -1);
+  ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
   ctx.strokeStyle = color;
   ctx.lineWidth = 17;
   ctx.lineCap = 'round';
@@ -392,7 +403,7 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
     const fy = mix(60, -34, clutch);
     arm(ctx, color, -54, -2, mix(-76, -70, clutch), mix(42, 10, clutch), fx, fy, skin);
     if (clutch < 0.5) drawFork(ctx, fx - 2, fy - 8, heat);
-    const lift = p.slamT < 1 ? Math.sin(p.slamT * Math.PI) * 30 : 0;
+    const lift = fistLift(p.slamT);
     arm(ctx, color, 54, -2, 76, 42 - lift * 0.5, 46, 58 - lift, skin);
     ink(ctx, 2);
     ctx.beginPath();
@@ -842,24 +853,21 @@ export function drawDaughterChair(ctx: CanvasRenderingContext2D): void {
 export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: number, tension: number, reduced: boolean): void {
   if (d.mode === 'gone') return;
   const stand = clamp(d.stand.x, 0, 1);
-  const stride = d.walk > 0 && !reduced ? Math.sin(d.walk * 11) : 0;
+  const walking = d.walk > 0 && !reduced;
+  const distance = Math.max(0, d.x - DAUGHTER_X);
   ctx.save();
-  ctx.translate(d.x, CHAIR_Y - 74 * stand + Math.abs(stride) * -4);
-  // Legs: shins and sneakers under the seat while she sits, the whole leg once she is up, a stride when she walks.
-  ink(ctx, 2.5);
+  ctx.translate(d.x, CHAIR_Y - 74 * stand);
+  // Soles stay on the floor while the pelvis rises from the chair.
   for (const side of [-1, 1]) {
-    const lx = side * 22 - 13 + stride * side * 10;
-    const len = 36 + 74 * stand;
-    ctx.fillStyle = '#3a5a8a';
-    ctx.beginPath();
-    ctx.roundRect(lx, -6, 26, len, 6);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#f7f3ea';
-    ctx.beginPath();
-    ctx.roundRect(lx - 2, len - 12, 30, 12, 4);
-    ctx.fill();
-    ctx.stroke();
+    const step = walking ? walkingFoot(distance, 84, side > 0 ? .5 : 0, 16) : { x: 0, y: 0 };
+    const hip = { x: side * 22, y: -6 };
+    const foot = { x: side * 22 + step.x, y: 30 + 74 * stand + step.y };
+    const knee = solveLimb(hip, foot, 59, 58, -side).joint;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#3a5a8a'; ctx.lineWidth = 24;
+    ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+    ink(ctx, 2.5); ctx.fillStyle = '#f7f3ea';
+    ctx.beginPath(); ctx.roundRect(foot.x - 13, foot.y - 8, 30, 12, 4); ctx.fill(); ctx.stroke();
   }
   // The hoodie, the hood on her back, a pin.
   ctx.fillStyle = '#2b2b33';
@@ -883,8 +891,14 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   ctx.strokeRect(-7, -6, 14, 12);
   ctx.restore();
   // Arms: on the table, or up and explaining; the phone hand for the selfie.
-  const g = clamp(d.gesture.x, 0, 1);
+  const carrying = d.mode === 'leaving' ? stand : 0;
+  const g = clamp(d.gesture.x, 0, 1) * (1 - carrying);
   const ph = clamp(d.phone.x, 0, 1);
+  if (carrying > .01) {
+    ctx.save(); ctx.globalAlpha = carrying; ctx.fillStyle = '#f7f3ea'; ink(ctx, 2.5);
+    ctx.beginPath(); ctx.ellipse(0, -45, 45, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#d4a05a'; ctx.beginPath(); ctx.ellipse(0, -49, 22, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
   for (const side of [-1, 1]) {
     const wave = Math.sin(time * 7.5 + (side > 0 ? 0 : 1.8)) * g;
     let hx = side * (62 + 16 * g) + wave * 14;
@@ -897,6 +911,9 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
       ex = mix(ex, 88, ph);
       ey = mix(ey, -110, ph);
     }
+    hx = mix(hx, side * 40, carrying); hy = mix(hy, -48, carrying);
+    const solved = solveLimb({ x: side * 62, y: -54 }, { x: hx, y: hy }, 55, 54, -side);
+    ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
     ctx.strokeStyle = '#2b2b33';
     ctx.lineWidth = 20;
     ctx.lineCap = 'round';

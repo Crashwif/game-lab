@@ -1,24 +1,39 @@
-/**
- * The $MOON rocket and the world it climbs through: the pad and gantry it leaves behind, the clouds,
- * stars and moon that follow the altitude, the frog pilot, the escape pod on its chute, the jeets who
- * bail out, and the seeded pieces of the burst. Drawn on a 960 × 540 canvas; nothing here picks the outcome.
- */
-import { type Spring, mix, mulberry32, noise, smoothstep } from './motion';
+import { type Spring, mix, mulberry32, noise, smoothstep, spring, stepSpring, clamp } from './motion';
 
 export const INK = '#1c1f26';
-/** The ground line, the pad's x, the height the rocket climbs to before the world scrolls under it, and world px per doubling. */
 export const GROUND = 468;
 export const PAD_X = 480;
 const HOVER = 375;
 export const PX_PER_DOUBLING = 520;
 
 export interface Piece { x: number; y: number; vx: number; vy: number; a: number; spin: number; kind: number; s: number }
-export interface Pod { x: number; h: number; vx: number; vy: number; chute: Spring; age: number }
+export interface Pod { x: number; h: number; vx: number; vy: number; chute: Spring; age: number; angle: Spring }
+/** The visible pilot socket is 166px above the nozzle; the pod pilot is 7px above its origin. */
+export function createPod(alt: number, wobble: number, climb: number, angularVelocity = 0): Pod {
+  const angle = spring(wobble); angle.v = angularVelocity;
+  return { x: 159 * Math.sin(wobble), h: alt + 159 * Math.cos(wobble), vx: -170 + 159 * Math.cos(wobble) * angularVelocity, vy: climb + 60 - 159 * Math.sin(wobble) * angularVelocity, chute: spring(0), age: 0, angle };
+}
+export function stepPod(p: Pod, dt: number, reduced: boolean): void {
+  const steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps;
+  for (let i = 0; i < steps; i++) {
+    p.age += h; stepSpring(p.chute, p.age > 0.55 ? 1 : 0, 10, 0.75, h);
+    const open = clamp(p.chute.x, 0, 1);
+    const drag = open * 4, gravity = 420 * (1 - open);
+    p.vy += (-gravity + (-55 - p.vy) * drag) * h;
+    p.vx *= Math.exp(-(0.3 + open * 1.2) * h);
+    p.x += p.vx * h; p.h += p.vy * h;
+    stepSpring(p.angle, -p.vx * 0.0015 * open * (reduced ? 0.25 : 1), 5, 0.55, h);
+  }
+}
+export function podRig(open: number) {
+  const k = clamp(open, 0, 1);
+  return { canopyY: -12 - 58 * k, radius: 46 * k, harnessY: -12 };
+}
+
 export interface Jeet { x: number; h: number; vx: number }
 export interface Frog { fear: number; shades: boolean }
 export interface RocketDrive { booster: boolean; piloted: boolean; frog: Frog; flame: number; flicker: number; wobble: number }
 
-/** Where the world sits for a rocket at altitude `alt`: the rocket's screen y and how far the world has scrolled down. */
 export function camera(alt: number): { y: number; scroll: number } {
   const lift = Math.min(alt, GROUND - HOVER);
   return { y: GROUND - lift, scroll: alt - lift };
@@ -29,7 +44,6 @@ export function disc(ctx: CanvasRenderingContext2D, x: number, y: number, r: num
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
 }
 
-/** A closed polygon, filled and inked. */
 export function shape(ctx: CanvasRenderingContext2D, points: number[][], fill: string, width = 3): void {
   ctx.beginPath();
   points.forEach(([x, y], i) => (i ? ctx.lineTo(x!, y!) : ctx.moveTo(x!, y!)));
@@ -41,14 +55,14 @@ export function shape(ctx: CanvasRenderingContext2D, points: number[][], fill: s
 const STARS = Array.from({ length: 60 }, (_, i) => ({ x: noise(i * 3.1) * 960, y: noise(i * 7.7) * 420, r: 0.6 + noise(i * 1.3) * 1.4, k: 1 + noise(i * 5.9) * 3 }));
 const CLOUDS = Array.from({ length: 9 }, (_, i) => ({ x: 60 + noise(i * 2.3) * 840, h: 140 + i * 105 + noise(i) * 60, w: 60 + noise(i * 4.7) * 90 }));
 
-export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, growth: number, time: number, reduced: boolean): void {
+export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, growth: number, time: number, reduced: boolean, frameY = 0): void {
   const { scroll } = camera(alt);
   const space = smoothstep(250, 1500, alt);
-  const sky = ctx.createLinearGradient(0, 0, 0, 540);
+  const sky = ctx.createLinearGradient(0, -frameY, 0, 540 - frameY);
   sky.addColorStop(0, `rgb(${mix(28, 6, space)}, ${mix(72, 8, space)}, ${mix(150, 22, space)})`);
   sky.addColorStop(1, `rgb(${mix(140, 10, space)}, ${mix(190, 14, space)}, ${mix(230, 34, space)})`);
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, 960, 540);
+  ctx.fillRect(0, -frameY, 960, 540);
   for (const [i, s] of STARS.entries()) {
     ctx.globalAlpha = space * (reduced ? 0.8 : 0.7 + 0.3 * Math.sin(time * s.k + i));
     disc(ctx, s.x, (s.y + scroll * 0.02) % 540, s.r, '#ffffff');
@@ -111,7 +125,6 @@ export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, growth: nu
   ctx.restore();
 }
 
-/** The frog pilot: eyes that widen with fear, a sweat drop past the first scare, shades once he is out. */
 export function drawFrog(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, frog: Frog): void {
   disc(ctx, x, y, r, '#5b9a45');
   const eye = r * (0.34 + 0.12 * frog.fear);
@@ -143,7 +156,6 @@ function cone(ctx: CanvasRenderingContext2D, y: number, w: number): void {
   ctx.beginPath(); ctx.moveTo(-w / 2, y); ctx.quadraticCurveTo(0, y - 70, w / 2, y); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
-/** The rocket with its nozzle at the origin, pointing up: the booster while it is attached, then the hull, the porthole and the nose. */
 export function drawRocket(ctx: CanvasRenderingContext2D, drive: RocketDrive): void {
   ctx.save();
   ctx.rotate(drive.wobble);
@@ -182,21 +194,20 @@ export function drawRocket(ctx: CanvasRenderingContext2D, drive: RocketDrive): v
   ctx.restore();
 }
 
-/** The escape pod (the nose with the frog in it) under its canopy once the chute has opened. */
-export function drawPod(ctx: CanvasRenderingContext2D, pod: Pod, screenY: number, frog: Frog, time: number): void {
+export function drawPod(ctx: CanvasRenderingContext2D, pod: Pod, screenY: number, frog: Frog, _time: number): void {
   ctx.save();
   ctx.translate(PAD_X + pod.x, screenY);
-  ctx.rotate(Math.sin(time * 2) * 0.12 * pod.chute.x);
+  ctx.rotate(pod.angle.x);
   const open = Math.min(1, Math.max(0, pod.chute.x));
   if (open > 0.02) {
     ctx.save();
-    ctx.scale(open, open);
+    const rig = podRig(open);
     ctx.fillStyle = '#d5fb6d';
     ctx.strokeStyle = INK;
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, -70, 46, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, rig.canopyY, rig.radius, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.beginPath();
-    for (const x of [-44, -15, 15, 44]) { ctx.moveTo(x, -70); ctx.lineTo(0, -12); }
+    for (const x of [-44, -15, 15, 44]) { ctx.moveTo(x * open, rig.canopyY); ctx.lineTo(Math.sign(x) * 8, rig.harnessY); }
     ctx.stroke();
     ctx.restore();
   }
@@ -208,7 +219,6 @@ export function drawPod(ctx: CanvasRenderingContext2D, pod: Pod, screenY: number
   ctx.restore();
 }
 
-/** A jeet under a tiny parachute, bailing out at a rung. */
 export function drawJeet(ctx: CanvasRenderingContext2D, x: number, y: number, time: number): void {
   ctx.save();
   ctx.translate(x, y);
@@ -221,7 +231,6 @@ export function drawJeet(ctx: CanvasRenderingContext2D, x: number, y: number, ti
   ctx.restore();
 }
 
-/** The burst's pieces, thrown from the rocket by the crash's seed: fins, hull chunks, and the nose and the pilot if the pod never left. */
 export function shred(x: number, y: number, crashX100: number, piloted: boolean): Piece[] {
   const random = mulberry32(crashX100);
   return Array.from({ length: 12 }, (_, i) => {

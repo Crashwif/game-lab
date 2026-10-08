@@ -130,7 +130,7 @@ export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void
   stepSpring(rig.brow, face.brow, 12, 0.75, dt);
 
   // The pom-pom chases the top of the hat on a loose spring, so it bounces after every stroke.
-  const anchor = computePose(rig, drive).toWorld(4, -66);
+  const anchor = pumperPose(rig, drive).toWorld(4, -66);
   if (!rig.pom.ready) { settleSpring(rig.pom.x, anchor.x); settleSpring(rig.pom.y, anchor.y); rig.pom.ready = true; }
   stepSpring(rig.pom.x, anchor.x, 24, 0.22, dt);
   stepSpring(rig.pom.y, anchor.y, 24, 0.22, dt);
@@ -165,7 +165,7 @@ interface Pose {
 }
 
 /** The pose the springs describe: standing at the pump, blended toward sprawled on the ground. */
-function computePose(rig: PumperRig, drive: PumperDrive): Pose {
+export function pumperPose(rig: PumperRig, drive: PumperDrive): Pose {
   const t = rig.time;
   const c = strokeCompression(rig.phase);
   const lean = rig.lean.x;
@@ -181,8 +181,17 @@ function computePose(rig: PumperRig, drive: PumperDrive): Pose {
   const shoulder = { x: hip.x + Math.sin(torsoAngle) * 108, y: hip.y - Math.cos(torsoAngle) * 108 };
   const handleY = PUMP.handleTop + c * PUMP.travel;
   const release = smoothstep(0, 0.5, fall);
-  const backHand = lerpPoint({ x: PUMP.x - 14 + 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
-  const frontHand = lerpPoint({ x: PUMP.x + 14 - 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
+  let backHand = lerpPoint({ x: PUMP.x - 14 + 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
+  let frontHand = lerpPoint({ x: PUMP.x + 14 - 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
+  // The free hands follow the fall, but must stay inside the actual shoulder reach.
+  // During pumping the same projection is a no-op, keeping both handle contacts exact.
+  const constrain = (root: Point, target: Point): Point => {
+    const dx = target.x - root.x, dy = target.y - root.y, distance = Math.hypot(dx, dy);
+    const reach = clamp(distance, 4.001, 127.999);
+    return { x: root.x + (distance > 1e-8 ? dx / distance : 0) * reach, y: root.y + (distance > 1e-8 ? dy / distance : -1) * reach };
+  };
+  backHand = constrain({ x: shoulder.x - 12, y: shoulder.y + 8 }, backHand);
+  frontHand = constrain({ x: shoulder.x + 10, y: shoulder.y + 4 }, frontHand);
   const backFoot = lerpPoint({ x: 160, y: 426 }, { x: 262, y: 430 }, fall);
   const frontFoot = lerpPoint({ x: 306, y: 423 }, { x: 296, y: 424 }, fall);
   const headRot = torsoAngle + headAngle;
@@ -201,7 +210,7 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   const t = rig.time;
   const fall = clamp(rig.fall.x, 0, 1.2);
   const release = smoothstep(0, 0.5, fall);
-  const { hip, shoulder, head, headRot, handleY, backHand, frontHand, backFoot, frontFoot, toWorld } = computePose(rig, drive);
+  const { hip, shoulder, head, headRot, handleY, backHand, frontHand, backFoot, frontFoot, toWorld } = pumperPose(rig, drive);
 
   function segment(a: Point, b: Point, width: number, color: string) {
     ctx.strokeStyle = color;

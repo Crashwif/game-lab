@@ -527,7 +527,7 @@ export function stepWorld(w: World, cmd: Commands, drive: Drive, dt: number): vo
   const moving = drive.running && !drive.off && w.speed.x > 0.5 && onGround && r.slide <= 0 && r.down <= 0;
   if (moving) {
     const before = Math.floor(r.stride * 2);
-    r.stride += dt * (1.5 + w.speed.x * 0.2);
+    r.stride += dt * Math.min(2.3, 1.25 + w.speed.x * 0.1);
     if (Math.floor(r.stride * 2) !== before) e.step = true;
   }
 }

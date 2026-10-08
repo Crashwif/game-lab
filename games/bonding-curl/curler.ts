@@ -47,12 +47,13 @@ export interface Curler {
   burst: boolean;
   burstAge: number;
   burstAt: Point;
+  burstHand: Point;
   shreds: Shred[];
   puffs: Puff[];
   noodle: Spring;
   shades: Spring;
   kiss: Spring;
-  dumbbell: { x: number; y: number; vy: number; angle: number; dropped: boolean; sunk: number };
+  dumbbell: { x: number; y: number; vx: number; vy: number; angle: number; spin: number; dropped: boolean; impacted: boolean; sunk: number };
   tear: Spring;
   shaker: Shaker;
   events: { rep: boolean; sleeve: boolean; dropped: boolean; hop: boolean };
@@ -61,7 +62,7 @@ export interface Curler {
 const freshShaker = (): Shaker => ({ hop: spring(0), tip: spring(0), spill: 0, lid: { x: 0, y: 0, vx: 0, vy: 0, angle: 0, spin: 0, flying: false, down: false } });
 
 export function createCurler(): Curler {
-  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, act: 0, effort: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, multiplier: 1, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 }, tear: spring(0), shaker: freshShaker(), events: { rep: false, sleeve: false, dropped: false, hop: false } };
+  return { time: 0, mode: 'idle', modeAge: 0, phase: 0, act: 0, effort: 0, curl: spring(0.1), radius: spring(16), puff: spring(0), tension: 0, stretch: 0, multiplier: 1, sleeve: true, sleeveShreds: [], burst: false, burstAge: 0, burstAt: { ...ELBOW }, burstHand: { ...ELBOW }, shreds: [], puffs: [], noodle: spring(0), shades: spring(0), kiss: spring(0), dumbbell: { x: 0, y: FEET_Y - 10, vx: 0, vy: 0, angle: 0, spin: 0, dropped: false, impacted: false, sunk: 0 }, tear: spring(0), shaker: freshShaker(), events: { rep: false, sleeve: false, dropped: false, hop: false } };
 }
 
 export function resetCurler(c: Curler): void {
@@ -82,7 +83,7 @@ export function resetCurler(c: Curler): void {
   settleSpring(c.noodle, 0);
   settleSpring(c.shades, 0);
   settleSpring(c.kiss, 0);
-  c.dumbbell = { x: 0, y: 0, vy: 0, angle: 0, dropped: false, sunk: 0 };
+  c.dumbbell = { x: 0, y: FEET_Y - 10, vx: 0, vy: 0, angle: 0, spin: 0, dropped: false, impacted: false, sunk: 0 };
   settleSpring(c.tear, 0);
   c.shaker = freshShaker();
 }
@@ -113,15 +114,31 @@ export function settleCurler(c: Curler, multiplier: number, growth: number, pose
   settleSpring(c.curl, 1);
   settleSpring(c.shades, 1);
   c.dumbbell.dropped = true;
+  c.dumbbell.impacted = true;
+  c.dumbbell.x = curlerArm(c).hand.x;
 }
 
 /** The exit was accepted: drop it, kiss it, shades. */
 export function poseCurler(c: Curler): void {
   if (c.mode !== 'curling') return;
+  releaseDumbbell(c);
   c.mode = 'posing';
   c.modeAge = 0;
-  c.dumbbell.dropped = true;
-  c.events.dropped = true;
+}
+
+/** A single pose drives the hand, held weight and release snapshot. */
+export function curlerArm(c: Curler) {
+  const angle = mix(Math.PI / 2, -Math.PI / 2.4, clamp(c.curl.x, -0.1, 1.15));
+  const angularVelocity = c.curl.v * (-Math.PI / 2.4 - Math.PI / 2);
+  const hand = { x: ELBOW.x + Math.cos(angle) * 74, y: ELBOW.y + Math.sin(angle) * 74 };
+  return { hand, angle, vx: -Math.sin(angle) * 74 * angularVelocity, vy: Math.cos(angle) * 74 * angularVelocity };
+}
+function releaseDumbbell(c: Curler): void {
+  if (c.dumbbell.dropped) return;
+  const pose = curlerArm(c);
+  const strain = c.mode === 'curling' && !c.burst ? c.tension : 0;
+  const tremble = Math.sin(c.time * 43) * 2.5 * strain * strain;
+  Object.assign(c.dumbbell, { x: pose.hand.x + tremble, y: pose.hand.y, vx: clamp(pose.vx, -100, 100), vy: clamp(pose.vy, -180, 360), angle: pose.angle, spin: 1.4, dropped: true, impacted: false });
 }
 
 /** Where the bicep is drawn from: centre and radius in world space. */
@@ -137,6 +154,8 @@ export function bicepGeometry(c: Curler): { centre: Point; r: number; rx: number
 export function burstBicep(c: Curler, seed: number, quiet: boolean): void {
   if (c.burst) return;
   const g = bicepGeometry(c);
+  c.burstHand = curlerArm(c).hand;
+  releaseDumbbell(c);
   c.burst = true;
   c.burstAge = quiet ? 10 : 0;
   c.burstAt = g.centre;
@@ -147,6 +166,9 @@ export function burstBicep(c: Curler, seed: number, quiet: boolean): void {
     settleSpring(c.noodle, 1);
     settleSpring(c.tear, 1);
     c.dumbbell.sunk = 1;
+    c.dumbbell.y = FEET_Y - 10;
+    c.dumbbell.impacted = true;
+    c.dumbbell.vx = c.dumbbell.vy = 0;
     settleSpring(c.shaker.tip, 1);
     c.shaker.spill = 1;
     c.shaker.lid = { x: SHAKER_AT.x + 96, y: SHAKER_AT.y - 4, vx: 0, vy: 0, angle: 0.3, spin: 0, flying: true, down: true };
@@ -221,15 +243,21 @@ export function stepCurler(c: Curler, drive: CurlerDrive, dt: number): void {
   stepSpring(c.kiss, c.mode === 'posing' && c.modeAge > 0.3 && c.modeAge < 1.4 ? 1 : 0, 8, 0.7, dt);
   const d = c.dumbbell;
   if (d.dropped) {
-    if (c.burst && c.burstAge < 10) {
+    const floorY = FEET_Y - 10;
+    if (!d.impacted || d.y < floorY || d.vy < 0) {
+      d.x += d.vx * dt;
+      d.y += d.vy * dt + 700 * dt * dt;
       d.vy += 1400 * dt;
-      d.y += d.vy * dt;
-      if (d.y > 0) { d.sunk = Math.min(1, d.sunk + dt * 1.5); d.y = 0; }
-    } else {
-      d.vy += 1400 * dt;
-      d.y += d.vy * dt;
-      if (d.y > 0 && d.vy > 0) { d.y = 0; d.vy *= -0.25; }
+      d.angle += d.spin * dt;
+      if (d.y >= floorY && d.vy > 0) {
+        d.y = floorY;
+        if (!d.impacted) c.events.dropped = true;
+        d.impacted = true;
+        d.vy = !c.burst && d.vy > 90 ? -d.vy * 0.2 : 0;
+        d.vx *= 0.4; d.spin *= 0.3;
+      }
     }
+    if (c.burst && d.impacted) d.sunk = Math.min(1, d.sunk + dt * 1.5);
   }
   if (c.burst) {
     c.burstAge += dt;
@@ -340,7 +368,6 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   const tremble = Math.sin(t * 43) * 2.5 * strain * strain;
   drawShaker(ctx, c);
   ctx.save();
-  ctx.translate(tremble, 0);
   ctx.lineJoin = 'round';
   // Shadow, and the hole the dumbbell went through.
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
@@ -351,6 +378,8 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   limb(ctx, { x: hip.x + 6, y: hip.y }, { x: 452, y: FEET_Y }, 9, GRAY);
   for (const fx of [428, 452]) { ctx.fillStyle = '#f6f6f6'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(fx - 12, FEET_Y - 6, 36, 12, [4, 8, 8, 4]); ctx.fill(); ctx.stroke(); }
   ctx.fillStyle = '#2b2b30'; ctx.beginPath(); ctx.roundRect(424, 366, 34, 26, 6); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  // Keep the soles planted; strain travels through the chest and arms.
+  ctx.translate(tremble, 0);
   // Far arm hanging with its own dumbbell.
   limb(ctx, { x: SHOULDER.x - 16, y: SHOULDER.y + 6 }, { x: 428, y: 360 }, 16, GRAY_SHADE);
   drawDumbbell(ctx, { x: 428, y: 372 }, 0.1, 0, 0);
@@ -399,15 +428,18 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   ctx.restore();
   // The near arm: upper arm, the bicep on it, the forearm curling.
   const g = bicepGeometry(c);
-  const angle = mix(Math.PI / 2, -Math.PI / 2.4, curl);
-  const forearm = 74;
-  const hand = c.burst ? { x: ELBOW.x + 10, y: ELBOW.y + 60 } : { x: ELBOW.x + Math.cos(angle) * forearm, y: ELBOW.y + Math.sin(angle) * forearm };
+  const { angle, hand: heldHand } = curlerArm(c);
+  const hand = c.burst ? c.burstHand : heldHand;
   const noodle = clamp(c.noodle.x, 0, 1);
   if (noodle > 0.02) {
     // A limp noodle from the shoulder, wobbling, the cuff still on it reading nothing.
     ctx.strokeStyle = INK; ctx.lineWidth = 19; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(SHOULDER.x, SHOULDER.y);
-    for (let i = 1; i <= 8; i += 1) ctx.lineTo(SHOULDER.x + 10 + Math.sin(t * 3 + i) * 10 * noodle, SHOULDER.y + i * 22 * noodle);
+    for (let i = 1; i <= 8; i += 1) {
+      const u = i / 8;
+      const start = u <= 0.5 ? { x: mix(SHOULDER.x, ELBOW.x, u * 2), y: mix(SHOULDER.y, ELBOW.y, u * 2) } : { x: mix(ELBOW.x, hand.x, (u - 0.5) * 2), y: mix(ELBOW.y, hand.y, (u - 0.5) * 2) };
+      ctx.lineTo(mix(start.x, SHOULDER.x + 10 + Math.sin(t * 3 + i) * 10, noodle), mix(start.y, SHOULDER.y + i * 22, noodle));
+    }
     ctx.stroke(); ctx.strokeStyle = GRAY; ctx.lineWidth = 14; ctx.stroke();
     drawCuff(ctx, { x: SHOULDER.x + 10 + Math.sin(t * 3 + 3) * 10 * noodle, y: SHOULDER.y + 66 * noodle }, 0, t, '$0', true);
   } else {
@@ -447,11 +479,10 @@ export function drawCurler(ctx: CanvasRenderingContext2D, c: Curler): CurlerView
   // The dumbbell: in the hand, dropped on the floor, or through it.
   const d = c.dumbbell;
   if (d.dropped) {
-    if (d.x === 0) { d.x = hand.x; }
     const floorY = FEET_Y - 10;
     if (d.sunk > 0) { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(d.x, floorY + 8, 44, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke(); }
-    else if (d.y >= 0) { ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2; for (const [dx, dy] of [[-40, 6], [44, 4], [-20, 14], [30, 16]] as const) { ctx.beginPath(); ctx.moveTo(d.x, floorY + 6); ctx.lineTo(d.x + dx, floorY + dy); ctx.stroke(); } }
-    drawDumbbell(ctx, { x: d.x, y: Math.min(floorY, floorY + d.y) + d.sunk * 30 }, d.sunk > 0 ? 0 : 0.05, 0, d.sunk);
+    else if (d.impacted) { ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2; for (const [dx, dy] of [[-40, 6], [44, 4], [-20, 14], [30, 16]] as const) { ctx.beginPath(); ctx.moveTo(d.x, floorY + 6); ctx.lineTo(d.x + dx, floorY + dy); ctx.stroke(); } }
+    drawDumbbell(ctx, { x: d.x - tremble, y: Math.min(floorY, d.y) + d.sunk * 30 }, d.sunk > 0 ? 0 : d.angle, 0, d.sunk);
   } else if (noodle < 0.02) {
     drawDumbbell(ctx, hand, angle + Math.PI / 2 - Math.PI / 2, 10 * strain * Math.sin(t * 20 + 1) * 0.5 + 8 * strain, 0);
   }

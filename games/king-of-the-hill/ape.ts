@@ -5,7 +5,7 @@
  * into the Lambo; the crash has him let go and throw his hands up as the coin
  * comes back down (the brace), then flattens him into a pancake.
  */
-import { type Spring, clamp, noise, settleSpring, spring, stepSpring } from './motion';
+import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { type Camera, type Point, heightAt, slopeAngle, toScreen } from './hill';
 import { createGait, stepGait, type Gait } from './gait';
 
@@ -32,16 +32,18 @@ export interface ApeState {
   pancakeX: number;
   /** Where he stands while he braces, world x: the coin no longer carries him. */
   braceX: number;
+  releasedHands: [Point, Point] | null;
 }
 
 export interface ApeDrive { anchor: ApeAnchor; walking: boolean; fear: number; bump: boolean }
 
 export function createApe(): ApeState {
-  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0, braceX: 0 };
+  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0, braceX: 0, releasedHands: null };
 }
 
 export function resetApe(a: ApeState): void {
   a.mode = 'push';
+  a.releasedHands = null;
   a.modeAge = 0;
   a.gait = createGait();
   settleSpring(a.lean, 0);
@@ -92,10 +94,17 @@ export function apeHands(anchor: ApeAnchor): [Point, Point] {
 
 /** The dev sold: he lets go where he stands and throws his hands up at what is coming back down. */
 export function brace(a: ApeState, anchor: ApeAnchor): void {
+  a.releasedHands = apeHandPose(a, anchor);
   a.braceX = apeBaseX(anchor, a.slip.x);
   a.mode = 'brace';
   a.modeAge = 0;
   a.lean.v -= 4;
+}
+
+/** Capture the grips before moving into the car. */
+export function boardApe(a: ApeState, anchor: ApeAnchor): void {
+  a.releasedHands = apeHandPose(a, anchor);
+  a.mode = 'boarding'; a.modeAge = 0;
 }
 
 /** Shared placement for the hips, planted soles and ankles, including the cashout hop. */
@@ -122,7 +131,39 @@ export function apeFooting(a: ApeState, anchor: ApeAnchor) {
       ankle: { x: sole.x + footNormal.x * 8, y: sole.y + footNormal.y * 8 },
     };
   });
+  // Keep support contacts fixed when a quick setback outruns a swing: the pelvis
+  // yields into the overlap of the two leg-reach circles instead of stretching a shin.
+  for (let pass = 0; pass < 4; pass++) for (const [i, foot] of feet.entries()) {
+    const root = add(hip, i === 0 ? -6 : 6, 0);
+    const dx = root.x - foot.ankle.x, dy = root.y - foot.ankle.y, distance = Math.hypot(dx, dy);
+    if (distance > 87.9) { const excess = 1 - 87.9 / distance; hip.x -= dx * excess; hip.y -= dy * excess; }
+  }
   return { hip, feet, slope, add, boarding };
+}
+
+/** Continuous world-space hand paths from the last actual grip. */
+export function apeHandPose(a: ApeState, anchor: ApeAnchor): [Point, Point] {
+  const { hip, add, boarding } = apeFooting(a, anchor);
+  const shoulder = add(hip, 50 * Math.cos(a.lean.x) - 6, 42 + 26 * Math.sin(a.lean.x));
+  const up = a.mode === 'brace' ? smoothstep(0, .24, a.modeAge) : 0;
+  const wave = Math.sin(a.time * 22) * 6 * up;
+  const targets = a.mode === 'boarding' ? [add(hip, -20, 60), add(hip, 10, 64)] : [add(shoulder, -26 + wave, 60 * up + 10), add(shoulder, 10 - wave, 66 * up + 12)];
+  if (a.mode !== 'brace' && a.mode !== 'boarding') return apeHands(anchor);
+  const from = a.releasedHands ?? apeHands(anchor);
+  const blend = a.mode === 'boarding' ? smoothstep(0, .18, a.modeAge) : up;
+  return targets.map((target, i) => ({ x: mix(from[i]!.x, target.x, blend), y: mix(from[i]!.y, target.y, blend) })) as [Point, Point];
+}
+
+/** Keep the combined character/coin envelope inside the safe picture while springs follow it. */
+export function frameApe(camera: Camera, a: ApeState, anchor: ApeAnchor): Camera {
+  const { hip, feet, add } = apeFooting(a, anchor);
+  const shoulder = add(hip, 50 * Math.cos(a.lean.x) - 6, 42 + 26 * Math.sin(a.lean.x));
+  const head = add(shoulder, 24, 26);
+  const points = [hip, head, ...feet.map(f => f.sole), ...apeHandPose(a, anchor),
+    { x: anchor.centre.x - anchor.r, y: anchor.centre.y - anchor.r }, { x: anchor.centre.x + anchor.r, y: anchor.centre.y + anchor.r }];
+  const minX = Math.min(...points.map(p => p.x)) - 24, maxX = Math.max(...points.map(p => p.x)) + 24;
+  const minY = Math.min(...points.map(p => p.y)) - 20, maxY = Math.max(...points.map(p => p.y)) + 24;
+  return { x: clamp(camera.x, maxX - 390, minX + 390), y: clamp(camera.y, maxY - 205, minY + 195) };
 }
 
 export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState, anchor: ApeAnchor): void {
@@ -170,10 +211,7 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
   const lean = a.lean.x;
   const shoulder = add(hip, 50 * Math.cos(lean) - 6, 42 + 26 * Math.sin(lean));
   const head = add(shoulder, 24, 26);
-  const [handA, handB] = apeHands(anchor);
-  const up = a.mode === 'brace' ? clamp(a.modeAge / 0.18, 0, 1) : 0;
-  const wave = Math.sin(a.time * 22) * 6 * up;
-  const hands = boarding ? [add(hip, -20, 60), add(hip, 10, 64)] : up > 0 ? [add(shoulder, -26 + wave, 60 * up + 10), add(shoulder, 10 - wave, 66 * up + 12)] : [handA, handB];
+  const hands = apeHandPose(a, anchor);
   // Far leg, far arm, body, near leg, head, near arm.
   // Knees bend uphill; elbows bend the other way in the y-up world frame.
   limb(add(hip, -6, 0), feet[0]!.ankle, 44, 44, 1, 16, FUR);

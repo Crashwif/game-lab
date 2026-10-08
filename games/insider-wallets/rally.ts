@@ -30,6 +30,9 @@ export interface Rally {
   lift: number;
   /** The lift's speed: the helicopter yanks harder the longer it pulls. */
   liftV: number;
+  swing: Spring;
+  travel: Spring;
+  seatAge: number;
   heliX: Spring;
   heliY: Spring;
   crashed: boolean;
@@ -63,7 +66,7 @@ export function createRally(): Rally {
     tip: spring(0),
     droop: spring(0),
     lift: 0,
-    liftV: 0,
+    liftV: 0, swing: spring(0), travel: spring(0), seatAge: 0,
     heliX: spring(760),
     heliY: spring(78),
     crashed: false,
@@ -167,6 +170,7 @@ function nextQuestion(r: Rally, tension: number): string {
 export function stepRally(r: Rally, drive: RallyDrive, dt: number): void {
   const e = r.events;
   e.cannon = e.flash = e.question = e.heli = e.lift = e.podium = false;
+  const oldHeliV = r.heliX.v, oldLiftV = r.liftV;
   r.time += dt;
   const wasT = r.crashT;
   r.crashT += r.crashed ? dt : 0;
@@ -198,17 +202,20 @@ export function stepRally(r: Rally, drive: RallyDrive, dt: number): void {
   stepSpring(r.heliX, r.crashed ? 600 : 620 - drive.tension * 80, 2.4, 0.9, dt);
   stepSpring(r.heliY, r.crashed ? 90 : 145 + Math.sin(r.time * Math.PI / 12) * (r.time > 45 ? 24 : 4), 2.2, 0.85, dt);
   // The yank: the lift starts a beat after the frame and picks up speed, so he leaves faster than he rose.
-  if (r.crashed && r.crashT > LIFT_DELAY && r.lift < LIFT_MAX) {
-    r.liftV = Math.min(260, r.liftV + 340 * dt);
-    r.lift = Math.min(LIFT_MAX, r.lift + r.liftV * dt);
+  if (r.crashed && r.crashT > LIFT_DELAY) {
+    const lift = { x: r.lift, v: r.liftV };
+    stepSpring(lift, LIFT_MAX, 4, 1, dt); r.lift = lift.x; r.liftV = lift.v;
   }
+  stepSpring(r.travel, (r.heliX.x - 430) * 0.6 * smoothstep(0, LIFT_MAX, r.lift), 4, 1, dt);
+  if (r.lift > 0 && dt > 0) r.swing.v += ((r.heliX.v - oldHeliV) * -0.002 + (r.liftV - oldLiftV) * 0.001) * (drive.reduced ? 0.25 : 1);
+  stepSpring(r.swing, 0, 3.4, 0.3, dt);
   // The tie grows with the tension and flaps in the downdraft; its tail lags the lift and swings up after him.
   stepSpring(r.tieLen, drive.running || r.crashed ? tieFor(drive.tension) : 0, 1.6, 0.9, dt);
   const wind = clamp((760 - r.heliX.x) / 140, 0, 1);
   const flap = Math.sin(r.time * (2.5 + 5 * drive.tension)) * (6 + 30 * drive.tension) + Math.sin(r.time * 7.3) * 10 * wind - 34 * wind;
   stepSpring(r.tieSway, drive.reduced ? flap * 0.3 : flap, 5, 0.35, dt);
   stepSpring(r.tieLag, r.lift, 3.2, 0.45, dt);
-  if (r.leaving) r.seatX -= 130 * dt;
+  if (r.leaving) { r.seatAge += dt; if (r.seatAge > 0.3) r.seatX -= 130 * dt; }
   if (r.crashed) r.surge = Math.min(1, r.surge + dt * 0.8);
   // The press pool: a question every few seconds, sooner with the tension, and camera flashes between them.
   r.questionAge += dt;
@@ -340,11 +347,11 @@ function drawFlag(ctx: CanvasRenderingContext2D, x: number, droop: number, time:
   ctx.restore();
 }
 
-function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: number, time: number, crashed: boolean, swing: number): void {
+function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: number, time: number, crashed: boolean, swing: number, shift: number): void {
   const jitter = !crashed && tension > 0.45 ? Math.sin(time * 42) * 3 * tension : 0;
   const tie = Math.sin(time * (3 + tension * 6)) * (4 + tension * 8);
   ctx.save();
-  ctx.translate(430, 328 - lift);
+  ctx.translate(430 + shift, 328 - lift);
   // On the cable he swings from the collar, so the tie's root stays put.
   if (swing !== 0) {
     ctx.translate(0, -46);
@@ -435,7 +442,7 @@ function drawCandidate(ctx: CanvasRenderingContext2D, lift: number, tension: num
 function drawTie(ctx: CanvasRenderingContext2D, r: Rally): void {
   const len = 30 + 300 * clamp(r.tieLen.x, 0, 1);
   if (len < 60 && r.lift < 4) return;
-  const collar = { x: 430, y: 282 - r.lift };
+  const collar = { x: 430 + r.travel.x, y: 282 - r.lift };
   const lag = clamp(r.lift - r.tieLag.x, -80, 160);
   const sway = r.tieSway.x;
   const floor = 428;
@@ -519,7 +526,7 @@ function drawQuestion(ctx: CanvasRenderingContext2D, r: Rally): void {
   ctx.restore();
 }
 
-function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: number, crashed: boolean): void {
+function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: number, crashed: boolean, questionAge: number, motion: number): void {
   const growth = Math.log2(Math.max(1, multiplier));
   const shown = clamp(Math.round(10 + growth * 18), 10, 70);
   const signs: { x: number; y: number; text: string }[] = [];
@@ -533,7 +540,8 @@ function drawCrowd(ctx: CanvasRenderingContext2D, multiplier: number, surge: num
     ink(ctx, 1.5);
     ctx.beginPath(); ctx.roundRect(x - 8, y + 7, 16, 14, 5); ctx.fill();
     ctx.beginPath();
-    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    const reaction = Math.max(0, 1 - Math.abs(questionAge - row * 0.13 - 0.25) * 2) * motion;
+    ctx.arc(x + reaction * (crashed ? 4 : -3), y - reaction * 2, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     // Two holders on the even rows and one between them on the odd rows: a full crowd raises all eight signs.
@@ -603,12 +611,13 @@ function drawHeli(ctx: CanvasRenderingContext2D, r: Rally): void {
   ctx.stroke();
   ctx.restore();
   // Cable once he is being collected.
-  if (r.lift > 4) {
+  if (r.heliNear || r.crashed) {
     ctx.strokeStyle = '#ddd';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(r.heliX.x, r.heliY.x + 16);
-    ctx.lineTo(430, 282 - r.lift);
+    const slack = 75 * (1 - smoothstep(0, LIFT_DELAY + 0.15, r.crashT));
+    ctx.quadraticCurveTo((r.heliX.x + 430 + r.travel.x) / 2, 282 - r.lift + slack, 430 + r.travel.x, 282 - r.lift);
     ctx.stroke();
   }
   // Downdraft.
@@ -642,8 +651,7 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.fillText('MAKE BAGS GREAT AGAIN', 28, 111);
   drawFlag(ctx, 250, r.droop.x, time, tension);
   drawFlag(ctx, 590, r.droop.x, time, tension);
-  const swing = r.lift > 4 ? Math.sin(r.crashT * 3.4) * 0.24 * clamp(r.lift / 90, 0, 1) : 0;
-  drawCandidate(ctx, r.lift, tension, time, r.crashed, swing);
+  drawCandidate(ctx, r.lift, tension, time, r.crashed, r.swing.x, r.travel.x);
   drawTie(ctx, r);
   // Podium, in front of his waist so the teleprompter stays readable.
   ctx.save();
@@ -681,7 +689,7 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.fillText(topLine, 0, -4);
   ctx.fillText(bottomLine, 0, 10);
   ctx.restore();
-  drawCrowd(ctx, multiplier, r.surge, r.crashed);
+  drawCrowd(ctx, multiplier, r.surge, r.crashed, r.questionAge, reduced ? 0.25 : 1);
   drawPress(ctx, r, tension, time, reduced);
   drawQuestion(ctx, r);
   // The seat. Empty once you have walked.
@@ -693,7 +701,15 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
   ctx.stroke();
   if (!r.leaving || r.seatX > 40) {
     ctx.save();
+    const stand = smoothstep(0, 0.3, r.seatAge), distance = 168 - r.seatX;
     ctx.translate(r.seatX, 470);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    for (const side of [-1, 1]) {
+      const phase = ((distance / 24 + (side > 0 ? 0.5 : 0)) % 1 + 1) % 1, swing = smoothstep(0.6, 1, phase);
+      const foot = { x: side * 4 - (0.3 - phase + swing) * 24 * stand, y: 12 - Math.sin(Math.PI * swing) * 6 * stand };
+      limb(ctx, { x: side * 3, y: 3 - stand * 8 }, foot, 12, 12, side, 3, '#1d3354');
+    }
+    ctx.translate(0, -stand * 8);
     ctx.fillStyle = SKIN;
     ctx.beginPath();
     ctx.arc(0, -16, 7, 0, Math.PI * 2);

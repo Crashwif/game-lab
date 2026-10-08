@@ -332,7 +332,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawMaintenance(ctx, engine);
     drawMachine(ctx, engine);
     drawCoalPile(ctx);
-    if (stoker.shovelDropped) drawShovelOnFloor(ctx);
+    if (stoker.shovelDropped) drawShovelOnFloor(ctx, stoker);
     drawStoker(ctx, stoker);
     drawShield(ctx);
     drawParticles(ctx, ps, 1);

@@ -4,7 +4,7 @@
  * The cloth, the sticker and the truck are presentation. They never
  * move the committed crash point.
  */
-import { clamp, settleSpring, spring, stepSpring, type Spring } from './motion';
+import { clamp, mix, smoothstep, settleSpring, spring, stepSpring, type Spring } from './motion';
 
 export const INK = '#1c1f26';
 export const VIDEO_W = 590;
@@ -376,6 +376,11 @@ function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number): v
 }
 
 /** The product of the moment, held up to camera about its centre, the label on a chyron across the top of the video. */
+export function sponsorGrip(hold: number): Point {
+  const k = clamp(hold, 0, 1);
+  return { x: mix(244, 310, k), y: mix(337, 226, k) };
+}
+
 function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
   const hold = clamp(s.read.hold.x, 0, 1.2);
   if (hold < 0.03 || s.read.index < 0) return;
@@ -383,9 +388,10 @@ function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
   // Overshoot in, a wobble that dies, then the drop.
   const wobble = Math.sin(s.read.age * 11) * 0.22 * Math.exp(-s.read.age * 2.5);
   ctx.save();
-  ctx.translate(318, 240 - hold * 30);
+  const grip = sponsorGrip(hold);
+  ctx.globalAlpha = smoothstep(0, .18, hold);
+  ctx.translate(grip.x + 8, grip.y - 16);
   ctx.rotate(-0.15 + wobble);
-  ctx.scale(hold, hold);
   ink(ctx, 2.5);
   switch (product.kind) {
     case 'tube':
@@ -533,10 +539,9 @@ function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
   ctx.restore();
 }
 
-function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: number, crashed: boolean): void {
+function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: number, crashed: boolean, read: Studio['read']): void {
   const flap = Math.abs(Math.sin(time * (5 + tension * 22)));
   const nod = Math.sin(time * (2 + tension * 3)) * (2 + tension * 3);
-  const shake = crashed ? 0 : tension > 0.55 ? Math.sin(time * 40) * 3 * tension : 0;
   ctx.save();
   ctx.translate(214, 292 + nod * 0.2);
   ctx.lineJoin = 'round';
@@ -557,7 +562,7 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: nu
   ctx.textAlign = 'center';
   ctx.fillText('↑', -6, -45);
   // The other arm holds the mic against the chest.
-  const micHand = { x: 22, y: -18 };
+  const micHand = { x: 18, y: -20 };
   limb(ctx, { x: -18, y: -40 }, micHand, 22, 20, 1, 7, '#22262e');
   ctx.strokeStyle = '#888';
   ctx.lineWidth = 2;
@@ -567,11 +572,15 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: nu
   ctx.stroke();
   ctx.fillStyle = '#111';
   ctx.fillRect(micHand.x + 4, micHand.y + 6, 6, 8);
-  // Pointing arm: sleeve, then the wrist, then the finger.
-  const wrist = { x: 72 + shake * 0.35, y: -50 };
-  limb(ctx, { x: 18, y: -42 }, wrist, 32, 28, wrist.y >= -42 ? -1 : 1, 8, '#22262e');
-  const finger = { x: 96 + shake, y: -66 };
-  limb(ctx, wrist, finger, 16, 14, finger.y >= wrist.y ? -1 : 1, 5, SKIN);
+  // The free arm rests below frame, fetches the product and settles its grip for the read.
+  const grip = sponsorGrip(read.index < 0 ? 0 : read.hold.x);
+  const finger = { x: grip.x - 214, y: grip.y - 292 - nod * .2 };
+  const shoulder = { x: 18, y: -42 };
+  // The full sleeve and forearm solve to the grip, which also anchors the product.
+  const elbow = bendJoint(shoulder, finger, 49, 47, -1);
+  limb(ctx, shoulder, elbow, 25, 24, -1, 8, '#22262e');
+  limb(ctx, elbow, finger, 24, 23, -1, 5, SKIN);
+  ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(finger.x, finger.y, 4, 0, Math.PI * 2); ctx.fill();
   // Head.
   ctx.translate(0, -78);
   ctx.beginPath();
@@ -702,7 +711,7 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
   ctx.restore();
   drawLambo(ctx, 400 + s.pull, s.sticker.x);
   if (s.crashed || s.truck.x < 630) drawTow(ctx, s.truck.x, time);
-  drawInfluencer(ctx, tension, time, s.crashed);
+  drawInfluencer(ctx, tension, time, s.crashed, s.read);
   drawProduct(ctx, s);
   drawMonitor(ctx, tension, s.crashed, s.soldFlash);
   if (s.sponsor.x > 0.04) {

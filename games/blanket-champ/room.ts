@@ -413,9 +413,9 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   const legs = clamp(r.legs.x, 0, 1);
   const tilt = legs * 0.05;
   const pose: SleeperPose = {
-    time: r.time, beat: r.beatPhase * Math.PI * 2, tension: r.tension,
-    lift: clamp(r.lump.x, 0, 1.3) - 0.6,
-    active: r.tempo > 0, finished: r.finished, rest: r.finished ? clamp(r.finishAge * 1.8, 0, 1) : 0,
+    time: r.time * r.motion, beat: r.beatPhase * Math.PI * 2 * r.motion, tension: r.tension,
+    lift: (clamp(r.lump.x, 0, 1.3) - 0.6) * r.motion,
+    active: r.tempo > 0 && r.motion > 0, finished: r.finished, rest: r.finished ? clamp(r.finishAge * 1.8, 0, 1) : 0,
     tremble: r.motion * (r.tempo > 0 ? clamp((r.tension - 0.62) / 0.38, 0, 1) : 0),
   };
   ctx.save();

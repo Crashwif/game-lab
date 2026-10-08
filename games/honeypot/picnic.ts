@@ -18,6 +18,9 @@ export interface Bear {
   x: number;
   paw: number;
   shades: Spring;
+  baseY: number;
+  fallV: number;
+  landing: Spring;
 }
 
 export interface Guest {
@@ -80,7 +83,7 @@ export interface Picnic {
 
 export function createPicnic(): Picnic {
   return {
-    bear: { mode: 'stuck', age: 0, x: 420, paw: 0, shades: spring(0) },
+    bear: { mode: 'stuck', age: 0, x: 420, paw: 0, shades: spring(0), baseY: 280, fallV: 0, landing: spring(0) },
     guests: [
       { kind: 'raccoon', x: 210, at: 2.2, lean: spring(0), stuck: false },
       { kind: 'frog', x: 700, at: 4.2, lean: spring(0), stuck: false },
@@ -112,7 +115,7 @@ export function resetPicnic(p: Picnic): void {
 function leaveBear(bear: Bear): void {
   bear.mode = 'gone';
   bear.x = -80;
-  bear.paw = 1;
+  bear.paw = 1; bear.baseY = 430;
   bear.shades.x = 1;
 }
 
@@ -197,13 +200,16 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
     bear.paw = Math.min(1, bear.paw + dt * (0.5 + bear.paw * 1.2));
     const stepOff = clamp((bear.paw - 0.3) / 0.35, 0, 1);
     bear.x = mix(420, 310, stepOff * stepOff * (3 - 2 * stepOff));
-    if (bear.paw >= 1) {
-      bear.mode = 'walking';
-      bear.age = 0;
-      p.events.pawFree = true;
-      flingHoney(p, pawPoint(p, drive.level));
+    if (bear.paw >= 0.65 && bear.baseY < 430) {
+      bear.baseY += bear.fallV * dt + 0.5 * 900 * dt * dt; bear.fallV += 900 * dt;
+      if (bear.baseY >= 430) { bear.baseY = 430; bear.fallV = 0; bear.landing.v = 12; }
+    }
+    if (bear.paw >= 1 && bear.baseY >= 430) {
+      bear.mode = 'walking'; bear.age = 0;
+      p.events.pawFree = true; flingHoney(p, pawPoint(p, drive.level));
     }
   }
+  stepSpring(bear.landing, 0, 14, 0.6, dt);
   if (bear.mode === 'walking') {
     bear.x -= 120 * dt;
     if (bear.x < -60) bear.mode = 'gone';
@@ -288,16 +294,17 @@ function stepFox(p: Picnic, drive: PicnicDrive, dt: number): void {
   if (fox.mode === 'stamping') {
     // Up and held (anticipation), then down hard; the mark lands as the arm reaches the glass.
     arm = fox.age < 0.5 ? 1 : fox.age < 1.3 ? 2 : 0;
-    if (!fox.stamped && fox.arm.x > 1.82) {
-      fox.stamped = true;
-      p.events.stamp = true;
-    }
+
     if (fox.stamped && drive.running && drive.multiplier >= FOX_OUT && fox.age > 1.6) {
       fox.mode = 'out';
       fox.age = 0;
     }
   }
   stepSpring(fox.arm, arm, arm === 2 ? 16 : 6, arm === 2 ? 0.45 : 0.7, dt);
+  if (arm === 2 && fox.arm.x >= 2) {
+    fox.arm.x = 2; fox.arm.v = Math.min(0, fox.arm.v);
+    if (!fox.stamped) { fox.stamped = true; p.events.stamp = true; }
+  }
   if (fox.mode === 'out') {
     fox.x += 220 * dt;
     if (fox.x > FOX_OFF) fox.mode = 'gone';
@@ -462,7 +469,7 @@ export function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number
     const phase = stride + (side > 0 ? Math.PI : 0);
     const lift = walking ? Math.max(0, Math.sin(phase)) * 8 : 0;
     const reach = walking ? -Math.cos(phase) * 6 : 0;
-    const foot = { x: side * 18 + reach, y: 8 - lift };
+    const foot = { x: side * 18 + reach, y: 8 - lift - p.bear.landing.x * 4 - bob };
     limb(ctx, { x: side * 12, y: -16 }, foot, 16, 15, foot.y >= -16 ? -side : side, 8, FUR);
     ctx.fillStyle = FUR;
     ctx.strokeStyle = INK;
@@ -484,8 +491,7 @@ export function drawBear(ctx: CanvasRenderingContext2D, p: Picnic, level: number
 }
 /** The mouth stays reachable without changing the length of either arm bone. */
 export function bearBaseY(p: Picnic): number {
-  const down = clamp((p.bear.paw - 0.65) / 0.35, 0, 1);
-  return 280 + 150 * down * down * (3 - 2 * down);
+  return p.bear.baseY + p.bear.landing.x * 4;
 }
 export function bearReach(p: Picnic, level: number, time = 0): { shoulder: Point; paw: Point; elbow: Point } {
   const shoulder = { x: p.bear.x + 26, y: bearBaseY(p) - 30 + (p.bear.mode === 'walking' ? Math.sin(p.bear.age * 12) * 3 : p.bear.mode === 'trapped' ? Math.sin(time * 28) * 2 : 0) };
@@ -568,6 +574,18 @@ function drawGuest(ctx: CanvasRenderingContext2D, guest: Guest, time: number): v
 }
 
 /** The auditor at his feet: suit, tie, briefcase, and the stamp arm on its path to the glass. Drawn over the jar, so the stamp lands on the glass rather than behind the honey. */
+/** The stamp face reaches AUDIT_AT with unchanged 40px arm bones. */
+export function foxArmPose(fox: Fox, bob = 0) {
+  const u = clamp(fox.arm.x, 0, 2), x = fox.x;
+  const shoulder = { x: x - 12, y: 362 - bob }, hang = { x: x - 26, y: 396 - bob }, up = { x: x - 44, y: 298 - bob };
+  const slam = { x: AUDIT_AT.x + 28, y: AUDIT_AT.y };
+  const target = u < 1 ? { x: mix(hang.x, up.x, u), y: mix(hang.y, up.y, u) } : { x: mix(up.x, slam.x, u - 1), y: mix(up.y, slam.y, u - 1) };
+  const distance = Math.hypot(target.x - shoulder.x, target.y - shoulder.y), reach = Math.min(1, 79.9 / Math.max(0.001, distance));
+  const hand = { x: mix(shoulder.x, target.x, reach), y: mix(shoulder.y, target.y, reach) };
+  const angle = u < 1 ? -0.4 * u : mix(-0.4, -Math.PI / 2, u - 1);
+  return { shoulder, hand, elbow: bendJoint(shoulder, hand, 40, 40, 1), angle, face: { x: hand.x + Math.sin(angle) * 28, y: hand.y - Math.cos(angle) * 28 } };
+}
+
 export function drawFox(ctx: CanvasRenderingContext2D, p: Picnic): void {
   const fox = p.fox;
   if (fox.mode === 'away' || fox.mode === 'gone') return;
@@ -649,19 +667,12 @@ export function drawFox(ctx: CanvasRenderingContext2D, p: Picnic): void {
   ctx.stroke();
   ctx.restore();
   // The stamp arm: hanging, raised, or on the glass, in scene coordinates so it reaches the jar.
-  const u = clamp(fox.arm.x, -0.2, 2.25);
-  const shoulder = { x: x - 12, y: 430 - bob - 68 };
-  const hang = { x: x - 26, y: 430 - bob - 34 };
-  const up = { x: x - 44, y: 430 - bob - 132 };
-  const slam = { x: AUDIT_AT.x + 44, y: AUDIT_AT.y };
-  const hand = u < 1 ? { x: mix(hang.x, up.x, u), y: mix(hang.y, up.y, u) } : { x: mix(up.x, slam.x, u - 1), y: mix(up.y, slam.y, u - 1) };
-  const span = Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y);
-  const bone = Math.max(22, span * 0.53);
-  limb(ctx, shoulder, hand, bone, bone, 1, 7, '#3a3f47');
+  const { shoulder, hand, angle } = foxArmPose(fox, bob);
+  limb(ctx, shoulder, hand, 40, 40, 1, 7, '#3a3f47');
   // The stamp itself: a handle and a rubber base, angled to the glass.
   ctx.save();
   ctx.translate(hand.x, hand.y);
-  ctx.rotate(u < 1 ? -0.4 * u : -0.4 + (u - 1) * 1.2);
+  ctx.rotate(angle);
   ctx.fillStyle = '#e07a2e';
   ink(ctx, 2);
   ctx.beginPath();

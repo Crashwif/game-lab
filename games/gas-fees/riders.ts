@@ -7,6 +7,7 @@
  * nun crosses herself, the whale blows. Each says a line on the way in, and
  * up to four speak up after the release. Nothing here changes the outcome.
  */
+import { solveLimb, stepFoot } from './kinematics';
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export type Point = { x: number; y: number };
@@ -197,6 +198,7 @@ export function stepCrowd(c: Crowd, drive: CrowdDrive, dt: number): void {
 export type SuitMode = 'idle' | 'holding' | 'leaving' | 'gone' | 'released';
 
 export interface Suit {
+  exitFrom: Point;
   mode: SuitMode;
   modeAge: number;
   time: number;
@@ -214,7 +216,7 @@ export interface Suit {
 const SUIT_HOME: Point = { x: 452, y: 0.36 };
 
 export function createSuit(): Suit {
-  return { mode: 'idle', modeAge: 0, time: 0, x: SUIT_HOME.x, depth: SUIT_HOME.y, tension: 0, cheeks: spring(0), shades: spring(0), blush: spring(0), eyeOpen: spring(1), blinkAt: 2, stride: 0 };
+  return { exitFrom: { ...SUIT_HOME }, mode: 'idle', modeAge: 0, time: 0, x: SUIT_HOME.x, depth: SUIT_HOME.y, tension: 0, cheeks: spring(0), shades: spring(0), blush: spring(0), eyeOpen: spring(1), blinkAt: 2, stride: 0 };
 }
 
 export function resetSuit(s: Suit): void {
@@ -244,7 +246,7 @@ export function settleSuit(s: Suit, tension: number, squeeze: number, off: boole
 
 /** The exit was accepted: this is his floor. */
 export function leaveLift(s: Suit): void {
-  if (s.mode === 'holding' || s.mode === 'idle') { s.mode = 'leaving'; s.modeAge = 0; }
+  if (s.mode === 'holding' || s.mode === 'idle') { s.exitFrom = { x: s.x, y: s.depth }; s.mode = 'leaving'; s.modeAge = 0; s.stride = 0; }
 }
 
 /** The crash caught him inside. */
@@ -264,9 +266,9 @@ export function stepSuit(s: Suit, drive: SuitDrive, dt: number): void {
   if (s.mode === 'idle' && drive.running) { s.mode = 'holding'; s.modeAge = 0; }
   if (s.mode === 'leaving') {
     const k = smoothstep(0, 1, Math.min(1, s.modeAge / 0.9));
-    s.x = mix(SUIT_HOME.x, DOOR.x, k);
-    s.depth = mix(SUIT_HOME.y, 1.18, k);
-    s.stride += dt * 9;
+    s.x = mix(s.exitFrom.x, DOOR.x, k);
+    s.depth = mix(s.exitFrom.y, 1.18, k);
+    s.stride = Math.hypot(s.x - s.exitFrom.x, depthFloor(s.depth) - depthFloor(s.exitFrom.y));
     if (s.modeAge >= 0.9) { s.mode = 'gone'; s.modeAge = 0; }
   } else if (s.mode !== 'gone') {
     const home = SUIT_HOME.x - 36 * drive.squeeze;
@@ -375,12 +377,12 @@ function drawHead(ctx: CanvasRenderingContext2D, face: Face, time: number, rx = 
   ctx.globalAlpha = 1;
 }
 
-function drawLegs(ctx: CanvasRenderingContext2D, colour: string, buckle: number, stride: number): void {
+function drawLegs(ctx: CanvasRenderingContext2D, colour: string, buckle: number, stride: number, direction = 1, weight = 1): void {
   for (const side of [-1, 1]) {
-    const lift = stride > 0 ? Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 8 : 0;
-    const hip = { x: side * 10, y: -72 };
-    const knee = { x: side * (10 - 9 * buckle), y: -36 - lift * 0.5 };
-    const foot = { x: side * 12, y: -lift };
+    const step = stride > 0 ? stepFoot(stride, 58, side > 0 ? .5 : 0, 10) : { x: 0, y: 0 };
+    const hip = { x: side * 10, y: -72 + buckle * 4 };
+    const foot = { x: side * 12 + step.x * direction * weight, y: step.y * weight };
+    const knee = solveLimb(hip, foot, 40, 39, -side).joint;
     limb(ctx, hip.x, hip.y, knee.x, knee.y, 14, colour);
     limb(ctx, knee.x, knee.y, foot.x, foot.y, 13, colour);
     roundRect(ctx, foot.x - 12, foot.y - 6, 24, 9, 4, '#2b2b30', 2);
@@ -434,18 +436,19 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
   ctx.lineJoin = 'round';
   ctx.fillStyle = 'rgba(20, 24, 30, 0.18)';
   ctx.beginPath(); ctx.ellipse(0, 2, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
-  const stride = p.progress < 1 ? p.age * 11 : 0;
+  const stride = p.progress < 1 ? Math.hypot(p.x - DOOR.x, depthFloor(p.depth) - depthFloor(1.2)) / s : 0;
+  const gaitWeight = smoothstep(0, .12, p.progress) * (1 - smoothstep(.78, 1, p.progress));
+  const direction = Math.sign(p.x - DOOR.x) || 1;
   const gaze = p.mood === 'calm' ? 0 : clamp((gazeX - p.x) / 120, -1, 1);
   const mood = p.mood;
   const base: Face = { eyeOpen: mood === 'disgust' ? 1.25 : 1, gaze, brow: mood === 'disgust' ? 0.9 : mood === 'sniff' ? 0.4 : 0, mouth: mood === 'disgust' ? 'grim' : mood === 'sniff' ? 'flat' : 'smile', skin: SKIN };
   const seedTone = noise(p.seed * 3.3);
   const skin = seedTone > 0.66 ? SKIN : seedTone > 0.33 ? '#e0bda7' : '#c68e6a';
   base.skin = skin;
-  const bob = Math.abs(Math.sin(stride)) * 4;
-  ctx.translate(0, -bob);
+  // Keep soles on the cabin floor; knee flex carries the weight shift.
   switch (p.kind) {
     case 'chad': {
-      drawLegs(ctx, '#3d5f8f', 0, stride);
+      drawLegs(ctx, '#3d5f8f', 0, stride, direction, gaitWeight);
       roundRect(ctx, -30, -136, 60, 66, 10, '#f2f2f2');
       // Crossed arms.
       limb(ctx, -30, -120, 22, -100, 15, skin);
@@ -462,7 +465,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'grandma': {
-      drawLegs(ctx, '#d9c7b8', 0, stride);
+      drawLegs(ctx, '#d9c7b8', 0, stride, direction, gaitWeight);
       roundRect(ctx, -32, -138, 64, 72, 14, '#b56ba0');
       ctx.fillStyle = '#ffe27a';
       for (let i = 0; i < 6; i += 1) { ctx.beginPath(); ctx.arc(-20 + (i % 3) * 20, -122 + Math.floor(i / 3) * 26, 3.5, 0, Math.PI * 2); ctx.fill(); }
@@ -485,7 +488,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
     }
     case 'wif': {
       // A Shiba in the pink wif hat.
-      drawLegs(ctx, '#e9a552', 0, stride);
+      drawLegs(ctx, '#e9a552', 0, stride, direction, gaitWeight);
       roundRect(ctx, -28, -132, 56, 62, 12, '#e9a552');
       ellipse(ctx, 0, -104, 14, 18, '#fbe9cf', 0);
       limb(ctx, -28, -118, -36, -80, 12, '#e9a552');
@@ -513,7 +516,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'karen': {
-      drawLegs(ctx, '#1f2a44', 0, stride);
+      drawLegs(ctx, '#1f2a44', 0, stride, direction, gaitWeight);
       roundRect(ctx, -28, -136, 56, 66, 10, '#e3a1c7');
       limb(ctx, -28, -122, -40, -92, 12, skin);
       limb(ctx, -40, -92, -22, -78, 12, skin);
@@ -528,7 +531,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'bro': {
-      drawLegs(ctx, '#4a4a55', 0, stride);
+      drawLegs(ctx, '#4a4a55', 0, stride, direction, gaitWeight);
       roundRect(ctx, -29, -136, 58, 66, 10, '#7c3aed');
       limb(ctx, -29, -122, -36, -84, 12, '#7c3aed');
       // Phone held up, filming.
@@ -546,7 +549,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'nun': {
-      drawLegs(ctx, '#1b1b1f', 0, stride);
+      drawLegs(ctx, '#1b1b1f', 0, stride, direction, gaitWeight);
       ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(-26, -136); ctx.lineTo(26, -136); ctx.lineTo(36, -4); ctx.lineTo(-36, -4); ctx.closePath(); ctx.fill(); ctx.stroke();
       roundRect(ctx, -12, -136, 24, 26, 3, '#ffffff', 2);
@@ -567,7 +570,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'whale': {
-      drawLegs(ctx, '#2b2b30', 0, stride);
+      drawLegs(ctx, '#2b2b30', 0, stride, direction, gaitWeight);
       roundRect(ctx, -60, -150, 120, 80, 18, '#2b2b30');
       roundRect(ctx, -14, -150, 28, 60, 4, '#ffffff', 2);
       ctx.fillStyle = '#e63946'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
@@ -614,7 +617,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
       break;
     }
     case 'pizza': {
-      drawLegs(ctx, '#2f6f4f', 0, stride);
+      drawLegs(ctx, '#2f6f4f', 0, stride, direction, gaitWeight);
       roundRect(ctx, -28, -136, 56, 66, 10, '#e63946');
       // Boxes stacked up past the head.
       limb(ctx, -28, -122, -30, -104, 12, '#e63946');
@@ -634,11 +637,11 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
 export interface SuitView { head: Point; visible: boolean }
 
 /** The suit in rider space, with the trembling, the colour and the cheeks. */
-export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number): SuitView {
+export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number, reduced = false): SuitView {
   const scale = depthScale(s.depth);
   const holding = s.mode === 'holding';
   const t = holding ? s.tension : 0;
-  const tremble = holding ? 3.2 * t * t : 0;
+  const tremble = holding && !reduced ? 3.2 * t * t : 0;
   const x = s.x + Math.sin(time * 47) * tremble;
   const y = depthFloor(s.depth) + Math.cos(time * 53) * tremble * 0.4;
   ctx.save();
@@ -648,8 +651,7 @@ export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number): 
   ctx.fillStyle = 'rgba(20, 24, 30, 0.18)';
   ctx.beginPath(); ctx.ellipse(0, 2, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
   const stride = s.mode === 'leaving' ? s.stride : 0;
-  ctx.translate(0, -Math.abs(Math.sin(stride)) * 4);
-  drawLegs(ctx, '#3a3f4f', holding ? t : 0, stride);
+  drawLegs(ctx, '#3a3f4f', holding ? t : 0, reduced ? 0 : stride / scale, 1, Math.sin(Math.PI * clamp(s.modeAge / .9, 0, 1)));
   roundRect(ctx, -30, -138, 60, 70, 10, '#4a5068');
   roundRect(ctx, -10, -138, 20, 44, 3, '#ffffff', 2);
   ctx.fillStyle = '#c0392b'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
