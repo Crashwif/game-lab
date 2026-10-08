@@ -17,6 +17,8 @@ export const HOLE_BELOW_SKIER = 75;
 export const ARM_LENGTH = 48;
 export const MOUTH_TOP = -82;
 export const MOUTH_BOTTOM = -38;
+/** The impact frame holds this long before the yeti erupts. */
+export const HIT_STOP = 0.14;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const smooth = (n: number) => { const t = clamp(n, 0, 1); return t * t * (3 - 2 * t); };
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -53,10 +55,17 @@ export function reducedCrashAge(age: number): number {
   return ENDING_SECONDS;
 }
 
+/** Hit-stop: hold the impact frame, then catch up within a second so every later beat keeps its time. */
+export function impactAge(age: number): number {
+  return age <= HIT_STOP ? 0 : age - HIT_STOP * (1 - smooth(age - HIT_STOP));
+}
+
 /** All returned points are in native yeti-sprite coordinates, before YETI_SCALE. */
 export function yetiPose(age: number, options: {
   /** Original skier x minus hole x, in slope units (before the field's screen scale). */
   skierOffsetX: number; jumpHeight?: number; angle?: number; escaped?: boolean;
+  /** Slope pixels the skier is still uphill of the grab spot: a slide to a stop, or a skier still arriving. */
+  lead?: number;
 }): YetiPose {
   const t = Math.max(0, age);
   const rise = smooth(t / 0.55);
@@ -68,7 +77,7 @@ export function yetiPose(age: number, options: {
   const settled = smooth((t - 4.15) / 0.5);
   const startX = options.skierOffsetX / YETI_SCALE;
   const startY = -(HOLE_BELOW_SKIER + 30) / YETI_SCALE;
-  const air = (options.jumpHeight ?? 0) / YETI_SCALE * (1 - smooth(t / 0.55));
+  const air = ((options.jumpHeight ?? 0) * (1 - smooth(t / 0.55)) + (options.lead ?? 0)) / YETI_SCALE;
   // Turn inwards at either boundary so the carried skier's arc stays on the slope.
   const turnDirection: -1 | 1 = startX > 0 ? -1 : 1;
   const width = 0.35 + 0.65 * Math.abs(Math.cos(Math.PI * turn));

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createWorld, stepWorld } from './course.ts';
+import { createWorld, driveAt, slopeDistance, stepWorld } from './course.ts';
 
 const commands = (changes = {}) => ({ steer: 0, target: null, jump: false, touched: true, ...changes });
 const contact = (kind) => {
@@ -74,4 +74,58 @@ test('ten-minute play and late entry retain bounded, usable scenery', () => {
   const before = late.distance;
   stepWorld(late, 1 / 60, commands());
   assert.ok(late.distance > before);
+});
+
+test('the run speeds up with the multiplier, and late entry matches it at any frame rate', () => {
+  for (const hz of [30, 60, 144]) {
+    const world = createWorld(0, 3);
+    for (let frame = 1; frame <= 30 * hz; frame++) {
+      const seconds = frame / hz;
+      world.objects = [];
+      stepWorld(world, 1 / hz, commands(), driveAt(100 * 10 ** (seconds / 30), seconds * 1000));
+      if (frame === 9 * hz) assert.ok(world.speed > 215 && world.speed < 230, `2× runs near 225 units/s at ${hz} Hz`);
+    }
+    assert.ok(Math.abs(world.distance - slopeDistance(30)) < 80, `late entry reconstructs the 30-second distance at ${hz} Hz`);
+    assert.ok(world.speed <= 300, 'speed is capped');
+  }
+  assert.equal(driveAt(100, 0).speed, 0, 'the run pushes off from the gate');
+});
+
+test('each round lays its own slope, and the extra hazards arrive only from 1.5×', () => {
+  const lanes = seed => createWorld(0, seed).objects.filter(o => o.kind === 'coin').map(o => o.x).join();
+  assert.notEqual(lanes(1), lanes(2), 'a fresh local seed changes the layout');
+  assert.equal(lanes(5), lanes(5), 'one seed always lays the same slope');
+  const extra = world => world.objects.filter(o => o.id % 10 >= 6).length;
+  assert.equal(extra(createWorld(4000, 9, driveAt(136, 4000))), 0);
+  assert.ok(extra(createWorld(9000, 9, driveAt(200, 9000))) > 2, 'second blockers and coin-line hazards from 1.5×');
+});
+
+test('a bonk spills a quarter of the arcade bag, and a jump pressed in the air lands on touchdown', () => {
+  const world = contact('tree');
+  world.coins = 8;
+  assert.ok(stepWorld(world, 0.02, commands()).includes('bonk'));
+  assert.equal(world.coins, 6);
+  assert.equal(world.spilled, 2);
+
+  const air = createWorld();
+  air.jumpLeft = 0.1;
+  stepWorld(air, 0.02, commands({ jump: true }));
+  let landed = [];
+  for (let frame = 0; frame < 6 && !landed.includes('jump'); frame++) landed = stepWorld(air, 0.02, commands());
+  assert.ok(landed.includes('jump'), 'the buffered press fires once the skier is down');
+});
+
+test('a skier trailing the camera collects and lays tracks where he is drawn, not at the camera line', () => {
+  const world = createWorld(0, 3);
+  const coin = { id: 1, kind: 'coin', x: world.x, z: world.distance + 10, used: false };
+  world.objects = [coin];
+  world.speed = 155;
+  world.behind = 60;
+  let collectedAt = null;
+  for (let frame = 0; frame < 40 && collectedAt === null; frame++) {
+    world.behind = Math.max(0, world.behind - 2);
+    if (stepWorld(world, 1 / 50, commands()).includes('coin')) collectedAt = world.distance - world.behind;
+  }
+  assert.ok(collectedAt !== null && Math.abs(collectedAt - coin.z) < 15, 'the coin goes when the skier himself reaches it');
+  assert.ok(world.trails.length > 0 && world.trails.every(t => t.z <= world.distance - world.behind), 'tracks never appear ahead of the skier');
 });
