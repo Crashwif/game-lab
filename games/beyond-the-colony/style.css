@@ -40,3 +40,9 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 .controls{border-top:1px solid #244a53}
 button{border-radius:5px}
 #status{color:#dcebdd}
+
+/* A close acting view and a wide danger inset fill narrow frames. */
+@media(max-width:600px){
+  .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/752;margin:0;transform:scale(.4);transform-origin:0 0}
+}
