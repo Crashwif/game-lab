@@ -8,15 +8,17 @@ import { clamp, mix, settleSpring, spring, stepSpring, type Spring } from './mot
 export const INK = '#1c1f26';
 export const JAR = { cx: 548, top: 240, w: 188, h: 190 };
 
+/** The label's sell tax: a step every 2–3 s through the 1×–3× most rounds live in, red from 49% (2.3×), past 100% at 8×. */
 export function sellTax(multiplier: number): number {
-  if (multiplier < 1.6) return 1;
-  if (multiplier < 2.4) return 5;
-  if (multiplier < 3.6) return 12;
-  if (multiplier < 5.5) return 28;
-  if (multiplier < 8) return 49;
-  if (multiplier < 12) return 69;
-  if (multiplier < 18) return 99;
-  return 420;
+  if (multiplier < 1.2) return 1;
+  if (multiplier < 1.45) return 5;
+  if (multiplier < 1.8) return 12;
+  if (multiplier < 2.3) return 28;
+  if (multiplier < 3) return 49;
+  if (multiplier < 4.5) return 69;
+  if (multiplier < 8) return 99;
+  if (multiplier < 50) return 420;
+  return multiplier < 500 ? 1337 : 9001;
 }
 
 export function honeyLevel(multiplier: number): number {
@@ -29,8 +31,11 @@ export function surfaceY(level: number): number {
   return JAR.top + JAR.h - 18 - level * (JAR.h - 40);
 }
 
-/** How far toward shut (0..1) the lid screws itself while the round is still open: it creeps with the tension. */
-const lidCreep = (tension: number): number => clamp(tension * 0.35, 0, 0.35);
+/** How far toward shut (0..1) the lid screws itself while the round is still open: with the tension, then slowly on with the decades of a long round. */
+const lidCreep = (tension: number, multiplier: number): number => clamp(tension * 0.3 + Math.log10(multiplier) * 0.08, 0, 0.6);
+
+/** The lid's lurches toward shut so far: at 1.38× and 2.05×, then every ×1.5 from 2.75× (about every 5 s), however long the round runs. */
+export const lidJolts = (m: number): number => (m < 1.38 ? 0 : m < 2.05 ? 1 : m < 2.75 ? 2 : 3 + Math.floor(Math.log(m / 2.75) / Math.log(1.5)));
 
 export interface StringBit { x: number; y: number; life: number; age: number; }
 
@@ -52,7 +57,11 @@ export interface JarState {
   squash: Spring;
   seated: boolean;
   band: number;
-  events: { glug: boolean; seated: boolean; tax: boolean };
+  /** The lurches so far, the dip toward shut and the spin each one leaves behind (both fading). */
+  jolts: number;
+  dip: number;
+  rush: number;
+  events: { glug: boolean; seated: boolean; tax: boolean; jolt: boolean };
 }
 
 function freshJar(): JarState {
@@ -71,7 +80,10 @@ function freshJar(): JarState {
     squash: spring(0),
     seated: false,
     band: 1,
-    events: { glug: false, seated: false, tax: false },
+    jolts: 0,
+    dip: 0,
+    rush: 0,
+    events: { glug: false, seated: false, tax: false, jolt: false },
   };
 }
 
@@ -90,7 +102,7 @@ export function stampAudit(j: JarState, quiet = false): void {
   else j.audit.hit.v = 9;
 }
 
-/** A knock to the glass (the paw tearing free): it squashes and rings. */
+/** A knock to the glass (the paw tearing free, a tug, the stamp): it squashes and rings. */
 export function knockJar(j: JarState, strength = 1): void {
   j.squash.v += 3 * strength;
 }
@@ -110,7 +122,8 @@ export function shutJar(j: JarState, quiet: boolean): void {
 /** Jumps the jar to where a round at this multiplier has it (the level, the label's tax, the lid's creep), for a round met late. */
 export function settleJar(j: JarState, multiplier: number, tension: number): void {
   settleSpring(j.level, honeyLevel(multiplier));
-  settleSpring(j.shut, lidCreep(tension));
+  settleSpring(j.shut, lidCreep(tension, multiplier));
+  j.jolts = lidJolts(multiplier);
   j.tax = sellTax(multiplier);
   j.taxFlash = 0;
   j.band = Math.floor(honeyLevel(multiplier) * 10);
@@ -120,7 +133,7 @@ export function settleJar(j: JarState, multiplier: number, tension: number): voi
 export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; reduced: boolean; }
 
 export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
-  j.events = { glug: false, seated: false, tax: false };
+  j.events = { glug: false, seated: false, tax: false, jolt: false };
   stepSpring(j.level, j.crashed ? Math.max(j.level.x, honeyLevel(drive.multiplier)) : honeyLevel(drive.multiplier), 4, 0.9, dt);
   const band = Math.floor(clamp(j.level.x, 0, 1) * 10);
   if (drive.running && !j.crashed && band > j.band) j.events.glug = true;
@@ -134,13 +147,26 @@ export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
   stepSpring(j.squash, 0, 18, 0.32, dt);
   stepSpring(j.stamp, j.seated ? 1 : 0, 14, 0.45, dt);
   stepSpring(j.audit.hit, j.audit.on ? 1 : 0, 12, 0.4, dt);
+  // A fake-out keyed to the multiplier: the lid lurches a turn and dips toward shut, then backs off.
+  const jolts = lidJolts(drive.multiplier);
+  if (drive.running && !j.crashed && jolts > j.jolts) {
+    j.events.jolt = true;
+    if (!drive.reduced) {
+      j.dip = 1;
+      j.rush = 1;
+      j.squash.v += 0.9;
+    }
+  }
+  j.jolts = jolts;
+  j.dip *= Math.exp(-2.6 * dt);
+  j.rush *= Math.exp(-3.5 * dt);
   // The lid is drawn turned by angle * (1 - shut), so the still tilt straightens as the crash screws it down.
   if (drive.reduced) j.angle = drive.tension;
   else {
-    if (!j.crashed && drive.running) j.angle += dt * (0.5 + drive.tension * 7);
+    if (!j.crashed && drive.running) j.angle += dt * (0.5 + drive.tension * 7 + j.rush * 12);
     if (j.crashed) j.angle += dt * 14 * (1 - j.shut.x);
   }
-  stepSpring(j.shut, j.crashed ? 1 : lidCreep(drive.tension), 6, 0.7, dt);
+  stepSpring(j.shut, j.crashed ? 1 : Math.min(0.8, lidCreep(drive.tension, drive.multiplier) + j.dip * 0.32), 6, 0.7, dt);
   stepSpring(j.glue, j.crashed ? 1 : 0, 2.4, 0.9, dt);
   const tax = sellTax(drive.multiplier);
   if (tax !== j.tax) {
@@ -165,14 +191,14 @@ function ink(ctx: CanvasRenderingContext2D, width = 3): void {
   ctx.lineCap = 'round';
 }
 
-/** Impact's sidebearings are narrower than the ink, so the label needs tracking. */
-export function tracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, font = `900 ${size}px Impact, "Arial Black", sans-serif`): void {
+/** Impact's sidebearings are narrower than the ink, so the label needs tracking. `maxWidth` squeezes a long line into its box. */
+export function tracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, font = `900 ${size}px Impact, "Arial Black", sans-serif`, maxWidth?: number): void {
   ctx.save();
   ctx.font = font;
   ctx.letterSpacing = `${Math.max(1, Math.round(size * 0.14))}px`;
   ctx.fillStyle = fill;
   ctx.textAlign = 'center';
-  ctx.fillText(text, x, y);
+  ctx.fillText(text, x, y, maxWidth);
   ctx.restore();
 }
 
@@ -183,7 +209,8 @@ export function honeyColor(glue: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number, drawReach?: () => void): void {
+/** `time` is the scene's decorative clock; `round` the running round's seconds (0 outside one). */
+export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number, round: number, drawReach?: () => void): void {
   const { cx, top, w, h } = JAR;
   const left = cx - w / 2;
   const level = clamp(j.level.x, 0, 1);
@@ -266,15 +293,18 @@ export function drawJar(ctx: CanvasRenderingContext2D, j: JarState, time: number
   ctx.translate(cx, top + 128);
   const pop = 1 + j.taxFlash * 0.25;
   ctx.scale(pop, pop);
-  tracked(ctx, `SELL TAX ${j.tax}%`, 0, 0, 13, j.tax >= 49 ? '#c0392b' : INK);
+  // 1337% and 9001% squeeze to fit inside the label.
+  tracked(ctx, `SELL TAX ${j.tax}%`, 0, 0, 13, j.tax >= 49 ? '#c0392b' : INK, undefined, 112);
   ctx.restore();
   tracked(ctx, 'BUY TAX 0%', cx, top + 142, 10, '#6b7280', '700 10px system-ui, sans-serif');
-  // Later audits tighten a visible safety band, release it, then try again.
-  if (time > 60 && !j.crashed) {
-    const effort = Math.pow(Math.max(0, Math.sin((time - 60) * Math.PI / 14)), 2);
+  // Later audits tighten a visible safety band, release it, then try again. It fades on rather than appearing.
+  if (round > 60 && !j.crashed) {
+    const effort = Math.pow(Math.max(0, Math.sin((round - 60) * Math.PI / 14)), 2);
+    ctx.globalAlpha = clamp((round - 60) / 0.5, 0, 1);
     ctx.strokeStyle = '#72512d'; ctx.lineWidth = 5;
     ctx.strokeRect(left - 5 - effort * 8, top + 52, w + 10 + effort * 16, 12);
     ctx.fillStyle = '#e6bc62'; ctx.fillRect(cx + w / 2 + 4, top + 46 - effort * 10, 18, 26);
+    ctx.globalAlpha = 1;
   }
   drawLid(ctx, j);
   if (j.audit.hit.x > 0.03) drawAudit(ctx, j.audit.hit.x, j.crashed);
@@ -341,10 +371,11 @@ function drawLid(ctx: CanvasRenderingContext2D, j: JarState): void {
   ctx.restore();
 }
 
+/** CAN'T SELL across the glass between the seated lid and the label, clear of the auditor's mark lower down. */
 function drawStamp(ctx: CanvasRenderingContext2D, pop: number): void {
   ctx.save();
-  ctx.translate(JAR.cx, JAR.top + 162);
-  ctx.rotate(-0.18);
+  ctx.translate(JAR.cx, JAR.top + 52);
+  ctx.rotate(-0.1);
   // Comes down past size and settles, like a stamp hit too hard.
   const k = clamp(pop, 0, 1.3);
   ctx.scale(k, k);

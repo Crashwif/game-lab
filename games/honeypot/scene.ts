@@ -3,7 +3,7 @@
  * and the lid follow the displayed multiplier. Nothing here selects it.
  */
 import { pageAudio } from './audio';
-import { clamp, settleSpring, spring, stepSpring } from './motion';
+import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
 import {
   createJar,
   drawJar,
@@ -16,7 +16,7 @@ import {
   stepJar,
   type JarState,
 } from './jar';
-import { auditDone, createPicnic, drawFox, drawPicnic, drawBearReach, pawPoint, pullPaw, resetPicnic, settlePicnic, stepPicnic, trapPicnic, type Picnic } from './picnic';
+import { auditDone, createPicnic, drawFox, drawFront, drawPicnic, drawBearReach, pawPoint, pullPaw, resetPicnic, settlePicnic, startle, stepPicnic, trapPicnic, type Picnic } from './picnic';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -35,16 +35,20 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
 /** The caption ladder's steps: a milestone ding each, an airhorn from the third. */
-const RUNGS = [1.4, 2, 3, 5, 8, 14];
-/** The lid coming down: a short freeze on the crash frame, the screw-down at a third speed, then time catches up. */
-const FREEZE_S = 0.06;
+const RUNGS = [1.2, 1.5, 2, 3, 5, 8, 14];
+/** The lid coming down: a freeze on the crash frame, the screw-down at a third speed, then time catches up. */
+const FREEZE_S = 0.15;
 const SLOW_S = 0.35;
 const SLOW_RATE = 0.3;
-/** Where the camera punches in: the lid. */
+/** Where the camera punches in (the lid), how far, and how long it holds there before easing back out. */
 const PUNCH_AT = { x: 548, y: 160 } as const;
+const PUNCH_ZOOM = 0.1;
+const PUNCH_HOLD = 0.45;
+/** The crash's last frame dissolves into the next round's picnic over this long, rather than cutting to it. */
+const FADE_S = 0.35;
 
-/** The round's tension, 0..1: log2 of the multiplier over 3.2, so it climbs in step with the round's time (full at about 9.2×). */
-const tensionAt = (multiplier: number): number => clamp(Math.log2(multiplier) / 3.2, 0, 1);
+/** The round's tension, 0..1: 1 - 1/x, so the 1×–3× most rounds live in sweeps 0–0.67 (0.33 at 1.5×, 0.5 at 2×, 0.9 at 10×). */
+const tensionAt = (multiplier: number): number => clamp(1 - 1 / multiplier, 0, 1);
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.save();
@@ -63,19 +67,25 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.restore();
 }
 
-function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome === 'rekt') return "CAN'T SELL";
-  if (outcome === 'called') return 'PAW FREE';
-  if (outcome === 'spectator') return 'HONEYPOT';
+function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null, pulling: boolean): string {
+  if (outcome === 'rekt') return multiplier < 1.01 ? 'RUGGED AT LAUNCH' : 'IT WAS A HONEYPOT';
+  if (outcome === 'called') return 'DODGED THE LID';
+  if (outcome === 'spectator') return 'NOT YOUR PAW';
   if (view.phase !== 'running') return 'GM BEAR';
-  if (secured) return 'PULL THE PAW';
-  if (multiplier < 1.4) return 'SWEET GAINS';
-  if (multiplier < 2) return 'BUY TAX 0%, LFG';
-  if (multiplier < 3) return 'LIQUIDITY IS LOCKED';
-  if (multiplier < 5) return 'DIAMOND PAWS';
-  if (multiplier < 8) return 'WHY IS THE LID MOVING';
-  if (multiplier < 14) return 'SELL TAX RISING';
-  return 'SELL TAX OVER 100%?';
+  if (secured) {
+    // Took profits: the jeet's ladder as the jar keeps filling without him, never a dig at getting out.
+    if (pulling) return 'PULL THE PAW';
+    const r = multiplier * 100 / secured.x100;
+    return r < 1.25 ? 'TOOK PROFITS' : r < 1.6 ? 'PAPER PAWS, FREE PAWS' : r < 2.5 ? 'SHOULD HAVE HELD?' : r < 5 ? 'NAH. PROFIT IS PROFIT' : 'STILL NO SELL BUTTON';
+  }
+  if (multiplier < 1.2) return 'SWEET GAINS';
+  if (multiplier < 1.5) return 'BUY TAX 0%, LFG';
+  if (multiplier < 2) return 'WHY IS THE LID MOVING';
+  if (multiplier < 3) return 'DIAMOND PAWS';
+  if (multiplier < 5) return 'LIQUIDITY IS LOCKED';
+  if (multiplier < 8) return 'NO SELL BUTTON?';
+  if (multiplier < 14) return 'SELL TAX OVER 100%?';
+  return 'NEW ATH, SAME PAW';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -87,9 +97,11 @@ export function createScene(options: SceneOptions = {}): Scene {
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
-  /** The camera's punch into the lid. */
+  /** The camera's punch into the lid, and how long it still holds there. */
   const punch = spring(0);
+  let punchHold = 0;
   let last: number | null = null;
+  /** The decorative clock: always counting (slowed under reduced motion), never jumped to the round's time. */
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
@@ -98,7 +110,11 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let freeze = 0;
   let slow = 0;
-  let bees = 0;
+  /** Seconds to the swarm's next buzz: every 1.4 s at 1×, every 0.35 s as the tension tops out. */
+  let pulseIn = 0.6;
+  /** The crash's last frame, fading out over the next round's first moments. */
+  let fade: HTMLCanvasElement | null = null;
+  let fadeT = 0;
   /** Seconds until the dev laughs on his way out; -1 with none due. */
   let laughIn = -1;
   /** True from a crash met late until the next round: the aftermath is shown, not replayed, so no cues play for it. */
@@ -115,7 +131,20 @@ export function createScene(options: SceneOptions = {}): Scene {
     settlePicnic(picnic, multiplier, tension, view.elapsed / 1000, secured !== null);
     if (auditDone(picnic)) stampAudit(jar, true);
     settleSpring(badge, secured ? 1 : 0);
-    bees = Math.round(8 + tension * 20);
+  }
+
+  /** Keeps what is on the canvas (the crash's last frame) to dissolve from. */
+  function snapshot(ctx: CanvasRenderingContext2D): void {
+    try {
+      const source = ctx.canvas;
+      fade ??= document.createElement('canvas');
+      fade.width = source.width;
+      fade.height = source.height;
+      fade.getContext('2d')!.drawImage(source, 0, 0);
+      fadeT = 1;
+    } catch {
+      fadeT = 0;
+    }
   }
 
   /** `quiet` lands straight on the crash's end pose, for a crash that happened out of sight. */
@@ -134,10 +163,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 14;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      punchHold = PUNCH_HOLD;
     }
     laughIn = 1.1;
     audio.crash('trombone');
@@ -157,10 +186,11 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += reduced ? dt * 0.2 : dt;
-    if (view.phase === 'running') time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
+    /** The round's own clock, for what a long round brings on (the bees' patrols, the safety band); 0 outside a round. */
+    const round = running ? view.elapsed / 1000 : 0;
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
     if (view.cashoutX100 !== null && !secured) {
@@ -178,13 +208,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     } else if (view.phase !== previous) {
       if (crashed && !jar.crashed) beginCrash(view, multiplier, view.crashAge > 1500);
       if (view.phase === 'betting') {
+        if (jar.crashed) snapshot(ctx);
         resetJar(jar);
         resetPicnic(picnic);
         outcome = null;
         secured = null;
         shake = 0;
-        freeze = slow = 0;
-        bees = 8;
+        freeze = slow = punchHold = 0;
+        settleSpring(punch, 0);
+        pulseIn = 0.6;
         laughIn = -1;
         muted = false;
       }
@@ -194,8 +226,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running && !jar.crashed) pullPaw(picnic);
 
     const paw = pawPoint(picnic, jar.level.x);
-    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x, reduced }, dt);
-    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling', pawX: paw.x, pawY: paw.y, reduced }, dt);
+    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x, reduced, round }, dt);
+    // Honey strings follow the paw until it tears out of the neck.
+    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling' && picnic.bear.paw < 0.3, pawX: paw.x, pawY: paw.y, reduced }, dt);
     const pe = picnic.events;
     const je = jar.events;
     if (pe.stamp) {
@@ -204,15 +237,22 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (!reduced) shake = Math.max(shake, 0.14);
     }
     if (pe.pawFree) knockJar(jar, 1);
+    if (pe.tug && !reduced) knockJar(jar, 0.2);
+    if (je.jolt) startle(picnic);
     if (je.seated && !reduced) shake = Math.max(shake, 0.5);
     if (jar.taxFlash > 0.9 && !reduced) shake = Math.max(shake, 0.16);
-    const swarm = Math.round(8 + tension * 20);
+    // The swarm's buzz quickens with the tension (every 0.9 s by 2×), for as long as the paw is in the jar.
+    const pulse = running && !secured && !jar.crashed;
+    if (pulse) pulseIn -= dt;
     if (!fresh && !muted) {
-      // The picnic's own events as cues: the honey rising, the tax stepping, the swarm growing, the guests leaning in,
-      // the auditor's stamp, the dev's texts, the paw tearing free, the lid seating, and the dev's laugh on the way out.
+      // The picnic's own events as cues: the honey rising, the tax stepping, the swarm, the bear's tugs, the lid's
+      // lurches, the guests leaning in, the auditor's stamp, the dev's texts, the paw tearing free, the lid seating,
+      // and the dev's laugh on the way out.
       if (je.glug) audio.fx('glug', 0.5 + 0.6 * jar.level.x);
       if (je.tax) audio.fx('ratchet', 0.75);
-      if (running && swarm > bees) audio.fx('buzz', 0.3 + 0.7 * tension);
+      if (pulse && pulseIn <= 0) audio.fx('buzz', 0.18 + 0.32 * tension);
+      if (pe.tug) audio.fx('bubble', 0.5);
+      if (je.jolt) audio.fx('creak', 0.9);
       if (pe.guest) audio.fx('pop', 0.6);
       if (pe.stamp) audio.fx('stomp', 0.9);
       if (pe.msg) audio.fx('phone', 0.8);
@@ -220,15 +260,17 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (je.seated) audio.fx('clang', 1);
       if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     }
-    bees = swarm;
+    if (pulse && pulseIn <= 0) pulseIn += mix(1.4, 0.35, tension);
     if (laughIn >= 0) {
       laughIn -= real;
       if (laughIn < 0) audio.fx('laugh', 0.7);
     }
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
-    const next = captionFor(view, multiplier, outcome, secured);
+    // The camera works in real time: in fast through the freeze, held, then eased back out.
+    punchHold = Math.max(0, punchHold - real);
+    stepSpring(punch, punchHold > 0 ? 1 : 0, punchHold > 0 ? 30 : 6, punchHold > 0 ? 0.8 : 0.9, real);
+    const next = captionFor(view, multiplier, outcome, secured, picnic.bear.mode === 'pulling');
     if (next !== caption) {
       caption = next;
       captionPop.v = 6;
@@ -240,21 +282,23 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 70) * 8 * shake, 0);
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the lid and eases back out.
-      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.1);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
       ctx.scale(k, k);
       ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
     }
     drawPicnic(ctx, picnic, jar.level.x, time, tension);
-    drawJar(ctx, jar, time, () => drawBearReach(ctx, picnic, jar.level.x, time));
+    drawJar(ctx, jar, time, round, () => drawBearReach(ctx, picnic, jar.level.x, time));
     drawFox(ctx, picnic);
+    drawFront(ctx, picnic);
     if (jar.glue.x > 0.02) {
       ctx.fillStyle = `rgba(80, 60, 30, ${jar.glue.x * 0.22})`;
       ctx.fillRect(0, 0, 960, 540);
     }
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(480, 198);
+      // Above the trapped bear's hat so his face still reads; where he got out, over the crate he left.
+      ctx.translate(480, outcome === 'called' ? 198 : 166);
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);
@@ -282,6 +326,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, `${multiplier.toFixed(2)}×`, 936, 64, 56, outcome === 'rekt' ? '#ff4d6d' : '#1c1f26', 'right', 240);
     memeText(ctx, `SELL TAX ${sellTax(multiplier)}%`, 24, 520, 26, sellTax(multiplier) >= 49 ? '#c0392b' : '#1c1f26', 'left');
     memeText(ctx, `HONEY ${Math.round(jar.level.x * 100)}%`, 936, 520, 22, '#1c1f26', 'right');
+    if (fadeT > 0 && fade) {
+      ctx.save();
+      ctx.globalAlpha = fadeT * fadeT * (3 - 2 * fadeT);
+      ctx.drawImage(fade, 0, 0, 960, 540);
+      ctx.restore();
+      fadeT = Math.max(0, fadeT - real / FADE_S);
+    }
   }
 
   return { draw };
