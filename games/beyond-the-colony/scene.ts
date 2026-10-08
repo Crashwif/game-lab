@@ -113,7 +113,7 @@ function overlay(ctx: CanvasRenderingContext2D, view: SceneView, steps: number):
   bottom.addColorStop(0, 'rgba(6,26,38,0)'); bottom.addColorStop(0.5, 'rgba(6,26,38,0.85)'); bottom.addColorStop(1, '#061a26');
   ctx.fillStyle = bottom; ctx.fillRect(0, 441, 960, 99);
   text(ctx, subtitle, 28, 493, 21, '#ecf4e5', 'left', 790, 500);
-  text(ctx, 'NIETZSCHEAN PENGUIN · COMMUNITY GAME CONCEPT', 28, 521, 10, '#88b1b2', 'left', 660, 600);
+  text(ctx, 'NIETZSCHEAN PENGUIN · COMMUNITY EXPEDITION', 28, 521, 10, '#88b1b2', 'left', 660, 600);
   text(ctx, secure ? 'AT THE REFUGE' : crashed ? 'RESTING SAFELY' : active ? `LEDGE ${Math.floor(steps) + 1}` : 'BASE CAMP', 929, 521, 11, secure ? '#c7e9b4' : '#91b7b5', 'right', 240, 600);
 }
 

@@ -97,11 +97,14 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Thanksgiving Uncle](games/thanksgiving-uncle) | The other side of the table: an uncle seen from behind whose theories deepen with the curve, a dad whose smile freezes wider and a niece whose eyes roll further, a smart speaker that mishears and orders, a sign that flips to zero, a dog revving the truck in the window, Grandma's grace on a cash-out, a seeded truck through the wall with the turkey on the hood | Playable |
 | [Hello World](games/hello-world) | A minimal creator template: a commented scene, a greeting, a multiplier and a circle, with the shared controls and replay already connected | Playable |
 | [Know Your Clown](games/know-your-clown) | A Ministry of Airdrops conveyor, articulated scanners, an expressive applicant, eight timed verification acts and endless audits, a tinfoil escape, a crated identity and a single peanut; ElevenLabs music and effects | Playable |
+| [Rage Quit](games/rage-quit) | A four-panel rage comic with a desk rig, escalating computer annoyances, a calm exit on confirmed cash-out and a desk-flip meltdown | Playable |
+| [Beyond the Colony](games/beyond-the-colony) | A scarfed penguin climbing Antarctic shelves, layered mountains and aurora, a warm refuge on confirmed cash-out and a soft landing after the ledge fractures | Playable |
+| [MUMU Bull Run](games/mumu-bull-run) | A white bull charging up ramps, a bear building barricades, a grandstand exit on confirmed cash-out and a cushion landing when the ramps fold | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
 
-Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
+Hello World, Wen Moon, Bull Run, Pyramid Scheme, Rage Quit, Beyond the Colony and MUMU Bull Run are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
 
 These are conservative input bounds calculated from UTF-8 source bytes, the system prompt and an allowance; `clips.json` counts by clip names rather than embedded audio. Artwork embedded in source does count. Run `npm run check` for the current totals instead of estimating from file count. See [`scripts/gallery/check.mjs`](scripts/gallery/check.mjs) for the calculation and [`CONTRIBUTING.md`](CONTRIBUTING.md) for source-pack limits.
 

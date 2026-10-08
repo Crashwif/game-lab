@@ -201,8 +201,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       const startY = floorAt(startX) - 3;
       if (confirmed) {
         const x = startX + (733 - startX) * escape;
-        const y = startY + (416 - startY) * escape - Math.sin(escape * Math.PI) * 114;
-        bull(c, x, y, 1 - escape * 0.4, reduced ? 0 : stride, !reduced && escape < 1, escape === 1, ambient, -0.168 * (1 - escape));
+        const y = startY + (416 - startY) * escape - Math.sin(escape * Math.PI) * 50;
+        bull(c, x, y, 0.9 - escape * 0.3, reduced ? 0 : stride, !reduced && escape < 1, escape === 1, ambient, -0.168 * (1 - escape));
         if (escape === 1) {
           star(c, 650, 336, 12, GOLD);
           star(c, 826, 348, 9, GREEN);
@@ -210,9 +210,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       } else if (crashed) {
         const drop = reduced ? 1 : ease((age - 0.22) / 0.68);
         const recoil = reduced ? 0 : Math.sin(clamp(age / 0.6) * Math.PI) * 25;
-        bull(c, startX + drop * 59 - recoil, startY + (444 - startY) * drop, 1 - drop * 0.18, 0, false, drop === 1, reduced ? 0 : age * 0.5, -0.168 * (1 - drop));
+        bull(c, startX + drop * 59 - recoil, startY + (444 - startY) * drop, 0.9 - drop * 0.15, 0, false, drop === 1, reduced ? 0 : age * 0.5, -0.168 * (1 - drop));
       } else {
-        bull(c, startX, startY, 1, reduced ? 0 : stride, running && !reduced, false, ambient);
+        bull(c, startX, startY, 0.9, reduced ? 0 : stride, running && !reduced, false, ambient);
         if (view.phase === 'betting' && !reduced) {
           const snort = (now / 1000) % 3;
           if (snort < 0.65) {
