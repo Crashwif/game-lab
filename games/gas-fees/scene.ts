@@ -243,7 +243,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     ctx.translate(0, cabin.bounce.x);
     for (const p of crowd.list) if (p.depth > 1) drawPassenger(ctx, p, suit.x, time);
-    if (suit.depth > 1) drawSuit(ctx, suit, time);
+    if (suit.depth > 1) drawSuit(ctx, suit, reduced ? 0 : time, reduced);
     ctx.restore();
     const yourFloor = secured !== null && suitDoors;
     const indicator = crashed ? 'DUMPED' : yourFloor ? 'YOUR FLOOR' : running ? `${multiplier.toFixed(2)}× UP` : 'GOING UP?';
@@ -251,7 +251,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     ctx.translate(0, cabin.bounce.x);
     const inside = crowd.list.filter((p) => p.depth <= 1).map((p) => ({ depth: p.depth, draw: () => drawPassenger(ctx, p, suit.x, time) }));
-    if (suit.depth <= 1) inside.push({ depth: suit.depth, draw: () => { drawSuit(ctx, suit, time); } });
+    if (suit.depth <= 1) inside.push({ depth: suit.depth, draw: () => { drawSuit(ctx, suit, reduced ? 0 : time, reduced); } });
     inside.sort((a, b) => b.depth - a.depth);
     for (const r of inside) r.draw();
     ctx.restore();

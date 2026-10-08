@@ -221,7 +221,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (curler.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.04 + 0.16 * tension); audio.fx('creak', 0.4 + 0.6 * tension); }
     if (curler.events.hop && running) audio.fx('tick', 0.35);
     if (curler.events.sleeve) { heckle(gym, 'SLEEVE GONE', true); if (!reduced) shake = Math.max(shake, 0.3); audio.fx('ratchet', 0.9); }
-    if (curler.events.dropped) { puff(gym, { x: 540, y: 480 }, 10, '#ffffff', 5); swoon(gym); heckle(gym, 'MARRY ME', true); if (!reduced) shake = Math.max(shake, 0.35); audio.fx('thud', 1); }
+    if (curler.events.dropped) { puff(gym, { x: curler.dumbbell.x, y: curler.dumbbell.y }, 10, '#ffffff', 5); if (!curler.burst) { swoon(gym); heckle(gym, 'MARRY ME', true); } if (!reduced) shake = Math.max(shake, 0.35); audio.fx('thud', 1); }
     if (medic.events.enter) { heckle(gym, 'WHO CALLED HIM', false); audio.fx('siren', 0.6); }
     stepSpring(legArrow, running && multiplier >= 10 ? 1 : 0, 6, 0.6, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);

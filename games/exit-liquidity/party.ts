@@ -26,7 +26,7 @@ const MAX_HOLDERS = 30;
 const CONFETTI = 36;
 const leanFor = (growth: number): number => smoothstep(0.3, 0.9, clamp(growth / 3.3, 0, 1));
 
-export type HolderMode = 'jumping' | 'floating' | 'sucked' | 'gone' | 'puddle';
+export type HolderMode = 'jumping' | 'floating' | 'leaving' | 'sucked' | 'gone' | 'puddle';
 export interface Holder { x: number; y: number; tube: string; tone: number; phase: number; mode: HolderMode; t: number; fromX: number; toX: number; fromY: number; spin: number; scale: number; airdropped: boolean }
 export type AvatarMode = 'floating' | 'paddling' | 'climbing' | 'walking' | 'lounging' | 'sucked' | 'puddle';
 export type DevMode = 'lounging' | 'standing' | 'selfie' | 'leaving';
@@ -36,7 +36,7 @@ export interface PartyState {
   time: number;
   tension: number;
   holders: Holder[];
-  avatar: { mode: AvatarMode; x: number; y: number; modeAge: number; spin: number; scale: number; shades: Spring; fear: number };
+  avatar: { mode: AvatarMode; x: number; y: number; modeAge: number; spin: number; scale: number; shades: Spring; fear: number; climbFrom?: { x: number; y: number; phase: number } };
   /** The dev: `lean` sits him up with the chain in his fist as the tension grows; `phone` raises the selfie stick after the drain. */
   dev: { mode: DevMode; x: number; modeAge: number; grin: Spring; yank: Spring; lean: Spring; phone: Spring; flash: number; snapped: boolean };
   /** The AIRDROP helicopter: crossing while active, with the passes it still owes. */
@@ -162,6 +162,10 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
     h.drops = 0;
     h.pending -= 1;
     p.events.heli = true;
+    if (p.holders.length >= MAX_HOLDERS) {
+      // Returning guests visibly leave by the far deck before their slots can be reused.
+      for (const guest of p.holders.filter(k => k.airdropped && k.mode === 'floating').slice(0, 3)) { guest.mode = 'leaving'; guest.fromY = guest.y; }
+    }
   }
   if (h.active) {
     // Once the plug is out the pilot wants no part of it and leaves at full throttle.
@@ -172,8 +176,8 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
         const jumper: Holder = { x: fromX, y: HELI.y + 24, tube: TUBES[Math.floor(p.rng() * TUBES.length)]!, tone: p.rng(), phase: p.rng() * 6.3, mode: 'jumping', t: 0, fromX, toX: clamp(fromX + (p.rng() - 0.5) * 60, POOL.left + 40, POOL.right - 40), fromY: HELI.y + 24, spin: 0, scale: 1, airdropped: true };
         if (p.holders.length < MAX_HOLDERS) p.holders.push(jumper);
         else {
-          // Later passes give a returning partygoer another jump; the pool's crowd stays bounded.
-          const returning = p.holders.find(k => k.airdropped && k.mode === 'floating');
+          // Only recycle a holder who has actually left the visible pool.
+          const returning = p.holders.find(k => k.mode === 'gone');
           if (returning) Object.assign(returning, jumper);
         }
         if (h.drops === 0) p.events.drop = true;
@@ -207,6 +211,11 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
         k.x = clamp(k.x, POOL.left + 30, POOL.right - 30);
         k.y = surfaceY(pool, k.x) - 4 + Math.sin(p.time * 2 + k.phase) * 2;
         break;
+      case 'leaving':
+        k.x += 240 * dt;
+        k.y = mix(k.fromY, POOL.top - 20, smoothstep(POOL.right - 30, POOL.right + 35, k.x));
+        if (k.x > 1020) k.mode = 'gone';
+        break;
       case 'sucked': {
         const pull = drainPull(pool, k.x);
         k.x += (DRAIN.x - k.x) * pull * 2.2 * dt;
@@ -231,13 +240,14 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
     case 'paddling':
       a.x = Math.max(LADDER_X + 22, a.x - 230 * dt);
       a.y = surfaceY(pool, a.x) - 6;
-      if (a.x <= LADDER_X + 22) { a.mode = 'climbing'; a.modeAge = 0; }
+      if (a.x <= LADDER_X + 22) { a.climbFrom = { x: a.x, y: a.y, phase: a.modeAge * 8 }; a.mode = 'climbing'; a.modeAge = 0; }
       break;
     case 'climbing': {
-      const k = clamp(a.modeAge / 0.9, 0, 1);
-      a.x = LADDER_X;
-      a.y = mix(surfaceY(pool, LADDER_X) - 6, POOL.top - 30, k);
-      if (k >= 1) { a.mode = 'walking'; a.modeAge = 0; }
+      const from = a.climbFrom ?? { x: a.x, y: a.y, phase: 0 };
+      const reach = smoothstep(0, 0.35, a.modeAge);
+      a.x = mix(from.x, LADDER_X, reach);
+      a.y = Math.max(POOL.top - 30, from.y - Math.max(0, a.modeAge - 0.35) * 60);
+      if (a.y <= POOL.top - 30) { a.mode = 'walking'; a.modeAge = 0; }
       break;
     }
     case 'walking': {
@@ -562,6 +572,21 @@ export function drawConfetti(ctx: CanvasRenderingContext2D, p: PartyState): void
   ctx.globalAlpha = 1;
 }
 
+/** A support contact stays on its rung while the opposite limb reaches. */
+export function climbContact(a: PartyState['avatar'], side: number, hand: boolean): { x: number; y: number } {
+  const from = a.climbFrom ?? { x: a.x, y: a.y, phase: 0 };
+  const clock = Math.max(0, a.modeAge - 0.35) / 0.3 + (side > 0 ? 0.5 : 0) + (hand ? 0.25 : 0);
+  const cycle = Math.floor(clock), phase = clock - cycle, reach = smoothstep(0.55, 1, phase);
+  const start = ladderContact(side, from.y + (hand ? -22 : 18));
+  const target = { x: start.x + side * Math.sin(Math.PI * reach) * 8, y: Math.max(POOL.top - 10, start.y - 18 * (cycle + reach)) };
+  const blend = smoothstep(0, 0.35, a.modeAge), p = from.phase + (side > 0 ? Math.PI : 0);
+  return { x: mix(from.x + side * (hand ? 24 + Math.sin(p) * 7 : 10), target.x, blend), y: mix(from.y + (hand ? 2 + Math.cos(p) * 7 : 18), target.y, blend) };
+}
+function exitJoint(root: { x: number; y: number }, end: { x: number; y: number }, side: number) {
+  const dx = end.x - root.x, dy = end.y - root.y, d = Math.max(0.001, Math.hypot(dx, dy)), b = Math.sqrt(Math.max(0, 34 ** 2 - d * d / 4)) * side;
+  return { x: (root.x + end.x) / 2 - dy / d * b, y: (root.y + end.y) / 2 + dx / d * b };
+}
+
 export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: PoolState, fear: number): void {
   const mood = (f: number): WojakLook['mood'] => (f > 0.62 ? 'panic' : f > 0.25 ? 'nervous' : 'calm');
   for (const h of p.holders) {
@@ -587,13 +612,16 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     for (const side of [-1, 1]) {
       const phase = a.modeAge * (a.mode === 'walking' ? 12 : 8) + (side > 0 ? Math.PI : 0);
       const climb = a.mode === 'climbing';
-      const handX = climb ? ladderContact(side, a.y).x : a.x + side * (24 + Math.sin(phase) * 7);
-      const handY = climb ? ladderContact(side, a.y - 22 + Math.sin(phase) * 10).y : a.y + 2 + Math.cos(phase) * 7;
-      ctx.beginPath(); ctx.moveTo(a.x + side * 12, a.y - 10); ctx.lineTo(a.x + side * 22, a.y - 2); ctx.lineTo(handX, handY); ctx.stroke();
+      const hand = climbContact(a, side, true), foot = climbContact(a, side, false);
+      const handX = climb ? hand.x : a.x + side * (24 + Math.sin(phase) * 7);
+      const handY = climb ? hand.y : a.y + 2 + Math.cos(phase) * 7;
+      const elbow = exitJoint({ x: a.x + side * 12, y: a.y - 10 }, { x: handX, y: handY }, side);
+      ctx.beginPath(); ctx.moveTo(a.x + side * 12, a.y - 10); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(handX, handY); ctx.stroke();
       if (a.mode !== 'paddling') {
-        const footX = climb ? ladderContact(side, a.y).x : a.x + side * 10 + Math.cos(phase) * 9;
-        const footY = climb ? ladderContact(side, a.y + 18).y : POOL.top - 1 - Math.max(0, Math.sin(phase)) * 8;
-        ctx.beginPath(); ctx.moveTo(a.x + side * 7, a.y + 3); ctx.lineTo(a.x + side * 13, a.y + 14); ctx.lineTo(footX, footY); ctx.stroke();
+        const footX = climb ? foot.x : a.x + side * 10 + Math.cos(phase) * 9;
+        const footY = climb ? foot.y : POOL.top - 1 - Math.max(0, Math.sin(phase)) * 8;
+        const knee = exitJoint({ x: a.x + side * 7, y: a.y + 3 }, { x: footX, y: footY }, -side);
+        ctx.beginPath(); ctx.moveTo(a.x + side * 7, a.y + 3); ctx.lineTo(knee.x, knee.y); ctx.lineTo(footX, footY); ctx.stroke();
       }
     }
   }

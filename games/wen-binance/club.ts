@@ -18,7 +18,7 @@ export const GROUND = 470;
 export const DOOR = { x: 640, y: 236, w: 130, h: GROUND - 236 } as const;
 export const BOUNCER_X = 600;
 /** Where the taxi pulls up for your coin. */
-const KERB = 330;
+export const KERB = 330;
 export type Point = { x: number; y: number };
 /** The marquee box and the baseline of its sign. */
 const MARQUEE = { x: 540, y: 78, w: 380, h: 96 } as const;

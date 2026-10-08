@@ -124,22 +124,20 @@ export function iceBroke(s: SkaterState): void {
     s.plungeV = 40;
     s.speed = 0;
   } else if (s.mode === 'toShore') {
-    // The exit was accepted: the last stride carries her onto the bank as the ice goes.
-    setMode(s, 'shore');
-    settleSpring(s.depth, 1);
-    s.speed = 0;
+    // Accepted exits remain safe; finish the visible carve instead of teleporting to shore.
+    s.wave.v += 1;
   } else if (s.mode === 'shore') {
     s.wave.v += 6;
   }
 }
 
 /** Foot position through the stride, in hip-relative units: glide under the hip, push out behind, swing forward. */
-function legPose(u: number): { x: number; y: number; onIce: boolean } {
+export function legPose(u: number): { x: number; y: number; onIce: boolean } {
   u = fract(u);
   if (u < 0.45) return { x: mix(8, -8, u / 0.45), y: 52, onIce: true };
   if (u < 0.65) {
     const t = smoothstep(0, 1, (u - 0.45) / 0.2);
-    return { x: mix(-8, -40, t), y: 52 + 4 * t, onIce: true };
+    return { x: mix(-8, -40, t), y: 52, onIce: true };
   }
   const t = (u - 0.65) / 0.35;
   return { x: mix(-40, 8, smoothstep(0, 1, t)), y: 52 - 16 * Math.sin(Math.PI * t), onIce: false };
@@ -221,11 +219,26 @@ export function stepSkater(s: SkaterState, drive: SkaterDrive, dt: number): void
   stepSpring(s.brow, face.brow, 12, 0.75, dt);
 }
 
+/** Contacts stay in the ice frame; only the pelvis bobs above them. */
+export function skaterFooting(s: SkaterState) {
+  const inWater = s.mode === 'plunge' || s.mode === 'swimming';
+  const legs = [legPose(s.stride), legPose(s.stride + 0.5)];
+  const feet = inWater ? [{ x: -14, y: -12 }, { x: 12, y: -8 }] : legs.map(p => ({ x: p.x, y: p.y - 52 }));
+  const order = legs[0]!.x < legs[1]!.x ? [0, 1] : [1, 0];
+  let hipY = -52 - 3 * Math.abs(Math.sin(Math.PI * 2 * s.stride)) * clamp(s.speed / 320, 0, 1);
+  // Lower the pelvis as needed rather than lengthening the shin at full extension.
+  for (const [depth, i] of order.entries()) {
+    const dx = feet[i]!.x - (depth === 0 ? -4 : 4);
+    hipY = Math.max(hipY, feet[i]!.y - Math.sqrt(Math.max(1, 67.9 ** 2 - dx * dx)));
+  }
+  return { hip: { x: 0, y: hipY }, feet, order, legs, inWater };
+}
+
 /** Where a foot is on screen, for spray and trails; `which` is 0 or 1. */
 export function footScreen(s: SkaterState, which: 0 | 1, screenX: number, screenY: number, scale: number): { x: number; y: number; onIce: boolean } {
-  const pose = legPose(s.stride + which * 0.5);
-  const bob = -3 * Math.abs(Math.sin(Math.PI * 2 * s.stride)) * clamp(s.speed / 320, 0, 1);
-  return { x: screenX + pose.x * scale, y: screenY + (pose.y - 52 + bob + s.plunge) * scale, onIce: pose.onIce };
+  const pose = skaterFooting(s);
+  const foot = pose.feet[which]!;
+  return { x: screenX + foot.x * scale, y: screenY + (foot.y + s.plunge) * scale, onIce: !pose.inWater && pose.legs[which]!.onIce };
 }
 
 /** Advances the scarf links after the body has been placed, so they trail the neck. */
@@ -254,7 +267,7 @@ export function drawSkater(ctx: CanvasRenderingContext2D, s: SkaterState, at: Sk
   ctx.translate(0, s.plunge);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const hip: Point = { x: 0, y: -52 + bob };
+  const { hip, feet, order, inWater } = skaterFooting(s);
   function segment(a: Point, b: Point, width: number, colour: string) {
     ctx.strokeStyle = colour; ctx.lineWidth = width;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -271,13 +284,8 @@ export function drawSkater(ctx: CanvasRenderingContext2D, s: SkaterState, at: Sk
     segment({ x: foot.x - 10, y: foot.y + 3 }, { x: foot.x + 12, y: foot.y + 3 }, 2.5, back ? '#9aa3ad' : '#d0d5dc');
   }
   // Legs in the unleaned frame so the skates stay on the ice; the far leg first.
-  const legA = legPose(s.stride);
-  const legB = legPose(s.stride + 0.5);
-  const inWater = s.mode === 'plunge' || s.mode === 'swimming';
-  const feet = inWater ? [{ x: -14, y: 40 }, { x: 12, y: 44 }] : [{ x: legA.x, y: legA.y }, { x: legB.x, y: legB.y }];
-  const order = legA.x < legB.x ? [0, 1] : [1, 0];
   for (const i of order) {
-    const foot = { x: hip.x + feet[i]!.x, y: hip.y + feet[i]!.y };
+    const foot = feet[i]!;
     const back = i === order[0];
     limb({ x: hip.x + (back ? -4 : 4), y: hip.y }, foot, 34, 34, -1, back ? 11 : 13, back ? '#22304a' : TROUSERS);
     skate(foot, back);

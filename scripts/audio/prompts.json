@@ -562,6 +562,11 @@
         }
       }
     },
+    "rug-piste": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A playful downhill ski arcade chiptune at 132 BPM: crisp square-wave slalom phrases, warm triangle bass, sparkling icy arpeggios and light noise-channel percussion, with an awkward low-register yeti motif. Develop six distinct 25-second sections: establish the ski-run melody, weave in a countermelody, introduce the yeti motif, open up a spacious snowy breakdown, rebuild with a faster-feeling melodic variation, then return toward the opening for a gentle repeat. Keep space for jumps, carving and coin effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
     "up-only": {
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Airborne arcade chiptune at 150 BPM: joyful square-wave melody, bouncing triangle bass, sparkling coin arpeggios and agile noise drums with clear rhythmic gaps."

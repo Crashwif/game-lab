@@ -28,9 +28,10 @@ function shadow(ctx: Context, width: number, height = 8): void {
 
 /** Feet at (x, y); jump is elevation in pixels, lean -1..1, stumble 0..1. */
 export function drawSkier(ctx: Context, x: number, y: number, options: {
-  lean: number; jump: number; time: number; stumble: number; scale?: number; shadow?: boolean;
+  lean: number; jump: number; time: number; stumble: number; scale?: number; shadow?: boolean; seated?: number;
 }): void {
   const { lean, jump, time, stumble } = options;
+  const seat = options.seated ?? 0;
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   ctx.scale(options.scale ?? 1, options.scale ?? 1);
@@ -56,6 +57,14 @@ export function drawSkier(ctx: Context, x: number, y: number, options: {
     ctx.restore();
   }
 
+  // Knees follow the carve while the boot endpoints stay on their bindings.
+  const knee = lean * 3;
+  for (const side of [-1, 1]) {
+    const x = side * 8;
+    shape(ctx, PALETTE.ink, [[x - 4, -24 + seat * 4], [x + 4, -24 + seat * 4], [x + 5 + knee, -15 + seat * 4], [x + 4, -7], [x - 4, -7], [x - 4 + knee, -15 + seat * 4]]);
+    shape(ctx, PALETTE.deep, [[x - 2, -22 + seat * 4], [x + 2, -22 + seat * 4], [x + 2 + knee, -14 + seat * 3], [x + 2, -8], [x - 2, -8], [x - 2 + knee, -14 + seat * 3]]);
+  }
+  ctx.translate(lean * 2, Math.abs(lean) * 1.5 + seat * 3);
   // Pole lines are intentionally square, like the sprite itself.
   const sway = Math.round(Math.sin(time / 180) * 2);
   shape(ctx, PALETTE.ink, [[-19, -30], [-16, -30], [-25, 3 + sway], [-28, 3 + sway]]);
@@ -64,9 +73,6 @@ export function drawSkier(ctx: Context, x: number, y: number, options: {
   rect(ctx, PALETTE.pink, 22, -2 - sway, 10, 3);
 
   // Snow pants, purple puffer and neon cuffs.
-  shape(ctx, PALETTE.ink, [[-12, -25], [12, -25], [13, -9], [8, -5], [3, -8], [0, -16], [-3, -8], [-9, -5], [-14, -9]]);
-  rect(ctx, PALETTE.deep, -10, -22, 8, 12);
-  rect(ctx, PALETTE.deep, 3, -22, 7, 12);
   shape(ctx, PALETTE.ink, [[-8, -43], [9, -43], [16, -37], [22, -29], [21, -24], [15, -23], [12, -29], [12, -20], [-12, -20], [-12, -29], [-15, -24], [-22, -25], [-22, -31], [-15, -39]]);
   shape(ctx, PALETTE.purple, [[-7, -40], [7, -40], [13, -35], [17, -28], [14, -28], [10, -33], [9, -23], [-9, -23], [-10, -33], [-15, -27], [-18, -28], [-12, -36]]);
   rect(ctx, PALETTE.lilac, -9, -35, 4, 10);

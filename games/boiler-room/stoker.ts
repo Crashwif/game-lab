@@ -65,6 +65,8 @@ export interface StokerState {
   blinkAt: number;
   fall: { x: number; y: number; vx: number; vy: number; angle: number; spin: number };
   shovelDropped: boolean;
+  drop?: { x: number; y: number; angle: number; vx: number; vy: number; spin: number; rest: boolean };
+  rate: number;
   fear: number;
   soot: number;
   events: { throw: boolean };
@@ -74,7 +76,7 @@ export function createStoker(): StokerState {
   return {
     mode: 'idle', time: 0, modeAge: 0, x: HOME_X, phase: 0.95, lean: spring(0), nod: spring(0), crouch: spring(0), goggles: spring(0), wipe: spring(0), wipeAt: 3,
     eyeOpen: spring(1), mouthOpen: spring(0.05), mouthCurve: spring(0.2), brow: spring(0), blinkAt: 2.4,
-    fall: { x: HOME_X, y: HIP_Y, vx: 0, vy: 0, angle: 0, spin: 0 }, shovelDropped: false, fear: 0, soot: 0, events: { throw: false },
+    fall: { x: HOME_X, y: HIP_Y, vx: 0, vy: 0, angle: 0, spin: 0 }, shovelDropped: false, rate: 0, fear: 0, soot: 0, events: { throw: false },
   };
 }
 
@@ -93,6 +95,7 @@ export function resetStoker(s: StokerState): void {
   settleSpring(s.goggles, 0);
   settleSpring(s.wipe, 0);
   s.shovelDropped = false;
+  s.drop = undefined; s.rate = 0;
   s.soot = 0;
 }
 
@@ -123,13 +126,14 @@ export function settleStoker(s: StokerState, running: boolean, crashed: boolean,
 /** The exit was accepted: drop the shovel and get behind the shield. */
 export function callShield(s: StokerState): void {
   if (s.mode !== 'stoking' && s.mode !== 'idle') return;
+  releaseShovel(s);
   setMode(s, 'running');
-  s.shovelDropped = true;
 }
 
 /** The valve blew. */
 export function blastStoker(s: StokerState, quiet: boolean): void {
   if (s.mode === 'stoking' || s.mode === 'idle') {
+    if (!quiet) releaseShovel(s);
     s.shovelDropped = true;
     s.soot = 1;
     if (quiet) {
@@ -140,10 +144,8 @@ export function blastStoker(s: StokerState, quiet: boolean): void {
       s.fall = { x: s.x, y: HIP_Y, vx: -300, vy: -300, angle: 0, spin: -6 };
     }
   } else if (s.mode === 'running') {
-    // The exit was accepted: he makes it behind the shield in the nick of time.
-    setMode(s, 'sheltered');
-    s.x = SHIELD.x;
-    settleSpring(s.crouch, 1);
+    // The accepted exit keeps its run trajectory through the blast.
+    s.crouch.v += 3;
   } else if (s.mode === 'sheltered') {
     s.crouch.v += 6;
   }
@@ -159,6 +161,29 @@ export function shovelPose(u: number): { blade: Point; grip: Point; tip: number;
   return { grip, blade: { x: grip.x + Math.cos(angle) * SHOVEL_LENGTH, y: grip.y + Math.sin(angle) * SHOVEL_LENGTH }, tip: 0, carrying: phase >= 0.25 && phase < 0.67 };
 }
 
+function heldShovel(s: StokerState, phase = s.phase) {
+  if (s.mode !== 'idle') return shovelPose(phase);
+  return { grip: { x: s.x + 52, y: 350 }, blade: { x: s.x + 52, y: 350 + SHOVEL_LENGTH } };
+}
+function releaseShovel(s: StokerState): void {
+  const a = heldShovel(s), b = heldShovel(s, s.phase + s.rate * 0.001);
+  const angle = Math.atan2(a.blade.y - a.grip.y, a.blade.x - a.grip.x);
+  const next = Math.atan2(b.blade.y - b.grip.y, b.blade.x - b.grip.x);
+  s.drop = { x: a.grip.x, y: a.grip.y, angle, vx: (b.grip.x - a.grip.x) * 1000, vy: (b.grip.y - a.grip.y) * 1000, spin: Math.atan2(Math.sin(next - angle), Math.cos(next - angle)) * 1000, rest: false };
+  s.shovelDropped = true;
+}
+export function droppedShovel(s: StokerState): { grip: Point; blade: Point } {
+  const d = s.drop;
+  const grip = d ? { x: d.x, y: d.y } : { x: 190, y: 456 };
+  const angle = d?.angle ?? Math.asin(6 / SHOVEL_LENGTH);
+  return { grip, blade: { x: grip.x + Math.cos(angle) * SHOVEL_LENGTH, y: grip.y + Math.sin(angle) * SHOVEL_LENGTH } };
+}
+export function runFoot(distance: number, side: number): Point {
+  const step = 46, p = ((distance / step + (side > 0 ? 0.5 : 0)) % 1 + 1) % 1;
+  const swing = clamp((p - 0.6) / 0.4, 0, 1);
+  return { x: (p - swing * swing * (3 - 2 * swing) - (side > 0 ? 0.5 : 0)) * step, y: -Math.sin(Math.PI * swing) * 16 };
+}
+
 type Mood = 'calm' | 'nervous' | 'panic' | 'shock' | 'smug' | 'dazed';
 const FACES: Record<Mood, { eye: number; open: number; curve: number; brow: number }> = {
   calm: { eye: 1, open: 0.05, curve: 0.25, brow: 0 },
@@ -170,6 +195,23 @@ const FACES: Record<Mood, { eye: number; open: number; curve: number; brow: numb
 };
 
 export function stepStoker(s: StokerState, drive: StokerDrive, dt: number): void {
+  s.rate = drive.rate;
+  const drop = s.drop;
+  if (drop && !drop.rest) {
+    const steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps;
+    for (let i = 0; i < steps; i++) {
+      drop.vy += 900 * h; drop.x += drop.vx * h; drop.y += drop.vy * h; drop.angle += drop.spin * h;
+      const lowest = Math.max(drop.y + 8, drop.y + Math.sin(drop.angle) * SHOVEL_LENGTH + 13), penetration = lowest - (FLOOR_Y - 2);
+      if (penetration > 0) {
+        drop.y -= penetration;
+        drop.vy = -Math.abs(drop.vy) * 0.22; drop.vx *= 0.78;
+        const gripContact = drop.y + 8 >= drop.y + Math.sin(drop.angle) * SHOVEL_LENGTH + 13;
+        drop.spin += Math.cos(drop.angle) * (gripContact ? 18 : -18) * h;
+        drop.spin *= 0.92;
+        if (Math.abs(Math.sin(drop.angle)) < 0.07 && Math.abs(drop.vy) < 25) { drop.rest = true; drop.spin = drop.vx = drop.vy = 0; }
+      }
+    }
+  }
   s.time += dt;
   s.modeAge += dt;
   s.fear = drive.fear;
@@ -293,8 +335,9 @@ function drawShovel(ctx: CanvasRenderingContext2D, grip: Point, blade: Point, ti
   ctx.restore();
 }
 
-export function drawShovelOnFloor(ctx: CanvasRenderingContext2D): void {
-  drawShovel(ctx, { x: 190, y: 456 }, { x: 190 + Math.sqrt(SHOVEL_LENGTH ** 2 - 36), y: 462 }, 0, false);
+export function drawShovelOnFloor(ctx: CanvasRenderingContext2D, s: StokerState): void {
+  const pose = droppedShovel(s);
+  drawShovel(ctx, pose.grip, pose.blade, 0, false);
 }
 
 export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void {
@@ -313,9 +356,10 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
   const head: Point = { x: shoulder.x + Math.sin(headRot) * 44, y: shoulder.y - Math.cos(headRot) * 44 };
   const toWorld = (lx: number, ly: number): Point => ({ x: head.x + lx * Math.cos(headRot) - ly * Math.sin(headRot), y: head.y + lx * Math.sin(headRot) + ly * Math.cos(headRot) });
   const running = s.mode === 'running';
-  const stride = running ? Math.sin(s.time * 16) * 14 : 0;
-  const footL: Point = floored || blasted ? { x: hip.x - 34, y: hip.y + 60 } : { x: hip.x - 38 + stride, y: FLOOR_Y - 2 };
-  const footR: Point = floored || blasted ? { x: hip.x + 36, y: hip.y + 58 } : { x: hip.x + 40 - stride, y: FLOOR_Y - 2 };
+  const gait = (side: number) => running ? runFoot(HOME_X - s.x, side) : { x: 0, y: 0 };
+  const left = gait(-1), right = gait(1);
+  const footL: Point = floored || blasted ? { x: hip.x - 34, y: hip.y + 60 } : { x: hip.x - 38 + left.x, y: FLOOR_Y - 2 + left.y };
+  const footR: Point = floored || blasted ? { x: hip.x + 36, y: hip.y + 58 } : { x: hip.x + 40 + right.x, y: FLOOR_Y - 2 + right.y };
 
   function segment(a: Point, b: Point, width: number, colour: string) {
     ctx.strokeStyle = colour; ctx.lineWidth = width;

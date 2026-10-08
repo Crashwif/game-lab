@@ -15,6 +15,8 @@ export interface ShibaPose {
   tilt: number;
   /** Seconds since the last flap: the wings beat down then up. */
   flapAge: number;
+  wingMotion?: { beat: number; lag: number; feather: number };
+  perched?: number;
   stun: number;
   /** The bag's drawn size follows the coins with a little lag. */
   bag: number;
@@ -43,16 +45,16 @@ export function wingBeat(age: number): number {
   const smooth = (x: number) => { const t = clamp(x, 0, 1); return t * t * (3 - 2 * t); };
   return age < .12 ? smooth(age / .12) : 1 - smooth((age - .12) / .32);
 }
-export function wingJoints(age: number) {
-  const beat = wingBeat(age), delayed = wingBeat(Math.max(0, age - .045));
+export function wingJoints(age: number, motion?: ShibaPose['wingMotion']) {
+  const beat = motion?.beat ?? wingBeat(age), delayed = motion?.lag ?? wingBeat(Math.max(0, age - .045));
   const shoulder = { x: 0, y: 0 }, a = -2.45 + beat * 1.5;
   const elbow = { x: Math.cos(a) * 25, y: Math.sin(a) * 25 };
   const b = a + .4 + (delayed - beat) * .9;
   const wrist = { x: elbow.x + Math.cos(b) * 23, y: elbow.y + Math.sin(b) * 23 };
-  return { shoulder, elbow, wrist, feather: wingBeat(Math.max(0, age - .08)) - beat };
+  return { shoulder, elbow, wrist, feather: (motion?.feather ?? wingBeat(Math.max(0, age - .08))) - beat };
 }
-function wing(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, scale: number, shade: string): void {
-  const { elbow: e, wrist: w, feather } = wingJoints(age);
+function wing(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, scale: number, shade: string, motion?: ShibaPose['wingMotion']): void {
+  const { elbow: e, wrist: w, feather } = wingJoints(age, motion);
   ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(e.x - 4, e.y - 10, w.x, w.y - 5);
   for (let i = 0; i < 4; i += 1) {
@@ -69,7 +71,9 @@ function wing(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, 
 export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   // The wings beat down over the first tenth of a second after a flap and glide back up.
   const age = p.reduced ? .44 : p.flapAge;
-  const follow = p.reduced ? 0 : wingBeat(Math.max(0, age - .06)) - wingBeat(age);
+  const perched = clamp(p.perched ?? 0, 0, 1);
+  const motion = p.reduced ? undefined : p.wingMotion ? { beat: p.wingMotion.beat * (1 - perched), lag: p.wingMotion.lag * (1 - perched), feather: p.wingMotion.feather * (1 - perched) } : undefined;
+  const follow = p.reduced ? 0 : motion ? motion.lag - motion.beat : wingBeat(Math.max(0, age - .06)) - wingBeat(age);
   ctx.save();
   ctx.translate(p.x, p.y);
   if (p.fall > 0 && !p.reduced) ctx.rotate(p.fall * 7);
@@ -83,7 +87,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
     poly(ctx, [[-30, -4], [-56 * flick, 0], [-30, 4]], '#fff6c8');
   }
   // The far wing, the tail, the body, the near wing.
-  wing(ctx, -6, -14, Math.max(0, age - .018), 0.75, '#c9c2b8');
+  wing(ctx, -6, -14, Math.max(0, age - .018), 0.75, '#c9c2b8', motion ? { beat: motion.lag, lag: motion.feather, feather: motion.feather } : undefined);
   ctx.beginPath();
   ctx.arc(-34, -6, 12, Math.PI * 0.6, Math.PI * 2.2);
   ctx.strokeStyle = FUR;
@@ -102,8 +106,8 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   ellipse(ctx, 6, 8, 20, 11, CREAM);
   // Legs tucked under.
   for (const dx of [-12, 8]) {
-    line(ctx, [[dx, 14], [dx - 3, 26]], FUR_DARK, 7);
-    ellipse(ctx, dx - 3, 27, 5, 3.5, CREAM, INK, 1.5);
+    line(ctx, [[dx, 14], [dx - 3 * (1 - perched), 26 + perched * 4]], FUR_DARK, 7);
+    ellipse(ctx, dx - 3 * (1 - perched), 27 + perched * 4, 5, 3.5, CREAM, INK, 1.5);
   }
   // The bag on his back.
   const r = bagRadius(p.bag);
@@ -114,7 +118,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   ellipse(ctx, 0, -r * 0.92, r * 0.4, r * 0.2, '#6e3f14', INK, 1.5);
   text(ctx, '$', 0, r * 0.06, r * 1.2, '#f7e2a0', 'center');
   ctx.restore();
-  wing(ctx, 2, -12, age, 1, '#fff');
+  wing(ctx, 2, -12, age, 1, '#fff', motion);
   // The head, the snout, the ears and the wif hat.
   ellipse(ctx, 20, -14, 20, 19, FUR, INK, 2.5);
   ellipse(ctx, 34, -8, 11, 8, CREAM, INK, 2);

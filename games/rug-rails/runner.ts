@@ -52,12 +52,34 @@ function limb(ctx: CanvasRenderingContext2D, a: [number, number], b: [number, nu
   if (end) ellipse(ctx, c[0], c[1], endR, endR * 0.8, end, INK, 1.5);
 }
 
+/** Two fixed bones above track-space contacts, independent of torso lean and bob. */
+export function runnerLegs(p: FrogPose) {
+  const cycle = p.stride * Math.PI * 2;
+  const bob = p.air || p.slide > .3 ? 0 : Math.abs(Math.sin(cycle)) * 4 * (1 - clamp(p.hover, 0, 1));
+  const angle = -p.lean * .05 + (p.reduced ? 0 : Math.sin(p.time * 40) * .12 * Math.max(0, p.stumble / .5));
+  const sx = 1 + .22 * p.slide, sy = 1 - .48 * p.slide;
+  return { bob, legs: [-1, 1].map((side, i) => {
+    const phase = cycle + i * Math.PI;
+    const lift = p.air ? 26 : Math.max(0, Math.sin(phase)) * 24 * (1 - clamp(p.hover, 0, 1));
+    const contact = { x: side * 12, y: -lift };
+    const foot: [number, number] = [(contact.x * Math.cos(angle) + contact.y * Math.sin(angle)) / sx, (-contact.x * Math.sin(angle) + contact.y * Math.cos(angle) + bob) / sy];
+    const hip: [number, number] = [side * 11, -50];
+    const dx = foot[0] - hip[0], dy = foot[1] - hip[1], distance = Math.max(.001, Math.hypot(dx, dy));
+    // Crouch the pelvis to retain the foot contact if a slide needs more reach.
+    if (distance > 59.9) { const k = 59.9 / distance; hip[0] = foot[0] - dx * k; hip[1] = foot[1] - dy * k; }
+    const vx = foot[0] - hip[0], vy = foot[1] - hip[1], reach = Math.max(.001, Math.hypot(vx, vy));
+    const bend = Math.sqrt(Math.max(0, 30 * 30 - reach * reach / 4));
+    const knee: [number, number] = [(hip[0] + foot[0]) / 2 + side * vy / reach * bend, (hip[1] + foot[1]) / 2 - side * vx / reach * bend];
+    return { hip, knee, foot, contact };
+  }) };
+}
+
 export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   const k = (p.s * 0.7) / 130;
   const downK = p.down > 0 ? 1 - p.down / DOWN_S : 0;
   const stumbleK = p.stumble > 0 ? p.stumble / 0.5 : 0;
   const cycle = p.stride * Math.PI * 2;
-  const bob = p.air || p.slide > 0.3 ? 0 : Math.abs(Math.sin(cycle)) * 4;
+  const { bob, legs } = runnerLegs(p);
   ctx.save();
   ctx.translate(p.X, p.Y);
   ctx.scale(k, k);
@@ -87,17 +109,8 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   // The slide flattens the whole rig.
   if (p.slide > 0) ctx.scale(1 + 0.22 * p.slide, 1 - 0.48 * p.slide);
 
-  // Legs: a stride from behind, the lifted foot rising as the other plants.
-  for (const i of [0, 1]) {
-    const side = i === 0 ? -1 : 1;
-    const phase = cycle + i * Math.PI;
-    const lift = p.air ? 26 : p.hover > 0 ? 4 : Math.max(0, Math.sin(phase)) * 24;
-    const back = p.air ? 0 : Math.cos(phase) * 8;
-    const hip: [number, number] = [side * 11, -50];
-    const knee: [number, number] = [side * (13 + (p.air ? 6 : 0)), -28 - lift * 0.6 + back * 0.3];
-    const foot: [number, number] = [side * 12, -lift];
-    limb(ctx, hip, knee, foot, HOODIE_DARK, 13, '#24262f', 8);
-  }
+  // Track contacts are inverse-transformed before solving; the body's bob cannot lift them.
+  for (const leg of legs) limb(ctx, leg.hip, leg.knee, leg.foot, HOODIE_DARK, 13, '#24262f', 8);
   // The torso and the bunched hood.
   panel(ctx, -28, -100, 56, 52, HOODIE, INK, 14, 2.5);
   line(ctx, [[-22, -60], [22, -60]], HOODIE_DARK, 3);

@@ -45,62 +45,62 @@ function captionFor(view: SceneView, rung: number, outcome: Outcome | null, secu
   const act = endurance(view.elapsed / 1000);
   return act.act ? ['','THE LEFT RAIL IS TOO CLOSE','CATCH YOUR BREATH','HE IS COMING BACK','ONE HAND. STILL HOLDING.'][act.act]! : CAPTIONS[rung]!;
 }
-function drawArena(c: CanvasRenderingContext2D, time: number, tension: number, gate: number, reduced: boolean, close = false): void {
-  c.fillStyle = '#5a2a1a';
-  c.fillRect(0, 0, 960, 300);
-  if (!close) memeText(c, 'DEGEN RODEO · TONIGHT: $BULL vs GRAVITY', 480, 150, 22, '#f4d1b0', 'center', 700);
-  c.strokeStyle = INK; c.lineWidth = 3;
-  for (const [row, y, n, s] of [[0, 278, 22, 1], [1, 250, 25, 0.82]] as const) {
-    for (let i = 0; i < n; i += 1) {
-      const x = 20 + (i + 0.5) * (920 / n);
-      const cy = y + (reduced ? 0 : Math.sin(time * (3 + 5 * tension) + i * 1.3 + row) * (1.5 + 7 * tension));
-      c.fillStyle = ['#f4d1b0', '#8d5524', '#e0ac69', '#c68642'][i % 4]!;
-      c.beginPath(); c.arc(x, cy, 11 * s, 0, Math.PI * 2); c.fill(); c.stroke();
+function drawArena(c:CanvasRenderingContext2D,time:number,tension:number,gate:number,reduced:boolean,close=false):void{
+  c.fillStyle='#5a2a1a';
+  c.fillRect(0,0,960,300);
+  if(!close)memeText(c,'DEGEN RODEO · TONIGHT: $BULL vs GRAVITY',480,150,22,'#f4d1b0','center',700);
+  c.strokeStyle=INK;c.lineWidth=3;
+  for(const[row,y,n,s]of[[0,278,22,1],[1,250,25,0.82]]as const){
+    for(let i=0;i<n;i+=1){
+      const x=20+(i+0.5)*(920/n);
+      const cy=y+(reduced?0:Math.sin(time*(3+5*tension)+i*1.3+row)*(1.5+7*tension));
+      c.fillStyle=['#f4d1b0','#8d5524','#e0ac69','#c68642'][i%4]!;
+      c.beginPath();c.arc(x,cy,11*s,0,Math.PI*2);c.fill();c.stroke();
     }
   }
-  c.fillStyle = '#c69c6d';
-  c.fillRect(0, 300, 960, 240);
-  c.fillStyle = '#8b5a2b';
-  c.strokeStyle = INK; c.lineWidth = 2;
-  for (let x = 43; x < 960; x += 96) { c.fillRect(x, 262, 10, 84); c.strokeRect(x, 262, 10, 84); }
-  for (const y of [292, 316]) { c.fillRect(0, y, 960, 8); c.strokeRect(0, y, 960, 8); }
-  for (let i = 0; i < 4; i += 1) {
-    c.fillStyle = i % 2 ? '#d5fb6d' : '#f4d1b0';
-    c.fillRect(154 + i * 192, 302, 172, 34);
-    c.strokeRect(154 + i * 192, 302, 172, 34);
-    memeText(c, BANNERS[i]!, 240 + i * 192, 326, 15, INK, 'center', 160);
+  c.fillStyle='#c69c6d';
+  c.fillRect(0,300,960,240);
+  c.fillStyle='#8b5a2b';
+  c.strokeStyle=INK;c.lineWidth=2;
+  for(let x=43;x<960;x+=96){c.fillRect(x,262,10,84);c.strokeRect(x,262,10,84);}
+  for(const y of[292,316]){c.fillRect(0,y,960,8);c.strokeRect(0,y,960,8);}
+  for(let i=0;i<4;i+=1){
+    c.fillStyle=i%2?'#d5fb6d':'#f4d1b0';
+    c.fillRect(154+i*192,302,172,34);
+    c.strokeRect(154+i*192,302,172,34);
+    memeText(c,BANNERS[i]!,240+i*192,326,15,INK,'center',160);
   }
-  c.fillStyle = '#9ca3af';
-  for (let y = 280; y < 440; y += 36) c.fillRect(140 - 170 * gate, y, 66, 6);
-  c.fillRect(196 - 170 * gate, 262, 10, 180);
-  c.strokeRect(196 - 170 * gate, 262, 10, 180);
+  c.fillStyle='#9ca3af';
+  for(let y=280;y<440;y+=36)c.fillRect(140-170*gate,y,66,6);
+  c.fillRect(196-170*gate,262,10,180);
+  c.strokeRect(196-170*gate,262,10,180);
 }
-function drawClown(c: CanvasRenderingContext2D, peek: number, run: number, time: number): void {
+function drawClown(c:CanvasRenderingContext2D,peek:number,run:number,time:number):void{
   c.save();
-  c.strokeStyle = INK; c.lineWidth = 3; c.lineCap = 'round';
-  if (run > 0) {
-    c.translate(BARREL_X + run, FLOOR);
-    c.lineWidth = 6;
-    c.beginPath(); c.moveTo(-14 * Math.sin(time * 14), 0); c.lineTo(0, -30); c.lineTo(14 * Math.sin(time * 14), 0); c.stroke();
-    c.lineWidth = 3;
-    c.fillStyle = '#ff4d6d';
-    c.beginPath(); c.roundRect(-11, -62, 22, 36, 6); c.fill(); c.stroke();
-    c.fillStyle = '#c9a227';
-    c.beginPath(); c.ellipse(22, -40, 12, 15, 0, 0, Math.PI * 2); c.fill(); c.stroke();
-    c.translate(0, -76);
-  } else {
-    c.beginPath(); c.rect(BARREL_X - 30, FLOOR - 200, 60, 136); c.clip();
-    c.translate(BARREL_X, FLOOR - 49 - 50 * peek);
+  c.strokeStyle=INK;c.lineWidth=3;c.lineCap='round';
+  if(run>0){
+    c.translate(BARREL_X+run,FLOOR);
+    c.lineWidth=6;
+    c.beginPath();c.moveTo(-14*Math.sin(time*14),0);c.lineTo(0,-30);c.lineTo(14*Math.sin(time*14),0);c.stroke();
+    c.lineWidth=3;
+    c.fillStyle='#ff4d6d';
+    c.beginPath();c.roundRect(-11,-62,22,36,6);c.fill();c.stroke();
+    c.fillStyle='#c9a227';
+    c.beginPath();c.ellipse(22,-40,12,15,0,0,Math.PI*2);c.fill();c.stroke();
+    c.translate(0,-76);
+  }else{
+    c.beginPath();c.rect(BARREL_X-30,FLOOR-200,60,136);c.clip();
+    c.translate(BARREL_X,FLOOR-49-50*peek);
   }
-  c.fillStyle = '#ffffff';
-  c.beginPath(); c.arc(0, 0, 15, 0, Math.PI * 2); c.fill(); c.stroke();
-  c.fillStyle = '#22c55e';
-  for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 15, -6, 7, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = '#ff4d6d';
-  c.beginPath(); c.arc(0, 2, 5, 0, Math.PI * 2); c.fill();
-  c.fillStyle = INK;
-  for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 6, -5, 2, 0, Math.PI * 2); c.fill(); }
-  c.beginPath(); c.arc(0, 4, 8, 0.4, Math.PI - 0.4); c.stroke();
+  c.fillStyle='#ffffff';
+  c.beginPath();c.arc(0,0,15,0,Math.PI*2);c.fill();c.stroke();
+  c.fillStyle='#22c55e';
+  for(const s of[-1,1]){c.beginPath();c.arc(s*15,-6,7,0,Math.PI*2);c.fill();}
+  c.fillStyle='#ff4d6d';
+  c.beginPath();c.arc(0,2,5,0,Math.PI*2);c.fill();
+  c.fillStyle=INK;
+  for(const s of[-1,1]){c.beginPath();c.arc(s*6,-5,2,0,Math.PI*2);c.fill();}
+  c.beginPath();c.arc(0,4,8,0.4,Math.PI-0.4);c.stroke();
   c.restore();
 }
 

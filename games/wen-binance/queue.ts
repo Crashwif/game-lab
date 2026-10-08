@@ -5,7 +5,7 @@
  * out to the taxi. Nothing here changes the outcome.
  */
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
-import { BOUNCER_X, GROUND, INK, W } from './club';
+import { BOUNCER_X, GROUND, INK, KERB } from './club';
 
 /** The multipliers at which the bouncer waves another suit past the rope. */
 export const SUITS = [1.5, 2, 3, 4.5, 6.5, 9, 13, 18, 25, 35];
@@ -27,6 +27,7 @@ export interface Queue {
   bubbles: Bubble[];
   mode: 'queued' | 'stepping' | 'gone';
   youX: Spring;
+  exitFrom: number;
   shades: Spring;
   panic: boolean;
   panicAge: number;
@@ -38,7 +39,7 @@ export interface Queue {
 }
 
 export function createQueue(): Queue {
-  return { time: 0, advance: spring(0), bounce: spring(0), suits: 0, bubbles: [], mode: 'queued', youX: spring(0), shades: spring(0), panic: false, panicAge: 0, runSeeds: [], headIn: spring(0), confetti: [] };
+  return { time: 0, advance: spring(0), bounce: spring(0), suits: 0, bubbles: [], mode: 'queued', youX: spring(0), exitFrom: HEAD_START - YOU * SPACING, shades: spring(0), panic: false, panicAge: 0, runSeeds: [], headIn: spring(0), confetti: [] };
 }
 
 export function resetQueue(q: Queue): void {
@@ -69,6 +70,7 @@ export function settleQueue(q: Queue, multiplier: number): void {
 /** Your coin steps out of the line toward the taxi. `quiet` puts him by the taxi already, for an exit that already happened. */
 export function leaveQueue(q: Queue, quiet = false, reduced = false): void {
   if (q.mode !== 'queued') return;
+  q.exitFrom = coinX(q, YOU);
   if (quiet) {
     q.mode = 'gone';
     settleSpring(q.youX, 1);
@@ -129,8 +131,8 @@ export function stepQueue(q: Queue, drive: QueueDrive, dt: number): boolean {
   for (const b of q.bubbles) b.age += dt;
   q.bubbles = q.bubbles.filter((b) => b.age < b.life);
   if (q.mode === 'stepping') {
-    stepSpring(q.youX, 1, 4, 0.9, dt);
-    if (q.youX.x > 0.98) q.mode = 'gone';
+    stepSpring(q.youX, 1, 4, 1, dt);
+    if (q.youX.x > 0.999) { q.mode = 'gone'; settleSpring(q.youX, 1); }
   }
   stepSpring(q.shades, q.mode === 'queued' ? 0 : 1, 10, 0.6, dt);
   if (q.panic) {
@@ -147,6 +149,9 @@ function coinX(q: Queue, i: number): number {
   const head = mix(HEAD_START, HEAD_END, clamp(q.advance.x, 0, 1));
   return head - i * SPACING;
 }
+
+/** The boarding point is fixed on the pavement, independent of the approaching taxi. */
+export function exitPosition(q: Queue): number { return mix(q.exitFrom, KERB - 60, smoothstep(0, 1, clamp(q.youX.x, 0, 1))); }
 
 type Mood = 'calm' | 'hype' | 'worried' | 'shock';
 type Point = { x: number; y: number };
@@ -172,7 +177,7 @@ function bone(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, 
 
 function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed: number, bob: number, mood: Mood, you: boolean, shades: number, stride: number, facing = 1, time = 0): void {
   ctx.save();
-  ctx.translate(x, footY - bob);
+  ctx.translate(x, footY);
   ctx.scale(facing, 1);
   // Feet remain planted; the torso can shift its weight above them.
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -181,16 +186,13 @@ function drawCoin(ctx: CanvasRenderingContext2D, x: number, footY: number, seed:
   const face = you ? '#ffd23f' : `hsl(${hue}, 80%, 65%)`;
   const idle = time * 1.3 + seed;
   for (const side of [-1, 1]) {
-    const phase = (stride > 0 ? stride : idle) + (side > 0 ? Math.PI : 0);
-    const amp = stride > 0 ? 1 : 0;
-    const lift = Math.max(0, Math.sin(phase)) * 13 * amp;
-    const reach = Math.cos(phase) * 9 * amp;
-    const foot = { x: side * 10 + reach, y: -lift };
-    bone(ctx, { x: side * 8, y: -36 }, foot, 24, 22, foot.y >= -36 ? -side : side, 9, '#2b2b36');
+    const phase = ((stride / 32 + (side > 0 ? 0.5 : 0)) % 1 + 1) % 1, swing = smoothstep(0.6, 1, phase);
+    const foot = { x: side * 10 + (0.3 - phase + swing) * 32, y: -Math.sin(Math.PI * swing) * 13 };
+    bone(ctx, { x: side * 8, y: -36 - bob }, foot, 24, 22, foot.y >= -36 ? -side : side, 9, '#2b2b36');
     ctx.fillStyle = '#1b1b22'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 2, 6.5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
-  ctx.translate(stride > 0 ? 0 : Math.sin(time * 1.4 + seed) * 2, 0);
+  ctx.translate(stride > 0 ? 0 : Math.sin(time * 1.4 + seed) * 2, -bob);
   // Hoodie body.
   ctx.fillStyle = hood; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-24, -74, 48, 46, 10); ctx.fill(); ctx.stroke();
@@ -259,7 +261,7 @@ function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: strin
 }
 
 /** The rope, the line and your coin wherever he is. */
-export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: number, finished: boolean, cheerful: boolean, taxiX: number): void {
+export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: number, finished: boolean, cheerful: boolean, _taxiX: number): void {
   // Velvet rope posts along the pavement edge, behind the coins.
   const posts = 7;
   ctx.lineJoin = 'round';
@@ -286,13 +288,13 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
     const you = i === YOU;
     if (you && q.mode !== 'queued') continue;
     let x = coinX(q, i);
-    let stride = 0;
+    let stride = x - (HEAD_START - i * SPACING);
     let facing = 1;
     let footY = GROUND + 6;
     if (q.panic && i !== 0) {
       const speed = 220 + 200 * (q.runSeeds[i] ?? 0.5);
       x -= Math.max(0, q.panicAge - 0.3 - (q.runSeeds[i] ?? 0) * 0.5) * speed;
-      stride = Math.abs(x) / 10 + i;
+      stride = -x;
       facing = -1;
       if (x < -80) continue;
     } else if (q.panic && i === 0) {
@@ -300,7 +302,7 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
       const inward = clamp(q.headIn.x, 0, 1);
       x = mix(x, 705, inward);
       footY = mix(GROUND + 6, GROUND - 4, inward);
-      stride = inward > 0.02 && inward < 0.98 ? Math.abs(x) / 10 : 0;
+      stride = x;
       ctx.save();
       if (inward > 0.3) ctx.globalAlpha = 1 - smoothstep(0.3, 1, inward) * 0.7;
       const scale = 1 - 0.25 * inward;
@@ -324,11 +326,10 @@ export function drawQueue(ctx: CanvasRenderingContext2D, q: Queue, tension: numb
   // Your coin leaving: steps out in front of the rope and over to the taxi.
   if (q.mode !== 'queued') {
     const k = clamp(q.youX.x, 0, 1);
-    const from = coinX(q, YOU);
-    const to = Math.min(taxiX - 60, W - 40);
-    const x = mix(from, to, smoothstep(0, 1, k));
+    const from = q.exitFrom, to = KERB - 60;
+    const x = exitPosition(q);
     const y = mix(GROUND + 6, GROUND + 42, smoothstep(0, 0.3, k));
-    const stride = q.mode === 'stepping' ? q.time * 11 : 0;
+    const stride = Math.abs(x - from);
     drawCoin(ctx, x, y, YOU, q.mode === 'gone' ? Math.abs(Math.sin(q.time * 3)) * 3 : 0, 'hype', true, clamp(q.shades.x, 0, 1), stride, from > to ? -1 : 1, q.time);
     if (q.mode === 'gone') {
       ctx.save(); ctx.translate(x, y - 150);

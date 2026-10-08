@@ -45,6 +45,7 @@ export interface Bench {
   act: number;
   effort: number;
   dumped: boolean;
+  hitLifter: Who | null;
   dumpAge: number;
   hands: Spring;
   shades: Spring;
@@ -64,7 +65,7 @@ const freshSyringe = (): Syringe => ({ peek: spring(0), out: false, x: 0, y: 0, 
 const noEvents = (): Bench['events'] => ({ rep: false, plate: false, racked: false, swapped: false, impact: false, bounce: 0 });
 
 export function createBench(): Bench {
-  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, act: 0, effort: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), jolt: spring(0), impactPending: false, syringe: freshSyringe(), events: noEvents() };
+  return { time: 0, mode: 'idle', modeAge: 0, onBench: 'chad', phase: 0, act: 0, effort: 0, barY: spring(BAR.rack), plates: [], arrival: null, nextPlate: 0, tension: 0, dumped: false, hitLifter: null, dumpAge: 0, hands: spring(1), shades: spring(0), spotHands: spring(0), chadX: spring(480), grunt: spring(0), jolt: spring(0), impactPending: false, syringe: freshSyringe(), events: noEvents() };
 }
 
 export function resetBench(b: Bench): void {
@@ -77,6 +78,7 @@ export function resetBench(b: Bench): void {
   b.arrival = null;
   b.nextPlate = 0;
   b.dumped = false;
+  b.hitLifter = null;
   b.dumpAge = 0;
   settleSpring(b.hands, 1);
   settleSpring(b.shades, 0);
@@ -120,18 +122,14 @@ export function rackBar(b: Bench): void {
 /** The bar comes down. `quiet` skips the effects for a crash that already happened. */
 export function dumpBar(b: Bench, seed: number, quiet: boolean): void {
   if (b.dumped) return;
-  if (b.mode !== 'lifting') {
-    // Caught between poses: jump to whoever would be under the bar so there is someone to drop it on.
-    const wasIdle = b.mode === 'idle';
-    b.onBench = wasIdle ? 'chad' : 'bro';
-    b.mode = 'lifting';
-    b.modeAge = 0;
-    if (!wasIdle) { settleSpring(b.chadX, 790); settleSpring(b.barY, BAR.chest); }
-  }
+  if (b.mode === 'idle') { b.mode = 'lifting'; b.modeAge = 0; }
+  b.hitLifter = b.onBench === 'bro' ? 'bro' : b.mode === 'lifting' ? 'chad' : null;
   b.dumped = true;
   b.dumpAge = quiet ? 10 : 0;
   b.impactPending = !quiet;
   b.arrival = null;
+  const syringePose = benchFigurePose(b, 'bro'), peek = clamp(b.syringe.peek.x, 0, 1);
+  const syringeFrom = figurePoint(syringePose, { x: HEAD.x + 22 + 12 * peek, y: HEAD.y - syringePose.rise * 68 - 4 - 8 * peek + Math.sin(b.time * 27) * 1.5 * peek });
   settleSpring(b.spotHands, 0);
   const rng = mulberry32(seed);
   for (const p of b.plates) {
@@ -149,8 +147,8 @@ export function dumpBar(b: Bench, seed: number, quiet: boolean): void {
   s.out = true;
   settleSpring(s.peek, 0);
   if (quiet) { s.x = 604; s.y = SYRINGE_FLOOR; s.vx = 0; s.vy = 0; s.angle = 0; s.spin = 0; s.settled = true; }
-  else if (b.onBench === 'chad') { s.x = 500; s.y = UPRIGHT.base - 138; s.vx = 150 + rng() * 80; s.vy = -120 - rng() * 80; s.angle = -0.6; s.spin = 8 + rng() * 5; s.settled = false; }
-  else { s.x = 540; s.y = SYRINGE_FLOOR - 10; s.vx = 120 + rng() * 60; s.vy = -60; s.angle = 0.4; s.spin = 6; s.settled = false; }
+  else if (b.onBench === 'chad') { s.x = syringeFrom.x; s.y = syringeFrom.y; s.vx = 150 + rng() * 80; s.vy = -120 - rng() * 80; s.angle = -0.6; s.spin = 8 + rng() * 5; s.settled = false; }
+  else { s.x = syringeFrom.x; s.y = syringeFrom.y; s.vx = 120 + rng() * 60; s.vy = -60; s.angle = 0.4; s.spin = 6; s.settled = false; }
 }
 
 export interface BenchDrive { running: boolean; multiplier: number; growth: number; tension: number; seconds?: number }
@@ -177,14 +175,16 @@ export function stepBench(b: Bench, drive: BenchDrive, dt: number): void {
   }
   if (b.arrival) { b.arrival.age += dt; if (b.arrival.age > 1) b.arrival = null; }
   // Where the bar wants to be.
-  const rep = .5 - .5 * Math.cos(b.phase * Math.PI * 2);
+  // A controlled descent followed by a quicker press, both with zero endpoint velocity.
+  const cycle = fract(b.phase);
+  const rep = cycle < .62 ? smoothstep(0, .62, cycle) : 1 - smoothstep(.62, 1, cycle);
   const repY = mix(BAR.top, BAR.chest, b.act === 2 ? mix(rep, .08, b.effort * .9) : rep);
   const target = b.dumped ? BAR.chest + 34 : b.mode === 'idle' || b.mode === 'sitting' || (b.mode === 'racking' && b.modeAge > 0.3) ? BAR.rack : b.mode === 'swap' ? BAR.top : b.mode === 'racking' ? BAR.top : repY;
   stepSpring(b.barY, target, b.dumped ? 9 : b.mode === 'lifting' ? 26 : 8, b.dumped ? 0.3 : 0.9, dt);
   stepSpring(b.hands, b.dumped && b.dumpAge > 0.25 ? 0 : 1, 10, 0.7, dt);
   stepSpring(b.shades, b.mode === 'sitting' || b.mode === 'swap' || (b.mode === 'lifting' && b.onBench === 'bro') ? 1 : 0, 12, 0.5, dt);
   stepSpring(b.spotHands, !b.dumped && b.onBench === 'chad' && (b.mode === 'racking' || (b.mode === 'lifting' && drive.tension > 0.55)) ? 1 : 0, 6, 0.8, dt);
-  stepSpring(b.chadX, b.mode === 'swap' || (b.mode === 'lifting' && b.onBench === 'bro') ? 790 : 480, 5, 0.9, dt);
+  stepSpring(b.chadX, (b.mode === 'sitting' && b.modeAge > 1.05) || b.mode === 'swap' || (b.mode === 'lifting' && b.onBench === 'bro') ? 790 : 480, 5, 0.9, dt);
   stepSpring(b.grunt, 0, 10, 0.5, dt);
   if (b.dumped) {
     b.dumpAge += dt;
@@ -275,7 +275,7 @@ function skinFor(who: Who, tension: number): string {
 }
 
 /** The face of whoever is on the bench, looking up at the bar. */
-function drawLyingFace(ctx: CanvasRenderingContext2D, b: Bench, who: Who, tension: number, ko: boolean): void {
+function drawLyingFace(ctx: CanvasRenderingContext2D, b: Bench, who: Who, tension: number, ko: boolean, relaxed = false): void {
   const t = clamp(tension, 0, 1);
   ctx.save();
   ctx.translate(HEAD.x, HEAD.y);
@@ -325,7 +325,7 @@ function drawLyingFace(ctx: CanvasRenderingContext2D, b: Bench, who: Who, tensio
   if (ko) {
     ctx.beginPath(); ctx.ellipse(0, 18, 7, 6, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ff7a9e'; ctx.beginPath(); ctx.ellipse(3, 24, 5, 7, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  } else if (t > 0.35 || b.mode === 'lifting') {
+  } else if (t > 0.35 || (b.mode === 'lifting' && !relaxed)) {
     const w = 8 + 8 * t;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.roundRect(-w, 12, w * 2, 9 + 4 * t, 3); ctx.fill(); ctx.stroke();
@@ -349,7 +349,7 @@ function drawLyingFace(ctx: CanvasRenderingContext2D, b: Bench, who: Who, tensio
     ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  if (b.grunt.x > 0.05 && t > 0.3 && !ko) {
+  if (b.grunt.x > 0.05 && t > 0.3 && !ko && !relaxed) {
     ctx.save();
     ctx.translate(46, -30);
     ctx.scale(1 + 0.3 * b.grunt.x, 1 + 0.3 * b.grunt.x);
@@ -362,98 +362,90 @@ function drawLyingFace(ctx: CanvasRenderingContext2D, b: Bench, who: Who, tensio
   ctx.restore();
 }
 
-/** A standing figure: the spotter at the head of the bench, or the chad admiring himself at the side. */
-export function drawStanding(ctx: CanvasRenderingContext2D, b: Bench, who: Who, x: number, footY: number, scale: number, pose: 'phone' | 'spot' | 'shock' | 'flex' | 'thumbs' | 'lie', barY: number): void {
-  ctx.save();
-  ctx.translate(x, footY);
-  ctx.scale(scale, scale);
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  const skin = who === 'chad' ? SKIN : '#e0bda7';
-  const shirt = who === 'chad' ? skin : '#3b82f6';
-  const wobble = pose === 'shock' ? Math.sin(b.time * 30) * 2 : 0;
-  ctx.translate(wobble, 0);
-  for (const side of [-1, 1]) {
-    limb(ctx, { x: side * 12, y: -76 }, { x: side * 14, y: 0 }, 16, who === 'chad' ? '#e63946' : '#2b2b30');
-    ctx.fillStyle = '#f6f6f6'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect(side * 14 - 13, -6, 26, 10, 4); ctx.fill(); ctx.stroke();
-  }
-  ctx.fillStyle = shirt; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  const w = who === 'chad' ? 40 : 30;
-  ctx.beginPath(); ctx.roundRect(-w, -142, w * 2, 72, 12); ctx.fill(); ctx.stroke();
+export interface BenchFigurePose { x: number; footY: number; scale: number; rise: number; narrow: number; grip: number; flex: number; phone: number }
+export function benchFigurePose(b: Bench, who: Who): BenchFigurePose {
   if (who === 'chad') {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.beginPath(); ctx.ellipse(-18, -122, 12, 7, 0, 0, Math.PI * 2); ctx.ellipse(18, -122, 12, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(28, 31, 38, 0.35)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, -112); ctx.lineTo(0, -76); ctx.moveTo(-14, -100); ctx.lineTo(14, -100); ctx.moveTo(-14, -88); ctx.lineTo(14, -88); ctx.stroke();
+    const up = b.onBench === 'bro' ? 1 : b.mode === 'sitting' ? smoothstep(0, .7, b.modeAge) : 0;
+    return { x: b.chadX.x, footY: FLOOR, scale: 1, rise: up, narrow: mix(1, .7, up), grip: clamp(b.hands.x, 0, 1) * (1 - up), flex: up, phone: 0 };
   }
-  const shoulder = (side: number): Point => ({ x: side * w, y: -130 });
-  if (pose === 'flex' || pose === 'thumbs') {
-    for (const side of [-1, 1]) {
-      const s = shoulder(side);
-      const elbow = { x: side * (w + 44), y: -128 };
-      const fist = pose === 'flex' || side < 0 ? { x: side * (w + 34), y: -176 } : { x: side * (w + 50), y: -170 };
-      limb(ctx, s, elbow, 22, skin);
-      limb(ctx, elbow, fist, 18, skin);
-      ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.ellipse(side * (w + 26), -146, 16, 11, side * -0.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; ctx.beginPath(); ctx.ellipse(side * (w + 22), -150, 6, 3, side * -0.6, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(fist.x, fist.y, 10, 0, Math.PI * 2); ctx.fillStyle = skin; ctx.fill(); ctx.strokeStyle = INK; ctx.stroke();
-      if (pose === 'thumbs' && side > 0) { ctx.beginPath(); ctx.roundRect(fist.x - 4, fist.y - 24, 8, 16, 4); ctx.fill(); ctx.stroke(); }
-    }
-  } else if (pose === 'shock') {
-    for (const side of [-1, 1]) { limb(ctx, shoulder(side), { x: side * 22, y: -180 }, 14, skin); }
-  } else if (pose === 'spot') {
-    for (const side of [-1, 1]) { limb(ctx, shoulder(side), { x: side * 46, y: (barY - footY) / scale + 14 }, 14, skin); ctx.beginPath(); ctx.arc(side * 46, (barY - footY) / scale + 14, 9, 0, Math.PI * 2); ctx.fillStyle = skin; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke(); }
-  } else {
-    // On the phone: both hands in front, head down.
-    for (const side of [-1, 1]) limb(ctx, shoulder(side), { x: side * 10, y: -104 }, 14, skin);
-    ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(-11, -122, 22, 32, 3); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#2e8b57';
-    ctx.beginPath(); ctx.moveTo(-8, -98); ctx.lineTo(-3, -106); ctx.lineTo(1, -101); ctx.lineTo(8, -114); ctx.lineTo(8, -96); ctx.lineTo(-8, -96); ctx.closePath(); ctx.fill();
-  }
-  // Head. The spotter keeps a syringe behind his ear like a pencil; it works its way out as the load climbs.
-  const hy = -170;
-  if (who === 'bro' && !b.syringe.out && (pose === 'phone' || pose === 'spot')) {
-    const peek = clamp(b.syringe.peek.x, 0, 1);
-    drawSyringe(ctx, 22 + 12 * peek, hy - 4 - 8 * peek + Math.sin(b.time * 27) * 1.5 * peek, -0.6 - 0.3 * peek, 0.85);
-  }
+  const aboard = b.onBench !== 'bro' ? 0 : b.mode === 'swap' ? smoothstep(0, .5, b.modeAge) : 1;
+  return { x: 480, footY: mix(UPRIGHT.base, FLOOR, aboard), scale: mix(.78, 1, aboard), rise: .35 * (1 - aboard), narrow: mix(.55, 1, aboard), grip: aboard * clamp(b.hands.x, 0, 1), flex: 0, phone: 1 - aboard };
+}
+const figurePoint = (pose: BenchFigurePose, p: Point): Point => ({ x: pose.x + (p.x - 480) * pose.scale, y: pose.footY + (p.y - FLOOR) * pose.scale });
+/** The rendered elbow, wrist and fingers all consume this one endpoint. */
+export function benchArmPose(b: Bench, who: Who, side: -1 | 1) {
+  const pose = benchFigurePose(b, who);
+  const shoulder = { x: 480 + side * 70 * pose.narrow, y: 398 - pose.rise * 68 };
+  const off = { x: 480 + side * mix(120, 98, pose.flex), y: mix(470, 300, pose.flex) };
+  const phone = { x: 480 + side * 10, y: shoulder.y + 35 };
+  const spot = who === 'bro' ? clamp(b.spotHands.x, 0, 1) * pose.phone : 0;
+  const worldGrip = { x: 480 + side * 88, y: barAt(b, 480 + side * 88) };
+  const onBar = { x: 480 + (worldGrip.x - pose.x) / pose.scale, y: FLOOR + (worldGrip.y - pose.footY) / pose.scale };
+  let hand = { x: mix(off.x, phone.x, pose.phone), y: mix(off.y, phone.y, pose.phone) };
+  hand = { x: mix(hand.x, onBar.x, Math.max(pose.grip, spot)), y: mix(hand.y, onBar.y, Math.max(pose.grip, spot)) };
+  const length = who === 'chad' ? 84 : 72;
+  const distance = Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y);
+  if (distance > length * 2 - .01) { const k = (length * 2 - .01) / distance; hand = { x: shoulder.x + (hand.x - shoulder.x) * k, y: shoulder.y + (hand.y - shoulder.y) * k }; }
+  const elbow = bendJoint(shoulder, hand, length, length, side);
+  return { shoulder: figurePoint(pose, shoulder), elbow: figurePoint(pose, elbow), hand: figurePoint(pose, hand), scale: pose.scale, grip: pose.grip };
+}
+function drawBenchFigure(ctx: CanvasRenderingContext2D, b: Bench, who: Who): void {
+  const pose = benchFigurePose(b, who);
+  const ko = b.hitLifter === who && b.dumpAge > .2;
+  const effort = b.tension * (1 - pose.flex) * (1 - pose.phone);
+  const skin = skinFor(who, ko ? .1 : effort);
+  ctx.save(); ctx.translate(pose.x, pose.footY); ctx.scale(pose.scale, pose.scale); ctx.translate(-480, -FLOOR);
+  const rise = pose.rise * 68;
+  const shoulderY = 398 - rise;
+  const half = 82 * pose.narrow;
   ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-  if (who === 'chad') {
-    ctx.beginPath(); ctx.moveTo(-24, hy - 16); ctx.quadraticCurveTo(-26, hy - 40, 0, hy - 40); ctx.quadraticCurveTo(26, hy - 40, 24, hy - 16); ctx.lineTo(22, hy + 14); ctx.quadraticCurveTo(20, hy + 28, 0, hy + 30); ctx.quadraticCurveTo(-20, hy + 28, -22, hy + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(28, 31, 38, 0.3)';
-    ctx.beginPath(); ctx.moveTo(-20, hy + 10); ctx.quadraticCurveTo(-18, hy + 26, 0, hy + 28); ctx.quadraticCurveTo(18, hy + 26, 20, hy + 10); ctx.lineTo(18, hy + 6); ctx.quadraticCurveTo(0, hy + 16, -18, hy + 6); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#2b2b30';
-    ctx.beginPath(); ctx.ellipse(0, hy - 34, 24, 9, 0, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.ellipse(0, hy, 22, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#e63946';
-    ctx.beginPath(); ctx.arc(0, hy - 14, 22, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.roundRect(-24, hy - 18, 48, 7, 3); ctx.fill(); ctx.stroke();
-  }
-  const down = pose === 'phone' ? 1 : 0;
-  const shock = pose === 'shock';
-  for (const ex of [-8, 8]) {
-    ctx.beginPath(); ctx.ellipse(ex, hy - 4 + 4 * down, 4.5, shock ? 7 : 4.5 - 1.5 * down, 0, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke();
-    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ex, hy - 3 + 5 * down, 2, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.strokeStyle = INK; ctx.lineWidth = who === 'chad' ? 3.5 : 2.5;
-  ctx.beginPath(); ctx.moveTo(-15, hy - 14); ctx.lineTo(-3, hy - 13 - (who === 'chad' ? 4 : 0)); ctx.moveTo(3, hy - 13 - (who === 'chad' ? 4 : 0)); ctx.lineTo(15, hy - 14); ctx.stroke();
-  ctx.lineWidth = 2.2;
-  ctx.beginPath();
-  if (shock) { ctx.ellipse(0, hy + 12, 5, 7, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
-  else if (pose === 'flex' || pose === 'thumbs') { ctx.moveTo(-9, hy + 8); ctx.quadraticCurveTo(0, hy + 16, 9, hy + 8); }
-  else { ctx.moveTo(-6, hy + 10); ctx.lineTo(6, hy + 10); }
-  ctx.stroke();
-  const shades = clamp(b.shades.x, 0, 1);
-  if (who === 'chad' && shades > 0.02 && (pose === 'flex' || pose === 'thumbs')) {
-    const dy = -90 * (1 - shades);
-    ctx.fillStyle = INK;
-    for (const ex of [-8, 8]) { ctx.fillRect(ex - 8, hy - 9 + dy, 16, 8); ctx.fillRect(ex - 6, hy - 1 + dy, 12, 4); }
-    ctx.fillRect(-2, hy - 7 + dy, 4, 3);
+  ctx.beginPath(); ctx.roundRect(458, 380 - rise, 44, 30, 8); ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.translate(0, -rise);
+  if (who === 'bro' && !b.syringe.out) { const peek = clamp(b.syringe.peek.x, 0, 1); drawSyringe(ctx, HEAD.x + 22 + 12 * peek, HEAD.y - 4 - 8 * peek + Math.sin(b.time * 27) * 1.5 * peek, -.6 - .3 * peek, .85); }
+  drawLyingFace(ctx, b, who, effort, ko, pose.flex > .1 || pose.phone > .1);
+  if (who === 'chad' && pose.flex > 0 && b.shades.x > .02) {
+    const y = HEAD.y - 90 * (1 - clamp(b.shades.x, 0, 1)); ctx.fillStyle = INK;
+    for (const ex of [-11, 11]) { ctx.fillRect(HEAD.x + ex - 9, y - 14, 18, 11); }
+    ctx.fillRect(HEAD.x - 3, y - 11, 6, 3);
   }
   ctx.restore();
-  void noise;
+  ctx.fillStyle = who === 'chad' ? skin : '#3b82f6';
+  ctx.beginPath(); ctx.moveTo(480 - half, shoulderY); ctx.quadraticCurveTo(480, shoulderY - 12, 480 + half, shoulderY); ctx.lineTo(480 + 60 * pose.narrow, 470); ctx.lineTo(480 - 60 * pose.narrow, 470); ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (who === 'chad') {
+    for (const side of [-1, 1]) { ctx.beginPath(); ctx.ellipse(480 + side * 35 * pose.narrow, 420 - rise * .8, 40 * pose.narrow, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(28,31,38,.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(480, 446 - rise * .4); ctx.lineTo(480, 466); ctx.stroke();
+  }
+  for (const side of [-1, 1]) {
+    const hip = { x: 480 + side * 30 * pose.narrow, y: 472 };
+    const knee = { x: 480 + side * mix(74, 42, pose.rise), y: mix(452, 482, pose.rise) };
+    const foot = { x: 480 + side * 90, y: FLOOR };
+    limb(ctx, hip, knee, 40 * pose.narrow, who === 'chad' ? '#e63946' : '#2b2b30'); limb(ctx, knee, foot, 26, skin);
+    ctx.fillStyle = '#f6f6f6'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(foot.x - 24, foot.y - 12, 48, 30, 10); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+  for (const side of [-1, 1] as const) {
+    const arm = benchArmPose(b, who, side);
+    limb(ctx, arm.shoulder, arm.elbow, 30 * arm.scale, skin); limb(ctx, arm.elbow, arm.hand, 24 * arm.scale, skin);
+  }
+}
+function drawBenchHands(ctx: CanvasRenderingContext2D, b: Bench, who: Who): void {
+  const pose = benchFigurePose(b, who);
+  const skin = skinFor(who, b.hitLifter === who ? .1 : b.tension * (1 - pose.flex) * (1 - pose.phone));
+  if (who === 'bro' && !b.dumped && pose.phone > .001) {
+    const left = benchArmPose(b, who, -1).hand, right = benchArmPose(b, who, 1).hand;
+    ctx.save(); ctx.globalAlpha *= pose.phone * (1 - clamp(b.spotHands.x, 0, 1));
+    ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect((left.x + right.x) / 2 - 11 * pose.scale, (left.y + right.y) / 2 - 16 * pose.scale, 22 * pose.scale, 32 * pose.scale, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#2e8b57'; ctx.fillRect((left.x + right.x) / 2 - 7 * pose.scale, (left.y + right.y) / 2 - 11 * pose.scale, 14 * pose.scale, 22 * pose.scale); ctx.restore();
+  }
+  for (const side of [-1, 1] as const) {
+    const { hand, scale, grip } = benchArmPose(b, who, side);
+    ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(hand.x - 13 * scale, hand.y - 9 * scale, 26 * scale, 22 * scale, 8 * scale); ctx.fill(); ctx.stroke();
+    if (grip > .05) { ctx.strokeStyle = `rgba(28,31,38,${.45 * grip})`; ctx.lineWidth = 1.5; for (const offset of [-5, 2, 8]) { ctx.beginPath(); ctx.moveTo(hand.x + offset * scale, hand.y - 4 * scale); ctx.lineTo(hand.x + offset * scale, hand.y + 10 * scale); ctx.stroke(); } }
+  }
 }
 
 /** Everything on and around the bench, back to front. `chalk` reports where a chalk puff belongs this frame. */
@@ -461,14 +453,9 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
   const barY = b.barY.x;
   const who = b.onBench;
   const lifting = b.mode === 'lifting' || b.mode === 'swap';
-  // The spotter behind the head (or nobody, once he is on the bench), then the chad at the side.
-  if (who === 'chad' && b.mode !== 'sitting') {
-    const pose = b.dumped ? 'shock' : b.spotHands.x > 0.5 ? 'spot' : 'phone';
-    drawStanding(ctx, b, 'bro', 480, UPRIGHT.base, 0.78, pose, barAt(b, 480));
-  }
-  if (who === 'bro' || b.mode === 'swap') {
-    drawStanding(ctx, b, 'chad', b.chadX.x, UPRIGHT.base + 60, 0.9, b.dumped ? 'thumbs' : 'flex', barY);
-  }
+  // One rig per person, including the walk to the side and the spotter's descent onto the pad.
+  if (who === 'chad') { drawBenchFigure(ctx, b, 'bro'); drawBenchHands(ctx, b, 'bro'); }
+  if (who === 'bro') { drawBenchFigure(ctx, b, 'chad'); drawBenchHands(ctx, b, 'chad'); }
   // Rack uprights and hooks, jolted when the bar lands.
   const jolt = clamp(b.jolt.x, -1, 1);
   ctx.save();
@@ -500,47 +487,7 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
   ctx.beginPath(); ctx.moveTo(444, 388); ctx.lineTo(516, 388); ctx.lineTo(534, 440); ctx.lineTo(426, 440); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#4a4a55';
   ctx.beginPath(); ctx.roundRect(470, 400, 20, 120, 3); ctx.fill(); ctx.stroke();
-  if (b.mode === 'sitting') {
-    // Sat up to flex: a front-facing upper body over the far end of the bench, legs still forward.
-    drawStanding(ctx, b, 'chad', 480, 470, 0.95, 'flex', barY);
-  } else {
-    // Lying: head, shoulders, pecs, abs.
-    const t = b.tension;
-    const skin = skinFor(who, b.dumped ? 0.1 : t);
-    ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.roundRect(458, 380, 44, 30, 8); ctx.fill(); ctx.stroke();
-    drawLyingFace(ctx, b, who, t, b.dumped && b.dumpAge > 0.2);
-    ctx.fillStyle = who === 'chad' ? skin : '#3b82f6';
-    ctx.beginPath(); ctx.moveTo(398, 398); ctx.quadraticCurveTo(480, 386, 562, 398); ctx.lineTo(540, 470); ctx.lineTo(420, 470); ctx.closePath(); ctx.fill(); ctx.stroke();
-    if (who === 'chad') {
-      for (const cx of [445, 515]) {
-        ctx.fillStyle = skin;
-        ctx.beginPath(); ctx.ellipse(cx, 420, 40, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.25 + 0.45 * t})`;
-        ctx.beginPath(); ctx.ellipse(cx - 12, 410, 14, 6, -0.2, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.strokeStyle = 'rgba(28, 31, 38, 0.35)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(480, 446); ctx.lineTo(480, 470); ctx.moveTo(452, 452); ctx.lineTo(508, 452); ctx.moveTo(456, 462); ctx.lineTo(504, 462); ctx.stroke();
-    }
-  }
-  // Arms up to the bar (hands slide off when dumped).
-  const hands = clamp(b.hands.x, 0, 1);
-  const skinArm = skinFor(who, b.dumped ? 0.1 : b.tension);
-  const shoulderY = b.mode === 'sitting' ? 340 : 398;
-  if (b.mode !== 'sitting') {
-    for (const side of [-1, 1] as const) {
-      const shoulder = { x: 480 + side * 70, y: shoulderY };
-      const onBar = { x: 480 + side * 88, y: barAt(b, 480 + side * 88) };
-      const off = { x: 480 + side * 120, y: 470 };
-      const hand = { x: mix(off.x, onBar.x, hands), y: mix(off.y, onBar.y, hands) };
-      const elbow = bendJoint(shoulder, hand, 84, 84, side);
-      limb(ctx, shoulder, elbow, 30, skinArm);
-      limb(ctx, elbow, hand, 24, skinArm);
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.2 + 0.4 * b.tension})`;
-      ctx.beginPath(); ctx.ellipse(mix(shoulder.x, elbow.x, 0.5) - side * 6, mix(shoulder.y, elbow.y, 0.5) - 8, 12, 5, side * 0.6, 0, Math.PI * 2); ctx.fill();
-      if (hands < 0.5) { ctx.beginPath(); ctx.arc(hand.x, hand.y, 11, 0, Math.PI * 2); ctx.fillStyle = skinArm; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke(); }
-    }
-  }
+  drawBenchFigure(ctx, b, who);
   // The bar, bent by the load.
   ctx.strokeStyle = INK; ctx.lineWidth = 14; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(BAR.left, barAt(b, BAR.left));
@@ -554,16 +501,8 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
   // Knurling hints where the hands go.
   ctx.strokeStyle = 'rgba(28, 31, 38, 0.4)'; ctx.lineWidth = 1.5;
   for (const side of [-1, 1]) for (let i = -14; i <= 14; i += 5) { const x = 480 + side * 88 + i; ctx.beginPath(); ctx.moveTo(x, barAt(b, x) - 4); ctx.lineTo(x, barAt(b, x) + 4); ctx.stroke(); }
-  // Hands on the bar.
-  if (b.mode !== 'sitting' && hands >= 0.5) {
-    for (const side of [-1, 1]) {
-      const x = 480 + side * 88;
-      ctx.beginPath(); ctx.roundRect(x - 13, barAt(b, x) - 9, 26, 22, 8); ctx.fillStyle = skinArm; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-      ctx.strokeStyle = 'rgba(28, 31, 38, 0.45)'; ctx.lineWidth = 1.5;
-      for (let i = 0; i < 3; i += 1) { ctx.beginPath(); ctx.moveTo(x - 7 + i * 6, barAt(b, x) - 4); ctx.lineTo(x - 7 + i * 6, barAt(b, x) + 8); ctx.stroke(); }
-    }
-  }
-  // Plates edge-on, on the bar or flying off it.
+  // Fingers share the exact endpoint used by the forearm throughout release.
+  drawBenchHands(ctx, b, who);
   for (const p of b.plates) {
     if (p.gone) continue;
     const onBar = !p.loose;
@@ -608,21 +547,7 @@ export function drawBench(ctx: CanvasRenderingContext2D, b: Bench): void {
     ctx.strokeText(ticker, hx, hy - 60); ctx.fillText(ticker, hx, hy - 60);
     ctx.globalAlpha = 1;
   }
-  // Legs toward the camera, then the near end of the bench.
-  const shorts = who === 'chad' ? '#e63946' : '#2b2b30';
-  const legSkin = who === 'chad' ? skinFor('chad', 0) : '#e0bda7';
-  for (const side of [-1, 1] as const) {
-    const hip = { x: 480 + side * 30, y: 472 };
-    const knee = { x: 480 + side * 74, y: 452 };
-    const foot = { x: 480 + side * 90, y: FLOOR };
-    limb(ctx, hip, knee, 40, shorts);
-    limb(ctx, knee, foot, 30, legSkin);
-    ctx.fillStyle = '#f6f6f6'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.roundRect(foot.x - 24, foot.y - 12, 48, 30, 10); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.roundRect(foot.x - 18, foot.y - 4, 36, 6, 3); ctx.fill();
-    ctx.strokeStyle = 'rgba(28, 31, 38, 0.5)'; ctx.lineWidth = 2;
-    for (const yy of [8, 13]) { ctx.beginPath(); ctx.moveTo(foot.x - 16, foot.y + yy); ctx.lineTo(foot.x + 16, foot.y + yy); ctx.stroke(); }
-  }
+  // Near end of the bench occludes the planted thighs.
   ctx.fillStyle = '#7a1a24'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(426, 468); ctx.lineTo(534, 468); ctx.lineTo(548, 520); ctx.lineTo(412, 520); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';

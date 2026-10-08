@@ -1,3 +1,4 @@
+import { directionAt } from './direction';
 export interface ApplicantPose {
   time: number;
   tension: number;
@@ -25,7 +26,7 @@ const clamp = (n: number, a = 0, b = 1): number => Math.max(a, Math.min(b, n));
 const ease = (n: number): number => { const t = clamp(n); return t * t * (3 - 2 * t); };
 
 function openingReaction(pose: ApplicantPose): { active: boolean; grin: number; recoil: number; glance: number } {
-  if (pose.mode !== 'scan' || pose.stage !== 0) return { active: false, grin: 0, recoil: 0, glance: 0 };
+  if ((pose.mode !== 'scan' && pose.mode !== 'boxed') || pose.stage !== 0) return { active: false, grin: 0, recoil: 0, glance: 0 };
   if (pose.reduced) return { active: true, grin: 0.55, recoil: 0, glance: 0 };
   const a = clamp(pose.action);
   const grin = ease((a - 0.18) / 0.16) * (1 - ease((a - 0.64) / 0.14));
@@ -152,7 +153,7 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   const fear = clamp(pose.tension);
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
-  const scanning = pose.mode === 'scan';
+  const scanning = pose.mode === 'scan' || (pose.mode === 'boxed' && pose.stage !== 4);
   const clown = pose.level >= 3;
   const reaction = openingReaction(pose);
   ctx.save();
@@ -276,49 +277,26 @@ function foil(ctx: CanvasRenderingContext2D, time: number, reduced: boolean): vo
   shape(ctx, 'M-5 -148 L8 -148 L9 -140 L-5 -140Z', TEAL, 1.8);
 }
 
-/** Articulated applicant; presentation follows the supplied room pose. */
-export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose): void {
+/** Unblended pose targets; all transforms remain in applicant space. */
+function rigFor(pose: ApplicantPose) {
   const t = pose.reduced ? 0 : pose.time;
   const fear = clamp(pose.tension);
-  const dancing = pose.mode === 'dance';
+  const dancing = pose.mode === 'dance' || (pose.mode === 'boxed' && pose.stage === 4);
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
-  const scanning = pose.mode === 'scan';
+  const scanning = pose.mode === 'scan' || (pose.mode === 'boxed' && pose.stage !== 4);
   const reaction = openingReaction(pose);
   const cycle = pose.reduced ? 0 : clamp(pose.action) * TAU;
-  const groove = Math.sin(t * (dancing ? 6.3 : escaping ? 13 : 2.1));
+  const groove = Math.sin(escaping ? clamp(pose.progress) * 368 / 74 * TAU : t * (dancing ? 6.3 : 2.1));
   const sway = dancing ? groove * 11 : escaping ? 7 : Math.sin(t * 1.2) * 2.5;
   const bounce = dancing ? Math.abs(groove) * -6 : escaping ? -Math.abs(groove) * 5 : Math.sin(t * 2.1) * 1.6;
   const hip = { x: sway * 0.4, y: -67 + bounce };
   const chest = { x: sway, y: -132 + bounce };
   const headX = chest.x + (scanning && pose.stage % 3 === 1 ? 7 : 3) + reaction.glance * 3 - reaction.recoil * 2;
   const headY = -184 + bounce + (boxed ? clamp(pose.progress) * 9 : 0) - reaction.grin * 3 + reaction.recoil * 7;
-  const headAngle = escaping ? 0.05 : boxed ? -0.045 : dancing ? -groove * 0.105 : reaction.active ? reaction.glance * 0.085 - reaction.recoil * 0.07 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
+  let headAngle = escaping ? 0.05 : dancing ? -groove * 0.105 : reaction.active ? reaction.glance * 0.085 - reaction.recoil * 0.07 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
 
-  ctx.save();
-  ctx.translate(pose.x, pose.y);
-  ctx.scale(pose.scale, pose.scale);
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  if (boxed) {
-    ctx.translate(headX, headY);
-    shape(ctx, 'M-14 29 L-14 50 L18 50 L15 29Z', SKIN, 2.5);
-    face(ctx, pose, t, headAngle);
-    ctx.restore();
-    return;
-  }
-
-  for (const side of [-1, 1]) {
-    const step = dancing ? Math.sin(t * 6.3 + side * Math.PI / 2) : escaping ? Math.sin(t * 13 + (side < 0 ? Math.PI : 0)) : 0;
-    const lift = Math.max(0, step) * (dancing ? 12 : escaping ? 20 : 0);
-    const foot = { x: side * (dancing ? 29 : 19) + step * (escaping ? 19 : 5), y: -11 - lift };
-    const pelvis = { x: hip.x + side * 13, y: hip.y };
-    const knee = joint(pelvis, foot, 33, 34, side);
-    limb(ctx, pelvis, knee, foot, side < 0 ? 17 : 18, side < 0 ? '#20393f' : '#2a444c');
-    line(ctx, `M${knee.x - 4} ${knee.y + 1} L${knee.x + 4} ${knee.y + 3}`, '#567077', 1.5);
-    shoe(ctx, foot, side, lift);
-  }
+  if (boxed) headAngle += (-.045 - headAngle) * clamp(pose.progress);
 
   const leftShoulder = { x: chest.x - 28, y: chest.y + 5 };
   const rightShoulder = { x: chest.x + 26, y: chest.y + 6 };
@@ -345,6 +323,53 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
     left = { x: chest.x - 43 + groove * 7, y: chest.y + 19 + groove * 14 };
     right = { x: chest.x + 46 - groove * 7, y: chest.y + 12 - groove * 14 };
     open = false;
+  }
+
+  const feet = [-1, 1].map((side) => {
+    const step = dancing ? Math.sin(t * 6.3 + side * Math.PI / 2) : escaping ? Math.sin(clamp(pose.progress) * 368 / 74 * TAU + (side < 0 ? Math.PI : 0)) * Math.sin(Math.PI * clamp(pose.progress)) : 0;
+    const lift = Math.max(0, step) * (dancing ? 12 : escaping ? 20 : 0);
+    const foot = { x: side * (dancing ? 29 : 19) + step * (escaping ? 19 : 5), y: -11 - lift };
+    return foot;
+  });
+  return { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, bounce, leftShoulder, rightShoulder, left, right, open, feet };
+}
+
+/** Appointment-age blending is seek deterministic, including repeated late audits. */
+export function applicantRig(pose: ApplicantPose) {
+  const current = rigFor(pose);
+  if (pose.reduced || pose.mode === 'idle' || pose.mode === 'escape') return current;
+  const d = directionAt(pose.time * 1000);
+  if (d.serial === 0 || d.age >= .35) return current;
+  const prior = directionAt((d.seconds - d.age) * 1000 - .0001);
+  const previous = rigFor({ ...pose, time: prior.seconds, stage: prior.stage, action: prior.action,
+    mode: prior.stage === 4 ? 'dance' : 'scan' });
+  const k = ease(d.age / .35);
+  const blend = (a: Point, b: Point): Point => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  for (const key of ['hip', 'chest', 'leftShoulder', 'rightShoulder', 'left', 'right'] as const) current[key] = blend(previous[key], current[key]);
+  for (const key of ['headX', 'headY', 'headAngle', 'bounce'] as const) current[key] = previous[key] + (current[key] - previous[key]) * k;
+  current.feet = current.feet.map((foot, i) => blend(previous.feet[i]!, foot));
+  return current;
+}
+
+/** Articulated applicant; presentation follows the supplied room pose. */
+export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose): void {
+  const { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, bounce, leftShoulder, rightShoulder, left, right, open, feet } = applicantRig(pose);
+
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(pose.scale, pose.scale);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // The foreground crate occludes the full rig as it rises.
+  for (const side of [-1, 1]) {
+    const foot = feet[side < 0 ? 0 : 1]!;
+    const lift = -11 - foot.y;
+    const pelvis = { x: hip.x + side * 13, y: hip.y };
+    const knee = joint(pelvis, foot, 33, 34, side);
+    limb(ctx, pelvis, knee, foot, side < 0 ? 17 : 18, side < 0 ? '#20393f' : '#2a444c');
+    line(ctx, `M${knee.x - 4} ${knee.y + 1} L${knee.x + 4} ${knee.y + 3}`, '#567077', 1.5);
+    shoe(ctx, foot, side, lift);
   }
 
   arm(ctx, leftShoulder, left, -1, open, true);

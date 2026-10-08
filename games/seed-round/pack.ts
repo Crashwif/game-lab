@@ -11,7 +11,7 @@
  */
 import { CROWD_FACES, FACE } from './atlas';
 import { putInstance } from './gl';
-import { type Vec3, basisFrom, cross, madd, rotateAbout } from './math3d';
+import { type Vec3, basisFrom, cross, length, lerp3, madd, normalize, rotateAbout, sub } from './math3d';
 import { mix, mulberry32, smoothstep } from './motion';
 import { frameAt, tunnelRadius } from './path';
 import type { Renderer } from './render';
@@ -74,7 +74,7 @@ export interface Pack {
   blobs: { s: number; theta: number; rho: number; size: number; victim: boolean; spawn: number }[];
   nextBlob: number;
   motes: Mote[];
-  you: { mode: 'race' | 'bank' | 'banked'; rel: number; x: number; y: number; phase: number; bank: number; from: [number, number, number] };
+  you: { mode: 'race' | 'bank' | 'banked'; rel: number; x: number; y: number; phase: number; bank: number; from: [number, number, number]; forward: Vec3 | null };
   portal: { active: boolean; s: number; theta: number; age: number };
   events: string[];
   snipersDumped: boolean;
@@ -88,7 +88,7 @@ export function createPack(): Pack {
     anchor: 0, speed: 0, time: 0, raceTime: 0, swimmers: [],
     whale: { active: false, age: 0, rel: 0, x: 0, y: 0, phase: 0, jaw: 0, next: 3.3 },
     blobs: [], nextBlob: 0, motes: [],
-    you: { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0] },
+    you: { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0], forward: null },
     portal: { active: false, s: 0, theta: 0.7, age: 0 },
     events: [], snipersDumped: false, wave: 0, pileRel: null, labels: [],
   };
@@ -121,7 +121,7 @@ export function resetPack(pack: Pack): void {
   pack.nextBlob = 0;
   pack.motes = [];
   for (let i = 0; i < 240; i += 1) pack.motes.push(createMote(-10 + random() * 200, Math.sqrt(random()) * 0.92, random() * Math.PI * 2, 0.03 + random() * 0.08, random()));
-  pack.you = { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0] };
+  pack.you = { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0], forward: null };
   pack.portal.active = false;
   pack.events = [];
   pack.snipersDumped = false;
@@ -178,6 +178,7 @@ export function settlePack(pack: Pack, m: number, raceTime = 10): void {
 /** Starts your swimmer's exit to the sperm bank. */
 export function bankYou(pack: Pack): void {
   if (pack.you.mode !== 'race') return;
+  pack.you.forward = playerPose(pack).forward;
   pack.you.mode = 'bank';
   pack.you.bank = 0;
   pack.you.from = [pack.you.rel, pack.you.x, pack.you.y];
@@ -195,15 +196,29 @@ export function pilePack(pack: Pack): number {
 
 export interface StepInput { racing: boolean; multiplier: number; tension: number; crashed: boolean }
 
+/** World pose shared by the rendered swimmer and the bank-path steering. */
+export function playerPose(pack: Pack): { position: Vec3; forward: Vec3 } {
+  const f = frameAt(pack.anchor + pack.you.rel);
+  return {
+    position: madd(madd(f.point, f.side, pack.you.x), f.up, pack.you.y),
+    forward: pack.you.forward ?? rotateAbout(f.tangent, f.up, Math.sin(pack.time * 1.3) * 0.1),
+  };
+}
+
+/** Effort fades separately as each swimmer reaches the pile, rather than speeding up at rest. */
+function swimEffort(pack: Pack, rel: number, stop: number): number {
+  return pack.pileRel === null ? Math.min(1, 0.25 + pack.speed / 25) : smoothstep(0.08, 4, Math.abs(stop - rel));
+}
+
 export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   const m = input.multiplier;
+  const previousYou = pack.you.mode === 'bank' ? playerPose(pack).position : null;
   pack.time += dt;
   pack.events = [];
   const cruise = input.crashed ? 0 : input.racing ? 10 + 9 * input.tension : 0;
   pack.speed = mix(pack.speed, cruise, 1 - Math.exp(-dt * (input.crashed ? 9 : 2.2)));
   pack.anchor += pack.speed * dt;
   if (input.racing) pack.raceTime += dt;
-  const beat = input.crashed ? 22 : 7 + 12 * input.tension;
 
   if (input.racing && pack.wave < WAVES.length && m >= WAVES[pack.wave]!) {
     pack.wave += 1;
@@ -213,7 +228,8 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   let labelled = 0;
   for (const sw of pack.swimmers) {
     if (sw.state === 'gone') continue;
-    sw.phase += dt * beat * sw.freq;
+    const stop = (pack.pileRel ?? 0) - 0.4 - sw.seed * 1.6;
+    sw.phase += dt * (3 + 16 * swimEffort(pack, sw.rel, stop)) * sw.freq;
     sw.label = Math.max(0, sw.label - dt);
     sw.pushX *= Math.exp(-dt * 1.4);
     sw.pushY *= Math.exp(-dt * 1.4);
@@ -224,7 +240,6 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
       continue;
     }
     if (pack.pileRel !== null && (sw.state === 'swim' || sw.state === 'turn')) {
-      const stop = pack.pileRel - 0.4 - sw.seed * 1.6;
       sw.rel = mix(sw.rel, stop, 1 - Math.exp(-dt * 5));
       sw.rho *= Math.exp(-dt * 0.4);
       continue;
@@ -303,7 +318,8 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
 
   // You: a weave near the middle of the bore, or the swerve into the sperm bank.
   const you = pack.you;
-  you.phase += dt * beat * (you.mode === 'bank' ? 1.6 : 1);
+  const effort = you.mode === 'bank' ? 1 : swimEffort(pack, you.rel, (pack.pileRel ?? 0) - 0.6);
+  you.phase += dt * (3 + 16 * effort) * (you.mode === 'bank' ? 1.6 : 1);
   if (you.mode === 'race') {
     if (pack.pileRel !== null) you.rel = mix(you.rel, pack.pileRel - 0.6, 1 - Math.exp(-dt * 5));
     else {
@@ -317,6 +333,10 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
     you.rel = mix(you.from[0], pack.portal.s - pack.anchor, k);
     you.x = mix(you.from[1], r * Math.cos(pack.portal.theta), k);
     you.y = mix(you.from[2], r * Math.sin(pack.portal.theta), k);
+    if (previousYou && dt > 0) {
+      const travel = sub(playerPose(pack).position, previousYou);
+      if (length(travel) > 1e-6) you.forward = normalize(lerp3(you.forward!, normalize(travel), 1 - Math.exp(-dt * 18)));
+    }
     if (you.bank >= 1.6) { you.mode = 'banked'; pack.events.push('banked'); }
   }
   if (pack.portal.active) {
@@ -341,7 +361,6 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
   const swimmers = renderer.meshes.swimmer;
   const labels: Label[] = [];
   let n = 0;
-  const amplitude = 0.22;
   for (const sw of pack.swimmers) {
     if (sw.state === 'gone' || sw.rel < -14 || sw.rel > 150) continue;
     const s = pack.anchor + sw.rel;
@@ -368,6 +387,7 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
     const [bx, by, bz] = basisFrom(forward, f.up, Math.sin(pack.time + sw.seed * 9) * 0.3);
     const tint = sw.state === 'swim' ? (sw.kind === 'sniper' ? [0.8, 0.9, 1, 1] : sw.kind === 'chad' ? [0.45, 0.85, 1, 1] : PEARL) : [1, 0.62 + 0.38 * (1 - sw.turn), 0.62 + 0.38 * (1 - sw.turn), 1];
     const k = sw.size * shrink * (sw.kind === 'chad' ? 1.12 : 1);
+    const amplitude = 0.05 + 0.17 * swimEffort(pack, sw.rel, (pack.pileRel ?? 0) - 0.4 - sw.seed * 1.6);
     putInstance(swimmers, n, p, bx, by, bz, [k, k, k], tint, [sw.phase, amplitude, sw.face, 0]);
     n += 1;
     if (sw.label > 0) labels.push({ text: sw.kind === 'sniper' ? (sw.state === 'swim' ? 'SNIPER' : 'DUMPED') : 'JEET', at: madd(p, f.up, 0.5), colour: sw.kind === 'sniper' ? '#9fd8ff' : '#ff8fa3', size: 15 });
@@ -379,13 +399,15 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
   if (you.mode !== 'banked') {
     const s = pack.anchor + you.rel;
     const f = frameAt(s);
-    const p = madd(madd(f.point, f.side, you.x), f.up, you.y);
+    const pose = playerPose(pack);
+    const p = pose.position;
     const spin = you.mode === 'bank' ? smoothstep(1.1, 1.6, you.bank) : 0;
     const k = 1.25 * (1 - spin);
     if (k > 0.01) {
-      const forward = rotateAbout(f.tangent, f.up, Math.sin(pack.time * 1.3) * 0.1 + spin * 9);
+      const forward = rotateAbout(pose.forward, f.up, spin * 9);
       const [bx, by, bz] = basisFrom(forward, f.up, spin * 6);
-      putInstance(swimmers, n, p, bx, by, bz, [k, k, k], [1, 0.97, 0.9, 1], [you.phase, 0.16, FACE.you, 0.08]);
+      const effort = you.mode === 'bank' ? 1 : swimEffort(pack, you.rel, (pack.pileRel ?? 0) - 0.6);
+      putInstance(swimmers, n, p, bx, by, bz, [k, k, k], [1, 0.97, 0.9, 1], [you.phase, 0.04 + 0.12 * effort, FACE.you, 0.08]);
       n += 1;
       const hat = madd(p, by, 0.13 * k);
       putInstance(renderer.meshes.beanie, 0, madd(hat, bz, 0.02 * k), bx, by, bz, [k, k, k], PEARL, [0, 0, -1, 0.05]);

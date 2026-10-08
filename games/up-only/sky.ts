@@ -67,6 +67,9 @@ export interface Bird {
   grace: number;
   /** Seconds since the last flap, for the wing beat. */
   flapAge: number;
+  wing: Spring;
+  wingLag: Spring;
+  feather: Spring;
 }
 
 /** What happened this step, for the scene's sound and captions; counts and flags last one frame. */
@@ -138,7 +141,7 @@ const HEAT_DECAY = 0.28;
 
 const noEvents = (): WorldEvents => ({ coins: 0, value: 0, lambo: false, honey: false, magnet: false, rocket: false, flap: false, wick: false, floor: false, ceiling: false, fud: false, smash: false, streak: 0, spill: 0, expired: null });
 
-const makeBird = (): Bird => ({ y: PAD_Y, vy: 0, tilt: spring(0), stun: 0, grace: 0, flapAge: 9 });
+const makeBird = (): Bird => ({ y: PAD_Y, vy: 0, tilt: spring(0), stun: 0, grace: 0, flapAge: 9, wing: spring(0), wingLag: spring(0), feather: spring(0) });
 
 export function createWorld(seed: number): World {
   const w: World = {
@@ -368,6 +371,13 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
     b.y = PAD_Y;
     b.vy = 0;
   }
+  // Repeated input changes the flight impulse immediately; the visible bones retain
+  // their current position/velocity while following the next power stroke.
+  const easeWing = (t: number) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); };
+  const target = b.flapAge < .12 ? easeWing(b.flapAge / .12) : 1 - easeWing((b.flapAge - .12) / .32);
+  stepSpring(b.wing, target, 38, .85, dt);
+  stepSpring(b.wingLag, b.wing.x, 42, .9, dt);
+  stepSpring(b.feather, b.wingLag.x, 36, .9, dt);
   stepSpring(b.tilt, flying ? clamp(b.vy / 600, -0.5, 0.9) : 0, 9, 0.8, dt);
 }
 

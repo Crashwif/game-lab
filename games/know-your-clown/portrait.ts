@@ -1,5 +1,5 @@
 import { drawApplicant, drawDog } from './character';
-import { ease, multiplierLabel } from './direction';
+import { ease, mix, multiplierLabel } from './direction';
 import { C, box, label, line, mono, oval } from './ink';
 import { drawBackdrop, drawBay, drawPacking, drawPeanut, drawProcedure, type MinistryView } from './ministry';
 import type { SceneView } from './scene';
@@ -51,7 +51,7 @@ export function drawPortrait(c: CanvasRenderingContext2D, v: MinistryView, view:
   }
   drawProcedure(c, v, false);
   const packing = crash === null ? 0 : reduced ? 1 : ease(crash / 1.4);
-  drawApplicant(c, { x: 511, y: accepted !== null ? 427 : 427 + packing * 53, scale: 1,
+  drawApplicant(c, { x: accepted !== null ? mix(511, 592, exit) : 511, y: accepted !== null ? mix(427, 388, exit) : 427 + packing * 53, scale: accepted !== null ? mix(1, .63, exit) : 1,
     time: accepted !== null && exit >= 1 ? 0 : time, tension: accepted !== null ? .15 : d.tension, stage: d.stage, level: d.level, action: d.action, reduced,
     mode: accepted !== null ? 'escape' : crash !== null ? 'boxed' : !running ? 'idle' : d.stage === 4 ? 'dance' : 'scan', progress: accepted !== null ? exit : packing });
   drawProcedure(c, v, true);

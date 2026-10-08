@@ -8,7 +8,7 @@ import { pageAudio } from './audio';
 import { type CraneState, createCrane, drawCrane, jolt, loadPose, resetCrane, settleCrane, stepCrane, takeLoad } from './crane';
 import { clamp, fract, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { type OfficeDrive, type OfficeState, createOffice, drawOffice, resetOffice, scatterQueue, sellPenthouse, sellUnit, settleOffice, stepOffice } from './office';
-import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, collapseCamera, runningCameraFrame, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, towerHeight, towerTopY } from './tower';
+import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, collapseCamera, runningCameraFrame, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, topVelocity, towerHeight, towerTopY } from './tower';
 import { type Fleet, createFleet, drawFleet, resetFleet, scatterFleet, settleFleet, stepFleet, unloadTruck } from './truck';
 import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, settleSafe, stepWorker, towerFell } from './worker';
 
@@ -272,7 +272,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const height = towerHeight(tower);
     let { x, s } = runningCameraFrame(tower, clamp(430 / (height + 270), 0.5, 1));
     let y: number;
-    if (worker.mode === 'boarding' || worker.mode === 'riding') {
+    if (worker.mode === 'boarding' || worker.mode === 'rescuing' || worker.mode === 'riding') {
       s = Math.max(s, 0.85);
       x = worker.cage.x;
       y = worker.cage.y - 80;
@@ -298,18 +298,18 @@ export function createScene(options: SceneOptions = {}): Scene {
    * `quiet` lays it all out as it ended, for a collapse the scene did not see happen.
    */
   function collapse(view: SceneView, quiet: boolean): void {
+    const inheritedVelocity = topVelocity(tower);
     collapseTower(tower, view.currentX100, quiet);
     if (crane.holding) {
       dropLoad(tower, loadPose(crane), crane.trolley.v, Math.floor(crane.phase) % 4, quiet);
       crane.holding = false;
     }
     outcome = view.stake === null ? 'timber' : secured ? 'called' : 'rekt';
-    // An exit accepted since the last frame still counts: the cage has just reached him.
+    // An exit accepted since the last frame still counts: the emergency transfer reaches him.
     if (secured && worker.mode === 'top') {
       callHoist(worker);
-      worker.cage.y = worker.y;
     }
-    towerFell(worker, tower, tower.rod.dir, quiet);
+    towerFell(worker, tower, tower.rod.dir, quiet, inheritedVelocity);
     scatterQueue(office, quiet);
     if (quiet) scatterFleet(fleet, true);
     if (!quiet) {

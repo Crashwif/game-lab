@@ -1,3 +1,4 @@
+import { solveLimb, stepFoot } from './kinematics';
 /**
  * The crowd: three bleacher rows of Wojak fans with foam fingers and signs,
  * a commentary booth, a bookie with his live odds board on the wall, and your
@@ -131,12 +132,22 @@ export function stepCrowd(c: CrowdState, tension: number, multiplier: number, be
   void beat;
 }
 
-function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, seed: number, bob: number, mood: 'calm' | 'hype' | 'sulk' | 'shock', prop: 'finger' | 'sign' | 'none', signText: string, special: boolean, shades: number): void {
+function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number, seed: number, bob: number, mood: 'calm' | 'hype' | 'sulk' | 'shock', prop: 'finger' | 'sign' | 'none', signText: string, special: boolean, shades: number, walkDistance: number | null = null): void {
   ctx.save();
   ctx.translate(x, y - bob);
   ctx.scale(scale, scale);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  if (walkDistance !== null) {
+    for (const side of [-1, 1]) {
+      const step = stepFoot(walkDistance, 46, side > 0 ? .5 : 0, 9);
+      const hip = { x: side * 8, y: -3 }, foot = { x: side * 9 + step.x, y: 31 + step.y };
+      const knee = solveLimb(hip, foot, 22, 21, -side).joint;
+      ctx.strokeStyle = '#314965'; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+      ctx.fillStyle = '#1c1f26'; ctx.beginPath(); ctx.ellipse(foot.x + 3, foot.y, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   const tone = noise(seed * 3.3);
   const skin = tone > 0.66 ? '#f3dccb' : tone > 0.33 ? '#e0bda7' : '#c68e6a';
   const shirt = special ? '#ffe27a' : ['#e63946', '#3b82f6', '#2e8b57', '#7c3aed', '#f2c14e'][Math.floor(noise(seed * 7.1) * 5)]!;
@@ -271,8 +282,8 @@ export function drawCrowd(ctx: CanvasRenderingContext2D, c: CrowdState, finished
   // Your supporter on the move: along the front row to the bookie, then done.
   const s = c.supporter;
   if (s.mode !== 'seated') {
-    const stride = s.mode === 'walking' ? Math.abs(Math.sin(c.time * 12)) * 6 : 0;
-    drawFan(ctx, s.x, ROWS[0]!.y - 12, 1, 5, stride, s.mode === 'done' ? 'hype' : 'calm', s.mode === 'done' ? 'finger' : 'none', '', true, clamp(s.shades.x, 0, 1));
+    const distance = s.x - fanX(SUPPORTER.row, SUPPORTER.index);
+    drawFan(ctx, s.x, ROWS[0]!.y - 12, 1, 5, 0, s.mode === 'done' ? 'hype' : 'calm', s.mode === 'done' ? 'finger' : 'none', '', true, clamp(s.shades.x, 0, 1), distance);
   }
   // The bookie with the BETS sign and the bag he hands over.
   ctx.save();

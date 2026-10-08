@@ -124,8 +124,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   function beginCrash(view: SceneView, quiet: boolean): void {
     const harmless = secured !== null || trader.mode === 'upstairs' || trader.mode === 'sneak' || trader.mode === 'closing';
     outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
-    if (harmless) snapTrader(trader, 'upstairs');
-    else snapTrader(trader, 'caught');
+    if (harmless && quiet) snapTrader(trader, 'upstairs');
+    else if (!harmless) snapTrader(trader, 'caught');
     if (!quiet && !harmless) trader.modeAge = 0;
     crashKitchen(kitchen, view.currentX100, quiet, harmless);
     if (quiet) {
@@ -211,7 +211,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     audio.update(view.phase, tension);
     if (secured && running && !kitchen.crashed && trader.mode === 'hunch') holdMeter(kitchen);
 
-    stepTrader(trader, { running, fear, leaving: secured !== null && running && !kitchen.crashed, time }, dt);
+    stepTrader(trader, { running, fear, leaving: secured !== null, time }, dt);
     stepKitchen(kitchen, { running, multiplier, fear, time, traderGone: trader.mode !== 'hunch' && trader.mode !== 'caught', reduced }, dt);
     const ev = kitchen.events;
     if (ev.thump && !reduced) shake = Math.max(shake, 0.28);

@@ -13,6 +13,8 @@ export interface RoadView {
 }
 
 const HORIZON = 153;
+/** The same bend drives the road projection and the automatic steering. */
+export const roadBend = (distance: number, tension: number): number => Math.sin(distance * 0.0007) * (35 + tension * 55);
 const SIGNS = [
   ['NO BRAKES', 'NO KYC', LIME],
   ['DAD\'S PENSION', 'RACING TEAM', PINK],
@@ -77,7 +79,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
     ctx.translate(480, 220); ctx.rotate(spin); ctx.translate(-480, -220);
   }
   skyline(ctx, view);
-  const curve = Math.sin(view.distance * 0.0007) * (35 + view.tension * 55);
+  const curve = roadBend(view.distance, view.tension);
   const lateral = view.steering * 60 - view.parked * 295 + view.wreck * 220;
   const project = (z: number, side: number) => {
     const s = 1 / (1 + Math.max(-30, z) / 90);

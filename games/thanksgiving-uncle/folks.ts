@@ -1,3 +1,4 @@
+import { solveLimb } from './kinematics';
 /**
  * The people of Thanksgiving Uncle: Dad and the niece behind the table facing us, whose civility drains with
  * the tension (his smile freezes wider, her eyes roll further and her phone comes up); Grandma dozing at the
@@ -131,6 +132,9 @@ function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
 }
 
 function arm(ctx: CanvasRenderingContext2D, color: string, width: number, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string): void {
+  const upper = width >= 22 ? 60 : 49, lower = width >= 22 ? 57 : 47;
+  const solved = solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, upper, lower, sx < 0 ? 1 : -1);
+  ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
@@ -566,6 +570,11 @@ export function settleGran(g: Gran, awake: boolean): void {
   settleSpring(g.stand, awake ? 1 : 0);
 }
 
+export function caneGrip(up: number): { x: number; y: number; angle: number } {
+  up = clamp(up, 0, 1);
+  return { x: mix(-26, -45, up), y: mix(-70, -98, up), angle: mix(0, 1.05, up) };
+}
+
 /** Grandma in profile at the end of the table, facing the family: asleep in her cardigan, or up with the cane. */
 export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): void {
   const up = clamp(g.stand.x, 0, 1);
@@ -601,16 +610,17 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
   ctx.translate(0, -up * 26);
   // The cane: leaning on the chair, then raised in her hand.
   ctx.save();
-  ctx.translate(-26, 0);
-  ctx.rotate(mix(0.15, -1.3, up));
+  const grip = caneGrip(up);
+  ctx.translate(grip.x, grip.y);
+  ctx.rotate(grip.angle);
   ctx.strokeStyle = '#6b4a2b';
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(0, -70);
+  ctx.lineTo(0, 70);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(6, -70, 6, Math.PI, 0);
+  ctx.arc(6, 0, 6, Math.PI, 0);
   ctx.stroke();
   ctx.restore();
   // Cardigan, pearls, the head with the perm, glasses, the mouth.
@@ -628,6 +638,10 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
     ctx.fill();
     ctx.stroke();
   }
+  const elbow = solveLimb({ x: -14, y: -58 }, grip, 31, 30, -1).joint;
+  ctx.strokeStyle = '#b58fb0'; ctx.lineWidth = 12; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-14, -58); ctx.lineTo(elbow.x, elbow.y); ctx.lineTo(grip.x, grip.y); ctx.stroke();
+  ink(ctx, 2.5); ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(grip.x, grip.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ink(ctx, 2.5);
   ctx.strokeStyle = '#b58fb0';
   ctx.lineWidth = 12;
@@ -709,6 +723,7 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
 // ---- Rick -----------------------------------------------------------------------------------------------
 
 export interface Rick {
+  turn: Spring;
   talk: number;
   gesture: Spring;
   /** The beer comes up to make a point, and all the way up for Dale. */
@@ -719,7 +734,7 @@ export interface Rick {
   snoreClock: number;
 }
 
-export const createRick = (): Rick => ({ talk: 0, gesture: spring(0), beer: spring(0), mode: 'talking', tilt: spring(0), snores: [], snoreClock: 0 });
+export const createRick = (): Rick => ({ turn: spring(0), talk: 0, gesture: spring(0), beer: spring(0), mode: 'talking', tilt: spring(0), snores: [], snoreClock: 0 });
 export function resetRick(r: Rick): void {
   Object.assign(r, createRick());
 }
@@ -727,6 +742,7 @@ export function resetRick(r: Rick): void {
 export interface RickDrive { speaking: boolean; tension: number; time: number }
 
 export function stepRick(r: Rick, drive: RickDrive, dt: number): void {
+  stepSpring(r.turn, r.mode === 'turned' ? 1 : 0, 7, .9, dt);
   r.talk += clamp((drive.speaking && r.mode === 'talking' ? 1 : 0) - r.talk, -dt * 3, dt * 8);
   stepSpring(r.gesture, r.talk * (0.4 + 0.6 * drive.tension), 5, 0.6, dt);
   const beer = r.mode === 'turned' ? 1 : r.mode === 'talking' ? r.talk * (0.3 + 0.5 * drive.tension) : 0;
@@ -821,6 +837,8 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
     ctx.fill();
     ctx.stroke();
   }
+  // Turn above the planted hips; the head leads the slower shoulders.
+  ctx.rotate(-.07 * clamp(r.turn.x, 0, 1));
   // The flannel shoulders and the vest over them.
   ink(ctx, 2.5);
   ctx.fillStyle = '#8a3b2b';
@@ -860,13 +878,14 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   ctx.strokeRect(-58, -40, 116, 8);
   // Arms: the beer hand on the right, the pointing hand on the left.
   const asleep = r.mode === 'asleep';
-  const bx = asleep ? 86 : 74 + 10 * beer;
-  const by = asleep ? -56 : -84 - 70 * beer;
+  const sleep = clamp(tilt, 0, 1), bow = clamp(-tilt / .6, 0, 1);
+  const bx = mix(74 + 10 * beer, 86, sleep);
+  const by = mix(-84 - 70 * beer, -56, sleep);
   arm(ctx, '#8a3b2b', 22, 70, -56, asleep ? 96 : 96, asleep ? -40 : -60 - 20 * beer, bx, by, SKIN);
   if (!asleep) drawCan(ctx, bx - 2, by - 8, -0.3 + 0.2 * beer);
   const wave = Math.sin(time * 7) * g;
-  const px = r.mode === 'bowed' ? -40 : -72 - 10 * g + wave * 10;
-  const py = r.mode === 'bowed' ? -70 : asleep ? -50 : -84 - 50 * g + Math.sin(time * 9) * 10 * g;
+  const px = mix(-72 - 10 * g + wave * 10, -40, bow);
+  const py = mix(mix(-84 - 50 * g + Math.sin(time * 9) * 10 * g, -50, sleep), -70, bow);
   arm(ctx, '#8a3b2b', 22, -70, -56, -96, asleep ? -40 : -56 - 24 * g, px, py, SKIN);
   if (g > 0.2 && !asleep) {
     ink(ctx, 2.5);
@@ -878,7 +897,7 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   // The head: a sunburnt neck, an ear and a stubbled cheek on the left, hair under the cap, the cap and its strap.
   ctx.save();
   ctx.translate(-4, -118);
-  ctx.rotate(tilt * 0.35 + (r.mode === 'turned' ? -0.25 : 0));
+  ctx.rotate(tilt * 0.35 - .25 * clamp(r.turn.x, 0, 1));
   if (r.talk > 0 && !reduced) ctx.translate(0, Math.sin(time * 5) * 1.5);
   ctx.fillStyle = '#e0a080';
   ink(ctx, 2.5);

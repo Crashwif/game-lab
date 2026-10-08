@@ -1,3 +1,4 @@
+import { walkingFoot } from './kinematics';
 /**
  * The pool party on the lawn: fans that fill in on the multiplier curve and
  * lean with the tension, the pool whose water drains at the crash, the
@@ -132,11 +133,14 @@ export interface PartyDrive { running: boolean; multiplier: number; tension: num
 
 /** Returns true on the frame a milestone is reached. */
 export function stepParty(p: Party, drive: PartyDrive, dt: number): boolean {
+  const previousTime = p.time;
   p.time += dt;
   let reached = false;
   if (drive.running && !p.drained) {
     p.wanted = fansFor(drive.multiplier);
-    if (p.fans.length < p.wanted && noise(Math.floor(p.time * 6)) > 0.3) arrive(p, 0);
+    for (let tick = Math.floor(previousTime * 6 + 1e-9) + 1; tick <= Math.floor((p.time + 1e-9) * 6); tick++) {
+      if (p.fans.length < p.wanted && noise(tick) > .3) arrive(p, 0);
+    }
     if (drive.multiplier >= p.nextPop) {
       p.popIndex += 1;
       p.nextPop = POPS[p.popIndex] ?? Infinity;
@@ -201,10 +205,8 @@ function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, seed: numb
   const swimming = inWater > 0.5;
   if (!swimming) {
     for (const side of [-1, 1]) {
-      const phase = stride + (side > 0 ? Math.PI : 0);
-      const stepping = stride !== 0;
-      const lift = stepping ? Math.max(0, Math.sin(phase)) * 14 : 0;
-      const reach = stepping ? Math.cos(phase) * 10 : 0;
+      const step = stride !== 0 ? walkingFoot(stride, 46, side > 0 ? .5 : 0, 14) : { x: 0, y: 0 };
+      const lift = -step.y, reach = step.x;
       const foot = { x: side * 10 + reach, y: 16 - lift };
       bone(ctx, { x: side * 8, y: -34 }, foot, 30, 28, foot.y >= -34 ? -side : side, 11, skin);
       ctx.fillStyle = skin; ctx.strokeStyle = INK; ctx.lineWidth = 2;
@@ -329,7 +331,7 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
     label(ctx, 'NOT HACKED', 0, 4, 11, INK, 'center');
     ctx.restore();
   } else if (y.mode === 'walking') {
-    drawFan(ctx, y.x, POOL.y + POOL.h + 26, 99, 0.7, 4, 0, 'hype', 0, true, 1, p.time * 12);
+    drawFan(ctx, y.x, POOL.y + POOL.h + 26, 99, 0.7, 0, 0, 'hype', 0, true, 1, reduced ? 0 : (y.x - 480) / .7);
   }
   // The rental Lambo waiting at the right edge once your fan leaves.
   if (y.mode === 'walking' || y.mode === 'gone') {

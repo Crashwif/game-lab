@@ -1,4 +1,5 @@
 /** Rug Piste: original downhill arcade presentation of the shared, committed crash round. */
+import { liftPose } from './lift-rig';
 import { pageAudio } from './audio';
 import { createInput } from './input';
 import { clamp, createWorld, stepWorld, type World } from './course';
@@ -48,6 +49,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: number | null = null;
   let escapeAt = 0;
   let escapeX = 0.5;
+  let escapePose = { jump: 0, lean: 0, stumble: 0 };
   let toast = '';
   let toastUntil = 0;
   let ariaAt = -1;
@@ -82,6 +84,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // Only the host-confirmed cashout changes the ending. An input never sets secured.
     if (view.cashoutX100 !== null && secured === null) {
       secured = view.cashoutX100; escapeX = world.x;
+      escapePose = { jump: world.jump, lean: world.lean, stumble: world.stumble };
       escapeAt = first || crashed ? now - 2200 : now;
       if (!first && running) audio.cashout();
     }
@@ -116,7 +119,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const skierX = field.x + world.x * field.w;
     const yetiX = clamp(skierX, field.x + 66 * scale, field.x + field.w - 66 * scale);
     const crashAge = reduced && crashed ? reducedCrashAge(view.crashAge / 1000) : view.crashAge / 1000;
-    const escape = secured === null ? 0 : ease((now - escapeAt) / (reduced ? 1 : 1800));
+    const boarding = liftPose(reduced ? 3 : (now - escapeAt) / 1000, escapePose);
     const visualTime = reduced ? 0 : now;
 
     ctx.save();
@@ -168,7 +171,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       const y = skierY + (trail.z - world.distance) * scale;
       const x = field.x + trail.x * field.w;
       ctx.fillStyle = '#d5d8e8';
-      for (const offset of [-7, 7]) ctx.fillRect(x + offset * scale, y - 3, 2 * scale, 8 * scale);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(trail.lean * .14);
+      for (const offset of [-7, 7]) ctx.fillRect(offset * scale, -3, 2 * scale, 8 * scale);
+      ctx.restore();
     }
     // Depth sorting makes trees pass naturally in front of the skier.
     const objects = world.objects.filter(o => (o.kind !== 'coin' || !o.used) && Math.abs(o.z - world.distance) < 650)
@@ -201,11 +206,11 @@ export function createScene(options: SceneOptions = {}): Scene {
       text(ctx, 'CARVE • COLLECT • CASH OUT', field.x + field.w / 2, field.y + field.h - 46, 13, C.purple, 'center');
     }
     if (secured !== null) {
-      const liftX = field.x + escapeX * field.w + (field.w * 0.77 - escapeX * field.w) * escape;
-      const liftY = skierY + 15 - escape * 84 * scale;
-      ctx.save(); ctx.translate(liftX, liftY); ctx.scale(scale, scale);
-      drawLift(ctx, 0, 0, visualTime);
-      drawSkier(ctx, 0, -8, { lean: 0, jump: 0, time: visualTime, stumble: 0, scale: 0.72 });
+      const liftX = field.x + escapeX * field.w + (field.w * .77 - escapeX * field.w) * boarding.depart;
+      const liftY = skierY + boarding.chairY * scale;
+      ctx.save(); ctx.translate(liftX, skierY); ctx.scale(scale, scale);
+      drawLift(ctx, boarding.chairX, boarding.chairY, visualTime);
+      drawSkier(ctx, 0, boarding.skierY, { lean: boarding.lean, jump: 0, time: visualTime, stumble: boarding.stumble, seated: boarding.seated, shadow: false });
       ctx.restore();
       text(ctx, 'BAGS SECURED', liftX, liftY + 28 * scale, 13, C.purple, 'center');
     }

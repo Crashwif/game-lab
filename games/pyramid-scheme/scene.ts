@@ -90,7 +90,8 @@ export function createScene(options: SceneOptions = {}): Scene {
   let creakAt = 0;
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
-  let jump: { x: number; y: number; vx: number; vy: number; down: boolean } | null = null;
+  let jump: { x: number; y: number; h: number; vx: number; vy: number; down: boolean; age: number; feet: { x: number; y: number }[] } | null = null;
+  let poseSeconds = 0;
   let bodies: Body[] = [];
   let founderX = LECTERN_X;
   let muted = false;
@@ -110,8 +111,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     muted = false;
   }
   function leave(quiet: boolean): void {
-    const top = place(shown.x, 0, 0);
-    jump = quiet ? { x: 800, y: STAGE, vx: 0, vy: 0, down: true } : { x: top.x, y: top.y, vx: 260, vy: -340, down: false };
+    const top = supportPose(shown.x, 0, 0, poseSeconds);
+    jump = { x: quiet ? 800 : top.x, y: quiet ? STAGE : top.y, h: top.h, vx: quiet ? 0 : 260, vy: quiet ? 0 : -340, down: quiet, age: 0, feet: top.feet };
     if (!quiet) {
       audio.cashout();
       audio.fx('whoosh', 0.7);
@@ -120,6 +121,17 @@ export function createScene(options: SceneOptions = {}): Scene {
   function fall(view: SceneView, quiet: boolean): void {
     outcome = view.stake === null ? 'ponzi' : secured ? 'called' : 'rekt';
     bodies = collapse(rows, view.currentX100, jump === null);
+    if (!quiet) {
+      let index = 0;
+      for (let k = 0; k < rows; k++) for (let j = 0; j <= k; j++) {
+        if (k === 0 && jump) continue;
+        const pose = supportPose(shown.x, k, j, poseSeconds);
+        const walk = smoothstep(0, 0.8, time - (joined[k] ?? 0));
+        const body = bodies[index++]!;
+        body.x = pose.x + (j < k / 2 ? -1 : 1) * 400 * (1 - walk);
+        body.y = pose.y; body.h = pose.h;
+      }
+    }
     if (quiet) {
       settleBodies(bodies);
       pop.x = 1;
@@ -155,6 +167,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
+    if (running) poseSeconds = reduced ? 0 : view.elapsed / 1000;
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
       if (jump === null) leave(fresh || crashed);
@@ -185,9 +198,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       audio.fx('creak', 0.4 + 0.5 * tension);
     }
     if (jump && !jump.down) {
-      jump.vy += 900 * dt;
+      jump.age += dt;
       jump.x += jump.vx * dt;
-      jump.y += jump.vy * dt;
+      jump.y += jump.vy * dt + 450 * dt * dt;
+      jump.vy += 900 * dt;
       if (jump.y >= STAGE) {
         jump.y = STAGE;
         jump.down = true;
@@ -233,7 +247,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         }
       }
     }
-    if (jump) drawFigure(c, jump.x, jump.y, 60, jump.down ? 0 : Math.sin(time * 6) * 0.3, time, { strain: 0, shirt: '#d5fb6d', you: true, shades: jump.down, dazed: false, arms: jump.down ? 'down' : 'flail' });
+    if (jump) { const jumping = jump; drawFigure(c, jump.x, jump.y, jump.h, jump.down ? 0 : Math.sin(Math.min(1, jump.age / .65) * Math.PI) * 0.3, time, { strain: 0, shirt: '#d5fb6d', you: true, shades: jump.down, dazed: false, arms: jump.down ? 'down' : 'flail', feet: jump.feet.map((foot, i) => ({ x: foot.x + ((i ? 12 : -12) - foot.x) * smoothstep(0, .3, jumping.age), y: foot.y * (1 - smoothstep(0, .3, jumping.age)) })) }); }
     if (outcome && pop.x > 0.02) {
       c.save();
       c.translate(CENTRE, 300);
