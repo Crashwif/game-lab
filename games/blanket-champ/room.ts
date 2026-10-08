@@ -488,7 +488,7 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   ctx.fillStyle = fabric; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.fill(quilt); ctx.stroke(quilt);
   ctx.save(); ctx.clip(quilt);
-  // Quilting follows the volume; a bright turned-over edge identifies the opening.
+  // Quilting follows the volume.
   ctx.strokeStyle = 'rgba(38, 57, 102, 0.3)'; ctx.lineWidth = 2;
   for (let i = 0; i < 7; i += 1) {
     const fx = 312 + i * 48;
@@ -499,13 +499,41 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
     ctx.beginPath(); ctx.moveTo(282, BED.top - 13 + offset);
     ctx.bezierCurveTo(394, BED.top - h * 0.7 + offset, 529, BED.top - h * 0.55 + offset, hemX, BED.top - 12 + offset); ctx.stroke();
   }
+  ctx.strokeStyle = 'rgba(231, 239, 255, 0.65)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(285, BED.top + 23);
+  ctx.bezierCurveTo(390, BED.top + 39, 595, BED.top + 37, hemX - 7, BED.top + 21); ctx.stroke();
+  ctx.restore();
+  // At the finish the champ's near arm comes out from under the covers at his shoulder, beside his chin, and flops
+  // over the side; after a beat the forearm lifts from the elbow for a thumbs-up.
+  const arm = clamp(r.armOut.x, 0, 1.1);
+  if (arm > 0.02) {
+    const thumb = clamp(r.thumb.x, 0, 1.1);
+    // It lies out along the quilt, then drops over the edge with the limp forearm ahead of the upper arm.
+    const upper = mix(0.15, 1.2, arm);
+    const fore = mix(mix(0.15, 1.45, Math.min(1, arm * 2)), -0.55, thumb);
+    const sx = 304;
+    const sy = BED.top - 1 + champBob;
+    const ex = sx + Math.cos(upper) * 42;
+    const ey = sy + Math.sin(upper) * 42;
+    const wx = ex + Math.cos(fore) * 34;
+    const wy = ey + Math.sin(fore) * 34;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(wx, wy);
+    ctx.strokeStyle = INK; ctx.lineWidth = 17; ctx.stroke();
+    ctx.strokeStyle = '#f3dccb'; ctx.lineWidth = 12; ctx.stroke();
+    // The fist stays upright, so the thumb comes up straight.
+    const fx = wx + Math.cos(fore) * 8;
+    const fy = wy + Math.sin(fore) * 8;
+    ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    if (thumb > 0.05) { ctx.beginPath(); ctx.roundRect(fx - 6, fy - 8 - 14 * thumb, 9, 6 + 14 * thumb, 4.5); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.roundRect(fx - 10, fy - 9, 20, 18, 6); ctx.fill(); ctx.stroke();
+  }
+  // A bright turned-over edge identifies the opening; it is drawn over the arm so the arm comes out from under it.
+  ctx.save(); ctx.clip(quilt);
   ctx.strokeStyle = '#dae4fb'; ctx.lineWidth = 10;
   ctx.beginPath(); ctx.moveTo(223, BED.top + 10);
   ctx.quadraticCurveTo(276, BED.top + 18 + champBob, 305, BED.top - 17 + champBob);
   ctx.quadraticCurveTo(326, BED.top - 12 + partnerBob, 354, BED.top - 41 + partnerBob); ctx.stroke();
-  ctx.strokeStyle = 'rgba(231, 239, 255, 0.65)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
-  ctx.beginPath(); ctx.moveTo(285, BED.top + 23);
-  ctx.bezierCurveTo(390, BED.top + 39, 595, BED.top + 37, hemX - 7, BED.top + 21); ctx.stroke();
   ctx.restore();
   // The champ's hand gripping the headboard: knuckles go white with the tension.
   const grip = mix(0.15, 1, r.tension);
@@ -525,21 +553,6 @@ export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
     ctx.globalAlpha = 1;
   }
   ctx.restore();
-  // At the finish an arm flops over the side and, after a beat, gives a thumbs-up.
-  const arm = clamp(r.armOut.x, 0, 1.1);
-  if (arm > 0.02) {
-    const thumb = clamp(r.thumb.x, 0, 1.1);
-    ctx.strokeStyle = INK; ctx.lineWidth = 17; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(470, BED.top - 6); ctx.quadraticCurveTo(500, BED.top + 10 + arm * 30, 520 + arm * 10, BED.top + 40 + arm * 40 - thumb * 60); ctx.stroke();
-    ctx.strokeStyle = '#f3dccb'; ctx.lineWidth = 12; ctx.stroke();
-    ctx.save();
-    ctx.translate(520 + arm * 10, BED.top + 40 + arm * 40 - thumb * 60);
-    ctx.rotate(-thumb * 1.4);
-    ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect(-9, -8, 20, 20, 6); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.roundRect(-3, -22, 8, 16, 4); ctx.fill(); ctx.stroke();
-    ctx.restore();
-  }
   drawReaction(ctx, pose);
   ctx.restore();
   for (const p of r.puffs) {
