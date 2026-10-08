@@ -5,7 +5,7 @@
  * plug on a chain, and the rug pull: the plug pops, the water funnels down
  * the drain and takes everyone still floating with it.
  */
-import { clamp, mix, mulberry32, noise } from './motion';
+import { clamp, mix, mulberry32, smoothstep } from './motion';
 
 export const POOL = { left: 160, right: 800, top: 300, floor: 505 };
 export const DRAIN = { x: 760, y: 500 };
@@ -23,47 +23,51 @@ export interface PoolState {
   murk: number;
   whale: { active: boolean; t: number; x: number; nextAt: number };
   draining: boolean;
+  /** Seconds since the plug popped, and how far the drain has run, 0..1 (it carries on closing the funnel through the refill). */
   drainAge: number;
   drained: number;
-  plugPopped: boolean;
+  /** How far the plug is out: 1 the moment it pops, easing back to 0 as the next round reseats it. */
+  plug: number;
+  /** The dev's fake yank lifting the plug a little, 0..1 (set by the scene). */
+  lift: number;
   splashes: Splash[];
   rng: () => number;
 }
 
 export function createPool(): PoolState {
-  return { time: 0, level: POOL.floor - 0.35 * (POOL.floor - 320), fill: 0.35, tension: 0, slosh: 0, murk: 0, whale: { active: false, t: 0, x: 480, nextAt: 0 }, draining: false, drainAge: 0, drained: 0, plugPopped: false, splashes: [], rng: mulberry32(3) };
+  return { time: 0, level: POOL.floor - 0.35 * (POOL.floor - 320), fill: 0.35, tension: 0, slosh: 2, murk: 0, whale: { active: false, t: 0, x: 480, nextAt: 0 }, draining: false, drainAge: 0, drained: 0, plug: 0, lift: 0, splashes: [], rng: mulberry32(3) };
 }
 
+/** A new round refills from whatever the drain left (the level, slosh, murk and the drain's funnel ease back rather than snap). */
 export function resetPool(p: PoolState): void {
-  p.fill = 0.35;
-  p.level = POOL.floor - 0.35 * (POOL.floor - 320);
-  p.tension = 0;
-  p.murk = 0;
+  if (p.draining) p.fill = p.fill * (1 - p.drained) + 0.02 * p.drained;
   p.whale = { active: false, t: 0, x: 480, nextAt: 0 };
   p.draining = false;
-  p.drainAge = 0;
-  p.drained = 0;
-  p.plugPopped = false;
-  p.splashes = [];
+  p.lift = 0;
 }
 
 export const fillFor = (growth: number): number => 0.35 + 0.65 * (1 - Math.exp(-growth / 2));
+/** The round's tension, 1 - 1/x: a third at 1.5x, half at 2x, two thirds at 3x. */
+export const tensionFor = (growth: number): number => 1 - Math.pow(2, -growth);
 
 /** A round met late: the water already at the multiplier's level, tension and murk. */
 export function settlePool(p: PoolState, growth: number): void {
   p.fill = fillFor(growth);
   p.level = POOL.floor - p.fill * (POOL.floor - 320);
-  p.tension = clamp(growth / 3.3, 0, 1);
+  p.tension = tensionFor(growth);
   p.murk = p.tension;
+  p.slosh = 2 + 9 * p.tension;
 }
 
 /** Screen y of the surface at x, including the slosh and the funnel while draining. */
 export function surfaceY(p: PoolState, x: number): number {
-  const amp = 2 + 9 * p.tension;
+  const amp = p.slosh;
   let y = p.level + Math.sin(x / 70 + p.time * 2.1) * amp + Math.sin(x / 31 - p.time * 3.3) * amp * 0.4;
-  if (p.draining) {
+  // The drain funnel (it closes as the last of the water goes, or as the refill starts), and the dimple a fake yank opens.
+  const funnel = 60 * clamp(p.drainAge / 0.6, 0, 1) * (1 - p.drained) + 12 * p.lift;
+  if (funnel > 0) {
     const d = Math.abs(x - DRAIN.x);
-    y += Math.exp(-(d * d) / (2 * 120 * 120)) * 60 * clamp(p.drainAge / 0.6, 0, 1) * (1 - p.drained);
+    y += Math.exp(-(d * d) / (2 * 120 * 120)) * funnel;
   }
   if (p.whale.active) {
     const k = Math.sin(clamp(p.whale.t / 3.2, 0, 1) * Math.PI);
@@ -81,10 +85,18 @@ export function splash(p: PoolState, x: number, y: number, count: number, streng
   }
 }
 
+/** `running` holds the round's level: the scene keeps it true through the yank's fuse, so the water only drops once the plug is out. */
 export function stepPool(p: PoolState, growth: number, running: boolean, dt: number): void {
   p.time += dt;
-  p.tension = clamp(growth / 3.3, 0, 1);
+  p.tension = tensionFor(growth);
+  p.slosh += (2 + 9 * p.tension - p.slosh) * (1 - Math.exp(-dt / 0.5));
   if (!p.draining) {
+    p.plug = Math.max(0, p.plug - dt * 2);
+    // A drain still running when the next round starts closes at its own pace while the pool refills.
+    p.drained = Math.min(1, p.drained + dt / 1.3);
+    if (p.lift > 0.4 && Math.floor(p.time * 25) !== Math.floor((p.time - dt) * 25)) {
+      p.splashes.push({ x: DRAIN.x + (p.rng() - 0.5) * 30, y: DRAIN.y - 14, vx: (p.rng() - 0.5) * 20, vy: -60 - p.rng() * 50, r: 2 + p.rng() * 2, age: 0, life: 0.7, bubble: true });
+    }
     const target = running ? fillFor(growth) : 0.35;
     p.fill += (target - p.fill) * (1 - Math.exp(-dt / 0.8));
     p.level = POOL.floor - p.fill * (POOL.floor - 320);
@@ -98,9 +110,11 @@ export function stepPool(p: PoolState, growth: number, running: boolean, dt: num
       if (p.whale.t > 3.2) p.whale.active = false;
     }
   } else {
+    // Fast enough that the pool is nearly empty inside the two-second crashed phase.
     p.drainAge += dt;
-    p.drained = clamp((p.drainAge - 0.3) / 2.2, 0, 1);
-    p.level = POOL.floor - (p.fill * (1 - p.drained) + 0.02) * (POOL.floor - 320);
+    p.drained = clamp((p.drainAge - 0.2) / 1.3, 0, 1);
+    // It drains to a puddle, starting from the level the plug left (no step as it pops).
+    p.level = POOL.floor - (p.fill * (1 - p.drained) + 0.02 * p.drained) * (POOL.floor - 320);
     p.whale.active = false;
     if (p.drained < 1 && Math.floor(p.time * 20) !== Math.floor((p.time - dt) * 20)) {
       p.splashes.push({ x: DRAIN.x + (p.rng() - 0.5) * 60, y: p.level + 10, vx: (p.rng() - 0.5) * 20, vy: -40 - p.rng() * 40, r: 2 + p.rng() * 3, age: 0, life: 0.8, bubble: true });
@@ -119,7 +133,7 @@ export function stepPool(p: PoolState, growth: number, running: boolean, dt: num
 export function pullPlug(p: PoolState, seed: number, quiet: boolean): void {
   p.rng = mulberry32(seed);
   p.draining = true;
-  p.plugPopped = true;
+  p.plug = 1;
   p.drainAge = quiet ? 10 : 0;
   p.drained = quiet ? 1 : 0;
   if (!quiet) splash(p, DRAIN.x, p.level, 16, 260);
@@ -128,7 +142,7 @@ export function pullPlug(p: PoolState, seed: number, quiet: boolean): void {
 /** How strongly the drain pulls at a point while draining: 0..1, and the direction. */
 export function drainPull(p: PoolState, x: number): number {
   if (!p.draining) return 0;
-  const k = clamp((p.drainAge - 0.2) / 2, 0, 1);
+  const k = clamp((p.drainAge - 0.1) / 1.2, 0, 1);
   const d = clamp(1 - Math.abs(x - DRAIN.x) / 700, 0, 1);
   return k * (0.4 + 0.6 * d);
 }
@@ -208,8 +222,9 @@ export function drawWater(ctx: CanvasRenderingContext2D, p: PoolState): void {
   ctx.beginPath();
   for (let x = POOL.left; x <= POOL.right; x += 8) { const y = surfaceY(p, x); if (x === POOL.left) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
   ctx.stroke();
-  if (p.draining && p.drained < 1) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  if (p.drainAge > 0 && p.drained < 1) {
+    // The whirl fades with the funnel instead of vanishing when the pool empties or refills.
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 * Math.min(1, 4 * (1 - p.drained))})`;
     ctx.lineWidth = 2;
     for (let i = 1; i <= 4; i += 1) {
       const r = 20 + i * 24;
@@ -239,9 +254,10 @@ export function drawPoolFront(ctx: CanvasRenderingContext2D, p: PoolState, wrist
   for (const dx of [-7, 7]) { ctx.beginPath(); ctx.moveTo(LADDER_X + dx, POOL.top - 24); ctx.lineTo(LADDER_X + dx, POOL.top + 120); ctx.stroke(); }
   ctx.lineWidth = 3;
   for (let y = POOL.top - 10; y < POOL.top + 120; y += 18) { ctx.beginPath(); ctx.moveTo(LADDER_X - 7, y); ctx.lineTo(LADDER_X + 7, y); ctx.stroke(); }
-  // The chain from the plug up the wall to the dev, sagging when nobody is pulling.
-  const anchor = p.plugPopped ? { x: DRAIN.x + 60, y: POOL.floor - 30 } : { x: DRAIN.x, y: DRAIN.y - 8 };
-  const sag = (1 - p.tension) * 60 * (p.plugPopped ? 0 : 1);
+  // The chain from the plug up the wall to the dev, sagging when nobody is pulling; a fake yank lifts the plug a little.
+  const plug = smoothstep(0, 1, p.plug);
+  const anchor = { x: DRAIN.x + 60 * plug, y: mix(DRAIN.y - 8 - 7 * p.lift, POOL.floor - 30, plug) };
+  const sag = (1 - p.tension) * 60 * (1 - plug) * (1 - p.lift);
   ctx.strokeStyle = '#8a929c';
   ctx.lineWidth = 2.5;
   ctx.setLineDash([4, 3]);
@@ -250,18 +266,11 @@ export function drawPoolFront(ctx: CanvasRenderingContext2D, p: PoolState, wrist
   ctx.quadraticCurveTo((anchor.x + wrist.x) / 2 + 10, Math.max(anchor.y, wrist.y) + sag, wrist.x, wrist.y);
   ctx.stroke();
   ctx.setLineDash([]);
-  if (!p.plugPopped) {
-    ctx.fillStyle = '#b8323f';
-    ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(DRAIN.x - 12, DRAIN.y - 14, 24, 10, 3); ctx.fill(); ctx.stroke();
-  } else {
-    ctx.save();
-    ctx.translate(anchor.x, anchor.y);
-    ctx.rotate(0.8);
-    ctx.fillStyle = '#b8323f';
-    ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(-12, -5, 24, 10, 3); ctx.fill(); ctx.stroke();
-    ctx.restore();
-  }
-  void noise;
+  ctx.save();
+  ctx.translate(anchor.x, anchor.y - 1 + plug);
+  ctx.rotate(0.8 * plug);
+  ctx.fillStyle = '#b8323f';
+  ctx.strokeStyle = INK; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-12, -5, 24, 10, 3); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
