@@ -6,9 +6,9 @@
  * outcome.
  */
 import { pageAudio } from './audio';
-import { type Bench, PLATE_AT, benchHead, createBench, drawBench, dumpBar, rackBar, resetBench, settleBench, stepBench } from './bench';
+import { type Bench, PLATE_AT, benchHead, createBench, drawBench, dumpBar, rackBar, resetBench, settleBench, stepBench, tensionFor } from './bench';
 import { type Gym, INK, cough, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym } from './gym';
-import { clamp, settleSpring, spring, stepSpring } from './motion';
+import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -38,10 +38,12 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'dumped';
 type Secured = { x100: number; payout: number | null };
 const HECKLES = ['GO BRO', 'OILED UP', 'SHEEEESH', "HE'S HIM", 'GYATT', 'EGO LIFT', 'ALL NATTY?', 'CALL 911'];
-/** The drop's hit-stop and slow motion. */
-const FREEZE_S = 0.07;
+/** The drop's hit-stop and slow motion, and the camera's punch-in: a 10% cut held for 0.3 s, then eased back out. */
+const FREEZE_S = 0.15;
 const SLOW_S = 0.4;
 const SLOW_RATE = 0.3;
+const PUNCH_HOLD_S = 0.3;
+const PUNCH_ZOOM = 0.1;
 /** Where the phone overlay sits; the poll is drawn on its screen under the viewer count. */
 const PHONE = { x: 866, y: 44 } as const;
 
@@ -61,15 +63,22 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 const OVERTIME_CAPTIONS = ["THE SET HAS NO END", "SPOTTER FINALLY HELPING", "THE BAR WANTS A DAY OFF", "OVERTIME AT THE IRON BANK", "REP COUNT: LOST TRACK", "CHALK UP AND COPE", "ONE MORE MEANS ONE MORE", "THE GYM IS CLOSING"];
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'SPOTTER SOLD' : outcome === 'called' ? 'RACKED AND JACKED' : 'NO SPOTTER NGMI';
+  if (outcome === 'called') return 'DODGED THE DUMP';
+  if (outcome) return view.currentX100 <= 100 ? 'RUGGED AT THE RACK' : outcome === 'rekt' ? 'SPOTTER SOLD' : 'NO SPOTTER NGMI';
   if (view.phase !== 'running') return 'LOAD THE BAR';
-  if (secured) return 'RE-RACKED';
+  if (secured) {
+    // Took profits: a jeet, and a good call. The ladder ribs him as the number keeps going without him.
+    const gone = view.currentX100 / secured.x100;
+    return gone < 1.3 ? 'TOOK PROFITS (JEET)' : gone < 2 ? 'DEV TOOK THE BENCH' : gone < 4 ? 'STILL PUMPING. STILL BANKED' : 'PAPER HANDS, BAG SECURED';
+  }
   if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
-  if (multiplier < 1.4) return 'PUMP IT';
-  if (multiplier < 1.9) return 'ONE MORE REP';
-  if (multiplier < 2.6) return 'BENCH PRESSING MY BAGS';
-  if (multiplier < 3.5) return 'NO PAIN NO GAINZ';
-  if (multiplier < 5) return 'SPOTTER IS SCROLLING';
+  // A new line every few seconds through the 1x to 3x stretch, each true to what the spotter is doing at the time.
+  if (multiplier < 1.2) return 'PUMP IT';
+  if (multiplier < 1.45) return 'ONE MORE REP';
+  if (multiplier < 1.9) return 'SPOTTER IS SCROLLING';
+  if (multiplier < 2.5) return 'BENCH PRESSING MY BAGS';
+  if (multiplier < 3.3) return 'NO PAIN NO GAINZ';
+  if (multiplier < 5) return 'THE DEV IS SPOTTING';
   if (multiplier < 7.5) return 'LIGHT WEIGHT BABY';
   if (multiplier < 12) return 'TRT IS KICKING IN';
   if (multiplier < 20) return 'GYATT';
@@ -112,8 +121,9 @@ export function createScene(options: SceneOptions = {}): Scene {
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
-  /** The camera's punch into the drop. */
+  /** The camera's punch into the drop, and how much longer it holds before easing out. */
   const punch = spring(0);
+  let punchHold = 0;
   /** The poll's NOT share. */
   const natty = spring(0.12);
   let last: number | null = null;
@@ -131,11 +141,18 @@ export function createScene(options: SceneOptions = {}): Scene {
   let clangAt = 0;
   let clangs = 0;
   let notified = false;
+  let heckles = 0;
+  /** When the next strain heartbeat is due, until the player takes profits. */
+  let pulseAt = 0;
+  /** The dip from black that covers the reset into a new betting phase. */
+  let fade = 0;
 
   /** The crash: the bar comes down on whoever is under it. `quiet` settles into a drop that already happened. */
   function drop(view: SceneView, multiplier: number, quiet: boolean): void {
     outcome = view.stake === null ? 'dumped' : secured ? 'called' : 'rekt';
     if (quiet) settleBench(bench, multiplier, secured !== null);
+    // An exit accepted on the same frame as the crash still makes the hooks: nobody is under the bar.
+    else if (secured) rackBar(bench);
     dumpBar(bench, view.currentX100, quiet);
     finishGym(gym, outcome === 'called', quiet);
     if (quiet) {
@@ -151,12 +168,14 @@ export function createScene(options: SceneOptions = {}): Scene {
   function impact(): void {
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      settleSpring(punch, 1);
+      punchHold = PUNCH_HOLD_S;
     }
-    puff(gym, { x: 480, y: 420 }, 14, '#ffffff', 3);
+    // Chalk off the bar, low enough that it drifts up past his chin rather than over the KO face.
+    puff(gym, { x: 480, y: bench.barY.x + (bench.hitLifter ? 16 : 0) }, 10, '#ffffff', 3);
     heckle(gym, 'NOT NATTY', false);
     audio.crash('slam');
     audio.fx('scream', 0.8);
@@ -178,8 +197,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
+    // `growth` (log2) paces the slow, long-round drivers: rep rate and the mirror chart. `tension` sweeps 0 to 0.67
+    // across 1x to 3x, where most rounds end, and keeps creeping up after.
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = tensionFor(multiplier);
+    const poll = 0.12 + 0.88 * (1 - multiplier ** -0.9);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -203,12 +225,14 @@ export function createScene(options: SceneOptions = {}): Scene {
         drop(view, multiplier, settle);
       }
       if (view.phase === 'betting') {
+        if (previous === 'crashed') fade = 1;
         resetGym(gym);
         resetBench(bench);
         outcome = null;
         secured = null;
-        heckleAt = 0;
-        freeze = slow = 0;
+        heckleAt = pulseAt = heckles = 0;
+        freeze = slow = punchHold = 0;
+        settleSpring(punch, 0);
         notified = false;
         settleSpring(natty, 0.12);
       }
@@ -218,7 +242,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       // The mirror chart follows the round's authoritative elapsed time.
       settleTrail(gym, view.elapsed, growth);
       settleSpring(badge, secured ? 1 : 0);
-      settleSpring(natty, running ? 0.12 + 0.88 * tension : 1);
+      settleSpring(natty, running ? poll : 1);
       notified = true;
     }
     if (secured && running) rackBar(bench);
@@ -227,9 +251,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepBench(bench, { running, multiplier, growth, tension, seconds: view.elapsed / 1000 }, dt);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: 0 }, dt);
     if (bench.events.impact) impact();
-    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }
+    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); heckleAt = Math.max(heckleAt, time + 1.6); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }
     if (running) audio.milestone(PLATE_AT.filter((p) => multiplier >= p).length);
     if (bench.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.05 + 0.2 * tension); audio.fx('chuff', 0.35 + 0.5 * tension); }
+    // The fake-out stall: the bar creaks and the shot shudders while he grinds it.
+    if (bench.events.stall) { if (!reduced) shake = Math.max(shake, 0.12 + 0.2 * tension); audio.fx('creak', 0.35 + 0.35 * tension); }
+    // A heartbeat that quickens with the load, until the player takes profits.
+    if (running && !secured && tension > 0.2 && time >= pulseAt) { pulseAt = time + mix(1.4, 0.35, tension); audio.fx('heartbeat', 0.25 + 0.3 * tension); }
     if (bench.events.racked) {
       // Re-racked: a chalk cloud so big the crowd coughs, and the flex.
       puff(gym, { x: 480, y: 370 }, 30, '#ffffff', 1, 1.7);
@@ -241,12 +269,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (bench.events.swapped) { puff(gym, { x: 480, y: 400 }, 16, '#ffffff', 2); audio.fx('creak', 0.6); }
     // Plates hitting the floor: a clang each, spaced out, and only the first few.
     if (bench.events.bounce > 0 && bench.dumpAge > 0.12 && time > clangAt && clangs < 6) { clangAt = time + 0.12; clangs += 1; audio.fx('clang', 0.3 + 0.1 * Math.min(3, bench.events.bounce)); }
-    if (running && tension > 0.5 && time > heckleAt) { heckleAt = time + 3.5; heckle(gym, HECKLES[Math.floor(time * 1.3) % HECKLES.length]!, false); }
-    stepSpring(natty, running ? 0.12 + 0.88 * tension : outcome ? 1 : 0.12, 3, 0.8, dt);
+    // The crowd chimes in every few seconds from about 1.2x, gentle at first, alarmed as the load climbs.
+    if (running && tension > 0.15 && time > heckleAt) { heckleAt = time + mix(3.6, 2.2, tension); heckle(gym, HECKLES[Math.min(HECKLES.length - 1, Math.floor(tension * HECKLES.length) + (heckles++ % 2))]!, false); }
+    stepSpring(natty, running ? poll : outcome ? 1 : 0.12, 3, 0.8, dt);
     if (running && !notified && natty.x > 0.5) { notified = true; audio.fx('notify', 0.6); }
-    stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
+    // The outcome word waits for the bar to land.
+    stepSpring(pop, outcome && !bench.impactPending ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
+    punchHold = Math.max(0, punchHold - real);
+    if (punchHold <= 0) stepSpring(punch, 0, 7, 1, real);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -261,7 +292,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the bar landing and eases back out.
-      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1);
       ctx.translate(head.x, head.y);
       ctx.scale(k, k);
       ctx.translate(-head.x, -head.y);
@@ -273,7 +304,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawPuffs(ctx, gym);
     if (outcome && pop.x > 0.02) {
       ctx.save();
-      ctx.translate(head.x, head.y - 60);
+      // Low enough to leave the spotter's SELL notification readable above it.
+      ctx.translate(head.x, head.y - 40);
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
@@ -283,6 +315,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     ctx.restore();
     if (flash > 0.01) { ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * flash})`; ctx.fillRect(0, 0, 960, 540); }
+    if (fade > 0) fade = Math.max(0, fade - real / 0.35);
     drawPhoneOverlay(ctx, gym, !outcome);
     drawPoll(ctx, clamp(natty.x, 0, 1), !outcome, time, reduced);
 
@@ -308,10 +341,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 24, 514, 56, colour, 'left');
+    // Both readouts keep to their own half of the floor however long the round runs.
+    memeText(ctx, `${multiplier.toFixed(2)}×`, 24, 514, 56, colour, 'left', 420);
     ctx.restore();
     const plates = Math.min(PLATE_AT.length, bench.nextPlate);
-    memeText(ctx, `${Math.round(45 + multiplier * 100)} LBS · ${plates * 2} PLATES`, 936, 514, 24, outcome ? '#ff9db0' : '#e7f4f0', 'right');
+    memeText(ctx, `${Math.round(45 + multiplier * 100)} LBS · ${plates * 2} PLATES`, 936, 514, 24, outcome ? '#ff9db0' : '#e7f4f0', 'right', 420);
+    if (fade > 0.01) { ctx.fillStyle = `rgba(28, 31, 38, ${fade * fade})`; ctx.fillRect(0, 0, 960, 540); }
   }
 
   return { draw };
