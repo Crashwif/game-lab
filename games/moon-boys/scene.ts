@@ -46,21 +46,24 @@ type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
 const MAX_PIXEL_RATIO = 1.5;
-/** Seconds of the crash that play out even when the next round's betting opens sooner (the emulator waits 2 s). */
-const REVEAL_HOLD = CTO + 1.2;
+/** Seconds of the crash that play out into the next round's betting (the emulator waits 2 s): up to the rug, so the pad still gets about 2 s. */
+const REVEAL_HOLD = RUG + 1.2;
 /** The multipliers the milestone stingers play at. */
 const RUNGS = [1.3, 1.8, 2.4, 3.3, 4.2, 5.5, 6.9, 10, 15, 25, 50, 100];
-/** The wire snap: a short freeze, then slow motion. */
-const FREEZE_S = 0.06;
+/** The wire snap: a freeze with the lens punched in, then slow motion. */
+const FREEZE_S = 0.15;
 const SLOW_S = 0.3;
 const SLOW_RATE = 0.35;
 type Confetti = { x: number; y: number; vx: number; vy: number; age: number; life: number; colour: string; size: number };
+
+/** After a bail: how far it went on without you. */
+const REGRET: [number, string][] = [[1.15, 'BAILED'], [1.5, 'IT KEEPS PUMPING'], [2, "DON'T LOOK UP"], [3, 'PROFIT IS PROFIT'], [6, 'PAPER HANDS, SAFE HANDS'], [Infinity, 'THEY CAN HAVE THE MOON']];
 
 function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured: Secured | null, event: string | null): string {
   if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'CALLED IT' : 'IT WAS A SOUNDSTAGE';
   if (view.phase === 'betting') return 'T-MINUS WHENEVER';
   if (view.phase !== 'running') return 'GM MOONBOYS';
-  if (secured) return 'BAILED';
+  if (secured) return REGRET.find(([r]) => m * 100 < r * secured.x100)![1];
   if (event) return event;
   if (m < 1.3) return 'LIFTOFF (TRUST ME)';
   if (m < 1.8) return 'NUMBER GO UP';
@@ -69,7 +72,6 @@ function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured
   if (m < 4.2) return "DON'T LOOK DOWN";
   if (m < 5.5) return 'THE WIRE IS A FEATURE';
   if (m < 6.9) return 'THE MOON IS BIDDING';
-  if (m < 7.3) return 'NICE';
   if (m < 10) return 'NEXT STOP URANUS';
   if (m < 15) return 'THE MOON IS SWEATING';
   if (m < 25) return 'STILL FAKE STILL PUMPING';
@@ -78,7 +80,7 @@ function captionFor(view: SceneView, m: number, outcome: Outcome | null, secured
 }
 
 function popFor(outcome: Outcome, crashX100: number): [string, string] {
-  if (outcome === 'called') return ['CALLED IT', '#8ff0ff'];
+  if (outcome === 'called') return ['DODGED THE RUG', '#8ff0ff'];
   if (crashX100 < 105) return ['FAILED TO LAUNCH', '#ff4d6d'];
   return outcome === 'rekt' ? ['RUG PULLED', '#ff4d6d'] : ['THE MOON WAS FAKE', '#ffe27a'];
 }
@@ -219,12 +221,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     const elapsed = view.elapsed / 1000;
     stepSpring(orbit, racing ? 0 : 1, 3, 1, dt);
     stepSpring(dip, dipTimer > 0 ? 1 : 0, 2.2, 0.9, dt);
+    // Never under the earth: a rocket that falls on the pad lies on it.
     const centre = cameraCentre(rocket);
+    centre[1] = Math.max(2, centre[1]);
     const az = 0.55 * Math.sin(time * 0.23 + 0.6);
     const pitch = -0.12 + 0.62 * dip.x;
     const closeup = elapsed > 45 && !crash.active && !reduced ? Math.pow(Math.max(0, Math.sin((elapsed - 45) * Math.PI / 18)), 4) : 0;
-    const dist = 15 + 4.5 * tension - 7 * closeup;
-    const chaseEye: Vec3 = [centre[0] + Math.sin(az) * Math.cos(pitch) * dist, centre[1] + Math.sin(pitch) * dist, centre[2] + Math.cos(az) * Math.cos(pitch) * dist];
+    // The chase pushes in as the tension climbs.
+    const dist = (17 - 5 * tension) * (1 - 0.35 * closeup);
+    const chaseEye = madd(centre, [Math.sin(az) * Math.cos(pitch), Math.sin(pitch), Math.cos(az) * Math.cos(pitch)], dist);
     const chaseTarget: Vec3 = [centre[0], centre[1] + 2.4 - 8.5 * dip.x, centre[2]];
     const oa = time * 0.22 + 0.4;
     const orbitEye: Vec3 = [Math.sin(oa) * 27, 9.5 + 2 * Math.sin(time * 0.5), Math.cos(oa) * 27];
@@ -239,11 +244,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       const k = 0.02 + 0.06 * tension;
       eye = add(eye, [Math.sin(time * 37) * k, Math.cos(time * 29) * k, 0]);
     }
+    eye[1] = Math.max(1.2, eye[1]);
     const forward = normalize(sub(target, eye));
     const roll = reduced ? 0 : (rocket.swayX.v * 0.01 + 0.03 * tension * Math.sin(time * 1.7)) * (1 - orbit.x);
     const up = rotateAbout([0, 1, 0], forward, roll);
     lookAt(viewMatrix, eye, target, up);
-    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) + 5 * tension - 8 * clamp(punch.x, 0, 1.2);
+    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) - 4 * tension - 5 * clamp(punch.x, 0, 1.2);
     const fov = ((66 + kick) * Math.PI) / 180;
     perspective(projMatrix, fov, W / H, 0.1, 1400);
     const right = normalize(cross(forward, up));
@@ -252,12 +258,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const env = flightEnvironment(eyeAlt, lastEngine, rocket.thrust, flash);
     r.begin(viewMatrix, projMatrix, eye, env, time, fov);
     r.drawSky({ space: spaceness(eyeAlt), studio: 0 });
-    drawGround(r, rocket.alt, time, labels);
+    drawGround(r, rocket.alt, labels);
     // The moon: far and small on the pad, filling the sky the higher it goes.
     const moonM = view.phase === 'running' ? m : crash.active ? crashX100 / 100 : 1;
     const placement = moonPlacement(centre, moonM);
-    drawMoon(world, r, placement, cam, centre, time, labels, reduced);
-    const drawn = drawRocket(rocket, r, labels, time, reduced);
+    drawMoon(world, r, placement, cam, centre, labels);
+    const drawn = drawRocket(rocket, r, labels, time, reduced, reduced ? 0 : 0.04 + 0.14 * tension, view.stake === null);
     lastEngine = drawn.engine;
     if (drawn.you) labels.push({ text: 'YOU', at: add(drawn.you, [1.7, 0.7, 0]), colour: '#c9f76b', size: orbit.x >= 0.5 ? 24 : 18 });
     drawWires(world, r, drawn.nose, time, labels, reduced);
@@ -282,7 +288,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 4.3, 0, 1);
+    // 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×: the climb out of the backyard is where the nerves are.
+    const tension = 1 - 1 / multiplier;
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     // The shell keeps the stake and the cash-out through the crash, until the next round's betting.
@@ -351,7 +358,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (!reduced) {
         freeze = FREEZE_S;
         slow = SLOW_S;
-        punch.v = 8;
+        punch.x = 1;
       }
     }
     stepRocket(rocket, { racing: running && !crash.active, multiplier, tension, crashed }, dt, reduced);
@@ -359,8 +366,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     for (const e of rocket.events) {
       if (e === 'boosters') { notice('SNIPERS DUMPED', 1.8, 0, 'kaching', 0.8); post(feed, 'dev', 'stage 1 separated (snipers)', 'news'); }
       if (e === 'core') { notice('BUNDLED', 1.5, 0, 'thud', 0.5); post(feed, 'rugdoctor', 'core stage sold · 60% of supply', 'news'); }
-      if (e === 'jeets' && rocket.wave > 1) { setEvent('JEETS LET GO', 1.3); post(feed, 'gm_ser', `${Math.round(6 + rocket.wave * 4)} holders let go`, 'leave'); audio.fx('boo', 0.4 + 0.4 * tension); if (rocket.wave > 3 && !reduced) audio.fx('scream', 0.35); }
-      if (e === 'bailed') { bailFlash = 1; post(feed, 'you', 'bailed (parachute)', 'news'); audio.fx('zap', 0.8); }
+      if (e === 'jeets') { if (!event) setEvent('JEETS LET GO', 1.3); post(feed, 'gm_ser', `${Math.round(6 + rocket.wave * 4)} holders let go`, 'leave'); audio.fx('boo', 0.4 + 0.4 * tension); if (rocket.wave > 3 && !reduced) audio.fx('scream', 0.35); }
+      if (e === 'bailed') { bailFlash = 1; post(feed, 'you', 'left the call (parachute)', 'leave'); audio.fx('zap', 0.8); }
     }
     for (const e of world.events) {
       if (e === 'eyes') { notice('THE MOON BLINKED', 2.2, 10, 'pop', 0.8); post(feed, 'moonboy69', 'did the moon just blink', 'chat'); }
@@ -368,7 +375,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (e === 'wires') { notice('WHY IS THERE A WIRE', 2.6, 15, 'creak', 1); post(feed, 'flatearth.sol', 'guys. the wire.', 'chat'); }
       if (e === 'bird') { notice("BIRDS AREN'T REAL", 2.4, world.bird.fired === 1 ? 6 : 2, 'camera', 0.8); }
       if (e === 'glove') { notice('HAND OF DEV', 2.8, 12, 'squeak', 0.9); post(feed, 'nasa_intern', 'that is a hand', 'chat'); }
-      if (e === 'wink') audio.fx('ding', 0.8);
+      if (e === 'wink') notice('NICE', 1.4, 0, 'ding', 0.8);
     }
     if (running && !crash.active && !flatSeen && multiplier >= FLAT_AT) {
       flatSeen = true;
@@ -385,23 +392,24 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (!rugHeard && crash.age >= RUG + 0.2) { rugHeard = true; audio.fx('whoosh', 0.9); audio.fx('engine', 0.4); }
       if (!ctoHeard && crash.age >= CTO + 1.1) { ctoHeard = true; audio.fx('cheer', 0.8); }
     }
-    if (stepFeed(feed, running && !secured && !crash.active, tension, dt, multiplier)) audio.fx('notify', 0.6);
+    // The call goes on without you after a bail; between rounds the holders join it as they climb aboard.
+    if (stepFeed(feed, running && !crash.active ? 2 : view.phase === 'betting' && !holding ? 1 : 0, tension, dt, multiplier)) audio.fx('notify', 0.6);
     eventTimer = Math.max(0, eventTimer - dt);
     if (eventTimer <= 0) event = null;
     launchAge += dt;
     bailFlash = Math.max(0, bailFlash - dt / 0.5);
-    // A tick of the countdown clock while the round loads, and the beat of the climb while it flies.
+    // The beat of the climb, ticking from 1.2 Hz up to 2.4 Hz with the tension, until you bail.
     const beatWas = Math.floor(beat / (Math.PI * 2));
-    beat += dt * (running ? 1.6 + 4 * tension : crashed ? 6 : 1.2);
-    if (running && !crash.active && Math.floor(beat / (Math.PI * 2)) !== beatWas && !reduced) audio.fx('tick', 0.25 + 0.4 * tension);
+    beat += dt * (running ? 7.5 * (1 + tension) : crashed ? 6 : 1.2);
+    if (running && !crash.active && !secured && Math.floor(beat / (Math.PI * 2)) !== beatWas && !reduced) audio.fx('tick', 0.25 + 0.4 * tension);
     if (running && !crash.active) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     audio.update(view.phase, secured ? 0.1 : tension);
-    rumble.update(rocket.thrust, (running || crash.active) && !outside(crash));
+    rumble.update(rocket.thrust, (running || crash.active) && !outside(crash), tension);
     stepSpring(punch, 0, 9, 0.5, dt);
     for (const k of confetti) { k.age += dt; k.x += k.vx * dt; k.vy += 480 * dt; k.y += k.vy * dt; k.vx *= Math.exp(-dt * 1.2); }
     confetti = confetti.filter((k) => k.age < k.life);
     // The verdict lands as the rocket starts to fall, and gives way to the studio's own beats after the cut.
-    stepSpring(pop, outcome && crash.age > SNAP + 0.3 && crash.age < CLAP ? 1 : 0, 16, 0.45, dt);
+    stepSpring(pop, outcome && crash.age > SNAP + 0.3 && crash.age < CLAP - 0.2 ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     stepSpring(launchPop, 0, 10, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured, event);
@@ -442,7 +450,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!outside(crash)) drawFeed(ctx, feed);
     if (!outside(crash)) {
       const sus = Math.min(100, susGained + 8 * Math.log2(running ? multiplier : 1));
-      drawPanel(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, running, holders: headline(running ? multiplier : 1, outcome !== null) + (running ? aboard(rocket) : 0), fuel: running ? 1 - tension * 0.92 : outcome ? 0 : 1, sus: outcome ? 100 : sus, stage: outcome ? 'STAGE: RUGGED' : stageText(rocket.boosters.attached, rocket.core.attached), time, reduced });
+      drawPanel(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, running, holders: headline(running ? multiplier : 1, outcome !== null) + (running ? aboard(rocket) : 0), fuel: running ? 0.05 + 0.95 / multiplier : outcome ? 0 : 1, sus: outcome ? 100 : sus, stage: outcome ? 'STAGE: RUGGED' : stageText(rocket.boosters.attached, rocket.core.attached), time, reduced });
     }
     if (bailFlash > 0.01 && !reduced) {
       ctx.fillStyle = `rgba(201,247,107,${0.3 * bailFlash})`;
@@ -456,6 +464,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(ctx, caption, 0, 0, 44, '#ffffff', 'center', 470);
     ctx.restore();
     if (view.phase === 'betting' && !outcome) memeText(ctx, "MOM'S BACKYARD SPACEPORT · $MOONBOYS", W / 2, 82, 18, '#ffd0dc', 'center');
+    else if (running && view.stake === null) memeText(ctx, "WATCHING FROM MOM'S PORCH", W / 2, 84, 17, '#ffd0dc', 'center');
     if (launchAge < 1.6 && running && !reduced) {
       ctx.save();
       ctx.globalAlpha = clamp((1.6 - launchAge) / 0.4, 0, 1);
@@ -485,7 +494,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.rotate(-0.08);
       const p = clamp(pop.x, 0, 1.3);
       ctx.scale(p, p);
-      memeText(ctx, text, 0, 0, 84, colour, 'center', 900);
+      memeText(ctx, text, 0, 0, 84, colour, 'center', 740);
       ctx.restore();
     }
     if (outside(crash)) {
@@ -510,7 +519,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = settled ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !settled) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${(settled ? crashX100 / 100 : multiplier).toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
+    memeText(ctx, `${(settled ? crashX100 / 100 : multiplier).toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right', 600);
     ctx.restore();
     if (!outside(crash)) {
       memeText(ctx, `HOLDERS ABOARD ${grouped(headline(running ? multiplier : 1, settled) + (running ? aboard(rocket) : 0))}`, 18, H - 18, 22, settled ? '#ff9db0' : '#eef1ff', 'left');

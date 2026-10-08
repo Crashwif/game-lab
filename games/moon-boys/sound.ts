@@ -9,8 +9,8 @@ import type { Audio } from './audio';
 
 export interface Sound {
   readonly enabled: boolean;
-  /** Every frame: how hard the engines burn (0 to 1) and whether the round runs. */
-  update(thrust: number, running: boolean): void;
+  /** Every frame: how hard the engines burn (0 to 1), whether the round runs, and the tension (0 to 1). */
+  update(thrust: number, running: boolean, tension: number): void;
   /** A plucked wire that goes slack. */
   twang(): void;
 }
@@ -71,12 +71,13 @@ export function createSound(audio: Audio): Sound {
     get enabled() {
       return audio.enabled;
     },
-    update(thrust, running) {
+    update(thrust, running, tension) {
       const ctx = ensure();
       if (!ctx || !rumble || !filter) return;
       const t = ctx.currentTime;
-      rumble.gain.setTargetAtTime(running ? 0.02 + 0.5 * thrust : 0.0, t, 0.12);
-      filter.frequency.setTargetAtTime(120 + 420 * thrust, t, 0.2);
+      // Louder and brighter as the tension climbs.
+      rumble.gain.setTargetAtTime(running ? 0.02 + (0.25 + 0.35 * tension) * thrust : 0, t, 0.12);
+      filter.frequency.setTargetAtTime(120 + (300 + 500 * tension) * thrust, t, 0.2);
     },
     twang() {
       const ctx = ensure();
