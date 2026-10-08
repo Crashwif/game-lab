@@ -97,6 +97,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Hello World](games/hello-world) | A minimal creator template: a commented scene, a greeting, a multiplier and a circle, with the shared controls and replay already connected | Playable |
 | [Know Your Clown](games/know-your-clown) | A Ministry of Airdrops conveyor, articulated scanners, an expressive applicant, eight timed verification acts and endless audits, a tinfoil escape, a crated identity and a single peanut; ElevenLabs music and effects | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
+| [Naked Short](docs/concepts.md#naked-short) | A free-throw rig on the multiplier, shorts on springs that slide to the ankles, a commentator who keeps asking, a referee's whistle as the cash-out, a seeded grab-and-trip | Concept |
 
 ### Lightweight games for the browser Studio
 
