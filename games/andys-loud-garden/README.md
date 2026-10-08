@@ -19,7 +19,7 @@ npm run preview -- andys-loud-garden
 
 The preview prints the replay address. Remove `?mode=replay` to join the emulator with local credits. Use **Join round**, then **Cash out**, or press **Space** while the game has focus. Embedded play uses the host's stake and credit controls. **Restart replay** repeats the verified fixture. **Sound** enables the procedural lo-fi loop, watering cues, cashout chime and police siren; audio starts muted.
 
-The shared shell handles waiting, betting, running, crash, reconnect and replay. The scene reads only its `SceneView`; plant size is a visual response to the supplied multiplier, and the rig only presents what the round already decided. A round met late (a hidden tab, a page opened mid-round) settles the rig straight into its pose. With reduced motion, the springs settle instead of swinging, so there is no bobbing, pouring cycle, water, ear flap or falling can, the plant sway, flashing lights and screen shake are suppressed, and the police arrive in their settled positions.
+The shared shell handles waiting, betting, running, crash, reconnect and replay. The scene reads only its `SceneView`; plant size is a visual response to the supplied multiplier, and the rig only presents what the round already decided. A round met late (a hidden tab, a page opened mid-round) settles the rig straight into its pose. The published game uses full animation regardless of browser motion preferences.
 
 `npm run build` writes the publishable HTML, JavaScript and CSS to `dist/andys-loud-garden/`. Validate with `npm run typecheck`, `npm run check` and `npm test`. The contribution slug and replay game ID are both `andys-loud-garden`; `gallery.json` registers this game independently of Balloon Pump.
 
@@ -29,7 +29,7 @@ For the character's contact and motion regressions, run:
 node --test games/andys-loud-garden/andy.test.mjs
 ```
 
-These checks cover fixed bone lengths, the supporting palm, planted feet through acceleration and turning at 30/60/120 fps, crash hit-stop and the hop, can collision, reduced motion, recovery for the next round, and the far arm's paint order: the whole arm stays behind the body, through every watering act, and only when he is caught does its forearm rise in front of the ear and behind the skull. The test file is excluded from the published bundle and source pack.
+These checks cover fixed bone lengths, the supporting palm, planted feet through acceleration and turning at 30/60/120 fps, crash hit-stop and the hop, can collision, explicit scene motion options, recovery for the next round, and the far arm's paint order: the whole arm stays behind the body, through every watering act, and only when he is caught does its forearm rise in front of the ear and behind the skull. The test file is excluded from the published bundle and source pack.
 
 ## Source and artwork
 
@@ -50,4 +50,4 @@ The gallery's `open` setting permits Game Lab remixing with no derivative royalt
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents a closer view of Andy and the first bed; the crash framing keeps his reaction visible alongside the arriving officer. A small overview preserves the whole garden, with readable scene text beneath it. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the prop oscillation.
+On narrow screens, `portrait.ts` presents a closer view of Andy and the first bed; the crash framing keeps his reaction visible alongside the arriving officer. A small overview preserves the whole garden, with readable scene text beneath it. The canonical shell still owns controls, round state and accepted cashouts.

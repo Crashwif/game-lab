@@ -10,10 +10,10 @@ A shill video shot in front of a green screen. The influencer stands in a crypto
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-Fictional influencer, fictional sponsors, no real platform or person. Nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place (no product held up, the aftermath already there) without replaying it or playing its cues. `prefers-reduced-motion` turns off the screen shake, the freeze frame and the punch-in.
+Fictional influencer, fictional sponsors, no real platform or person. Nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place (no product held up, the aftermath already there) without replaying it or playing its cues. The published game uses full animation regardless of browser motion preferences.
 
 ## Visual direction and small screens
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts.

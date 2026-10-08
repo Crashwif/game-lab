@@ -12,7 +12,7 @@ An accepted cashout is your simp closing the tab: the LED strips flash green, a 
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round (10.12×) used by the gallery.
 
-Chat rate, tips, the goal ladder, the tip menu, the short, the door and the viewer count all follow the displayed multiplier; nothing in the presentation changes the committed outcome. A scene that meets a round late (or a crash the tab slept through) jumps into place: the short already closed, the menu already flipped, the card already up. Innuendo only: nothing is ever revealed but him. `prefers-reduced-motion` turns off the shake, the LED pulse, the door rattle, the freeze frame and the static.
+Chat rate, tips, the goal ladder, the tip menu, the short, the door and the viewer count all follow the displayed multiplier; nothing in the presentation changes the committed outcome. A scene that meets a round late (or a crash the tab slept through) jumps into place: the short already closed, the menu already flipped, the card already up. Innuendo only: nothing is ever revealed but him. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the OnlyFrens URL it prints. Join with 50 local credits, then cash out during a running round to unsubscribe. `npm run build` produces the three publishable files in `dist/onlyfrens/`.
 
@@ -20,4 +20,4 @@ Run `npm run dev` from the repository root and open the OnlyFrens URL it prints.
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts.

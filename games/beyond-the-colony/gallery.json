@@ -1,0 +1,16 @@
+{
+  "name": "Beyond the Colony",
+  "hook": "I resign from being normal.",
+  "tagline": "An unhinged existential action comedy: a penguin belly-slides past compliance drones, rejects a seal boss and becomes a cosmic overman. Cash out to ghost HR; the backend crash dumps the walkout straight back into a cubicle. Independent Nietzschean Penguin community concept.",
+  "tags": [
+    "Existential slapstick",
+    "Articulated penguin",
+    "Workplace satire"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 15
+  }
+}

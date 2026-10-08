@@ -185,7 +185,7 @@ export interface KitchenDrive {
   fear: number;
   time: number;
   traderGone: boolean;
-  /** prefers-reduced-motion: the loose magnets and the cursor stop shivering. */
+  /** The reduced fixture holds the loose magnets and cursor still. */
   reduced: boolean;
 }
 

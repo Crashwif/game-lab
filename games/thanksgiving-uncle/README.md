@@ -15,7 +15,7 @@ An accepted cash-out is grace: Grandma wakes up, stands with her cane and says G
 
 Rick's chair and boots sit within the landscape frame with floor space below the legs, including during the crash camera punch. The portrait close-up includes the chair's feet and the family's heads. Grandma's side chair has legs and a lower stretcher behind the table edge. The niece's bob ends beside her cheeks, with a visible neck separating her chin from the band tee.
 
-Civility, the lines, the cart, the sign, the dog and the HUD all follow the displayed multiplier; nothing drawn here changes the committed outcome. The wall break is seeded from the crash point so a replay throws the pieces the same way every time. A scene that opens mid-round or on a crashed round settles into place: the last lines up, the civility where it would be, the truck already in and the pieces where they fell. `prefers-reduced-motion` removes the shake, the head jitter, the flashing lights, the hit-stop and the camera punch. Sound is opt-in through the Sound button.
+Civility, the lines, the cart, the sign, the dog and the HUD all follow the displayed multiplier; nothing drawn here changes the committed outcome. The wall break is seeded from the crash point so a replay throws the pieces the same way every time. A scene that opens mid-round or on a crashed round settles into place: the last lines up, the civility where it would be, the truck already in and the pieces where they fell. The published game uses full animation regardless of browser motion preferences. Sound is opt-in through the Sound button.
 
 Run `npm run dev` from the repository root and open the Thanksgiving Uncle URL it prints. Join with 50 local credits, then cash out during a running round to have Grandma say grace. `npm run build` produces the three publishable files in `dist/thanksgiving-uncle/`.
 
@@ -23,4 +23,4 @@ Run `npm run dev` from the repository root and open the Thanksgiving Uncle URL i
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts.

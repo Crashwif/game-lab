@@ -34,7 +34,6 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 #restart>span[aria-hidden=true]{visibility:hidden}
 [data-mode=embedded]::-webkit-scrollbar{display:none}
 @media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
-@media (prefers-reduced-motion:reduce){button:active{transform:none}}
 /* game */
 :root{--bg:#24203f;--fg:#28243b;--accent:#c4f568;--on-accent:#25273c;--canvas:#edf1f0;color-scheme:light}
 body{font-family:Tahoma,Verdana,system-ui,sans-serif;background-color:var(--bg);background-image:radial-gradient(#524c67 1px,transparent 1px);background-size:6px 6px}
@@ -85,4 +84,3 @@ canvas:focus-visible{outline:3px solid #8370d1;outline-offset:-3px}
   #gameplay-help{font-size:9px;line-height:1.4;text-align:center}
   #gameplay-help>span{display:block;margin-left:0}
 }
-@media(prefers-reduced-motion:reduce){.controls button:active{transform:none}}

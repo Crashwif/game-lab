@@ -56,7 +56,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-The browser suite covers catalog replay/crash/restart on a small screen, the shell's room-curve handling and audio playback. Also exercise live waiting, betting, normal play, instant crash, accepted cash-out, a disconnected host and reduced motion. The [integration guide](docs/integration.md#long-round-presentation) includes fixtures for reviewing long rounds and late entry.
+The browser suite covers catalog replay/crash/restart on a small screen, the shell's room-curve handling and audio playback. Also exercise live waiting, betting, normal play, instant crash, accepted cash-out, a disconnected host and both browser motion preferences. The [integration guide](docs/integration.md#long-round-presentation) includes fixtures for reviewing long rounds and late entry.
 
 ## Reference games
 
@@ -97,11 +97,16 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Thanksgiving Uncle](games/thanksgiving-uncle) | The other side of the table: an uncle seen from behind whose theories deepen with the curve, a dad whose smile freezes wider and a niece whose eyes roll further, a smart speaker that mishears and orders, a sign that flips to zero, a dog revving the truck in the window, Grandma's grace on a cash-out, a seeded truck through the wall with the turkey on the hood | Playable |
 | [Hello World](games/hello-world) | A minimal creator template: a commented scene, a greeting, a multiplier and a circle, with the shared controls and replay already connected | Playable |
 | [Know Your Clown](games/know-your-clown) | A Ministry of Airdrops conveyor, articulated scanners, an expressive applicant, eight timed verification acts and endless audits, a tinfoil escape, a crated identity and a single peanut; ElevenLabs music and effects | Playable |
+| [Rage Quit](games/rage-quit) | An articulated office rage comic with alternating fist strokes, invasive prompts and scam gurus, reactive desk props, a confirmed rolling exit and a room-collapse payoff | Playable |
+| [Beyond the Colony](games/beyond-the-colony) | An existential penguin expedition with broad waddles, leaps and belly slides, workplace enforcers and absurd summit encounters, an avalanche punchline and a confirmed refuge escape | Playable |
+| [MUMU Bull Run](games/mumu-bull-run) | A white bull with a jointed gallop, physical FUD-stall and bear-podcast encounters, a confirmed victory exit and a crash into customer support | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
 
 Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
+
+Rage Quit, Beyond the Colony and MUMU Bull Run use Desktop Game Studio for source remixing. Their character rigs, staged encounters and close portrait compositions fit the catalog budget; their compiled three-file bundles use the same Studio renderer upload.
 
 These are conservative input bounds calculated from UTF-8 source bytes, the system prompt and an allowance; `clips.json` counts by clip names rather than embedded audio. Artwork embedded in source does count. Run `npm run check` for the current totals instead of estimating from file count. See [`scripts/gallery/check.mjs`](scripts/gallery/check.mjs) for the calculation and [`CONTRIBUTING.md`](CONTRIBUTING.md) for source-pack limits.
 
@@ -111,13 +116,15 @@ Every game's `main.ts` and `audio.ts` are copies of the canonical files in [`scr
 
 The shell connects to the local emulator or the platform's embedded bridge, drives `scene.ts` from room state, and handles controls, status, notices, resizing and replay. It stops offering cash-out after two seconds without a server frame. Embedded games hide Join because the host owns betting, keep Cash out, and report their height to the host. Replay uses the frame clock and pauses while the picture is hidden. See [embedded mode](docs/integration.md#embedded-mode) for the host contract.
 
+Published games use full character and environment animation. The shell calls `createScene()` without an alternate motion option; browser and operating-system motion preferences do not change the scene.
+
 A scene calls `pageAudio({ style, crash })` from `./audio`, then `update(phase, tension)` each frame and cues such as `cashout()`, `crash()` and `fx(name)` when appropriate. [`audio.ts`](scripts/shell/audio.ts) lists the available styles, effects and options. The helper owns the Sound button and page lifecycle, and goes quiet while the page or picture is hidden.
 
-Every game has a `clips.json`: `{}` uses procedural sound, as Hello World does. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
+Every game has a `clips.json`: `{}` uses procedural sound, as Hello World, Rage Quit, Beyond the Colony and MUMU Bull Run do. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
 
 ### Generating clips with ElevenLabs
 
-Audio generation is optional. [`scripts/audio/prompts.json`](scripts/audio/prompts.json) contains the requests; Hello World's music prompt is ready to use, but the template ships without a recording. Supply `ELEVENLABS_API_KEY` through your environment only. Music packing also needs FFmpeg with libopus on PATH, or `FFMPEG_PATH` pointing to it.
+Audio generation is optional. [`scripts/audio/prompts.json`](scripts/audio/prompts.json) contains a music request for every game; games with procedural sound ship without a recording. Supply `ELEVENLABS_API_KEY` through your environment only. Music packing also needs FFmpeg with libopus on PATH, or `FFMPEG_PATH` pointing to it.
 
 ```sh
 # Inspect the template's request without calling the API or writing files.

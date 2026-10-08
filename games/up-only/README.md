@@ -20,7 +20,7 @@ The coins are a skill score and nothing else. A bag is only banked by a cash-out
 
 Join with **Ape in**, flap, then **Cash out** before the chart goes. Space triggers the currently available shell action; the flap keys never do. The embedded host owns joining and credits; only the cash-out is offered inside the frame. Flapping, the bag and the bot change nothing about the committed result. Credits have no monetary value.
 
-Reduced motion removes the shake, the flash, the hit-stop, the spins, the star twinkle and most of the coin spray. A round met mid-way (a hidden tab, a late join) settles straight into its phase; a tab hidden a moment mid-round gets its chart and bag back.
+The published game uses full animation regardless of browser motion preferences. A round met mid-way (a hidden tab, a late join) settles straight into its phase; a tab hidden a moment mid-round gets its chart and bag back.
 
 All visuals are procedural Canvas drawings with no external image, font or network dependencies. The shiba is an original cartoon dog in a knitted hat.
 

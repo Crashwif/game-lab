@@ -21,7 +21,7 @@ test('all catalog bundles play their verified recording, crash and restart witho
   t.after(()=>new Promise(r=>server.close(r)));
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
   for(const game of GAMES) await t.test(game,async()=>{
-    const page=await browser.newPage({viewport:{width:375,height:812}});
+    const page=await browser.newPage({viewport:{width:375,height:812},reducedMotion:'reduce'});
     try{
       const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
       const clockStart = new Date('2026-01-01T00:00:00Z');

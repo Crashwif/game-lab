@@ -10,6 +10,6 @@ The liquidity pool is an actual pool. A backyard party at golden hour: a DJ Woja
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round (5.68×) used by the gallery.
 
-Water level, holder count, slosh, murk, the chain, the helicopter's passes and the whale all follow the displayed multiplier; nothing in the presentation changes the committed outcome. A round met late (or a crash missed while the tab was hidden) settles into place quietly: the crowd afloat, the pool drained, the dev already gone. `prefers-reduced-motion` turns off the screen shake, the hit-stop and slow motion, the camera punch, the dev's tremble, the rotor blur and the selfie flash. Sound is opt-in through the Sound button.
+Water level, holder count, slosh, murk, the chain, the helicopter's passes and the whale all follow the displayed multiplier; nothing in the presentation changes the committed outcome. A round met late (or a crash missed while the tab was hidden) settles into place quietly: the crowd afloat, the pool drained, the dev already gone. The published game uses full animation regardless of browser motion preferences. Sound is opt-in through the Sound button.
 
 Run `npm run dev` from the repository root and open the Exit Liquidity URL it prints. Join with 50 local credits, then cash out during a running round to climb out. `npm run build` produces the three publishable files in `dist/exit-liquidity/`.

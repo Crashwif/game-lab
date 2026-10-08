@@ -12,6 +12,6 @@ The boiler is a money printer at a shady brokerage (a brass `MONEY PRINTER` / `M
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round (8.74×) used by the gallery.
 
-Everything follows the displayed multiplier; nothing in the presentation changes the committed outcome. Sound stays off until the player turns it on, which is also the user gesture autoplay rules require; the choice is remembered and starts with the next click. `prefers-reduced-motion` turns off the shake and vibration and softens the blow-out whiteout.
+Everything follows the displayed multiplier; nothing in the presentation changes the committed outcome. Sound stays off until the player turns it on, which is also the user gesture autoplay rules require; the choice is remembered and starts with the next click. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Boiler Room URL it prints. Join with 50 local credits, then cash out during a running round to go offshore. `npm run build` produces the three publishable files in `dist/boiler-room/`.

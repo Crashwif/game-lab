@@ -1,0 +1,15 @@
+{
+  "name": "MUMU Bull Run",
+  "hook": "Bears have a podcast. MUMU has horns.",
+  "tagline": "A roaring arena of smug podcasts, cardboard gurus and short-seller robots. Smash the thesis, dodge the cope, and take the victory parade before customer support starts hiring.",
+  "tags": [
+    "Crypto satire",
+    "Physical comedy",
+    "MUMU community"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 7
+  }
+}

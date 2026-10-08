@@ -14,6 +14,6 @@ Sisyphus, but the boulder is your token. A degen ape pushes a giant coin up a hi
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round (5.09×) used by the gallery.
 
-Distance up the hill, coin size, bump cadence, the market-cap readout, the milestones, the dev's hand and the airdrops all follow the displayed multiplier; nothing in the presentation changes the committed outcome. `prefers-reduced-motion` turns off the screen shake, the hit-stop, the slow motion, the camera punch-in, the dev's tremble and the twinkle. Sound is opt-in through the Sound button and stays off until it is pressed.
+Distance up the hill, coin size, bump cadence, the market-cap readout, the milestones, the dev's hand and the airdrops all follow the displayed multiplier; nothing in the presentation changes the committed outcome. The published game uses full animation regardless of browser motion preferences. Sound is opt-in through the Sound button and stays off until it is pressed.
 
 Run `npm run dev` from the repository root and open the King of the Hill URL it prints. Join with 50 local credits, then cash out during a running round to call the Lambo. `npm run build` produces the three publishable files in `dist/king-of-the-hill/`.

@@ -116,7 +116,7 @@ export function settleJar(j: JarState, multiplier: number, tension: number): voi
   j.band = Math.floor(honeyLevel(multiplier) * 10);
 }
 
-/** `reduced` (prefers-reduced-motion) holds the lid still at a tilt that follows the tension and slows the drips. */
+/** `reduced` holds the lid still at a tilt that follows the tension and slows the drips. */
 export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; reduced: boolean; }
 
 export function stepJar(j: JarState, drive: JarDrive, dt: number): void {

@@ -10,6 +10,6 @@ Lightweight on purpose: a scene, one part file, the motion toolkit and the page,
 - `audio.ts`: the shared page audio (a copy of the shell's, never edited here). Synthwave that tightens with the multiplier; the crash is a boom. Cues: the engine at liftoff, a milestone at each rung, a scream as a jeet bails, a whoosh for the separation and the chute, a pop for the pod, the register on a cash-out.
 - `main.ts`: the shared page shell. `replay.json`: a verified 9.07× round for the gallery.
 
-The altitude, the flame and the moon follow the displayed multiplier; nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place. `prefers-reduced-motion` removes the rumble, the burst's hit-stop, the flame flicker and the wobble, and softens the flash.
+The altitude, the flame and the moon follow the displayed multiplier; nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Wen Moon URL it prints. Join with 50 local credits, then cash out during a running round to eject. `npm run build` produces the three publishable files in `dist/wen-moon/`.

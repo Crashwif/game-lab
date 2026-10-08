@@ -12,6 +12,7 @@ const PORTRAIT_GAMES = [
   'not-financial-advice', 'family-meeting', 'thanksgiving-uncle', 'hopium-drip',
   'i-got-hacked', 'know-your-clown', 'bull-run', 'thin-ice', 'king-of-the-hill',
   'pyramid-scheme', 'the-trenches',
+  'rage-quit', 'beyond-the-colony', 'mumu-bull-run',
 ];
 
 // A short host frame must still select the portrait composition by width. If it

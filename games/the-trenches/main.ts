@@ -37,12 +37,11 @@ const framed = window.parent !== window;
 const mode: 'replay' | 'embedded' | 'standalone' = new URLSearchParams(location.search).get('mode') === 'replay' ? 'replay' : framed ? 'embedded' : 'standalone';
 root.dataset.mode = mode;
 if (framed) root.dataset.framed = '';
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Keyboard hints only where a keyboard is likely (a fine pointer that can hover). */
 const keyboardHints = matchMedia('(hover: hover) and (pointer: fine)');
 
 const view: SceneView = { phase: 'waiting', currentX100: 100, elapsed: 0, crashAge: 0, stake: null, cashoutX100: null, payout: null };
-let scene = createScene({ reducedMotion });
+let scene = createScene();
 /** The round in view, and the round the scene last drew. */
 let roundKey: string | null = null;
 let drawnRound: string | null = null;
@@ -114,7 +113,7 @@ function drawScene(now: number): void {
   lastDrawnAt = now;
   if ((newRound && view.phase !== 'betting') || lostSight) {
     disposeScene();
-    scene = createScene({ reducedMotion });
+    scene = createScene();
   }
   if (newRound) drawnRound = roundKey;
   ctx.setTransform(canvas.width / 960, 0, 0, canvas.height / 540, 0, 0);
