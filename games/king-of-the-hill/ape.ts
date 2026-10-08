@@ -1,9 +1,11 @@
 /**
  * The ape: the degen pushing the coin. Feet trudge on the slope through
  * two-bone legs, hands ride the rim through two-bone arms, the body leans
- * harder as the hill steepens, and planted feet brace against bumps. A cashout hops him
- * into the Lambo; the crash has him let go and throw his hands up as the coin
- * comes back down (the brace), then flattens him into a pancake.
+ * harder as the hill steepens, and planted feet brace against bumps. A cashout has
+ * him let go and celebrate where he stands until the Lambo pulls up, then hop in;
+ * the crash has him let go, lean back and throw his hands up as the coin comes
+ * back down (the brace), then squashes him into a pancake. An ape who already
+ * cashed out dives clear toward the camera instead (the dodge).
  */
 import { type Spring, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { type Camera, type Point, heightAt, slopeAngle, toScreen } from './hill';
@@ -14,7 +16,11 @@ const FUR = '#827066';
 const FUR_LIGHT = '#bca48a';
 const MUZZLE = '#d9b99b';
 
-export type ApeMode = 'push' | 'boarding' | 'brace' | 'gone' | 'pancake';
+export type ApeMode = 'push' | 'exit' | 'boarding' | 'dodge' | 'brace' | 'gone' | 'pancake';
+/** How long the coin takes to squash him flat once it reaches him (scene time, so it runs slow after the hit-stop). */
+export const SQUASH_S = 0.12;
+/** How long the dive out of the picture takes. */
+export const DODGE_S = 0.6;
 
 export interface ApeState {
   mode: ApeMode;
@@ -30,15 +36,17 @@ export interface ApeState {
   fear: number;
   /** Where he was flattened, world x. */
   pancakeX: number;
-  /** Where he stands while he braces, world x: the coin no longer carries him. */
+  /** Where he stands once he lets go (bracing or cashing out), world x: the coin no longer carries him. */
   braceX: number;
+  /** When his hands started up at the crash, so they stay up through the squash. */
+  raiseAt: number;
   releasedHands: [Point, Point] | null;
 }
 
 export interface ApeDrive { anchor: ApeAnchor; walking: boolean; fear: number; bump: boolean }
 
 export function createApe(): ApeState {
-  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0, braceX: 0, releasedHands: null };
+  return { mode: 'push', time: 0, modeAge: 0, gait: createGait(), lean: spring(0), slip: spring(0), eyeOpen: spring(1), mouthOpen: spring(0.1), brow: spring(0), blinkAt: 2.4, fear: 0, pancakeX: 0, braceX: 0, raiseAt: 0, releasedHands: null };
 }
 
 export function resetApe(a: ApeState): void {
@@ -66,14 +74,17 @@ export function stepApe(a: ApeState, drive: ApeDrive, dt: number): void {
   a.fear = drive.fear;
   if (a.mode === 'push' && drive.bump) a.slip.v += 40;
   stepSpring(a.slip, 0, 8, 0.6, dt);
-  if (a.mode === 'push') stepGait(a.gait, apeBaseX(drive.anchor, a.slip.x), drive.walking, dt);
-  stepSpring(a.lean, a.mode === 'push' ? 0.35 + 0.5 * drive.fear : a.mode === 'brace' ? -0.3 : 0, a.mode === 'brace' ? 14 : 6, 0.6, dt);
+  // Once he lets go he stands where he is, but a foot caught mid-step still comes down.
+  stepGait(a.gait, a.mode === 'push' ? apeBaseX(drive.anchor, a.slip.x) : a.braceX, a.mode === 'push' && drive.walking, dt);
+  // A larger lean raises the shoulders off the coin: he rears back to brace, and stands tall to celebrate.
+  stepSpring(a.lean, a.mode === 'push' ? 0.35 + 0.5 * drive.fear : a.mode === 'brace' ? 1.05 : a.mode === 'exit' ? 0.95 : 0, a.mode === 'brace' ? 14 : 6, 0.6, dt);
   const shock = a.mode === 'pancake' || a.mode === 'brace';
+  const cheer = a.mode === 'exit' || a.mode === 'boarding' || a.mode === 'dodge';
   const blinking = a.time > a.blinkAt && a.time < a.blinkAt + 0.13;
   if (a.time >= a.blinkAt + 0.13) a.blinkAt = a.time + 2.2 + 2.6 * noise(a.blinkAt);
-  stepSpring(a.eyeOpen, shock ? 1.6 : blinking ? 0.08 : 1 + 0.3 * drive.fear, 24, 0.9, dt);
-  stepSpring(a.mouthOpen, shock ? 1 : 0.1 + 0.6 * drive.fear, 12, 0.8, dt);
-  stepSpring(a.brow, shock ? 1 : drive.fear, 10, 0.8, dt);
+  stepSpring(a.eyeOpen, shock ? 1.6 : blinking ? 0.08 : cheer ? 1.1 : 1 + 0.3 * drive.fear, 24, 0.9, dt);
+  stepSpring(a.mouthOpen, shock || cheer ? 1 : 0.1 + 0.6 * drive.fear, 12, 0.8, dt);
+  stepSpring(a.brow, shock ? 1 : cheer ? -0.4 : drive.fear, 10, 0.8, dt);
 }
 
 /** World anchor points for the rig behind the coin. */
@@ -92,24 +103,47 @@ export function apeHands(anchor: ApeAnchor): [Point, Point] {
   }) as [Point, Point];
 }
 
-/** The dev sold: he lets go where he stands and throws his hands up at what is coming back down. */
-export function brace(a: ApeState, anchor: ApeAnchor): void {
+/** He lets go where he stands, his hands starting from the grips they had. */
+function letGo(a: ApeState, anchor: ApeAnchor, mode: ApeMode): void {
   a.releasedHands = apeHandPose(a, anchor);
-  a.braceX = apeBaseX(anchor, a.slip.x);
-  a.mode = 'brace';
+  if (a.mode === 'push') a.braceX = apeBaseX(anchor, a.slip.x);
+  a.mode = mode;
   a.modeAge = 0;
-  a.lean.v -= 4;
 }
 
-/** Capture the grips before moving into the car. */
+/** The dev sold: he lets go, rears back and throws his hands up at what is coming back down. */
+export function brace(a: ApeState, anchor: ApeAnchor): void {
+  letGo(a, anchor, 'brace');
+  a.raiseAt = a.time;
+  a.lean.v += 5;
+}
+
+/** The cashout: he lets go of the coin at once and celebrates where he stands while the Lambo pulls up. */
+export function exitApe(a: ApeState, anchor: ApeAnchor): void {
+  letGo(a, anchor, 'exit');
+}
+
+/** He already cashed out when the dev sells: he dives clear, toward the camera. */
+export function dodgeApe(a: ApeState, anchor: ApeAnchor): void {
+  letGo(a, anchor, 'dodge');
+}
+
+/** Capture the grips (or the celebration) before moving into the car. */
 export function boardApe(a: ApeState, anchor: ApeAnchor): void {
-  a.releasedHands = apeHandPose(a, anchor);
-  a.mode = 'boarding'; a.modeAge = 0;
+  letGo(a, anchor, 'boarding');
+}
+
+/** The coin reaches him: a squash into the pancake, or (`settled`) the pancake already lying there. */
+export function flattenApe(a: ApeState, x: number, settled: boolean): void {
+  a.mode = 'pancake';
+  a.modeAge = settled ? 10 : 0;
+  a.pancakeX = x;
+  if (settled) a.braceX = x + 8;
 }
 
 /** Shared placement for the hips, planted soles and ankles, including the cashout hop. */
 export function apeFooting(a: ApeState, anchor: ApeAnchor) {
-  const baseX = a.mode === 'brace' ? a.braceX : apeBaseX(anchor, a.slip.x);
+  const baseX = a.mode === 'push' ? apeBaseX(anchor, a.slip.x) : a.braceX;
   // Average the footing beneath the body so entering the ramp does not snap the hips.
   const slope = Math.atan2(heightAt(baseX + 18) - heightAt(baseX - 18), 36);
   const along = { x: Math.cos(slope), y: Math.sin(slope) };
@@ -120,7 +154,7 @@ export function apeFooting(a: ApeState, anchor: ApeAnchor) {
   const hop = Math.sin(boarding * Math.PI) * 50;
   const hip = add(base, -boarding * 80, 66 + hop);
   const feet = a.gait.feet.map((foot) => {
-    const x = foot.x + (a.mode === 'boarding' ? baseX - (a.gait.baseX ?? baseX) : 0);
+    const x = foot.x + (a.mode === 'push' ? 0 : baseX - (a.gait.baseX ?? baseX));
     const angle = slopeAngle(x);
     const footNormal = { x: -Math.sin(angle), y: Math.cos(angle) };
     const ground = { x, y: heightAt(x) };
@@ -138,27 +172,56 @@ export function apeFooting(a: ApeState, anchor: ApeAnchor) {
     const dx = root.x - foot.ankle.x, dy = root.y - foot.ankle.y, distance = Math.hypot(dx, dy);
     if (distance > 87.9) { const excess = 1 - 87.9 / distance; hip.x -= dx * excess; hip.y -= dy * excess; }
   }
-  return { hip, feet, slope, add, boarding };
+  const shoulder = add(hip, 50 * Math.cos(a.lean.x) - 6, 42 + 26 * Math.sin(a.lean.x));
+  return { hip, feet, slope, add, boarding, shoulder, head: add(shoulder, 24, 26) };
 }
 
 /** Continuous world-space hand paths from the last actual grip. */
 export function apeHandPose(a: ApeState, anchor: ApeAnchor): [Point, Point] {
-  const { hip, add, boarding } = apeFooting(a, anchor);
-  const shoulder = add(hip, 50 * Math.cos(a.lean.x) - 6, 42 + 26 * Math.sin(a.lean.x));
-  const up = a.mode === 'brace' ? smoothstep(0, .24, a.modeAge) : 0;
-  const wave = Math.sin(a.time * 22) * 6 * up;
-  const targets = a.mode === 'boarding' ? [add(hip, -20, 60), add(hip, 10, 64)] : [add(shoulder, -26 + wave, 60 * up + 10), add(shoulder, 10 - wave, 66 * up + 12)];
-  if (a.mode !== 'brace' && a.mode !== 'boarding') return apeHands(anchor);
+  if (a.mode === 'push' || a.mode === 'gone') return apeHands(anchor);
+  const { hip, add, shoulder } = apeFooting(a, anchor);
+  let targets: Point[];
+  let blend: number;
+  if (a.mode === 'boarding') {
+    targets = [add(hip, -20, 60), add(hip, 10, 64)];
+    blend = smoothstep(0, .18, a.modeAge);
+  } else if (a.mode === 'exit' || a.mode === 'dodge') {
+    // Taking profits: arms up in a V against the sky (not the slope), the near fist pumping; diving clear, arms out.
+    const pump = a.mode === 'exit' ? Math.sin(a.modeAge * 13) * 10 : 0;
+    targets = a.mode === 'exit' ? [{ x: shoulder.x - 52, y: shoulder.y + 98 }, { x: shoulder.x + 44, y: shoulder.y + 100 + pump }] : [add(shoulder, -40, 40), add(shoulder, -30, 52)];
+    blend = smoothstep(0, a.mode === 'exit' ? .2 : .12, a.modeAge);
+  } else {
+    // Bracing (and through the squash): hands thrown up, waving.
+    blend = smoothstep(0, .18, a.time - a.raiseAt);
+    const wave = Math.sin(a.time * 22) * 6 * blend;
+    targets = [add(shoulder, -26 + wave, 60 * blend + 10), add(shoulder, 10 - wave, 66 * blend + 12)];
+  }
   const from = a.releasedHands ?? apeHands(anchor);
-  const blend = a.mode === 'boarding' ? smoothstep(0, .18, a.modeAge) : up;
   return targets.map((target, i) => ({ x: mix(from[i]!.x, target.x, blend), y: mix(from[i]!.y, target.y, blend) })) as [Point, Point];
+}
+
+/** How far the coin's rim is from his torso, head or hands: it has reached him once this is zero or less. */
+export function apeGap(a: ApeState, anchor: ApeAnchor, centre: Point, r: number): number {
+  const { hip, shoulder, head } = apeFooting(a, anchor);
+  const dx = shoulder.x - hip.x, dy = shoulder.y - hip.y;
+  const t = clamp(((centre.x - hip.x) * dx + (centre.y - hip.y) * dy) / (dx * dx + dy * dy), 0, 1);
+  const torso = Math.hypot(centre.x - hip.x - dx * t, centre.y - hip.y - dy * t) - 28;
+  const near = (p: Point, radius: number): number => Math.hypot(centre.x - p.x, centre.y - p.y) - radius;
+  return Math.min(torso, near(head, 22), ...apeHandPose(a, anchor).map((h) => near(h, 9))) - r;
+}
+
+/** Where the YOU tag points: his head, squashed down with him onto the pancake. */
+export function apeHead(a: ApeState, anchor: ApeAnchor): Point {
+  const k = a.mode === 'pancake' ? 1 - (1 - clamp(a.modeAge / SQUASH_S, 0, 1)) ** 2 : 0;
+  const flat = { x: a.pancakeX, y: heightAt(a.pancakeX) - 6 };
+  if (k >= 1) return flat;
+  const head = apeFooting(a, anchor).head;
+  return k === 0 ? head : { x: mix(head.x, flat.x, k), y: mix(head.y, flat.y, k) };
 }
 
 /** Keep the combined character/coin envelope inside the safe picture while springs follow it. */
 export function frameApe(camera: Camera, a: ApeState, anchor: ApeAnchor): Camera {
-  const { hip, feet, add } = apeFooting(a, anchor);
-  const shoulder = add(hip, 50 * Math.cos(a.lean.x) - 6, 42 + 26 * Math.sin(a.lean.x));
-  const head = add(shoulder, 24, 26);
+  const { hip, feet, head } = apeFooting(a, anchor);
   const points = [hip, head, ...feet.map(f => f.sole), ...apeHandPose(a, anchor),
     { x: anchor.centre.x - anchor.r, y: anchor.centre.y - anchor.r }, { x: anchor.centre.x + anchor.r, y: anchor.centre.y + anchor.r }];
   const minX = Math.min(...points.map(p => p.x)) - 24, maxX = Math.max(...points.map(p => p.x)) + 24;
@@ -166,7 +229,7 @@ export function frameApe(camera: Camera, a: ApeState, anchor: ApeAnchor): Camera
   return { x: clamp(camera.x, maxX - 390, minX + 390), y: clamp(camera.y, maxY - 205, minY + 195) };
 }
 
-export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState, anchor: ApeAnchor): void {
+export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState, anchor: ApeAnchor, reduced = false): void {
   if (a.mode === 'gone') return;
   const S = (p: Point): Point => toScreen(cam, p);
   ctx.save();
@@ -182,12 +245,17 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
     segment(root, joint, width + 5, INK); segment(joint, end, width + 5, INK);
     segment(root, joint, width, colour); segment(joint, end, width, colour);
   }
-  if (a.mode === 'pancake') {
+  /** The pancake, jiggling to rest after the squash hands over to it. */
+  function pancake(alpha: number) {
     const x = a.pancakeX;
-    const angle = slopeAngle(x);
     const p = S({ x, y: heightAt(x) });
+    const age = Math.max(0, a.modeAge - SQUASH_S);
+    const jiggle = Math.exp(-age * 7) * Math.sin(age * 34);
+    ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(p.x, p.y);
-    ctx.rotate(-angle);
+    ctx.rotate(-slopeAngle(x));
+    ctx.scale(1 + 0.1 * jiggle, 1 - 0.35 * jiggle);
     ctx.fillStyle = FUR; ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.ellipse(0, -5, 62, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = MUZZLE;
@@ -195,9 +263,33 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
     ctx.strokeStyle = INK; ctx.lineWidth = 2;
     for (const ex of [30, 42]) { ctx.beginPath(); ctx.moveTo(ex - 2.5, -9); ctx.lineTo(ex + 2.5, -4); ctx.moveTo(ex + 2.5, -9); ctx.lineTo(ex - 2.5, -4); ctx.stroke(); }
     ctx.restore();
+  }
+  const squash = a.mode === 'pancake' ? clamp(a.modeAge / SQUASH_S, 0, 1) : 0;
+  if (squash >= 1) {
+    pancake(1);
+    ctx.restore();
     return;
   }
-  const { hip, feet, slope, add, boarding } = apeFooting(a, anchor);
+  if (a.mode === 'dodge') {
+    // The dive: he grows toward the camera, rolls back and drops out of the bottom of the picture (under reduced
+    // motion he just fades out where he stands).
+    const k = smoothstep(0, DODGE_S, a.modeAge);
+    if (reduced) ctx.globalAlpha = 1 - k;
+    else {
+      const g = S(apeFooting(a, anchor).hip);
+      ctx.translate(g.x - 60 * k, g.y + 420 * k * k); ctx.rotate(-0.9 * k); ctx.scale(1 + 0.8 * k, 1 + 0.8 * k); ctx.translate(-g.x, -g.y);
+    }
+  }
+  if (squash > 0) {
+    // Crushed about his footing: flatter across the slope and wider along it, most of it in the first instant,
+    // with the pancake fading in underneath to take over.
+    if (squash > 0.5) pancake(smoothstep(0.5, 1, squash));
+    const k = 1 - (1 - squash) ** 2;
+    const g = S({ x: a.braceX, y: heightAt(a.braceX) });
+    const angle = slopeAngle(a.braceX);
+    ctx.translate(g.x, g.y); ctx.rotate(-angle); ctx.scale(1 + 0.4 * k, 1 - 0.88 * k); ctx.rotate(angle); ctx.translate(-g.x, -g.y);
+  }
+  const { hip, feet, slope, add, boarding, shoulder, head } = apeFooting(a, anchor);
   function drawFoot(index: number, colour: string) {
     const foot = feet[index]!;
     const p = S(foot.sole);
@@ -209,8 +301,6 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
     ctx.restore();
   }
   const lean = a.lean.x;
-  const shoulder = add(hip, 50 * Math.cos(lean) - 6, 42 + 26 * Math.sin(lean));
-  const head = add(shoulder, 24, 26);
   const hands = apeHandPose(a, anchor);
   // Far leg, far arm, body, near leg, head, near arm.
   // Knees bend uphill; elbows bend the other way in the y-up world frame.

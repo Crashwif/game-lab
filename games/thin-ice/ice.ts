@@ -5,9 +5,10 @@
  * around her breaks along seeded rays and rings into floes that tilt, bob and
  * drift apart on open water. The bagholders thaw as she passes and reach up
  * through the ice for her ankles with the tension; at the shatter a few of
- * them surface on the floes, still holding their signs.
+ * them surface on the floes, still holding their signs. Between rounds the
+ * lake refreezes: the break, the cracks and the trails fade back into the ice.
  */
-import { type Spring, clamp, mix, mulberry32, noise, spring, stepSpring } from './motion';
+import { type Spring, clamp, mix, mulberry32, noise, smoothstep, spring, stepSpring } from './motion';
 
 /** Screen y of the far edge of the ice (the shore line) and the near edge. */
 export const ICE_FAR_Y = 236;
@@ -23,6 +24,9 @@ export interface Crack {
   points: Point[];
   growth: number;
   width: number;
+  /** Growth per second (1.6 when unset); a racer eases out as it arrives, its tip glinting on the way. */
+  rate?: number;
+  racer?: boolean;
 }
 
 export interface Floe {
@@ -34,6 +38,11 @@ export interface Floe {
   phase: number;
   sink: number;
   offset: Point;
+  /** How far it drifts out from the break (px) and how fast (s); the inner wedges also tip their points under. */
+  spread: number;
+  settle: number;
+  tipped: Point[];
+  tip: number;
 }
 
 export interface Ripple { age: number; life: number; r: number }
@@ -56,10 +65,13 @@ export interface IceState {
   thaw: Map<number, number>;
   surfacers: Surfacer[];
   events: { surfaced: number };
+  /** Between rounds the lake refreezes: everything drawn on it fades out from 1, then it is reset. */
+  fade: number;
+  refreezing: boolean;
 }
 
 export function createIce(): IceState {
-  return { cracks: [], trails: [[], []], floes: [], ripples: [], shattered: false, shatterAt: { x: 0, y: 0 }, shatterAge: 0, sheen: 0, crackClock: 0, rippleClock: 0, thaw: new Map(), surfacers: [], events: { surfaced: 0 } };
+  return { cracks: [], trails: [[], []], floes: [], ripples: [], shattered: false, shatterAt: { x: 0, y: 0 }, shatterAge: 0, sheen: 0, crackClock: 0, rippleClock: 0, thaw: new Map(), surfacers: [], events: { surfaced: 0 }, fade: 1, refreezing: false };
 }
 
 export function resetIce(ice: IceState): void {
@@ -71,11 +83,19 @@ export function resetIce(ice: IceState): void {
   ice.shatterAge = 0;
   ice.thaw = new Map();
   ice.surfacers = [];
+  ice.crackClock = 0;
+  ice.fade = 1;
+  ice.refreezing = false;
+}
+
+/** The next round is coming: the break, the cracks and the trails fade back into the ice before it is reset. */
+export function refreezeIce(ice: IceState): void {
+  ice.refreezing = true;
+  ice.surfacers = ice.surfacers.filter((s) => s.delay <= 0);
 }
 
 const SIGNS: [string, string][] = [['BUY', 'THE DIP'], ['STILL', 'EARLY'], ['DCA', 'BABY'], ["IT'S A", 'FEATURE'], ['WAGMI', '(2021)'], ['NOT', 'SELLING']];
 
-/** A seeded random walk with one branch, starting near a point on the ice. */
 /** Distance travelled when joining late, integrating the current growth over the elapsed presentation. */
 export function journeyDistance(seconds: number, growth: number): number {
   const g = Math.max(0, growth) / 2;
@@ -89,6 +109,7 @@ export function settleJourney(ice: IceState, x: number, y: number, tension: numb
   for (const crack of ice.cracks) crack.growth = 1;
 }
 
+/** A seeded random walk with one branch, starting near a point on the ice. */
 export function spawnCrack(ice: IceState, x: number, y: number, tension: number, seed: number): void {
   const rng = mulberry32(Math.floor(seed * 1000));
   const walk = (sx: number, sy: number, heading: number, steps: number, scale: number): Point[] => {
@@ -111,6 +132,30 @@ export function spawnCrack(ice: IceState, x: number, y: number, tension: number,
   if (ice.cracks.length > 160) ice.cracks.splice(0, ice.cracks.length - 160);
 }
 
+/**
+ * The near miss: a crack that races across the ice from `from` and runs out of steam at `to`, `seconds` later,
+ * splitting off a couple of short branches as its tip passes.
+ */
+export function spawnRacer(ice: IceState, from: Point, to: Point, seconds: number, width: number, seed: number): void {
+  const rng = mulberry32(Math.floor(seed * 1000));
+  const dx = to.x - from.x;
+  const dy = (to.y - from.y) / FORESHORTEN;
+  const len = Math.max(1, Math.hypot(dx, dy));
+  const points: Point[] = [];
+  for (let i = 0; i <= 9; i += 1) {
+    const k = i / 9;
+    const jag = i === 0 || i === 9 ? 0 : (rng() - 0.5) * 22 * (1 - 0.7 * k);
+    points.push({ x: mix(from.x, to.x, k) - (dy / len) * jag, y: mix(from.y, to.y, k) + (dx / len) * jag * FORESHORTEN });
+  }
+  ice.cracks.push({ points, growth: 0, width, rate: 1 / seconds, racer: true });
+  for (const at of [3, 6]) {
+    const p = points[at]!;
+    const h = Math.atan2(dy, dx) + (rng() < 0.5 ? -1 : 1) * (0.7 + rng() * 0.6);
+    const l = 14 + rng() * 16;
+    ice.cracks.push({ points: [p, { x: p.x + Math.cos(h) * l, y: p.y + Math.sin(h) * l * FORESHORTEN }], growth: -at / 9 - 0.1, width: width * 0.6, rate: 1.4 / seconds });
+  }
+}
+
 /** Records where a skate touched the ice, for the trails. */
 export function addTrail(ice: IceState, which: 0 | 1, p: Point): void {
   const trail = ice.trails[which]!;
@@ -123,7 +168,11 @@ export function addTrail(ice: IceState, which: 0 | 1, p: Point): void {
 export function stepIce(ice: IceState, cameraX: number, dt: number): void {
   ice.sheen += dt;
   ice.events = { surfaced: 0 };
-  for (const c of ice.cracks) c.growth = Math.min(1, c.growth + dt * 1.6);
+  if (ice.refreezing) {
+    ice.fade -= dt / 0.8;
+    if (ice.fade <= 0) resetIce(ice);
+  }
+  for (const c of ice.cracks) c.growth = Math.min(1, c.growth + dt * (c.rate ?? 1.6));
   ice.cracks = ice.cracks.filter((c) => c.points[0]!.x > cameraX - 300);
   for (const t of ice.trails) while (t.length && t[0]!.x < cameraX - 200) t.shift();
   if (!ice.shattered) return;
@@ -134,12 +183,14 @@ export function stepIce(ice: IceState, cameraX: number, dt: number): void {
       if (s.delay <= 0) ice.events.surfaced += 1;
       continue;
     }
-    stepSpring(s.up, 1, 9, 0.4, dt);
+    // They come up on an overshooting spring, and slip back under as the lake refreezes.
+    if (ice.refreezing) stepSpring(s.up, 0, 7, 1, dt);
+    else stepSpring(s.up, 1, 9, 0.4, dt);
   }
-  const open = clamp(ice.shatterAge / 0.9, 0, 1);
+  // The inner wedges give way at once, tipping their points under; the outer rings drift off more slowly.
   for (const f of ice.floes) {
-    const spread = 14 * (1 - Math.exp(-ice.shatterAge / 1.4)) * f.sink;
-    f.offset = { x: f.drift.x * spread * open, y: f.drift.y * spread * open * FORESHORTEN };
+    const out = f.spread * (1 - Math.exp(-ice.shatterAge / f.settle));
+    f.offset = { x: f.drift.x * out, y: f.drift.y * out * FORESHORTEN };
   }
   ice.rippleClock += dt;
   while (ice.rippleClock > 0.6) {
@@ -172,10 +223,21 @@ export function shatterIce(ice: IceState, x: number, y: number, seed: number, qu
       const cx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
       const cy = verts.reduce((s, v) => s + v.y, 0) / verts.length;
       const am = (a0 + a1) / 2;
+      const local = verts.map((v) => ({ x: v.x - cx, y: v.y - cy }));
+      // Tipping hinges on the outer edge: on the lake plane each point swings toward it and drops below it.
+      const tip = ring === 1 ? 0.32 + rng() * 0.16 : ring === 2 ? 0.05 + rng() * 0.05 : 0;
+      const along = local.map((v) => v.x * Math.cos(am) + (v.y / FORESHORTEN) * Math.sin(am));
+      const hinge = Math.max(...along);
+      const tipped = local.map((v, k) => {
+        const d = hinge - along[k]!;
+        const pull = d * (1 - Math.cos(tip));
+        return { x: v.x - Math.cos(am) * pull, y: v.y - Math.sin(am) * pull * FORESHORTEN + d * Math.sin(tip) * 0.9 };
+      });
       ice.floes.push({
-        cx: x + cx, cy: y + cy, verts: verts.map((v) => ({ x: v.x - cx, y: v.y - cy })),
+        cx: x + cx, cy: y + cy, verts: local, tipped, tip: tip / 0.5,
         drift: { x: Math.cos(am), y: Math.sin(am) }, tilt: (rng() - 0.5) * 0.5, phase: rng() * Math.PI * 2,
         sink: ring === 1 ? 1 : ring === 2 ? 0.55 : 0.25, offset: { x: 0, y: 0 },
+        spread: ring === 1 ? 55 : ring === 2 ? 25 : 8, settle: ring === 1 ? 0.28 : ring === 2 ? 0.6 : 1,
       });
     }
   }
@@ -194,7 +256,7 @@ export function shatterIce(ice: IceState, x: number, y: number, seed: number, qu
     if (!seat.length) continue;
     const pick = seat[Math.floor(rng() * seat.length)]!;
     const up = spring(quiet ? 1 : 0);
-    ice.surfacers.push({ floe: pick.i, sign: SIGNS[(first + k * 2) % SIGNS.length]!, up, delay: quiet ? 0 : 0.7 + k * 0.3, tone: rng(), flip: pick.f.drift.x < 0 });
+    ice.surfacers.push({ floe: pick.i, sign: SIGNS[(first + k * 2) % SIGNS.length]!, up, delay: quiet ? 0 : 0.55 + k * 0.25, tone: rng(), flip: pick.f.drift.x < 0 });
   }
 }
 
@@ -226,7 +288,7 @@ export function drawIce(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: n
   ctx.fillStyle = sheen;
   ctx.fillRect(0, ICE_FAR_Y, 960, 540 - ICE_FAR_Y);
   // Skate trails.
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 * ice.fade})`;
   ctx.lineWidth = 1.6;
   ctx.lineCap = 'round';
   for (const trail of ice.trails) {
@@ -296,15 +358,19 @@ export function stepBagholders(ice: IceState, cameraX: number, skaterX: number, 
   for (const i of ice.thaw.keys()) if (i < first - 1) ice.thaw.delete(i);
 }
 
-/** A hand up through the ice, from the surface at the origin, `reach` px high, with a jagged hole round the wrist. */
-function drawHand(ctx: CanvasRenderingContext2D, reach: number, wobble: number, scale: number): void {
+/**
+ * A hand up through the ice, from the surface at the origin, `reach` px high, with a jagged hole round the wrist
+ * that melts open (`open` 0 to 1) before the fingers break through.
+ */
+function drawHand(ctx: CanvasRenderingContext2D, reach: number, wobble: number, scale: number, open: number): void {
   ctx.save();
   ctx.scale(scale, scale);
+  ctx.globalAlpha = Math.min(1, open * 1.6);
   ctx.fillStyle = 'rgba(30, 60, 110, 0.55)';
   ctx.beginPath();
   for (let k = 0; k < 8; k += 1) {
     const a = (k / 8) * Math.PI * 2;
-    const r = 9 + (k % 2) * 4;
+    const r = (9 + (k % 2) * 4) * (0.35 + 0.65 * open);
     const px = Math.cos(a) * r;
     const py = Math.sin(a) * r * FORESHORTEN;
     if (k === 0) ctx.moveTo(px, py);
@@ -315,6 +381,8 @@ function drawHand(ctx: CanvasRenderingContext2D, reach: number, wobble: number, 
   ctx.strokeStyle = 'rgba(40, 60, 90, 0.7)';
   ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (reach < 1) { ctx.restore(); return; }
   ctx.lineCap = 'round';
   ctx.strokeStyle = INK;
   ctx.lineWidth = 7.5;
@@ -350,7 +418,8 @@ export function drawBagholders(ctx: CanvasRenderingContext2D, ice: IceState, cam
     const x = wx - cameraX;
     if (x < -90 || x > 1050) continue;
     const pose = ((i % 3) + 3) % 3;
-    const thaw = ice.shattered ? 0 : (ice.thaw.get(i) ?? 0);
+    // When the ice goes they let go and freeze back over; three of them come up on the floes instead.
+    const thaw = (ice.thaw.get(i) ?? 0) * (ice.shattered ? 1 - smoothstep(0, 0.5, ice.shatterAge) : 1);
     const dazed = noise(i * 6.1 + 2) > 0.55 && thaw < 0.5;
     ctx.save();
     ctx.translate(x, y);
@@ -398,13 +467,16 @@ export function drawBagholders(ctx: CanvasRenderingContext2D, ice: IceState, cam
       ctx.beginPath(); ctx.arc(10 + b * 6 - noise(i + b) * 8, -56 - b * 11, 2 + b * 0.8, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
-    if (thaw > 0.08) {
-      // The hand comes up beside the body, feeling about for an ankle, higher with the leverage.
-      const reach = thaw * (16 + 42 * tension) + 4 * Math.sin(time * 2.2 + i);
+    if (thaw > 0.01) {
+      // The ice melts open over it first, then the hand comes up beside the body, feeling about for an ankle,
+      // higher with the leverage.
+      const open = smoothstep(0.01, 0.12, thaw);
+      const up = smoothstep(0.06, 0.3, thaw);
+      const reach = up * (thaw * (16 + 42 * tension) + (2 + 2 * thaw) * (1 + Math.sin(time * 2.2 + i)));
       const wobble = Math.sin(time * 3.1 + i * 1.7) * (3 + 7 * tension) * thaw;
       ctx.save();
       ctx.translate(x + 18 * scale, y + 6 * scale);
-      drawHand(ctx, reach, wobble, scale * 1.15);
+      drawHand(ctx, reach, wobble, scale * 1.15, open);
       ctx.restore();
     }
   }
@@ -459,22 +531,24 @@ function drawSurfacer(ctx: CanvasRenderingContext2D, s: Surfacer, time: number):
   ctx.beginPath(); ctx.moveTo(-3.5, -26); ctx.quadraticCurveTo(0, -28.5, 3.5, -26); ctx.stroke();
   // Drips.
   ctx.fillStyle = '#bfe0ff';
+  const alpha = ctx.globalAlpha;
   for (const [dx, k] of [[-9, 0.3], [8, 0.7]] as const) {
     const p = (time * 0.9 + k) % 1;
-    ctx.globalAlpha = 1 - p;
+    ctx.globalAlpha = alpha * (1 - p);
     ctx.beginPath(); ctx.arc(dx, -20 + p * 22, 1.6, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = alpha;
   ctx.restore();
 }
 
 export function drawCracks(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: number): void {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  ctx.globalAlpha = ice.fade;
   for (const c of ice.cracks) {
     if (c.growth <= 0) continue;
     const n = c.points.length - 1;
-    const reach = c.growth * n;
+    const reach = (c.racer ? 1 - (1 - c.growth) ** 2 : c.growth) * n;
     const full = Math.floor(reach);
     ctx.strokeStyle = 'rgba(40, 60, 90, 0.75)';
     ctx.lineWidth = c.width;
@@ -491,15 +565,27 @@ export function drawCracks(ctx: CanvasRenderingContext2D, ice: IceState, cameraX
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = Math.max(0.6, c.width * 0.4);
     ctx.stroke();
+    if (c.racer && c.growth < 1) {
+      // The tip glints as it runs.
+      const a = c.points[Math.min(n, full)]!;
+      const b = c.points[Math.min(n, full + 1)]!;
+      const t = reach - full;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.beginPath(); ctx.arc(mix(a.x, b.x, t) - cameraX, mix(a.y, b.y, t), 2 + c.width * 0.6, 0, Math.PI * 2); ctx.fill();
+    }
   }
+  ctx.globalAlpha = 1;
 }
 
-/** Water showing through thinning ice under a point, growing with the tension. */
-export function drawThinning(ctx: CanvasRenderingContext2D, x: number, y: number, tension: number, time: number): void {
-  if (tension <= 0.02) return;
+/** Water showing through thinning ice under a point, growing with the tension; `alpha` fades it in or out. */
+export function drawThinning(ctx: CanvasRenderingContext2D, x: number, y: number, tension: number, time: number, alpha = 1): void {
+  if (tension <= 0.02 || alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
   const r = 40 + 120 * tension;
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, `rgba(30, 60, 110, ${0.45 * tension})`);
+  // Clear already in the first seconds, and fading in from the start rather than appearing.
+  g.addColorStop(0, `rgba(30, 60, 110, ${(0.2 + 0.5 * tension) * smoothstep(0.02, 0.15, tension)})`);
   g.addColorStop(1, 'rgba(30, 60, 110, 0)');
   ctx.save();
   ctx.translate(x, y);
@@ -513,10 +599,10 @@ export function drawThinning(ctx: CanvasRenderingContext2D, x: number, y: number
     const p = (time * 0.4 + i * 0.2) % 1;
     const bx = x + Math.sin(i * 2.1 + time) * 30 * tension;
     const by = y + 18 - p * 30;
-    ctx.globalAlpha = (1 - p) * tension;
+    ctx.globalAlpha = (1 - p) * tension * alpha;
     ctx.beginPath(); ctx.arc(bx, by, 1.5 + i * 0.4, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 export function drawShatter(ctx: CanvasRenderingContext2D, ice: IceState, cameraX: number, time: number): void {
@@ -524,6 +610,9 @@ export function drawShatter(ctx: CanvasRenderingContext2D, ice: IceState, camera
   const ox = ice.shatterAt.x - cameraX;
   const oy = ice.shatterAt.y;
   const open = clamp(ice.shatterAge / 0.4, 0, 1);
+  const tipping = 1 - Math.exp(-ice.shatterAge / 0.3);
+  ctx.save();
+  ctx.globalAlpha = ice.fade;
   // Open water under the break, with ripples.
   ctx.save();
   ctx.translate(ox, oy);
@@ -536,23 +625,28 @@ export function drawShatter(ctx: CanvasRenderingContext2D, ice: IceState, camera
   ctx.strokeStyle = 'rgba(200, 225, 255, 0.5)';
   ctx.lineWidth = 2;
   for (const r of ice.ripples) {
-    ctx.globalAlpha = (1 - r.age / r.life) * 0.7;
+    ctx.globalAlpha = (1 - r.age / r.life) * 0.7 * ice.fade;
     ctx.beginPath(); ctx.arc(0, 0, r.r, 0, Math.PI * 2); ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = ice.fade;
   ctx.restore();
-  // Floes: the inner ring sinks and tips, the outer rings barely move.
+  // Floes: the inner wedges tip their points under and slide beneath the middle ring; the outer rings barely move.
   for (const f of ice.floes) {
     const bob = Math.sin(time * 2 + f.phase) * 0.06 * f.sink;
+    const tip = f.tip * tipping;
     ctx.save();
-    ctx.translate(f.cx - cameraX + f.offset.x, f.cy + f.offset.y + f.sink * 3 * open);
+    ctx.translate(f.cx - cameraX + f.offset.x, f.cy + f.offset.y + f.sink * (3 + 7 * tip) * open);
     ctx.rotate((f.tilt * 0.35 + bob) * open);
     ctx.scale(1, 1 - 0.08 * f.sink * open);
     ctx.beginPath();
-    ctx.moveTo(f.verts[0]!.x, f.verts[0]!.y);
-    for (const v of f.verts) ctx.lineTo(v.x, v.y);
+    for (const [k, v] of f.verts.entries()) {
+      const t = f.tipped[k]!;
+      ctx.lineTo(mix(v.x, t.x, tipping), mix(v.y, t.y, tipping));
+    }
     ctx.closePath();
-    ctx.fillStyle = f.sink > 0.9 ? '#b8d0e4' : '#cfe1ef';
+    // Wet and darker the further it has tipped into the water.
+    const [r, g, b] = f.sink > 0.9 ? [184, 208, 228] : [207, 225, 239];
+    ctx.fillStyle = `rgb(${Math.round(mix(r, 128, tip))}, ${Math.round(mix(g, 166, tip))}, ${Math.round(mix(b, 204, tip))})`;
     ctx.fill();
     ctx.strokeStyle = 'rgba(30, 50, 80, 0.6)';
     ctx.lineWidth = 1.5;
@@ -569,4 +663,5 @@ export function drawShatter(ctx: CanvasRenderingContext2D, ice: IceState, camera
     drawSurfacer(ctx, s, time);
     ctx.restore();
   }
+  ctx.restore();
 }

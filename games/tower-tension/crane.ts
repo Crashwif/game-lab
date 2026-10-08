@@ -3,10 +3,11 @@
  * under the jib, lifts the floor off its bed, the trolley runs out along the
  * jib, the block is lowered onto the stack and released. The block hangs as a
  * real pendulum under the hook, so every trolley start and stop leaves it
- * swinging and it lands a little off centre; that swing is what rocks the
- * tower. The crane climbs with the stack.
+ * swinging, and the trolley aims at where the swaying top is rather than the
+ * plumb line, so it sets the block where the top is and lands a little off
+ * centre; that swing is what rocks the tower. The crane climbs with the stack.
  */
-import { type Spring, clamp, fract, mix, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Spring, clamp, fract, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { FLOOR_H, GROUND_Y, TOWER_X, drawBlock } from './tower';
 import { BED_Y, PARK_X, PICKUP } from './truck';
 
@@ -31,6 +32,9 @@ export interface CraneState {
   swing: number;
   swingV: number;
   holding: boolean;
+  /** The top's lean as the operator follows it (offset from the tower axis), and where the trolley set the last block. */
+  aim: Spring;
+  from: number;
   /** The counterweight's swing on its chains (radians): lightly damped, so every jolt keeps it going. */
   weight: Spring;
   /** What the last released block carried into the stack. */
@@ -39,17 +43,17 @@ export interface CraneState {
 }
 
 export function createCrane(): CraneState {
-  return { phase: 0, trolley: spring(PARK_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, weight: spring(0), drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
+  return { phase: 0, trolley: spring(PARK_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, aim: spring(0), from: TOWER_X, weight: spring(0), drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
 }
 
+/** A fresh site: the cycle starts over, and the trolley, hook and counterweight make their own way back to it. */
 export function resetCrane(c: CraneState): void {
   c.phase = 0;
-  settleSpring(c.trolley, PARK_X);
-  settleSpring(c.cable, HOOK_MIN);
   c.swing = 0;
   c.swingV = 0;
   c.holding = false;
-  settleSpring(c.weight, 0);
+  settleSpring(c.aim, 0);
+  c.from = TOWER_X;
   c.events = { release: false, touchdown: false, pickup: false };
 }
 
@@ -61,14 +65,15 @@ export function jolt(c: CraneState, strength: number): void {
 /** The jib stays a fixed clearance above the stack. */
 export const jibTargetY = (topY: number): number => Math.min(GROUND_Y - 210, topY - 150);
 
-function trolleyTarget(phase: number): number {
+/** The trolley's x for each part of the cycle: back from `from` (where it set the last block) to the truck, then out to `aim`. */
+function trolleyTarget(phase: number, aim: number, from: number): number {
   const u = fract(phase);
   // The first cycle has nothing to come back from: the trolley waits over the truck.
   if (phase < PICKUP) return PARK_X;
-  if (u < 0.15) return mix(TOWER_X, PARK_X, smoothstep(0, 0.15, u));
+  if (u < 0.15) return mix(from, PARK_X, smoothstep(0, 0.15, u));
   if (u < 0.35) return PARK_X;
-  if (u < 0.65) return mix(PARK_X, TOWER_X, smoothstep(0.35, 0.65, u));
-  return TOWER_X;
+  if (u < 0.65) return mix(PARK_X, aim, smoothstep(0.35, 0.65, u));
+  return aim;
 }
 
 /**
@@ -94,7 +99,9 @@ export function settleCrane(c: CraneState, phase: number, topY: number): void {
   c.phase = phase;
   const u = fract(phase);
   settleSpring(c.jibY, jibTargetY(topY));
-  settleSpring(c.trolley, trolleyTarget(phase));
+  settleSpring(c.aim, 0);
+  c.from = TOWER_X;
+  settleSpring(c.trolley, trolleyTarget(phase, TOWER_X, TOWER_X));
   settleSpring(c.cable, cableTarget(phase, c.jibY.x, topY));
   c.holding = u >= PICKUP;
   c.swing = 0;
@@ -104,10 +111,12 @@ export function settleCrane(c: CraneState, phase: number, topY: number): void {
 
 /**
  * Advances the cycle to `phase` (the continuous floor count while running;
- * held still otherwise). `topY` is the current top surface the block lands on.
- * `tension` (0..1) is how hard the counterweight answers the wind and the trolley.
+ * held still otherwise). `topY` is the current top surface the block lands on,
+ * `top` and `topV` the top floor's lateral offset and speed, which the block is
+ * set onto. `tension` (0..1) is how hard the counterweight answers the wind and
+ * the trolley.
  */
-export function stepCrane(c: CraneState, phase: number, topY: number, wind: number, dt: number, tension = 0): void {
+export function stepCrane(c: CraneState, phase: number, topY: number, wind: number, dt: number, tension = 0, top = 0, topV = 0): void {
   const before = c.phase;
   c.phase = phase;
   const u0 = fract(before);
@@ -119,13 +128,19 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
   if (c.events.pickup) c.holding = true;
 
   stepSpring(c.jibY, jibTargetY(topY), 3, 1, dt);
+  // The operator follows the stack's lean, and on the final lowering the tag lines bring the block onto the top
+  // wherever it has swayed to.
+  stepSpring(c.aim, top, 2.5, 1, dt);
+  const aim = TOWER_X + mix(c.aim.x, top, smoothstep(0.7, 0.9, u));
   // Empty while the cycle runs, the trolley and hook go exactly where it sends them, so the hook is over the floor
-  // and down on it when the slings go on. Loaded, or idle between rounds and after a collapse, they ride springs.
-  const exact = !c.holding && phase !== before && dt > 0;
+  // and down on it when the slings go on; a frame the multiplier stands still holds them there rather than handing
+  // the springs a velocity they would overshoot with. Loaded, or idle between rounds and after a collapse, they ride
+  // springs until they are back on the cycle.
+  const exact = (target: number, s: Spring): boolean => !c.holding && dt > 0 && (phase !== before || Math.abs(target - s.x) < 2);
   const v0 = c.trolley.v;
-  if (!exact) stepSpring(c.trolley, trolleyTarget(phase), 5, 1, dt);
+  const x = trolleyTarget(phase, aim, c.from);
+  if (!exact(x, c.trolley)) stepSpring(c.trolley, x, 5, 1, dt);
   else {
-    const x = trolleyTarget(phase);
     c.trolley.v = (x - c.trolley.x) / dt;
     c.trolley.x = x;
   }
@@ -133,27 +148,40 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
   // Just after a release the floor it set is part of the stack (from the step after the release frame), so the
   // hook rises from the surface below the new top.
   const cable = cableTarget(phase, c.jibY.x, topY + (u < 0.08 && !c.events.release ? FLOOR_H : 0));
-  if (!exact) stepSpring(c.cable, cable, 12, 0.9, dt);
+  if (!exact(cable, c.cable)) stepSpring(c.cable, cable, 12, 0.9, dt);
   else {
     c.cable.v = (cable - c.cable.x) / dt;
     c.cable.x = cable;
   }
 
-  // The load is a pendulum under the trolley; wind and trolley acceleration swing it.
+  // The load is a pendulum under the trolley; wind and trolley acceleration swing it. On the way down the tag
+  // lines take up and steer it onto the top as it sways (a little off centre, by the floor), so it lands where
+  // the top is. The empty hook just settles back to plumb.
   const length = Math.max(30, c.cable.x + LOAD_DROP);
-  let left = dt;
-  while (left > 0) {
-    const h = Math.min(1 / 240, left);
-    left -= h;
-    const a = -(GRAVITY / length) * Math.sin(c.swing) - (0.25 * accel / length) * Math.cos(c.swing) - 2.4 * c.swingV + (wind * 0.15) / length;
-    c.swingV += a * h;
-    c.swing += c.swingV * h;
-    if (Math.abs(c.swing) > 0.35) { c.swing = Math.sign(c.swing) * 0.35; c.swingV *= -0.2; }
+  if (c.holding) {
+    const tag = smoothstep(0.7, 0.9, u);
+    const spot = TOWER_X + top + (noise(Math.floor(phase) * 7.3) - 0.5) * 16;
+    const pull = 45 * tag;
+    const damp = 1.8 * Math.sqrt(GRAVITY / length + pull) * tag;
+    let left = dt;
+    while (left > 0) {
+      const h = Math.min(1 / 240, left);
+      left -= h;
+      const steer = pull * (spot - c.trolley.x - Math.sin(c.swing) * length) + damp * (topV - c.trolley.v - Math.cos(c.swing) * length * c.swingV);
+      const a = -(GRAVITY / length) * Math.sin(c.swing) - (0.25 * accel / length) * Math.cos(c.swing) - 2.4 * c.swingV + (wind * 0.15 + steer * Math.cos(c.swing)) / length;
+      c.swingV += a * h;
+      c.swing += c.swingV * h;
+      if (Math.abs(c.swing) > 0.35) { c.swing = Math.sign(c.swing) * 0.35; c.swingV *= -0.2; }
+    }
+  } else {
+    c.swing *= Math.exp(-5 * dt);
+    c.swingV = 0;
   }
   if (c.events.release) {
-    c.drop = { offset: clamp(c.trolley.x + Math.sin(c.swing) * length - TOWER_X, -14, 14), velocity: clamp(c.trolley.v + Math.cos(c.swing) * length * c.swingV, -60, 60) };
+    // The block stays exactly where it was set: its offset and speed are measured from the top it lands on.
+    c.drop = { offset: clamp(c.trolley.x + Math.sin(c.swing) * length - TOWER_X - top, -40, 40), velocity: clamp(c.trolley.v + Math.cos(c.swing) * length * c.swingV - topV, -60, 60) };
     c.holding = false;
-    c.swingV *= 0.3;
+    c.from = c.trolley.x;
   }
   // The counterweight hangs on short chains: the wind leans it, the trolley's starts and stops kick it, and
   // with the tension it swings ever wider, barely damped, until it is throwing itself about up there.
@@ -252,22 +280,26 @@ export function drawCrane(ctx: CanvasRenderingContext2D, c: CraneState): void {
   ctx.fillRect(CRANE_X + 22, jibY, 12, 10);
   ctx.fillStyle = '#e63946';
   ctx.fillRect(JIB_TIP - 14, jibY - 14, 14, 5);
-  // Trolley, cable, hook.
-  const hookY = jibY + c.cable.x;
+  // Trolley, then the cable and hook along the swing, so the slings hang true under it.
+  const sin = Math.sin(c.swing);
+  const cos = Math.cos(c.swing);
+  const hookX = c.trolley.x + sin * c.cable.x;
+  const hookY = jibY + cos * c.cable.x;
   ctx.fillStyle = '#3a4350';
   ctx.beginPath(); ctx.roundRect(c.trolley.x - 9, jibY - 2, 18, 11, 2); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(c.trolley.x, jibY + 8); ctx.lineTo(c.trolley.x, hookY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(c.trolley.x + sin * 8, jibY + cos * 8); ctx.lineTo(hookX, hookY); ctx.stroke();
   ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(c.trolley.x, hookY + 6, 6, -Math.PI / 2, Math.PI * 0.9); ctx.stroke();
+  ctx.beginPath(); ctx.arc(hookX + sin * 6, hookY + cos * 6, 6, -Math.PI / 2 - c.swing, Math.PI * 0.9 - c.swing); ctx.stroke();
   if (c.holding) {
     const load = loadPose(c);
+    const eye = { x: hookX + sin * 8, y: hookY + cos * 8 };
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(c.trolley.x, hookY + 8);
+    ctx.moveTo(eye.x, eye.y);
     ctx.lineTo(load.x + Math.cos(load.angle) * -40 - Math.sin(load.angle) * -FLOOR_H / 2, load.y + Math.sin(load.angle) * -40 + Math.cos(load.angle) * -FLOOR_H / 2);
-    ctx.moveTo(c.trolley.x, hookY + 8);
+    ctx.moveTo(eye.x, eye.y);
     ctx.lineTo(load.x + Math.cos(load.angle) * 40 - Math.sin(load.angle) * -FLOOR_H / 2, load.y + Math.sin(load.angle) * 40 + Math.cos(load.angle) * -FLOOR_H / 2);
     ctx.stroke();
     ctx.save();

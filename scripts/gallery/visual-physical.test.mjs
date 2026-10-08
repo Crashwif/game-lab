@@ -41,6 +41,21 @@ test('Curl muscle cannot cover the jaw even at full growth and spring overshoot'
   }
 });
 
+test('Curl forearm stops at the bicep in its way and closes in on it without snapping back', async () => {
+  const m = await moduleFor('bonding-curl/curler');
+  for (const fps of [30, 144]) {
+    const c = m.createCurler();
+    let previous = null;
+    for (let f = 0; f <= 60 * fps; f++) {
+      const seconds = f / fps, multiplier = 10 ** (seconds / 30);
+      m.stepCurler(c, { running: true, multiplier, growth: Math.log2(multiplier), tension: 1 - 1 / multiplier, seconds }, 1 / fps);
+      assert(c.curl.x <= c.reach + 1e-9, `${seconds}s the forearm passes into the bicep`);
+      if (previous !== null) assert(Math.abs(c.curl.x - previous) < 4 / fps, `${seconds}s the forearm snaps`);
+      previous = c.curl.x;
+    }
+  }
+});
+
 test('Pyramid arriving recruits plant a foot in world space and loaded feet stay on supporting hands', async () => {
   const m = await moduleFor('pyramid-scheme/pyramid');
   for (const direction of [-1, 1]) {

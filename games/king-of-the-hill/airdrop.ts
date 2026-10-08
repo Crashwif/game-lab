@@ -2,8 +2,9 @@
  * The AIRDROP: at each milestone a cargo plane crosses the sky and pushes
  * crates out on parachutes, which drift down onto the hill behind the coin.
  * Airdrop farmers sprint in from downhill the moment one lands, fight over
- * it, and drag it away. Everything is capped: three crates in the air, two
- * farmers per crate. Nothing here changes the committed outcome.
+ * it, and drag it away; their legs cycle with the ground they cover, so they
+ * stand still once they stop. Everything is capped: three crates in the air,
+ * two farmers per crate. Nothing here changes the committed outcome.
  */
 import { type Camera, heightAt, slopeAngle, toScreen } from './hill';
 import { clamp, mix, noise } from './motion';
@@ -26,8 +27,11 @@ export interface Crate {
   age: number;
   farmers: Farmer[];
   carried: boolean;
+  /** Speed downhill while carried off, ramping up from a standstill. */
+  carry: number;
 }
-export interface Farmer { x: number; vx: number; tone: number; phase: number; arrived: boolean }
+/** `vx` is a farmer's top speed and `v` his speed now; `phase` advances with distance, `stride` fades out when he stops. */
+export interface Farmer { x: number; vx: number; v: number; tone: number; phase: number; stride: number; arrived: boolean }
 
 export interface AirdropState {
   plane: Plane | null;
@@ -65,7 +69,7 @@ export function stepAirdrop(a: AirdropState, cam: Camera, contactX: number, dt: 
     while (p.dropped < dropAt.length && p.x >= dropAt[p.dropped]!) {
       if (a.crates.length < MAX_CRATES) {
         const skyY = cam.y + (300 - PLANE_Y);
-        a.crates.push({ x: p.x, y: skyY - 10, vx: 20, vy: 0, sway: noise(a.time * 7 + p.dropped) * Math.PI * 2, landed: false, age: 0, farmers: [], carried: false });
+        a.crates.push({ x: p.x, y: skyY - 10, vx: 20, vy: 0, sway: noise(a.time * 7 + p.dropped) * Math.PI * 2, landed: false, age: 0, farmers: [], carried: false, carry: 0 });
       }
       p.dropped += 1;
     }
@@ -86,34 +90,51 @@ export function stepAirdrop(a: AirdropState, cam: Camera, contactX: number, dt: 
         c.age = 0;
         a.events.landed += 1;
         // Two farmers sprint in from downhill.
-        for (let i = 0; i < 2; i += 1) c.farmers.push({ x: c.x - 320 - i * 60, vx: 300 + noise(c.x + i) * 120, tone: noise(c.x * 1.3 + i), phase: noise(i + c.x) * 6, arrived: false });
+        for (let i = 0; i < 2; i += 1) c.farmers.push({ x: c.x - 320 - i * 60, vx: 300 + noise(c.x + i) * 120, v: 0, tone: noise(c.x * 1.3 + i), phase: noise(i + c.x) * 6, stride: 0, arrived: false });
       }
       continue;
     }
-    // Landed: the farmers arrive, squabble for a beat, then drag it off downhill.
+    // Landed: the farmers sprint up (speeding up, then braking into the crate), squabble for a beat, then drag it
+    // off downhill, getting it moving over a few tenths of a second.
     let all = c.farmers.length > 0;
     for (const f of c.farmers) {
+      const from = f.x;
       if (!f.arrived) {
-        f.x = Math.min(c.x - 18, f.x + f.vx * dt);
-        if (f.x >= c.x - 18.5) f.arrived = true;
+        f.v = Math.min(f.v + 1400 * dt, f.vx, 30 + 6 * (c.x - 18 - f.x));
+        f.x = Math.min(c.x - 18, f.x + f.v * dt);
+        if (f.x >= c.x - 18.5) { f.arrived = true; f.v = 0; }
         else all = false;
       }
+      if (!c.carried) stride(f, f.x - from, dt);
     }
     if (all && !c.carried && c.age > 1.1) {
       c.carried = true;
       a.events.farmed += 1;
     }
     if (c.carried) {
-      c.x -= 150 * dt;
+      c.carry = Math.min(150, c.carry + 500 * dt);
+      c.x -= c.carry * dt;
       c.y = heightAt(Math.max(0, c.x));
-      for (const f of c.farmers) f.x = c.x - 18;
+      for (const f of c.farmers) {
+        const from = f.x;
+        f.x = c.x - 18;
+        stride(f, f.x - from, dt);
+      }
     }
   }
   a.crates = a.crates.filter((c) => c.x > cam.x - 620 && c.age < 30);
 }
 
+/** Legs cycle with the distance covered (a longer stride at a sprint), and settle to a stand when he stops. */
+function stride(f: Farmer, dx: number, dt: number): void {
+  if (dt <= 0) return;
+  const ds = Math.abs(dx);
+  f.phase += ds / (12 + 0.05 * ds / dt) * Math.PI;
+  f.stride += ((ds > 0.01 ? 1 : 0) - f.stride) * (1 - Math.exp(-dt / 0.12));
+}
+
 function drawFarmer(ctx: CanvasRenderingContext2D, f: Farmer, time: number, carrying: boolean): void {
-  const run = Math.sin(time * 18 + f.phase);
+  const run = Math.sin(f.phase) * f.stride;
   ctx.lineCap = 'round';
   ctx.strokeStyle = INK; ctx.lineWidth = 4.5;
   ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(-4 - run * 5, 0); ctx.moveTo(0, -10); ctx.lineTo(4 + run * 5, 0); ctx.stroke();
@@ -122,8 +143,10 @@ function drawFarmer(ctx: CanvasRenderingContext2D, f: Farmer, time: number, carr
   ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.roundRect(-5, -21, 10, 12, 2); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = INK; ctx.lineWidth = 3.5;
+  // Running, the arm pumps with the legs; at the crate, the two of them tug at it.
   const reach = carrying ? 1 : f.arrived ? 0.7 : 0.4;
-  ctx.beginPath(); ctx.moveTo(4, -18); ctx.lineTo(4 + 12 * reach, -18 - 4 * reach + (carrying ? 0 : run * 3)); ctx.stroke();
+  const arm = carrying ? 0 : f.arrived ? Math.sin(time * 12 + f.tone * 6) * 3 : run * 3;
+  ctx.beginPath(); ctx.moveTo(4, -18); ctx.lineTo(4 + 12 * reach, -18 - 4 * reach + arm); ctx.stroke();
   ctx.strokeStyle = '#f3dccb'; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = '#f3dccb';
   ctx.strokeStyle = INK; ctx.lineWidth = 1.5;

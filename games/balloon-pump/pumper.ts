@@ -28,6 +28,8 @@ export interface PumperDrive {
   rate: number;
   /** Hands slide inward along the handle during the recovery act. */
   regrip?: number;
+  /** Betting: he primes the pump with half strokes and regrips the handle, waiting for the round. */
+  ready?: boolean;
   /** 0..1 dread, following the multiplier. */
   fear: number;
   /** Knocked over by the burst. */
@@ -52,8 +54,13 @@ export interface PumperRig {
   lean: Spring;
   nod: Spring;
   knees: Spring;
-  /** 0 standing .. 1 on the ground. */
+  /** 0 standing .. 1 on the ground; its overshoot past 1 is the squash of landing. */
   fall: Spring;
+  /** 1 standing idle (breathing) .. 0 pumping or down, eased so the breath never pops in or out. */
+  idle: Spring;
+  /** The wind-up between rounds: a priming half stroke (in cycles) and a regrip of the handle. */
+  prime: Spring;
+  grip: Spring;
   fallenFor: number;
   /** 0 off-screen .. 1 on the face. */
   shades: Spring;
@@ -80,7 +87,7 @@ const FACES: Record<Mood, { eye: number; open: number; curve: number; brow: numb
 
 export function createPumper(): PumperRig {
   return {
-    time: 0, phase: 0, lean: spring(0), nod: spring(0), knees: spring(0), fall: spring(0), fallenFor: 0, shades: spring(0),
+    time: 0, phase: 0, lean: spring(0), nod: spring(0), knees: spring(0), fall: spring(0), idle: spring(1), prime: spring(0), grip: spring(0), fallenFor: 0, shades: spring(0),
     pom: { x: spring(0), y: spring(0), ready: false }, eyeOpen: spring(1), mouthOpen: spring(0.05), mouthCurve: spring(0.3), brow: spring(0),
     blinkAt: 2.4, events: { push: false, bottom: false },
   };
@@ -89,9 +96,18 @@ export function createPumper(): PumperRig {
 /** Jumps to the pose the drive calls for, for a round met late: already on the grass after a burst `fallenFor` seconds ago, shades already on after an exit. */
 export function settlePumper(rig: PumperRig, drive: PumperDrive, fallenFor: number): void {
   settleSpring(rig.fall, drive.fallen ? 1 : 0);
+  settleSpring(rig.idle, drive.pumping || drive.fallen ? 0 : 1);
   rig.fallenFor = drive.fallen ? fallenFor : 0;
   settleSpring(rig.shades, drive.smug ? 1 : 0);
+  const c = strokeCompression(rig.phase);
+  for (const part of [rig.lean, rig.nod, rig.knees]) settleSpring(part, c);
 }
+
+/** How far the pom-pom can stray from the knot on top of the hat. */
+const POM_TETHER = 8;
+
+/** The handle position in cycles, the priming half stroke included. */
+const strokePhase = (rig: PumperRig): number => rig.phase + Math.max(0, rig.prime.x);
 
 export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void {
   rig.time += dt;
@@ -105,13 +121,19 @@ export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void
     const rest = Math.ceil(rig.phase - 1e-9);
     if (rig.phase < rest) rig.phase = Math.min(rest, rig.phase + 1.2 * dt);
   }
+  // Between rounds, once the handle is up: every 1.4 s a priming half stroke, then a regrip before the next.
+  const u = fract(rig.time / 1.4);
+  const winding = drive.ready === true && !drive.fallen && fract(rig.phase) === 0;
+  stepSpring(rig.prime, winding ? 0.15 * smoothstep(0.05, 0.32, u) * (1 - smoothstep(0.42, 0.72, u)) : 0, 14, 0.8, dt);
+  stepSpring(rig.grip, winding ? smoothstep(0.76, 0.84, u) * (1 - smoothstep(0.88, 0.98, u)) : 0, 18, 0.7, dt);
+  stepSpring(rig.idle, drive.pumping || drive.fallen ? 0 : 1, 6, 1, dt);
   const u0 = fract(before);
   const u1 = fract(rig.phase);
   const wrapped = Math.floor(rig.phase) > Math.floor(before);
   rig.events.push = wrapped;
   rig.events.bottom = (u0 < STROKE.down && u1 >= STROKE.down) || (wrapped && u1 >= STROKE.down);
 
-  const c = strokeCompression(rig.phase);
+  const c = strokeCompression(strokePhase(rig));
   stepSpring(rig.lean, c, 22, 0.7, dt);
   stepSpring(rig.nod, c, 13, 0.4, dt);
   stepSpring(rig.knees, c, 20, 0.8, dt);
@@ -119,7 +141,7 @@ export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void
   stepSpring(rig.fall, drive.fallen ? 1 : 0, drive.fallen ? 9 : 4, drive.fallen ? 0.5 : 1, dt);
   stepSpring(rig.shades, drive.smug ? 1 : 0, 12, 0.5, dt);
 
-  const shock = drive.fallen && rig.fallenFor < 0.9;
+  const shock = drive.fallen && rig.fallenFor < 0.7;
   const mood: Mood = drive.fallen ? (shock ? 'shock' : drive.crying ? 'cry' : drive.smug ? 'smug' : 'dazed') : drive.smug ? 'smug' : drive.fear > 0.62 ? 'panic' : drive.fear > 0.25 ? 'nervous' : 'calm';
   const face = FACES[mood];
   const blinking = rig.time > rig.blinkAt && rig.time < rig.blinkAt + 0.13;
@@ -129,11 +151,27 @@ export function stepPumper(rig: PumperRig, drive: PumperDrive, dt: number): void
   stepSpring(rig.mouthCurve, face.curve, 10, 0.8, dt);
   stepSpring(rig.brow, face.brow, 12, 0.75, dt);
 
-  // The pom-pom chases the top of the hat on a loose spring, so it bounces after every stroke.
-  const anchor = pumperPose(rig, drive).toWorld(4, -66);
-  if (!rig.pom.ready) { settleSpring(rig.pom.x, anchor.x); settleSpring(rig.pom.y, anchor.y); rig.pom.ready = true; }
-  stepSpring(rig.pom.x, anchor.x, 24, 0.22, dt);
-  stepSpring(rig.pom.y, anchor.y, 24, 0.22, dt);
+  // The pom-pom chases the top of the hat on a loose spring, so it bounces after every stroke. Gravity pulls it
+  // a little below its rest above the knot, and its short tether stops it straying more than POM_TETHER away.
+  const pose = pumperPose(rig, drive);
+  const rest = pose.toWorld(4, -68);
+  const target = { x: rest.x, y: rest.y + 4 };
+  if (!rig.pom.ready) { settleSpring(rig.pom.x, target.x); settleSpring(rig.pom.y, target.y); rig.pom.ready = true; }
+  stepSpring(rig.pom.x, target.x, 24, 0.22, dt);
+  stepSpring(rig.pom.y, target.y, 24, 0.22, dt);
+  const knot = pose.toWorld(4, -62);
+  const dx = rig.pom.x.x - knot.x;
+  const dy = rig.pom.y.x - knot.y;
+  const d = Math.hypot(dx, dy);
+  if (d > POM_TETHER) {
+    // Taut: back onto the tether's circle, and only the velocity along it survives.
+    const nx = dx / d;
+    const ny = dy / d;
+    rig.pom.x.x = knot.x + nx * POM_TETHER;
+    rig.pom.y.x = knot.y + ny * POM_TETHER;
+    const out = rig.pom.x.v * nx + rig.pom.y.v * ny;
+    if (out > 0) { rig.pom.x.v -= out * nx; rig.pom.y.v -= out * ny; }
+  }
 }
 
 const INK = '#1c1f26';
@@ -167,22 +205,25 @@ interface Pose {
 /** The pose the springs describe: standing at the pump, blended toward sprawled on the ground. */
 export function pumperPose(rig: PumperRig, drive: PumperDrive): Pose {
   const t = rig.time;
-  const c = strokeCompression(rig.phase);
+  const c = strokeCompression(strokePhase(rig));
   const lean = rig.lean.x;
   const nod = rig.nod.x;
   const knees = rig.knees.x;
-  const fall = clamp(rig.fall.x, 0, 1.2);
-  const idle = drive.pumping || drive.fallen ? 0 : 1;
-  const breathe = Math.sin(t * 1.6) * 1.6 * idle;
+  // The pose never blends past the sprawl, so the hip stays on the grass; the landing's overshoot squashes the torso instead.
+  const fall = clamp(rig.fall.x, 0, 1);
+  const squash = clamp(rig.fall.x - 1, 0, 0.25);
+  const breathe = Math.sin(t * 1.6) * 1.6 * rig.idle.x;
   const dazed = drive.fallen ? Math.sin(t * 2.6) * 0.06 : 0;
   const hip = lerpPoint({ x: 206 - 14 * lean, y: 306 + 22 * knees + breathe }, { x: 200, y: 404 }, fall);
   const torsoAngle = mix(0.3 + 0.5 * lean, -0.45 + dazed, fall);
   const headAngle = mix(-0.22 - 0.25 * lean + 0.14 * nod, -0.28 - dazed * 2, fall);
-  const shoulder = { x: hip.x + Math.sin(torsoAngle) * 108, y: hip.y - Math.cos(torsoAngle) * 108 };
+  const torso = 108 * (1 - 0.5 * squash);
+  const shoulder = { x: hip.x + Math.sin(torsoAngle) * torso, y: hip.y - Math.cos(torsoAngle) * torso };
   const handleY = PUMP.handleTop + c * PUMP.travel;
   const release = smoothstep(0, 0.5, fall);
-  let backHand = lerpPoint({ x: PUMP.x - 14 + 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
-  let frontHand = lerpPoint({ x: PUMP.x + 14 - 7 * (drive.regrip ?? 0), y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
+  const inset = 7 * ((drive.regrip ?? 0) + 0.6 * rig.grip.x);
+  let backHand = lerpPoint({ x: PUMP.x - 14 + inset, y: handleY }, { x: hip.x - 30, y: hip.y - 168 }, release);
+  let frontHand = lerpPoint({ x: PUMP.x + 14 - inset, y: handleY }, { x: hip.x + 46, y: hip.y - 158 }, release);
   // The free hands follow the fall, but must stay inside the actual shoulder reach.
   // During pumping the same projection is a no-op, keeping both handle contacts exact.
   const constrain = (root: Point, target: Point): Point => {
@@ -195,7 +236,8 @@ export function pumperPose(rig: PumperRig, drive: PumperDrive): Pose {
   const backFoot = lerpPoint({ x: 160, y: 426 }, { x: 262, y: 430 }, fall);
   const frontFoot = lerpPoint({ x: 306, y: 423 }, { x: 296, y: 424 }, fall);
   const headRot = torsoAngle + headAngle;
-  const head = { x: shoulder.x + Math.sin(headRot) * 48, y: shoulder.y - Math.cos(headRot) * 48 };
+  const neck = 48 * (1 - 0.3 * squash);
+  const head = { x: shoulder.x + Math.sin(headRot) * neck, y: shoulder.y - Math.cos(headRot) * neck };
   const toWorld = (lx: number, ly: number): Point => ({ x: head.x + lx * Math.cos(headRot) - ly * Math.sin(headRot), y: head.y + lx * Math.sin(headRot) + ly * Math.cos(headRot) });
   return { hip, shoulder, head, headRot, handleY, backHand, frontHand, backFoot, frontFoot, toWorld };
 }
@@ -208,7 +250,7 @@ export interface PumperView {
 
 export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive: PumperDrive): PumperView {
   const t = rig.time;
-  const fall = clamp(rig.fall.x, 0, 1.2);
+  const fall = clamp(rig.fall.x, 0, 1);
   const release = smoothstep(0, 0.5, fall);
   const { hip, shoulder, head, headRot, handleY, backHand, frontHand, backFoot, frontFoot, toWorld } = pumperPose(rig, drive);
 
@@ -360,8 +402,8 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   }
   ctx.globalAlpha = 1;
   // Tears.
-  if (drive.crying && drive.fallen && rig.fallenFor > 0.9) {
-    const flow = Math.min(1, (rig.fallenFor - 0.9) / 0.5);
+  if (drive.crying && drive.fallen && rig.fallenFor > 0.7) {
+    const flow = Math.min(1, (rig.fallenFor - 0.7) / 0.4);
     ctx.strokeStyle = '#8fd3ff'; ctx.lineWidth = 4; ctx.globalAlpha = 0.85;
     for (const eye of eyes) {
       ctx.beginPath(); ctx.moveTo(eye.x, eye.y + 4);
@@ -406,11 +448,11 @@ export function drawPumper(ctx: CanvasRenderingContext2D, rig: PumperRig, drive:
   }
   ctx.restore();
 
-  // The pom-pom trails the hat on a loose spring.
-  const anchor = toWorld(4, -66);
+  // The pom-pom trails the hat on a loose spring and a short tether.
+  const knot = toWorld(4, -62);
   const pom = { x: rig.pom.x.x, y: rig.pom.y.x };
-  segment(anchor, pom, 5, INK);
-  segment(anchor, pom, 2.5, HAT_KNIT);
+  segment(knot, pom, 5, INK);
+  segment(knot, pom, 2.5, HAT_KNIT);
   disc(pom, 11, POM, 3);
   ctx.fillStyle = HAT_BRIM;
   for (let i = 0; i < 5; i += 1) { const a = i * 1.257 + t * 0.5; ctx.beginPath(); ctx.arc(pom.x + Math.cos(a) * 5, pom.y + Math.sin(a) * 5, 2.2, 0, Math.PI * 2); ctx.fill(); }

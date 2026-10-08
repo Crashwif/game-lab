@@ -6,13 +6,25 @@
  * accepted exit closes his tab: shades, then out into the sunlight.
  * Nothing here changes the outcome.
  */
-import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
+import { solveLimb, stepFoot } from './kinematics';
+import { type Spring, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { INK, VIDEO } from './stream';
 
 export const PANEL = { x: 620, y: 0, w: 340, h: 540 } as const;
 export const ROW_Y = 528;
+/** Your simp's seat in the front row; he walks out from here. */
+const SEAT_X = 40 + 4 * 68;
+/** His walk: top speed, the stride of each foot in rig units (the rig is drawn at 0.62; about four steps a second), and where his feet meet the floor. */
+const WALK = 110, STRIDE = 80, FLOOR_Y = 532;
 const NAMES = ['xX_simp_Xx', 'wagmi_wojak', 'diamond_dan', 'sol_maxi', 'bagholder69', 'gm_andy', 'trench_tom', 'exit_liq', 'moon_boi', 'paper_pete', 'chad_not', 'ser_hodl'];
-const LINES = ['queen <3', 'take my money', 'wen reveal', 'gm queen', 'simping harder', 'she noticed me', 'to the moon', 'wagmi', 'mods asleep', 'is that a door', 'ONE MORE MILESTONE', 'ape in', 'number go up', 'my rent money', 'so real for this', 'sent my rent, worth it', 'wife doesnt know', 'tipped my car payment', 'is she single', 'her bf is a whale fr', 'reveal = tokenomics?', 'rug me queen', 'pls step on my bags', 'refinancing for this', 'she said gm to ME'];
+/** Chat gets bolder as the number climbs: each tier unlocks at its multiplier (1×, 1.5×, 2×, 3×). */
+const LINES = [
+  'queen <3', 'gm queen', 'take my money', 'simping harder', 'to the moon', 'wagmi', 'ape in', 'number go up', 'so real for this', 'she noticed me', 'LFG',
+  'wen reveal', 'my rent money', 'tipped my car payment', 'is she single', 'reveal = tokenomics?', 'few understand', 'probably nothing', 'diamond hands for u queen',
+  'sent my rent, worth it', 'wife doesnt know', 'pls step on my bags', 'ONE MORE MILESTONE', 'refinancing for this', 'she said gm to ME', 'did the handle just move', 'why does she keep looking at the door',
+  'is that a door', 'her bf is a whale fr', 'rug me queen', 'mods asleep', 'who is behind the door', 'LP locked?? queen??', 'thats a big shadow ser',
+];
+const TIERS: [number, number][] = [[1, 11], [1.5, 19], [2, 27], [3, LINES.length]];
 const CRASH_LINES = ['RUGGED', 'NGMI', 'who was that', 'STREAM ENDED??', 'it was a boyfriend', 'my bags', 'exit liquidity', 'rugged again', 'F', 'cope', 'bf had 40% of supply', 'the reveal was a rug', 'i tipped for THIS', 'the bf is the dev', 'refund??'];
 
 export interface Message { name: string; text: string; tip: number; y: number; age: number; seed: number }
@@ -30,6 +42,10 @@ export interface Chat {
   modSleep: Spring;
   flooded: boolean;
   simp: { mode: SimpMode; x: number; modeAge: number; shades: Spring };
+  /** The front row's cheer, eased so the crash never snaps it, and their bob as an integrated phase. */
+  cheer: number;
+  party: number;
+  bobPhase: number;
   sulk: Spring;
   hype: Spring;
   /** The pinned tip menu: which tier is on top, and its pop when it climbs. */
@@ -53,10 +69,10 @@ export const TIP_MENU: [string, string][] = [
 ];
 const CONFETTI = ['#7cf67c', '#ffe27a', '#ff5d9e', '#8fd3ff'];
 const menuAt = (index: number): number => index < TIP_MENU.length ? index : 5 + (index - TIP_MENU.length) % 5;
-const compactCount = (n: number): string => n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+const compactCount = (n: number): string => n >= 1e12 ? 'ALL OF CT' : n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
 
 export function createChat(): Chat {
-  return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) }, sulk: spring(0), hype: spring(0), menuIndex: 0, menuPop: spring(0), confetti: [], events: { tip: false } };
+  return { time: 0, messages: [], nextAt: 0, goal: GOALS[0]!, goalIndex: 0, fill: spring(0), modSleep: spring(0), flooded: false, simp: { mode: 'seated', x: SEAT_X, modeAge: 0, shades: spring(0) }, cheer: 0.2, party: 0, bobPhase: 0, sulk: spring(0), hype: spring(0), menuIndex: 0, menuPop: spring(0), confetti: [], events: { tip: false } };
 }
 
 export function resetChat(c: Chat): void {
@@ -67,7 +83,7 @@ export function resetChat(c: Chat): void {
   settleSpring(c.fill, 0);
   settleSpring(c.modSleep, 0);
   c.flooded = false;
-  c.simp = { mode: 'seated', x: 300, modeAge: 0, shades: spring(0) };
+  c.simp = { mode: 'seated', x: SEAT_X, modeAge: 0, shades: spring(0) };
   settleSpring(c.sulk, 0);
   settleSpring(c.hype, 0);
   c.menuIndex = 0;
@@ -101,16 +117,26 @@ function goalFill(c: Chat, multiplier: number): number {
 }
 
 /** Jumps the goal ladder and the tip bar to where a multiplier already is. */
-export function settleChat(c: Chat, multiplier: number): void {
+export function settleChat(c: Chat, multiplier: number, tension = 0): void {
   while (multiplier >= c.goal && Number.isFinite(c.goal)) { c.goalIndex += 1; c.goal = goalAt(c.goalIndex); }
   settleSpring(c.fill, goalFill(c, multiplier));
   c.menuIndex = menuAt(c.goalIndex);
+  c.cheer = 0.2 + 0.8 * tension;
 }
 
-/** Your simp closes the tab. `gone` is an exit met late: he has already left. */
+/** The round goes live: the queen posts first. */
+export function goLiveChat(c: Chat): void {
+  post(c, 'QUEEN', 'we live frens <3 reveal at 1.5x', 0);
+}
+
+/** Your simp closes the tab and chat calls it. `gone` is an exit met late: he has already left. */
 export function unsubscribe(c: Chat, gone = false): void {
   if (gone) { c.simp.mode = 'gone'; settleSpring(c.simp.shades, 1); }
-  else if (c.simp.mode === 'seated') { c.simp.mode = 'closing'; c.simp.modeAge = 0; throwConfetti(c, 40 + 4 * 68, ROW_Y - 44); }
+  else if (c.simp.mode === 'seated') {
+    c.simp.mode = 'closing'; c.simp.modeAge = 0; throwConfetti(c, SEAT_X, ROW_Y - 44);
+    post(c, NAMES[0]!, 'unsubbed. paper hands, full bags', 0);
+    post(c, 'paper_pete', 'JEET SPOTTED', 0);
+  }
 }
 
 /** The crash floods the chat. `quiet` is a crash met late: the bar is already drained and the flood already posted. */
@@ -122,6 +148,8 @@ export function floodChat(c: Chat, cheerful: boolean, quiet: boolean): void {
     settleSpring(c.fill, 0);
     for (let i = 0; i < 8; i += 1) post(c, NAMES[i]!, CRASH_LINES[i]!, 0);
   }
+  // The one who jeeted dodged it.
+  if (cheerful) post(c, NAMES[0]!, 'dodged. touching grass rn', 0);
 }
 
 export interface ChatDrive { running: boolean; multiplier: number; tension: number }
@@ -134,11 +162,13 @@ export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
   const rate = c.flooded ? 6 : drive.running ? 1 + 6 * drive.tension : 0.4;
   if (c.time > c.nextAt) {
     c.nextAt = c.time + (0.7 + noise(c.time * 3) * 0.6) / rate;
-    const n = Math.floor(noise(c.time * 17) * NAMES.length);
+    // Once your simp has left, someone else speaks for him.
+    const n = Math.floor(noise(c.time * 17) * NAMES.length) || (c.simp.mode === 'seated' ? 0 : 1);
     if (c.flooded) post(c, NAMES[n]!, CRASH_LINES[Math.floor(noise(c.time * 5) * CRASH_LINES.length)]!, 0);
     else {
       const tip = drive.running && noise(c.time * 11) > 0.72 - 0.3 * drive.tension ? Math.round(10 + noise(c.time * 23) * 90 * drive.multiplier) : 0;
-      post(c, NAMES[n]!, LINES[Math.floor(noise(c.time * 7) * LINES.length)]!, tip);
+      const unlocked = TIERS.filter(([at]) => drive.multiplier >= at).at(-1)![1];
+      post(c, NAMES[n]!, LINES[Math.floor(noise(c.time * 7) * unlocked)]!, tip);
     }
   }
   for (const m of c.messages) m.age += dt;
@@ -150,13 +180,19 @@ export function stepChat(c: Chat, drive: ChatDrive, dt: number): boolean {
   }
   stepSpring(c.fill, c.flooded ? 0 : goalFill(c, drive.multiplier), 8, 0.9, dt);
   stepSpring(c.modSleep, drive.running && drive.tension > 0.6 ? 1 : 0, 3, 0.8, dt);
+  // The front row cheers harder with the number and slumps at the crash, eased so neither snaps; their bob is an integrated phase.
+  const ease = 1 - Math.exp(-5 * dt);
+  c.cheer += ((c.flooded ? 0.1 : 0.2 + 0.8 * drive.tension) - c.cheer) * ease;
+  c.party += ((c.flooded && c.hype.x > 0.5 ? 1 : 0) - c.party) * ease;
+  c.bobPhase += dt * (4 + 6 * c.cheer);
   const menuIndex = menuAt(c.goalIndex);
   if (menuIndex !== c.menuIndex) { c.menuIndex = menuIndex; c.menuPop.v = 7; }
   stepSpring(c.menuPop, 0, 12, 0.35, dt);
   const s = c.simp;
   s.modeAge += dt;
   if (s.mode === 'closing' && s.modeAge > 0.7) { s.mode = 'walking'; s.modeAge = 0; }
-  if (s.mode === 'walking') { s.x -= 170 * dt; if (s.x < -60) { s.mode = 'gone'; s.modeAge = 0; } }
+  // He stands up over a quarter second, then eases into his walk.
+  if (s.mode === 'walking') { s.x -= WALK * smoothstep(0.2, 0.5, s.modeAge) * dt; if (s.x < -60) { s.mode = 'gone'; s.modeAge = 0; } }
   stepSpring(s.shades, s.mode !== 'seated' ? 1 : 0, 12, 0.5, dt);
   const drag = Math.exp(-1.6 * dt);
   for (const p of c.confetti) { p.age += dt; p.vy += 520 * dt; p.vx *= drag; p.x += p.vx * dt; p.y += p.vy * dt; p.angle += p.spin * dt; }
@@ -249,7 +285,8 @@ export function drawChat(ctx: CanvasRenderingContext2D, c: Chat, multiplier: num
   ctx.restore();
 }
 
-function drawSimp(ctx: CanvasRenderingContext2D, x: number, seed: number, bob: number, mood: 'calm' | 'hype' | 'sulk' | 'shock', prop: 'rose' | 'card' | 'phone' | 'none', special: boolean, shades: number, stride: number): void {
+/** One simp. `special` is yours: the gold shirt with YOU on it. `gait` is his walk out: distance walked in rig units and how far he has stood up. */
+function drawSimp(ctx: CanvasRenderingContext2D, x: number, seed: number, bob: number, mood: 'calm' | 'hype' | 'sulk' | 'shock', prop: 'rose' | 'card' | 'phone' | 'none', special: boolean, shades: number, gait: { d: number; stand: number } | null = null): void {
   ctx.save();
   ctx.translate(x, ROW_Y - bob);
   ctx.scale(0.62, 0.62);
@@ -257,7 +294,17 @@ function drawSimp(ctx: CanvasRenderingContext2D, x: number, seed: number, bob: n
   const tone = noise(seed * 3.3);
   const skin = tone > 0.66 ? '#f3dccb' : tone > 0.33 ? '#e0bda7' : '#c68e6a';
   const shirt = special ? '#ffe27a' : ['#e63946', '#3b82f6', '#2e8b57', '#7c3aed'][Math.floor(noise(seed * 7.1) * 4)]!;
-  if (stride > 0) for (const side of [-1, 1]) { const lift = Math.max(0, Math.sin(stride + (side > 0 ? Math.PI : 0))) * 10; ctx.strokeStyle = INK; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(side * 10, -30); ctx.lineTo(side * 12, 20 - lift); ctx.stroke(); ctx.strokeStyle = '#3d5f8f'; ctx.lineWidth = 11; ctx.stroke(); }
+  if (gait) {
+    // Feet planted on the floor while the body passes over them (the step follows distance walked), knees forward.
+    const ground = (FLOOR_Y - (ROW_Y - bob)) / 0.62;
+    for (const side of [-1, 1]) {
+      // Phased so he starts with both feet under his hips, one about to lift.
+      const step = stepFoot(gait.d, STRIDE, side > 0 ? 0.79 : 0.29, 12);
+      const hip = { x: side * 10, y: -30 }, foot = { x: side * 12 - step.x, y: ground + step.y * gait.stand };
+      const knee = solveLimb(hip, foot, 27, 27, 1).joint;
+      for (const [width, colour] of [[16, INK], [11, '#3d5f8f']] as const) { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke(); }
+    }
+  }
   ctx.strokeStyle = INK; ctx.lineWidth = 15;
   const hand = mood === 'sulk' ? { x: 0, y: -70 } : { x: 26, y: -80 };
   ctx.beginPath(); ctx.moveTo(18, -34); ctx.lineTo(hand.x, hand.y); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 10; ctx.stroke();
@@ -268,6 +315,7 @@ function drawSimp(ctx: CanvasRenderingContext2D, x: number, seed: number, bob: n
   }
   ctx.fillStyle = shirt; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(-20, -40, 40, 44, 8); ctx.fill(); ctx.stroke();
+  if (special) { ctx.fillStyle = INK; ctx.font = '900 17px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('YOU', 0, -9, 36); }
   const sulk = mood === 'sulk' ? 1 : 0;
   ctx.fillStyle = skin;
   ctx.beginPath(); ctx.ellipse(0, -58 + sulk * 10, 16, 18, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -286,31 +334,34 @@ function drawSimp(ctx: CanvasRenderingContext2D, x: number, seed: number, bob: n
   ctx.restore();
 }
 
-/** The front row under the video, and your simp wherever he is. */
-export function drawSimps(ctx: CanvasRenderingContext2D, c: Chat, tension: number, finished: boolean, cheerful: boolean): void {
+/** The front row under the video, and your simp wherever he is. Only a player has one: for a spectator he is just another simp. */
+export function drawSimps(ctx: CanvasRenderingContext2D, c: Chat, finished: boolean, cheerful: boolean, you: boolean): void {
   ctx.fillStyle = '#0f0f14';
   ctx.fillRect(0, VIDEO.h, VIDEO.w, 540 - VIDEO.h);
-  const cheer = finished ? 0.1 : 0.2 + 0.8 * tension;
+  const cheer = c.cheer;
   const count = 9;
+  const seatBob = (i: number): number => Math.max(0, Math.sin(c.bobPhase + i * 0.7)) * 8 * cheer + Math.max(0, Math.sin(c.time * 10 + i)) * 12 * c.party;
   for (let i = 0; i < count; i += 1) {
     const x = 40 + i * 68;
-    const special = i === 4;
+    const special = you && i === 4;
     if (special && c.simp.mode !== 'seated') continue;
-    const bob = Math.max(0, Math.sin(c.time * (4 + 6 * cheer) + i * 0.7)) * 8 * cheer + (finished && cheerful ? Math.max(0, Math.sin(c.time * 10 + i)) * 12 : 0);
     const mood = finished ? (cheerful ? 'hype' : c.sulk.x > 0.5 ? 'sulk' : 'shock') : cheer > 0.7 ? 'hype' : 'calm';
     const roll = noise(i * 5.7);
-    drawSimp(ctx, x, i, bob, special && finished && !cheerful ? 'sulk' : mood, special ? 'card' : roll > 0.66 ? 'rose' : roll > 0.33 ? 'card' : 'phone', special, 0, 0);
+    drawSimp(ctx, x, i, seatBob(i), special && finished && !cheerful ? 'sulk' : mood, special ? 'card' : roll > 0.66 ? 'rose' : roll > 0.33 ? 'card' : 'phone', special, 0);
   }
   const s = c.simp;
-  if (s.mode === 'closing') {
-    drawSimp(ctx, 40 + 4 * 68, 4, 0, 'calm', 'none', true, clamp(s.shades.x, 0, 1), 0);
-    ctx.save(); ctx.translate(40 + 4 * 68, ROW_Y - 64);
+  if (you && s.mode === 'closing') {
+    // He settles from his bob into his seat while the tab closes and the shades come down.
+    drawSimp(ctx, SEAT_X, 4, seatBob(4) * (1 - smoothstep(0, 0.3, s.modeAge)), 'calm', 'none', true, clamp(s.shades.x, 0, 1));
+    ctx.save(); ctx.translate(SEAT_X, ROW_Y - 64);
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.roundRect(-40, -24, 80, 22, 6); ctx.fill(); ctx.stroke();
     label(ctx, 'UNSUBSCRIBED', 0, -8, 10, INK, 'center');
     ctx.restore();
-  } else if (s.mode === 'walking') {
-    drawSimp(ctx, s.x, 4, 6, 'hype', 'none', true, 1, c.time * 12);
+  } else if (you && s.mode === 'walking') {
+    // Stands up, then walks: the stride follows the distance he has covered, the body highest over each planted foot.
+    const stand = smoothstep(0, 0.25, s.modeAge), d = (SEAT_X - s.x) / 0.62;
+    drawSimp(ctx, s.x, 4, stand * (6.8 + 0.8 * Math.cos(4 * Math.PI * d / STRIDE)), 'hype', 'none', true, 1, { d, stand });
   }
   for (const p of c.confetti) {
     ctx.save();
@@ -323,5 +374,4 @@ export function drawSimps(ctx: CanvasRenderingContext2D, c: Chat, tension: numbe
   }
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.strokeRect(0, VIDEO.h, VIDEO.w, 540 - VIDEO.h);
-  void mix;
 }

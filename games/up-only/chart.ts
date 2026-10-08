@@ -1,12 +1,13 @@
 /**
- * The chart on the picture: the night behind it (skyline, moon, price lines, a fading line chart), the
+ * The chart on the picture: the night behind it (skyline, moon, and the round's own public curve so far), the
  * support band with its ticker tape and the resistance line, the launchpad, every candle and pickup, the
- * FUD cloud, and the rug pull sweeping in from the right. Drawing only: what is where comes from sky.ts.
+ * FUD cloud, and the rug pull sweeping in from the right. The candles are the level, not the price: they
+ * carry slogans, never a number. Drawing only: what is where comes from sky.ts.
  */
 import { CYAN, GOLD, INK, LIME, MONO, PINK, ellipse, line, memeText, panel, poly, text } from './art';
-import { BIRD_X, CANDLE_W, CEILING, COIN_VALUE, FLOOR, H, W, type Candle, type Pickup } from './sky';
+import { CANDLE_W, CEILING, COIN_VALUE, FLOOR, H, W, type Candle, type Pickup } from './sky';
 import { endurance } from './endurance';
-import { clamp, noise, smoothstep } from './motion';
+import { clamp, mix, noise, smoothstep } from './motion';
 
 export interface ChartView {
   seconds?: number;
@@ -18,6 +19,12 @@ export interface ChartView {
   /** How far the crash has gone, 0 to 1: the floor breaks and the night goes red. */
   dark: number;
   reduced: boolean;
+  /** The round's multiplier as the room shows it (the crash point once crashed): the curve and the moon. */
+  multiplier?: number;
+  /** Seconds since the rug pull reached the launchpad, or -1 while it stands. */
+  padBreak?: number;
+  /** The rug edge is only peeking in (a fake-out keyed to the multiplier), not pulling. */
+  fake?: boolean;
 }
 
 const GREEN = '#2fd47a';
@@ -25,19 +32,35 @@ const GREEN_DARK = '#158a48';
 const RED = '#ff4d6d';
 const RED_DARK = '#a4213b';
 const TICKER = ['$COPE −69%', '$WAGMI +420%', '$RUG 100% LOCKED (LOL)', '$HOPIUM ▲▲▲', '$DOGWIFHAT GM', 'NFA · DYOR · NGMI', '$LAMBO WEN', 'SUPPORT: TRUST ME BRO', '$COPIUM +1%', 'VOLUME: VIBES'];
-const PRICES = ['$0.0420', '$0.0069', '$0.0013', '$0.0004', '$0.0001', '$0.0000'];
+/** What the candles say: obstacles with opinions. */
+const BULL = ['PUMP', 'FOMO', 'APE IN', 'SEND IT', 'BUY WALL', 'WAGMI', 'GM'];
+const BEAR = ['FUD', 'DUMP', 'SELL WALL', 'JEETS', 'WICK', 'NGMI', 'CT SAYS NO'];
+/** The six grid lines, and the two the round's curve is scaled between: 1× at the bottom, now at the second. */
+const GRID = [72, 148, 224, 300, 376, 452];
+/** A multiplier label that stays short however long the round runs: 1.25×, 40×, 2.5K×, 310M×, then powers of ten. */
+export const fmtX = (x: number): string => {
+  if (x < 1000) return `${x.toFixed(x < 10 ? 2 : 0)}×`;
+  const k = Math.floor(Math.log10(x) / 3), v = x / 1000 ** k;
+  return k > 4 ? `${x.toExponential(1).replace('e+', 'E')}×` : `${v.toFixed(v < 10 ? 1 : 0)}${'KMBT'[k - 1]}×`;
+};
 
 // ---- The night ---------------------------------------------------------------------------------------------
 
 function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
-  const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#05081c');
-  const act = endurance(view.seconds ?? 0);
+  const seconds = view.seconds ?? 0, act = endurance(seconds), was = endurance(seconds - 2.6).act;
   const regions = ['#101a48', '#203955', '#302449', '#153a37', '#303953'];
-  sky.addColorStop(0.55, regions[act.act]!);
-  sky.addColorStop(1, '#1a1f4a');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
+  // A new act's sky tints in over its first 2.6 s over the last one's, so an act never snaps the picture.
+  for (const [region, alpha] of [[was, 1], [act.act, was === act.act ? 0 : smoothstep(0, 2.6, (seconds - 42) % 26)]] as const) {
+    if (alpha <= 0) continue;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#05081c');
+    sky.addColorStop(0.55, regions[region]!);
+    sky.addColorStop(1, '#1a1f4a');
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.globalAlpha = 1;
   if (view.dark > 0) {
     ctx.fillStyle = `rgba(120, 10, 40, ${0.35 * view.dark})`;
     ctx.fillRect(0, 0, W, H);
@@ -48,9 +71,10 @@ function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
     const tw = view.reduced ? 0.7 : 0.45 + 0.55 * Math.abs(Math.sin(view.time * 2 + i));
     ellipse(ctx, x, y, 1.1, 1.1, `rgba(255, 255, 255, ${0.6 * tw})`);
   }
-  // Weather fronts and a satellite pass behind the course; their silhouettes cannot hide gap edges.
+  // Weather fronts and a satellite pass behind the course; their silhouettes cannot hide gap edges. Both come and
+  // go with the act's effort, which is zero where one act hands over to the next.
   if (act.act > 0) {
-    ctx.save(); ctx.globalAlpha = .12 + .12 * act.effort;
+    ctx.save(); ctx.globalAlpha = .24 * act.effort;
     const drift = view.reduced ? 0 : view.time * (act.act === 2 ? 9 : 3);
     for (let i = 0; i < 4; i += 1) {
       const x = ((i * 310 + drift) % 1250) - 150;
@@ -58,17 +82,20 @@ function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
     }
     ctx.restore();
     if (act.act === 4) {
-      const x = 900 - act.effort * 510;
+      const x = 1020 - act.effort * 630;
       panel(ctx, x - 12, 110, 24, 14, '#acb9ce', INK, 2);
       panel(ctx, x - 52, 110, 32, 14, '#345680', '#88b4ce', 0);
       panel(ctx, x + 20, 110, 32, 14, '#345680', '#88b4ce', 0);
     }
   }
-  // The moon, which everyone is going to, clear of the HUD's corner.
-  ellipse(ctx, 900, 222, 36, 36, '#f3eccb', '#c9bd8a', 2);
-  ellipse(ctx, 888, 212, 7, 7, '#e0d8ad');
-  ellipse(ctx, 914, 232, 5, 5, '#e0d8ad');
-  text(ctx, 'WEN', 900, 225, 13, '#a89c66', 'center');
+  // The moon, which everyone is going to, clear of the HUD's corner. A long round brings it closer, on a log
+  // scale, so 10× to 100,000× still changes the picture.
+  const m = Math.max(1, view.multiplier ?? 1);
+  const near = smoothstep(1, 5, Math.log10(m)), mr = 36 + 30 * near, mk = mr / 36;
+  ellipse(ctx, 900, 222, mr, mr, '#f3eccb', '#c9bd8a', 2);
+  ellipse(ctx, 900 - 12 * mk, 222 - 10 * mk, 7 * mk, 7 * mk, '#e0d8ad');
+  ellipse(ctx, 900 + 14 * mk, 222 + 10 * mk, 5 * mk, 5 * mk, '#e0d8ad');
+  text(ctx, m >= 1000 ? 'SOON' : 'WEN', 900, 225, 13 * Math.min(1.5, mk), '#a89c66', 'center');
   // Two skylines, far and near, sliding at their own pace.
   for (const [layer, colour, speed, base] of [[0, '#0d1436', 0.12, 330], [1, '#141c4a', 0.28, 380]] as const) {
     ctx.fillStyle = colour;
@@ -79,20 +106,33 @@ function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
       ctx.fillRect(x, base - h, w, h + 120);
     }
   }
-  // Price lines and the line chart nobody looks at.
+  // The only price on this chart: the round's public multiplier from launch to now, on grid lines scaled to it.
+  // An exponential through 1× and now is the room's own curve; nothing ahead of now is drawn.
+  const top = Math.max(1.5, m);
+  const yAt = (x: number) => GRID[5]! - ((x - 1) / (top - 1)) * (GRID[5]! - GRID[1]!);
   ctx.setLineDash([4, 8]);
-  for (let i = 0; i < PRICES.length; i += 1) {
-    const y = CEILING + 20 + i * 76;
+  for (const [i, y] of GRID.entries()) {
     line(ctx, [[0, y], [W, y]], 'rgba(120, 140, 220, 0.18)', 1, 'butt');
-    text(ctx, PRICES[i]!, 8, y - 7, 8, 'rgba(140, 160, 230, 0.5)', 'left', undefined, MONO);
+    text(ctx, fmtX(1 + ((5 - i) / 4) * (top - 1)), 8, y - 7, 8, 'rgba(140, 160, 230, 0.5)', 'left', undefined, MONO);
   }
   ctx.setLineDash([]);
-  const pts: [number, number][] = [];
-  for (let x = -20; x <= W + 20; x += 24) {
-    const t = (x + view.distance * 0.5) * 0.01;
-    pts.push([x, 300 - (Math.sin(t) * 40 + Math.sin(t * 2.7) * 25 + Math.sin(t * 0.4) * 60)]);
+  if (seconds > 0) {
+    const x0 = 64, x1 = mix(x0, 690, clamp(seconds / 12, 0, 1));
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 48; i += 1) pts.push([mix(x0, x1, i / 48), yAt(m ** (i / 48))]);
+    const head = pts[48]!;
+    ctx.beginPath();
+    ctx.moveTo(x0, GRID[5]!);
+    for (const p of pts) ctx.lineTo(p[0], p[1]);
+    ctx.lineTo(head[0], GRID[5]!);
+    ctx.fillStyle = view.dark > 0 ? 'rgba(255, 77, 109, 0.07)' : 'rgba(95, 242, 230, 0.07)';
+    ctx.fill();
+    line(ctx, pts, view.dark > 0 ? 'rgba(255, 77, 109, 0.4)' : 'rgba(95, 242, 230, 0.32)', 2.5);
+    // The rug draws its own candle from the head of the curve down to 1×.
+    if (view.dark > 0) line(ctx, [head, [head[0], mix(head[1], GRID[5]!, clamp(view.dark * 2.5, 0, 1))]], 'rgba(255, 77, 109, 0.7)', 4, 'butt');
+    ellipse(ctx, head[0], head[1], 4, 4, view.dark > 0 ? RED : CYAN);
+    text(ctx, `THIS ROUND ${fmtX(m)}`, head[0] + (head[0] < 300 ? 8 : -8), head[1] - 12, 8, view.dark > 0 ? 'rgba(255, 143, 163, 0.75)' : 'rgba(95, 242, 230, 0.6)', head[0] < 300 ? 'left' : 'right', undefined, MONO);
   }
-  line(ctx, pts, 'rgba(95, 242, 230, 0.14)', 2);
 }
 
 function support(ctx: CanvasRenderingContext2D, view: ChartView): void {
@@ -145,24 +185,40 @@ function resistance(ctx: CanvasRenderingContext2D, view: ChartView): void {
   text(ctx, 'RESISTANCE', 735, CEILING + 11, 9, '#ff8fa3', 'left', undefined, MONO);
 }
 
-/** The launchpad the round leaves from, scrolling away with the chart. */
-export function launchpad(ctx: CanvasRenderingContext2D, x: number, time: number): void {
-  if (x < -240) return;
-  panel(ctx, x - 100, FLOOR - 50, 200, 52, '#28305a', '#4a5590', 6, 2);
-  for (let i = 0; i < 6; i += 1) {
-    ctx.fillStyle = i % 2 ? GOLD : '#1b1a24';
-    ctx.fillRect(x - 96 + i * 32, FLOOR - 50, 32, 7);
+/** The launchpad the round leaves from, scrolling away with the chart; a rug that reaches it splits it in two. */
+export function launchpad(ctx: CanvasRenderingContext2D, x: number, time: number, broke = -1, reduced = false): void {
+  if (x < -240 || broke > 1.6) return;
+  const t = Math.max(0, broke);
+  for (const side of broke >= 0 ? [-1, 1] : [0]) {
+    ctx.save();
+    if (side) {
+      // Each half hinges at its outer end and drops, the GM sign going with the right one.
+      ctx.globalAlpha = clamp(1.6 - t, 0, 1);
+      ctx.translate(x + side * 100, FLOOR - 24 + 700 * t * t);
+      if (!reduced) ctx.rotate(-side * (0.9 * t + 0.25 * Math.min(1, t * 6)));
+      ctx.translate(-x - side * 100, -FLOOR + 24);
+      ctx.beginPath();
+      ctx.rect(side < 0 ? x - 140 : x - 2, 0, 142 + (side > 0 ? 60 : 0), H);
+      ctx.clip();
+    }
+    panel(ctx, x - 100, FLOOR - 50, 200, 52, '#28305a', '#4a5590', 6, 2);
+    for (let i = 0; i < 6; i += 1) {
+      ctx.fillStyle = i % 2 ? GOLD : '#1b1a24';
+      ctx.fillRect(x - 96 + i * 32, FLOOR - 50, 32, 7);
+    }
+    text(ctx, 'LAUNCHPAD', x, FLOOR - 26, 13, GOLD, 'center');
+    text(ctx, broke >= 0 ? 'T-MINUS: NEVER' : `T-MINUS: WEN${'.'.repeat(1 + (Math.floor(time * 2) % 3))}`, x, FLOOR - 10, 7.5, '#c9d4ff', 'center', 180, MONO);
+    line(ctx, [[x + 118, FLOOR], [x + 118, FLOOR - 120]], '#4a5590', 4);
+    panel(ctx, x + 96, FLOOR - 146, 44, 28, '#0e1024', PINK, 4, 2);
+    text(ctx, 'GM', x + 118, FLOOR - 132, 13, PINK, 'center');
+    ctx.restore();
   }
-  text(ctx, 'LAUNCHPAD', x, FLOOR - 26, 13, GOLD, 'center');
-  text(ctx, `T-MINUS: WEN${'.'.repeat(1 + (Math.floor(time * 2) % 3))}`, x, FLOOR - 10, 7.5, '#c9d4ff', 'center', 180, MONO);
-  line(ctx, [[x + 118, FLOOR], [x + 118, FLOOR - 120]], '#4a5590', 4);
-  panel(ctx, x + 96, FLOOR - 146, 44, 28, '#0e1024', PINK, 4, 2);
-  text(ctx, 'GM', x + 118, FLOOR - 132, 13, PINK, 'center');
+  if (broke >= 0 && broke < 0.5) line(ctx, [[x - 4, FLOOR - 52], [x + 6, FLOOR - 34], [x - 6, FLOOR - 20], [x + 4, FLOOR]], '#fff', 3 * (1 - broke * 2));
 }
 
 // ---- Candles -----------------------------------------------------------------------------------------------
 
-function candleBody(ctx: CanvasRenderingContext2D, x: number, top: number, bottom: number, fill: string, edge: string, label: string, seed: number): void {
+function candleBody(ctx: CanvasRenderingContext2D, x: number, top: number, bottom: number, fill: string, edge: string, label: string): void {
   const h = bottom - top;
   if (h <= 2) return;
   panel(ctx, x - CANDLE_W / 2, top, CANDLE_W, h, fill, INK, 4, 2);
@@ -176,15 +232,13 @@ function candleBody(ctx: CanvasRenderingContext2D, x: number, top: number, botto
     text(ctx, label, 0, 0, 11, 'rgba(255, 255, 255, 0.75)', 'center', h - 14, MONO);
     ctx.restore();
   }
-  void seed;
 }
 
 function candle(ctx: CanvasRenderingContext2D, c: Candle, view: ChartView): void {
   const top = c.gapY - c.gapH / 2;
   const bottom = c.gapY + c.gapH / 2;
-  // A green candle claims any gain; a red one can only lose the lot.
-  const pct = Math.floor(20 + noise(c.seed * 90) * 400);
-  const loss = Math.min(99, pct);
+  // Slogans, not prices: the round's number is the curve behind them and the multiplier in the corner.
+  const bull = BULL[Math.floor(noise(c.seed * 90) * BULL.length)]!, bear = BEAR[Math.floor(noise(c.seed * 37) * BEAR.length)]!;
   if (c.smashed) {
     // The rocket went through it: both halves in pieces, flying and fading.
     const k = Math.min(1, c.hitAge / 0.7);
@@ -207,15 +261,15 @@ function candle(ctx: CanvasRenderingContext2D, c: Candle, view: ChartView): void
     ctx.globalAlpha = clamp(1.4 - t, 0, 1);
     ctx.translate(c.x, 0);
     ctx.rotate((noise(c.seed) - 0.5) * t * 0.8 * (view.reduced ? 0 : 1));
-    candleBody(ctx, 0, CEILING + drop, top + drop, RED, RED_DARK, `−${loss}%`, c.seed);
-    candleBody(ctx, 0, bottom + drop, FLOOR + drop, RED, RED_DARK, `−${loss}%`, c.seed);
+    candleBody(ctx, 0, CEILING + drop, top + drop, RED, RED_DARK, 'RUGGED');
+    candleBody(ctx, 0, bottom + drop, FLOOR + drop, RED, RED_DARK, 'RUGGED');
     ctx.restore();
     return;
   }
   ctx.save();
   if (c.hit) ctx.globalAlpha = 0.75;
-  candleBody(ctx, c.x, CEILING, top, RED, RED_DARK, `−${loss}%`, c.seed);
-  candleBody(ctx, c.x, bottom, FLOOR, GREEN, GREEN_DARK, `+${pct}%`, c.seed);
+  candleBody(ctx, c.x, CEILING, top, RED, RED_DARK, bear);
+  candleBody(ctx, c.x, bottom, FLOOR, GREEN, GREEN_DARK, bull);
   if (c.hit) {
     // The crack where the shiba went through.
     const y = top > 100 && noise(c.seed * 3) < 0.5 ? top - 24 : bottom + 24;
@@ -307,12 +361,13 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, view: ChartView): void
 
 // ---- The FUD and the rug pull ----------------------------------------------------------------------------
 
-/** The storm behind the shiba: closer as the heat rises, a bolt when it strikes. */
-export function drawFud(ctx: CanvasRenderingContext2D, x: number, y: number, heat: number, strike: number, time: number, reduced: boolean): void {
+/** The storm behind the shiba: closer as the heat rises, bigger as the round runs, a bolt when it strikes. */
+export function drawFud(ctx: CanvasRenderingContext2D, x: number, y: number, heat: number, strike: number, time: number, reduced: boolean, size = 1): void {
   if (heat <= 0.02) return;
   ctx.save();
-  ctx.globalAlpha = clamp(heat * 2.5, 0, 1);
+  ctx.globalAlpha = clamp(heat * 3.5, 0, 1);
   ctx.translate(x, y + (reduced ? 0 : Math.sin(time * 1.7) * 6));
+  ctx.scale(size, size);
   const dark = heat > 0.7 ? '#2a2334' : '#3d3a52';
   for (const [dx, dy, r] of [[-40, 10, 28], [-5, -8, 36], [35, 6, 30], [10, 18, 26], [-30, 22, 22]] as const) ellipse(ctx, dx, dy, r, r * 0.8, dark, '#1a1626', 2);
   memeText(ctx, 'FUD', 0, 4, 26, heat > 0.7 ? PINK : '#c9c2e6', 'center');
@@ -329,15 +384,17 @@ function rugPull(ctx: CanvasRenderingContext2D, view: ChartView): void {
   if (!Number.isFinite(view.rugX)) return;
   const x = view.rugX;
   const wash = ctx.createLinearGradient(x, 0, x + 200, 0);
-  wash.addColorStop(0, 'rgba(255, 60, 100, 0.35)');
+  wash.addColorStop(0, `rgba(255, 60, 100, ${view.fake ? 0.22 : 0.35})`);
   wash.addColorStop(1, 'rgba(255, 60, 100, 0.05)');
   ctx.fillStyle = wash;
   ctx.fillRect(x, 0, W - x + 200, H);
+  if (view.fake) ctx.setLineDash([18, 10]);
   line(ctx, [[x, 0], [x, H]], RED, 4, 'butt');
+  ctx.setLineDash([]);
   ctx.save();
   ctx.translate(x + 26, 270);
   ctx.rotate(Math.PI / 2);
-  memeText(ctx, 'RUG PULL', 0, 0, 34, RED, 'center');
+  memeText(ctx, view.fake ? 'RUG PULL?' : 'RUG PULL', 0, 0, 34, RED, 'center');
   ctx.restore();
 }
 
@@ -350,7 +407,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, w: ChartWorld, view: Ch
   backdrop(ctx, view);
   resistance(ctx, view);
   support(ctx, view);
-  launchpad(ctx, padX, view.time);
+  launchpad(ctx, padX, view.time, view.padBreak, view.reduced);
   for (const c of w.candles) if (c.x > -CANDLE_W && c.x < W + CANDLE_W) candle(ctx, c, view);
   for (const p of w.pickups) if (!p.taken && p.x > -40 && p.x < W + 40) pickup(ctx, p, view);
   drawBird();

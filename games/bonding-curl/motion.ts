@@ -61,6 +61,18 @@ export function settleSpring(s: Spring, target: number): Spring {
   return s;
 }
 
+/**
+ * A foot in a gait driven by distance rather than time: `cycle` is the distance walked over two strides, plus
+ * the foot's offset. The first half is stance, where the foot slides back exactly as far as the body moves on,
+ * so it stays planted in the world; the second half swings it forward to the next plant with a lift.
+ */
+export function footAt(cycle: number, stride: number, lift: number): { dx: number; lift: number } {
+  const p = fract(cycle);
+  if (p < 0.5) return { dx: stride / 2 - 2 * p * stride, lift: 0 };
+  const s = (p - 0.5) * 2;
+  return { dx: -stride / 2 + s * s * (3 - 2 * s) * stride, lift: Math.sin(Math.PI * s) * lift };
+}
+
 /** A small deterministic generator (mulberry32) so a replayed collapse falls the same way every time. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;

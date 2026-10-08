@@ -27,8 +27,10 @@ export interface AndyDrive {
   x: number;
   /** Ground y under his feet. */
   ground: number;
-  /** 0..1 how loud the garden has got: how fast he waters and how nervous he is. */
-  growth: number;
+  /** 0..1 the round's tension (1 - 1/x): how fast he waters and how nervous he is. */
+  tension: number;
+  /** 0..1 a passing scare (headlights, a siren, a searchlight): he freezes mid-pour, ducks and stares at the street. */
+  alarm?: number;
   /** Where the water should land, and where the trouble will come from (world). */
   bed: Point;
   street: Point;
@@ -345,13 +347,16 @@ export function settleAndy(rig: AndyRig, drive: AndyDrive, reduced = false): voi
   settleSpring(rig.brow, face.brow);
 }
 
+/** Nervous from about 1.6x, glancing from 1.55x, panicking from 3x. A breather between acts never calms him. */
+const fearOf = (drive: AndyDrive): number => clamp((drive.tension - 0.17) / 0.7, 0, 1);
+
 function moodOf(rig: AndyRig, drive: AndyDrive): Mood {
-  const fear = clamp((drive.growth - 0.3) / 0.55, 0, 1);
+  const fear = fearOf(drive);
   switch (rig.mode) {
     case 'busted': return rig.modeAge < 1.1 ? 'shock' : 'caught';
     case 'harvest': return 'smug';
     case 'watering': return fear > 0.7 ? 'panic' : fear > 0.3 ? 'nervous' : 'keen';
-    default: return 'calm';
+    default: return fear > 0.7 ? 'panic' : fear > 0.3 ? 'nervous' : 'calm';
   }
 }
 
@@ -372,7 +377,8 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
   rig.vx = (drive.x - rig.x) / dt;
   rig.x = drive.x;
   const t = rig.time;
-  const fear = clamp((drive.growth - 0.3) / 0.55, 0, 1);
+  const fear = fearOf(drive);
+  const alarm = clamp(drive.alarm ?? 0, 0, 1);
 
   // What each spring is asked for by the mode.
   let lean = 0;
@@ -386,13 +392,15 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
     case 'idle': {
       tilt = Math.sin(t * 1.1) * 0.05;
       if (t > rig.nextGlance) { rig.glanceUntil = t + 1.4 + noise(rig.nextGlance) * 1.2; rig.nextGlance = rig.glanceUntil + 2 + noise(rig.nextGlance + 3) * 3; }
-      gaze = t < rig.glanceUntil ? 1 : 0;
-      gazeAt = drive.bed;
+      // A pause mid-round is a nervous one: his glances go to the street.
+      gaze = t < rig.glanceUntil || alarm > 0.25 ? 1 : 0;
+      gazeAt = alarm > 0.25 || fear > 0.3 ? drive.street : drive.bed;
+      crouch = 0.7 * alarm;
       break;
     }
     case 'watering': {
       const before = rig.pour;
-      const rate = 0.42 + drive.growth * 0.5;
+      const rate = (0.42 + drive.tension * 0.5) * (1 - 0.85 * alarm);
       rig.pour += rate * dt;
       const u0 = before - Math.floor(before);
       const u1 = rig.pour - Math.floor(rig.pour);
@@ -403,7 +411,8 @@ export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: bo
       lean = 0.35 + 0.5 * pour;
       // A glance over his shoulder at the street, more often as the garden gets louder.
       if (fear > 0.25 && t > rig.nextGlance) { rig.glanceUntil = t + 0.55 + fear * 0.5; rig.nextGlance = rig.glanceUntil + 1.2 + (1 - fear) * 3 + noise(rig.nextGlance) * 1.5; }
-      const glancing = t < rig.glanceUntil && fear > 0.25;
+      const glancing = (t < rig.glanceUntil && fear > 0.25) || alarm > 0.25;
+      crouch = 0.7 * alarm;
       gaze = 1;
       gazeAt = glancing ? drive.street : drive.bed;
       break;

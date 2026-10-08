@@ -27,10 +27,15 @@ const CONFETTI_COLOURS = ['#ff4d6d', '#7cf67c', '#8fd3ff', '#ffe27a', '#c084fc']
 interface Queuer {
   x: number;
   tone: number;
-  phase: number;
   fleeing: boolean;
+  /** Speed now, and the speed they flee at once the tower goes. */
   vx: number;
+  run: number;
   phone: boolean;
+  /** The bob's phase, integrated so its rate can follow the tension; the stride's phase, from the distance walked; how much they are striding. */
+  bob: number;
+  step: number;
+  gait: number;
 }
 
 /** A stamp on the cabin wall: it pops in on a spring and fades where it is, never drifting up over the billboard. */
@@ -50,7 +55,6 @@ export interface OfficeState {
   signSwing: Spring;
   digits: number;
   units: number;
-  time: number;
 }
 
 export interface OfficeDrive {
@@ -61,7 +65,7 @@ export interface OfficeDrive {
 }
 
 export function createOffice(): OfficeState {
-  return { queue: [], floaters: [], confetti: [], open: true, soldOut: false, penthouseSold: false, bannerPop: spring(0), signSwing: spring(0), digits: 0, units: 0, time: 0 };
+  return { queue: [], floaters: [], confetti: [], open: true, soldOut: false, penthouseSold: false, bannerPop: spring(0), signSwing: spring(0), digits: 0, units: 0 };
 }
 
 export function resetOffice(o: OfficeState): void {
@@ -88,7 +92,8 @@ function wanted(drive: OfficeDrive): number {
 function join(o: OfficeState, fromFar: boolean): void {
   const i = o.queue.length;
   const n = o.units * 7 + i;
-  o.queue.push({ x: fromFar ? slot(i) - 120 - noise(n) * 60 : slot(i), tone: noise(n * 1.3), phase: noise(n * 2.1) * Math.PI * 2, fleeing: false, vx: 0, phone: noise(n * 3.7) > 0.45 });
+  const phase = noise(n * 2.1) * Math.PI * 2;
+  o.queue.push({ x: fromFar ? slot(i) - 120 - noise(n) * 60 : slot(i), tone: noise(n * 1.3), fleeing: false, vx: 0, run: 0, phone: noise(n * 3.7) > 0.45, bob: phase, step: phase, gait: 0 });
 }
 
 /** The state a round already under way calls for: the queue in place, or gone if the tower is down. */
@@ -111,26 +116,26 @@ function apyText(growth: number): string {
 }
 
 export function stepOffice(o: OfficeState, drive: OfficeDrive, dt: number): void {
-  o.time += dt;
   if (o.open) {
     const target = wanted(drive);
-    while (o.queue.filter((q) => !q.fleeing).length < target) join(o, drive.running);
+    // Newcomers walk in from off to the left, between rounds too.
+    while (o.queue.filter((q) => !q.fleeing).length < target) join(o, true);
     const digits = apyText(drive.growth).length;
     if (digits !== o.digits) {
       if (o.digits) o.bannerPop.v = 7;
       o.digits = digits;
     }
   }
+  // They ease into a walk and out of it, shuffling up to their slot or running for it; their legs follow the
+  // ground they cover.
   let i = 0;
   for (const q of o.queue) {
-    if (q.fleeing) {
-      q.x += q.vx * dt;
-      continue;
-    }
-    const target = slot(i);
-    i += 1;
-    const step = 90 * dt;
-    q.x += clamp(target - q.x, -step, step);
+    const want = q.fleeing ? q.run : clamp((slot(i++) - q.x) * 4, -90, 90);
+    q.vx += (want - q.vx) * (1 - Math.exp(-(q.fleeing ? 6 : 10) * dt));
+    q.x += q.vx * dt;
+    q.step += Math.abs(q.vx * dt) * 0.2;
+    q.gait += (clamp(Math.abs(q.vx) / 40, 0, 1) - q.gait) * (1 - Math.exp(-12 * dt));
+    q.bob += (2 + 6 * drive.tension) * dt;
   }
   o.queue = o.queue.filter((q) => q.x > -700);
   for (const f of o.floaters) {
@@ -177,7 +182,7 @@ export function sellPenthouse(o: OfficeState): void {
   stamp(o, 'PENTHOUSE SOLD', OFFICE_X + OFFICE_W / 2, GROUND_Y - 12, '#7cf67c', 16);
   o.signSwing.v += 5;
   for (let i = 0; i < MAX_CONFETTI; i += 1) {
-    const n = i * 1.37 + o.time;
+    const n = i * 1.37 + o.units * 5.3;
     o.confetti.push({
       x: OFFICE_X + OFFICE_W / 2 + (noise(n) - 0.5) * 40, y: GROUND_Y - OFFICE_H,
       vx: (noise(n + 1) - 0.5) * 260, vy: -120 - noise(n + 2) * 220,
@@ -198,7 +203,7 @@ export function scatterQueue(o: OfficeState, quiet: boolean): void {
   for (const [i, q] of o.queue.entries()) {
     q.fleeing = true;
     // Staggered from the back, away from the tower, the front runners the slowest so they trip over each other.
-    q.vx = -(170 + noise(i * 2.3 + o.units) * 150 + i * 18);
+    q.run = -(170 + noise(i * 2.3 + o.units) * 150 + i * 18);
   }
   stamp(o, 'SOLD OUT', OFFICE_X + OFFICE_W / 2, GROUND_Y - 12, '#ff9db0', 16);
 }
@@ -285,10 +290,11 @@ export function drawOffice(ctx: CanvasRenderingContext2D, o: OfficeState, drive:
   for (const [i, q] of o.queue.entries()) {
     ctx.save();
     ctx.translate(q.x, GROUND_Y);
-    const bounce = q.fleeing ? Math.abs(Math.sin(o.time * 16 + q.phase)) * 4 : Math.abs(Math.sin(o.time * (2 + 6 * drive.tension) + q.phase)) * (1 + 4 * drive.tension);
+    // A hop on every step while they walk; on the spot, a bounce on their phones that quickens with the tension.
+    const bounce = Math.abs(Math.sin(q.step)) * 3 * q.gait + Math.abs(Math.sin(q.bob)) * (1 + 4 * drive.tension) * (1 - q.gait);
     ctx.translate(0, -bounce);
     const mood: Mood = q.fleeing ? 'panic' : drive.tension > 0.5 && (i + o.units) % 2 === 0 ? 'hype' : 'meh';
-    const walk = q.fleeing ? Math.sin(o.time * 22 + q.phase) * 1.1 : 0;
+    const walk = Math.sin(q.step) * 1.1 * q.gait;
     drawWojak(ctx, mood, q.fleeing ? 1 : drive.tension > 0.7 ? 0.35 : 0, walk, q.tone, !q.fleeing && q.phone);
     ctx.restore();
   }

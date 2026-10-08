@@ -5,7 +5,9 @@ import { build } from 'esbuild';
 
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('./andy.ts', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'node' });
 const { createAndy, stepAndy, settleAndy, computePose, solveLimb, worldPoint, canFloorOffset, drawAndy } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
-const drive = (mode = 'watering', x = 216, growth = .7) => ({ mode, x, growth, ground: 480, bed: { x: 400, y: 452 }, street: { x: 940, y: 400 } });
+const raid = await build({ entryPoints: [fileURLToPath(new URL('./police.ts', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'node' });
+const { gait, police } = await import(`data:text/javascript;base64,${Buffer.from(raid.outputFiles[0].text).toString('base64')}`);
+const drive = (mode = 'watering', x = 216, tension = .7) => ({ mode, x, tension, ground: 480, bed: { x: 400, y: 452 }, street: { x: 940, y: 400 } });
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const near = (a, b, tolerance = 1e-7) => assert.ok(Math.abs(a - b) < tolerance, `${a} should equal ${b}`);
 function fixedBones(pose) {
@@ -158,6 +160,67 @@ test('the far arm stays behind the body, even on the can; when caught its forear
       const strokes=Object.values(arm);
       assert.ok(strokes.every(s=>s.length)&&torso>=0,`${mode} frame ${i}: every part was drawn`);
       assert.ok(Math.max(...strokes.flat())<torso,`${mode} frame ${i}: the far arm is painted before the torso`);
+    }
+  }
+});
+
+test('a scare (headlights, a siren) ducks him at any frame rate without lifting a planted foot', () => {
+  for (const fps of [30,60,144]) {
+    const rig=createAndy(216); settleAndy(rig,drive());
+    let deepest=0;
+    for (let i=0;i<fps*3;i++) {
+      const alarm=Math.max(0,Math.sin(Math.PI*i/fps/1.4));
+      stepAndy(rig,{...drive('watering',216,.5),alarm},1/fps,false);
+      const pose=computePose(rig); fixedBones(pose);
+      for (const [index,name] of ['backFoot','frontFoot'].entries()) {
+        const foot=worldPoint(rig,pose[name],480);
+        near(foot.x,index===0?191:243); near(foot.y,480);
+      }
+      deepest=Math.max(deepest,rig.crouch.x);
+    }
+    assert.ok(deepest>.25,`${fps} fps: he visibly ducks (${deepest})`);
+  }
+});
+
+test('the agents walk in by distance: a stance foot holds still on the ground and both land planted', () => {
+  for (const [walked,steps,scale] of [[101,4,.85],[53,3,.78]]) {
+    const travel=walked/scale, stride=2*travel/steps;
+    for (const offset of [0,.5]) {
+      let held=null;
+      for (let i=0;i<=600;i++) {
+        const d=travel*i/600, foot=gait(d,stride,offset), world=foot.x*scale-d*scale;
+        if (foot.lift===0) { if (held!==null) near(world,held,1e-6); held=world; } else held=null;
+        if (i>0) { const before=gait(travel*(i-1)/600,stride,offset); assert.ok(Math.abs(foot.x-before.x)<stride/40,'no snap between frames'); }
+      }
+      const end=gait(travel,stride,offset); near(end.lift,0,1e-6);
+    }
+  }
+});
+
+/** A 2D context that applies its own transforms, so a test can read where each stroke lands on the canvas. */
+function placedStrokes() {
+  let m=[1,0,0,1,0,0],path=[]; const stack=[],strokes=[],styles={};
+  const mul=([a2,b2,c2,d2,e2,f2])=>{const [a,b,c,d,e,f]=m; m=[a*a2+c*b2,b*a2+d*b2,a*c2+c*d2,b*c2+d*d2,a*e2+c*f2+e,b*e2+d*f2+f];};
+  const point=(x,y)=>path.push({x:m[0]*x+m[2]*y+m[4],y:m[1]*x+m[3]*y+m[5]});
+  const ops={save:()=>stack.push(m),restore:()=>{m=stack.pop();},translate:(x,y)=>mul([1,0,0,1,x,y]),scale:(x,y)=>mul([x,0,0,y,0,0]),
+    rotate:a=>mul([Math.cos(a),Math.sin(a),-Math.sin(a),Math.cos(a),0,0]),beginPath:()=>{path=[];},moveTo:point,lineTo:point,stroke:()=>strokes.push({width:styles.lineWidth,path})};
+  return {ctx:new Proxy(styles,{get:(s,k)=>k in ops?ops[k]:k in s?s[k]:()=>{},set:(s,k,v)=>{s[k]=v;return true;}}),strokes};
+}
+
+test('the walking agents keep a foot on the ground under the body\'s bob, still while it bears weight, and stop on both feet', () => {
+  for (const fps of [30,60,144]) {
+    const held=[null,null,null,null];
+    for (let i=0;i<=fps*1.2;i++) {
+      const age=.45+i/fps, {ctx,strokes}=placedStrokes(); police(ctx,age,false);
+      const feet=strokes.filter(s=>s.width===11).map(s=>s.path.at(-1));
+      assert.equal(feet.length,4);
+      for (const [agent,ground] of [[0,480-8*.85],[1,475-8*.78]]) {
+        const pair=feet.slice(agent*2,agent*2+2), down=pair.map(f=>Math.abs(f.y-ground)<1e-6);
+        pair.forEach(f=>assert.ok(f.y<=ground+1e-6,'no boot sinks into the ground'));
+        assert.ok(down.some(Boolean),`${fps} fps, ${age.toFixed(3)} s: agent ${agent} has a foot on the ground`);
+        if (age>=1.35) assert.ok(down.every(Boolean),'both feet planted once the walk ends');
+        pair.forEach((f,j)=>{const k=agent*2+j; if (down[j]) { if (held[k]!==null) near(f.x,held[k],1e-6); held[k]=f.x; } else held[k]=null;});
+      }
     }
   }
 });

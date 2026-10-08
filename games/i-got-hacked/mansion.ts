@@ -11,7 +11,7 @@
  * star is a generic cartoon with no likeness of anyone. Nothing here changes
  * the outcome.
  */
-import { solveLimb } from './kinematics';
+import { solveLimb, stepFoot } from './kinematics';
 import { type Spring, clamp, gust, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
@@ -29,8 +29,8 @@ interface Wake { x: number; y: number; age: number; life: number; size: number }
 interface Drone { x: Spring; y: Spring; tilt: Spring; flash: number; nextFlash: number; shots: number; mode: 'away' | 'hover' | 'dive' }
 /** The draft post's excuses, in the order the phone happens to land on them. */
 export const EXCUSES = ['my nephew did it', 'i was phished', 'it was the intern', 'dog ate my seed phrase', 'sim swapped at the spa', 'the yacht wifi did it', 'an AI wrote that post', 'i was asleep 6 months', 'my thumbs got hacked', 'password was password', 'the manager typed it', 'i got hacked'];
-/** Reading time includes typing and an unbroken full-sentence hold. */
-export const excuseDuration = (text: string): number => text.length * .028 + 1.8;
+/** Reading time includes typing and an unbroken full-sentence hold: 3.2 s calm, never under 1.8 s at full tension. */
+export const excuseDuration = (text: string, tension = 1): number => text.length * .028 + 1.8 + 1.4 * (1 - clamp(tension, 0, 1));
 /** Where the drone hovers, and where it dives to at the crash: left of the star's head, at the cheek the tear rolls down. */
 const HOVER = { x: 640, y: 150 } as const;
 const DIVE = { x: 140, y: 72 } as const;
@@ -75,8 +75,17 @@ export interface Mansion {
   grill: { flare: Spring; drive: number; nextDrive: number };
   /** The drone got its shot of the tear. */
   moneyShot: boolean;
-  /** What happened this step, for the scene's sound: an excuse changed, the drone flashed, a drive hit the grill. */
-  events: { excuse: boolean; flash: boolean; drive: boolean };
+  /** The POST button's throb, an integrated phase so its rate can follow the tension without jumping. */
+  throb: number;
+  /** The phone buzzing in his hand (1 on a notification, decaying). */
+  buzz: number;
+  /** The thumb hovering over POST and pulling back: seconds into the hover (-1 none), and how many have gone. */
+  hover: number;
+  hoverIndex: number;
+  /** The multiplier the scene last drove with, for the long-round escalation. */
+  multiplier: number;
+  /** What happened this step, for the scene's sound: an excuse changed, the drone flashed, a drive hit the grill, a hover. */
+  events: { excuse: boolean; flash: boolean; drive: boolean; hover: boolean };
 }
 
 export function createMansion(): Mansion {
@@ -88,7 +97,8 @@ export function createMansion(): Mansion {
     drone: { x: spring(STAGE.w + 80), y: spring(HOVER.y), tilt: spring(0), flash: 0, nextFlash: 0, shots: 0, mode: 'away' },
     grill: { flare: spring(0), drive: -1, nextDrive: 0 },
     moneyShot: false,
-    events: { excuse: false, flash: false, drive: false },
+    throb: 0, buzz: 0, hover: -1, hoverIndex: 0, multiplier: 1,
+    events: { excuse: false, flash: false, drive: false, hover: false },
   };
 }
 
@@ -125,15 +135,21 @@ export function resetMansion(m: Mansion): void {
   m.drone.shots = 0;
   m.grill = { flare: spring(0), drive: -1, nextDrive: m.time + 0.6 };
   m.moneyShot = false;
+  m.buzz = 0;
+  m.hover = -1;
+  m.hoverIndex = 0;
+  m.multiplier = 1;
 }
 
 /** Jumps the slow springs and the phone chart to where a multiplier already is, for a round joined late. */
 export function settleMansion(m: Mansion, tension: number, multiplier: number, elapsedMs: number): void {
-  settleSpring(m.yachtSize, 0.4 + 0.6 * Math.min(1, Math.log2(multiplier) / 4));
-  settleSpring(m.engine, tension > 0.65 ? 1 : 0);
-  settleSpring(m.packing, tension > 0.5 ? 1 : 0);
-  settleSpring(m.prTeam, tension > 0.72 ? 1 : 0);
+  m.multiplier = multiplier;
+  settleSpring(m.yachtSize, yachtFor(multiplier));
+  settleSpring(m.engine, tension > ENGINE_AT ? 1 : 0);
+  settleSpring(m.packing, tension > PACK_AT ? 1 : 0);
+  settleSpring(m.prTeam, tension > PR_AT ? 1 : 0);
   settleSpring(m.draft, tension > DRAFT_AT ? 1 : 0);
+  while (multiplier >= hoverAt(m.hoverIndex)) m.hoverIndex += 1;
   if (tension > DRONE_AT) {
     m.drone.mode = 'hover';
     settleSpring(m.drone.x, HOVER.x);
@@ -183,16 +199,40 @@ export function endMansion(m: Mansion, seed: number, quiet: boolean): void {
   settleSpring(m.engine, 1);
 }
 
-/** The tension the draft starts cycling excuses at, and the one the drone shows up at. */
-const DRAFT_AT = 0.5;
-const DRONE_AT = 0.2;
+/**
+ * The beats, on `tensionAt` (1 - 1/x): the draft starts cycling excuses at 1.33×, the drone shows up at 1.56×, the
+ * packing and the barbecue start at 2×, the sweat at 2.5×, the yacht's engine at 2.94× and the PR team at 4×.
+ */
+const DRAFT_AT = 0.25;
+const DRONE_AT = 0.36;
+const PACK_AT = 0.5;
+const SWEAT_AT = 0.6;
+const ENGINE_AT = 0.66;
+const PR_AT = 0.75;
+/** The thumb hovers over POST at 1.75× and every ×1.4 after (about every 4.4 s), keyed to the multiplier alone. */
+const hoverAt = (index: number): number => 1.75 * Math.pow(1.4, index);
+/** The yacht grows to full size by 16× and keeps growing slowly to 1600×. */
+const yachtFor = (multiplier: number): number => 0.4 + 0.6 * Math.min(1, Math.log2(Math.max(1, multiplier)) / 4) + 0.2 * clamp(Math.log10(Math.max(1, multiplier) / 16) / 2, 0, 1);
 /** Seconds after the post that the tear rolls and the drone takes its shot. */
 const TEAR_AT = 0.9;
+/**
+ * A foot on a walk `span` long, taken in whole strides of about `stride` and phased so the walk starts and ends with both
+ * feet under the hips (one planted, the other coming down), the swing lifting only once under way: neither end of the
+ * walk slides a foot, however quickly the walker starts or stops.
+ */
+function plantedStep(walked: number, span: number, stride: number, lead: boolean): Point {
+  const f = stepFoot(walked, span / Math.max(1, Math.round(span / stride)), lead ? .79 : .29, 14);
+  return { x: f.x, y: f.y * smoothstep(0, 10, walked) * smoothstep(0, 10, span - walked) };
+}
 
 export interface MansionDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
 
 export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
+  const before = m.time;
   m.time += dt;
+  m.multiplier = drive.multiplier;
+  m.throb += dt * (5 + 10 * drive.tension);
+  m.buzz = Math.max(0, m.buzz - dt / 0.3);
   stepSpring(m.typing, drive.running && !m.ended ? 0.4 + 0.6 * drive.tension : 0, 9, 0.5, dt);
   stepSpring(m.wave, 0, 6, 0.5, dt);
   stepSpring(m.shrug, m.ended && m.endAge < 3 ? 1 : 0, 7, 0.6, dt);
@@ -201,26 +241,35 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
     m.whisperOn = !m.whisperOn;
     m.whisperAt = m.time + (m.whisperOn ? 0.6 + 0.8 * (1 - drive.tension) : (2.5 - 2.2 * drive.tension) * (0.7 + noise(m.time) * 0.6));
   }
-  if (!drive.running || m.ended) m.whisperOn = false;
+  // Between rounds the first whisper stays 1.5 s off, so it lands 1.5 s into the next one.
+  if (!drive.running || m.ended) { m.whisperOn = false; if (!m.ended) m.whisperAt = m.time + 1.5; }
   stepSpring(m.whisper, m.whisperOn ? 1 : 0, 10, 0.7, dt);
   stepSpring(m.glance, m.ended ? 0 : m.whisperOn ? 1 : 0, 8, 0.8, dt);
-  const yachtTarget = m.ended ? m.yachtSize.x : 0.4 + 0.6 * Math.min(1, Math.log2(Math.max(1, drive.multiplier)) / 4);
-  stepSpring(m.yachtSize, yachtTarget, 2.5, 1, dt);
-  stepSpring(m.engine, m.ended ? 1 : drive.running && drive.tension > 0.65 ? 1 : 0, 3, 0.9, dt);
-  stepSpring(m.packing, m.ended ? 1 : drive.running && drive.tension > 0.5 ? 1 : 0, 3, 0.9, dt);
-  stepSpring(m.prTeam, m.ended ? 1 : drive.running && drive.tension > 0.72 ? 1 : 0, 2.5, 0.9, dt);
+  stepSpring(m.yachtSize, m.ended ? m.yachtSize.x : yachtFor(drive.multiplier), 2.5, 1, dt);
+  stepSpring(m.engine, m.ended ? 1 : drive.running && drive.tension > ENGINE_AT ? 1 : 0, 3, 0.9, dt);
+  stepSpring(m.packing, m.ended ? 1 : drive.running && drive.tension > PACK_AT ? 1 : 0, 3, 0.9, dt);
+  stepSpring(m.prTeam, m.ended ? 1 : drive.running && drive.tension > PR_AT ? 1 : 0, 2.5, 0.9, dt);
   stepSpring(m.draft, m.ended ? 1 : drive.running && drive.tension > DRAFT_AT ? 1 : 0, 4, 0.8, dt);
   // The draft cycles excuses, faster the higher it goes; each one types itself in.
-  m.events = { excuse: false, flash: false, drive: false };
+  m.events = { excuse: false, flash: false, drive: false, hover: false };
   m.excuseAge += dt;
   if (drive.running && !m.ended && m.draft.x > 0.05 && m.time >= m.excuseAt) {
     m.excuse = (m.excuse + 1 + Math.floor(noise(m.time * 3.1) * (EXCUSES.length - 1))) % EXCUSES.length;
-    m.excuseAt = m.time + excuseDuration(EXCUSES[m.excuse]!);
+    m.excuseAt = m.time + excuseDuration(EXCUSES[m.excuse]!, drive.tension);
     m.excuseAge = 0;
     m.excusePop.v = 8;
     m.events.excuse = true;
   }
   stepSpring(m.excusePop, 0, 14, 0.4, dt);
+  // The near miss: at set multipliers the thumb comes down on POST, holds, and pulls back. It is a tease on the
+  // multiplier alone; only the round ending posts.
+  if (m.hover >= 0) { m.hover += dt; if (m.hover > 1.3 || m.ended) m.hover = -1; }
+  if (drive.running && !m.ended && m.draft.x > 0.5 && drive.multiplier >= hoverAt(m.hoverIndex)) {
+    while (drive.multiplier >= hoverAt(m.hoverIndex)) m.hoverIndex += 1;
+    m.hover = 0;
+    m.glance.v += 4;
+    m.events.hover = true;
+  }
   // The paparazzi drone: in from the right once there is a story, hovering with the gusts, flashing faster with
   // the tension; at the post it dives on the balcony and waits for the tear.
   const d = m.drone;
@@ -271,9 +320,14 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   if (m.ended) {
     m.endAge += dt;
     stepSpring(m.yachtX, 1150, 1.2, 0.95, dt);
-    if (m.endAge < 4 && !drive.reduced && noise(Math.floor(m.time * 10)) > 0.4) m.wakes.push({ x: m.yachtX.x - 70 * m.yachtSize.x, y: HORIZON + 26, age: 0, life: 1.6, size: 4 + noise(m.time * 3) * 5 });
-  } else if (m.engine.x > 0.5 && !drive.reduced && noise(Math.floor(m.time * 8)) > 0.6) {
-    m.wakes.push({ x: m.yachtX.x - 60 * m.yachtSize.x, y: HORIZON + 24, age: 0, life: 1.2, size: 3 + noise(m.time * 5) * 3 });
+  }
+  // The wake: a seeded puff on each tick of the clock this step crossed, so it is as thick at 30 fps as at 144.
+  const fleeing = m.ended && m.endAge < 4;
+  if (!drive.reduced && (fleeing || (!m.ended && m.engine.x > 0.5))) {
+    const rate = fleeing ? 30 : 24;
+    for (let n = Math.floor(before * rate) + 1; n <= Math.floor(m.time * rate); n++) {
+      if (noise(n) > (fleeing ? 0.4 : 0.6)) m.wakes.push(fleeing ? { x: m.yachtX.x - 70 * m.yachtSize.x, y: HORIZON + 26, age: 0, life: 1.6, size: 4 + noise(n * 3) * 5 } : { x: m.yachtX.x - 60 * m.yachtSize.x, y: HORIZON + 24, age: 0, life: 1.2, size: 3 + noise(n * 5) * 3 });
+    }
   }
   for (const w of m.wakes) { w.age += dt; w.x -= 20 * dt; }
   m.wakes = m.wakes.filter((w) => w.age < w.life);
@@ -324,7 +378,7 @@ function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
 /** The yacht on the bay, sized by the multiplier, with a manager aboard once it leaves. */
 function drawYacht(ctx: CanvasRenderingContext2D, m: Mansion, tension: number): void {
   const k = clamp(m.yachtSize.x, 0.3, 1.2);
-  const bob = Math.sin(m.time * 1.3) * 3 + (m.engine.x > 0.5 ? Math.sin(m.time * 9) * 1.5 * m.engine.x : 0);
+  const bob = Math.sin(m.time * 1.3) * 3 + Math.sin(m.time * 9) * 1.5 * clamp(m.engine.x, 0, 1);
   ctx.save();
   ctx.translate(m.yachtX.x, HORIZON + 18 + bob);
   ctx.scale(k, k);
@@ -504,7 +558,7 @@ function drawStar(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: n
   // The gold phone.
   ctx.save();
   ctx.translate(phoneHand.x + 8, phoneHand.y - 16);
-  ctx.rotate(-0.35 + 0.05 * Math.sin(m.time * 20) * typing);
+  ctx.rotate(-0.35 + 0.05 * Math.sin(m.time * 20) * typing + 0.1 * m.buzz * Math.sin(m.time * 80));
   ctx.fillStyle = '#ffd35c'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(-11, -20, 22, 40, 4); ctx.fill(); ctx.stroke();
   ctx.fillStyle = m.posted ? '#ff4d6d' : '#7cf67c';
@@ -534,8 +588,11 @@ function drawStar(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: n
   if (shrug > 0.4) { ctx.moveTo(-12, hy + 20); ctx.lineTo(12, hy + 20 - 4 * shrug); }
   else { ctx.moveTo(-16, hy + 14); ctx.quadraticCurveTo(0, hy + 30 - 10 * tension, 16, hy + 14); }
   ctx.stroke();
-  // A bead of sweat at high tension.
-  if (tension > 0.55 && shrug < 0.4) { ctx.fillStyle = '#8fd3ff'; ctx.beginPath(); ctx.ellipse(40, hy - 20 + ((m.time * 30) % 24), 3, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  // A bead of sweat from 2.5×, a second from 100× and a third from 1000×.
+  if (tension > SWEAT_AT && shrug < 0.4) {
+    ctx.fillStyle = '#8fd3ff';
+    for (let i = 0; i < 1 + Math.floor(clamp(Math.log10(m.multiplier) - 1, 0, 2)); i += 1) { ctx.beginPath(); ctx.ellipse([40, -42, 32][i]!, hy - 20 + ((m.time * 30 + i * 9) % 24), 3, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  }
   // The one fake tear, rolling out from under the shades for the camera and drying on the cheek.
   if (m.ended && m.endAge > TEAR_AT && m.endAge < 6) {
     const t = m.endAge - TEAR_AT;
@@ -588,12 +645,13 @@ export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced:
   ctx.fillStyle = '#3a3a44'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(gx - 17, gy - 39, 14, 9, 1); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.roundRect(gx + 2, gy - 38, 14, 9, 1); ctx.fill(); ctx.stroke();
-  // The stack still to burn.
+  // The stack still to burn, labelled at its foot, which only grows in a long round: 3 drives, 4 from 10×, 8 past 2000×.
+  const stack = 3 + Math.min(5, Math.floor(1.5 * Math.log10(Math.max(1, m.multiplier))));
   ctx.fillStyle = '#4a4a55';
-  for (let i = 0; i < 3; i += 1) { ctx.beginPath(); ctx.roundRect(gx + 30, gy - 2 - i * 9, 22, 8, 1); ctx.fill(); ctx.stroke(); }
+  for (let i = 0; i < stack; i += 1) { ctx.beginPath(); ctx.roundRect(gx + 30, gy - 2 - i * 9, 22, 8, 1); ctx.fill(); ctx.stroke(); }
   ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(gx + 24, gy - 44, 44, 13, 3); ctx.fill(); ctx.stroke();
-  label(ctx, 'EVIDENCE', gx + 46, gy - 34, 7, INK, 'center');
+  ctx.beginPath(); ctx.roundRect(gx + 19, gy + 8, 44, 13, 3); ctx.fill(); ctx.stroke();
+  label(ctx, 'EVIDENCE', gx + 41, gy + 18, 7, INK, 'center');
   // The cook: in from the right with the packing, a drive held up for the toss, the other hand on the tongs.
   const cx = mix(COOK.x + 90, COOK.x, packing);
   const cy = COOK.y;
@@ -602,10 +660,15 @@ export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced:
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(0.72, 0.72);
-  limb(ctx, { x: -9, y: -74 }, { x: -14, y: 0 }, 42, 38, 1, 13, '#2b2b30');
-  limb(ctx, { x: 9, y: -74 }, { x: 14, y: 0 }, 42, 38, -1, 13, '#2b2b30');
-  ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-  for (const fx of [-14, 14]) { ctx.beginPath(); ctx.ellipse(fx, 3, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  // He walks in (and out) on planted feet, by the ground covered.
+  const pace = reduced ? 0 : 1;
+  for (const side of [-1, 1]) {
+    const f = plantedStep((COOK.x + 90 - cx) / 0.72, 90 / 0.72, 60, side > 0);
+    const foot = { x: side * 14 - f.x * pace, y: f.y * pace };
+    limb(ctx, { x: side * 9, y: -74 }, foot, 42, 38, -side, 13, '#2b2b30');
+    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 3, 9, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
   ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-26, -130, 52, 62, 10); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-7, -130); ctx.lineTo(7, -130); ctx.lineTo(0, -100); ctx.closePath(); ctx.fill();
@@ -788,22 +851,23 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
   if (pr > 0.02) {
     for (let i = 0; i < 3; i += 1) {
       const px = mix(640 + i * 40, 590 + i * 22, pr);
-      const step = pr < 0.98 && !reduced ? m.time * 9 + i * 1.3 : i;
+      // Feet planted by the distance walked (they walk left in, backwards out); a different stride each keeps them out of step.
+      const walked = (640 + i * 40 - px) / 0.55, span = (50 + 18 * i) / 0.55, stride = span / Math.round(span / 44);
+      const pace = reduced ? 0 : 1;
+      const step = (walked / stride) * Math.PI * 2;
       ctx.save();
       ctx.translate(px, 290);
       ctx.scale(0.55, 0.55);
       ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
       for (const side of [-1, 1]) {
-        const phase = step + (side > 0 ? Math.PI : 0);
-        const lift = pr < 0.98 && !reduced ? Math.max(0, Math.sin(phase)) * 14 : 0;
-        const reach = pr < 0.98 && !reduced ? Math.cos(phase) * 10 : 0;
-        limb(ctx, { x: side * 8, y: -64 }, { x: side * 10 + reach, y: -lift }, 36, 34, -side, 12, '#2b2b30');
+        const f = plantedStep(walked, span, stride, side > 0);
+        limb(ctx, { x: side * 8, y: -64 }, { x: side * 10 - f.x * pace, y: f.y * pace }, 36, 34, -side, 12, '#2b2b30');
       }
       ctx.beginPath(); ctx.roundRect(-24, -120, 48, 62, 8); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-6, -120); ctx.lineTo(6, -120); ctx.lineTo(0, -92); ctx.closePath(); ctx.fill();
-      const swing = Math.sin(step) * 12;
+      const swing = Math.sin(step) * 12 * pace;
       limb(ctx, { x: -20, y: -108 }, { x: -30 - swing, y: -68 }, 28, 26, 1, 10, '#2b2b30');
-      const briefcase = { x: 34 + Math.sin(step - 0.5) * 10, y: -72 };
+      const briefcase = { x: 34 + Math.sin(step - 0.5) * 10 * pace, y: -72 };
       limb(ctx, { x: 20, y: -108 }, briefcase, 28, 26, -1, 10, '#2b2b30');
       ctx.fillStyle = '#e0bda7'; ctx.beginPath(); ctx.arc(0, -142, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK; ctx.fillRect(-14, -148, 11, 6); ctx.fillRect(3, -148, 11, 6);
@@ -811,11 +875,15 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
       ctx.beginPath(); ctx.roundRect(briefcase.x - 6, briefcase.y, 26, 34, 3); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
+    // A long round brings the lawyers.
+    const team = m.multiplier < 40 ? 'PR CRISIS TEAM' : m.multiplier < 150 ? 'PR TEAM + LAWYERS' : 'ALL THE LAWYERS';
     ctx.save();
     ctx.globalAlpha = smoothstep(0.6, 1, pr);
+    ctx.font = '700 10px system-ui, sans-serif';
+    const w = Math.max(96, ctx.measureText(team).width + 14);
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(586, 214, 96, 20, 6); ctx.fill(); ctx.stroke();
-    label(ctx, 'PR CRISIS TEAM', 634, 228, 10, INK, 'center');
+    ctx.beginPath(); ctx.roundRect(634 - w / 2, 214, w, 20, 6); ctx.fill(); ctx.stroke();
+    label(ctx, team, 634, 228, 10, INK, 'center');
     ctx.restore();
   }
 }
@@ -823,10 +891,9 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
 /** The phone close-up in the lower left: the chart, the draft post, then the post itself. */
 export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier: number, scale = 1, reduced = false): void {
   const p = { x: 22, y: 318, w: 150, h: 204 };
-  const tension = clamp(Math.log2(Math.max(1, multiplier)) / 3.3, 0, 1);
   ctx.save();
-  // The punch at the post, about the phone's centre.
-  ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+  // The punch at the post, about the phone's centre, and a rattle when a notification buzzes it.
+  ctx.translate(p.x + p.w / 2 + m.buzz * Math.sin(m.time * 95) * 2.5, p.y + p.h / 2);
   ctx.scale(scale, scale);
   ctx.translate(-p.x - p.w / 2, -p.y - p.h / 2);
   ctx.fillStyle = '#ffd35c'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
@@ -880,16 +947,31 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
     label(ctx, 'new coin $FAMOUS', p.x + 20, p.y + 140, 10, '#ffffff');
     label(ctx, 'is LIVE. love u all', p.x + 20, p.y + 153, 10, '#ffffff');
   }
-  // Post button: it throbs faster the closer the thumb hovers, and lands flat once posted.
-  const throb = m.posted || reduced ? 0 : draft * Math.max(0, Math.sin(m.time * (5 + 10 * tension))) * 0.08;
+  // Post button: it throbs faster with the tension, sinks under the thumb in a near miss, and lands flat once posted.
+  const throb = m.posted || reduced ? 0 : draft * Math.max(0, Math.sin(m.throb)) * 0.08;
+  const near = m.hover < 0 ? 0 : smoothstep(0, 0.45, m.hover) * (1 - smoothstep(0.85, 1.3, m.hover));
+  const press = m.hover < 0 ? 0 : smoothstep(0.4, 0.55, m.hover) * (1 - smoothstep(0.7, 0.85, m.hover));
   ctx.save();
   ctx.translate(p.x + p.w / 2, p.y + 177);
-  ctx.scale(1 + throb, 1 + throb);
-  ctx.fillStyle = m.posted ? '#ff4d6d' : draft > 0.5 ? '#ffb36b' : '#3b82f6';
+  ctx.scale((1 + throb) * (1 - 0.08 * press), (1 + throb) * (1 - 0.08 * press));
+  ctx.fillStyle = m.posted || press > 0.5 ? '#ff4d6d' : draft > 0.5 ? '#ffb36b' : '#3b82f6';
   ctx.beginPath(); ctx.roundRect(-(p.w - 28) / 2, -9, p.w - 28, 18, 9); ctx.fill();
-  label(ctx, m.posted ? 'POSTED' : draft > 0.5 ? 'POST?' : 'POST', 0, 4, 10, '#ffffff', 'center');
+  label(ctx, m.posted ? 'POSTED' : near > 0.3 ? 'POST?!' : draft > 0.5 ? 'POST?' : 'POST', 0, 4, 10, '#ffffff', 'center');
   ctx.restore();
   ctx.restore();
+  // His thumb, in from the corner for a near miss; under reduced motion it fades in on the button instead.
+  if (near > 0.01) {
+    ctx.save();
+    const k = reduced ? 1 : near;
+    if (reduced) ctx.globalAlpha = near;
+    ctx.translate(mix(p.x + p.w + 40, p.x + p.w / 2 + 42, k), mix(p.y + p.h + 50, p.y + 189 + 3 * press, k));
+    ctx.rotate(-0.55);
+    ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(-11, -16, 22, 70, 11); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#f6e1d3'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(-7, -12, 14, 13, 5); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
   // Camera notch.
   ctx.fillStyle = INK; ctx.beginPath(); ctx.roundRect(p.x + p.w / 2 - 18, p.y + 6, 36, 6, 3); ctx.fill();
   ctx.restore();

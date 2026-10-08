@@ -10,19 +10,36 @@ export const INK = '#1c1f26';
 export const VIDEO_W = 590;
 export const VIDEO_H = 332;
 const SKIN = '#f3dccb';
-/** Where the tow truck parks after the crash, and how far it hauls the Lambo out. */
-const TOW_PARKED = 340;
-const HAULED = 260;
+/** Where the tow truck's hook meets the Lambo's rear bumper, and how far it hauls the Lambo out. */
+const TOW_LATCH = 540;
+const HAULED = 240;
 
-/** How far the RENTAL sticker has peeled, and where the tow truck waits, at a given tension. */
+/** How far the RENTAL sticker has peeled at a given tension. */
 const peel = (tension: number): number => clamp(tension * 1.15, 0, 1);
-const towWaiting = (tension: number): number => 640 - tension * 40;
-/** How many PENDING SELL rows the wallet shows at a tension. */
-const pendingRows = (tension: number): number => clamp(Math.floor(tension * 4), 0, 4);
-/** The cousin's row appears in the wallet from here; it dumps harder as the tension climbs. */
+/**
+ * Where the tow truck waits: its hook peeks in at the right edge, its engine turns over about 1.2×, its light
+ * bar edges into frame about 1.55× (its strobe spills in from 1.25×), and it creeps a notch closer with a reversing
+ * beep after every sponsor read, never past the latch.
+ */
+const towWaiting = (tension: number, creeps: number): number => Math.max(TOW_LATCH + 8, 660 - 80 * tension - 9 * creeps);
+/** How many PENDING SELL rows the wallet shows at a tension: 1.3×, 1.8×, 3.1× and 11×. */
+const pendingRows = (tension: number): number => clamp(Math.floor(tension * 4.4), 0, 4);
+/** The cousin's row appears in the wallet from here (1.67×); it dumps harder as the tension climbs. */
 const COUSIN_FROM = 0.4;
 /** How long a sponsor read is held to camera. */
 const READ_S = 2.6;
+
+type Point = { x: number; y: number };
+/** His free shoulder at rest, and where that hand goes: the 1000x point, the fetch below frame, the facepalm, the betting wave. */
+const SHOULDER: Point = { x: 232, y: 250 };
+const REACH = 95;
+const POINT: Point = { x: 304, y: 204 };
+const HOLD: Point = { x: 306, y: 232 };
+const FETCH: Point = { x: 262, y: 336 };
+const FACE: Point = { x: 216, y: 219 };
+const WAVE: Point = { x: 262, y: 184 };
+/** What his pointing finger aims at: the 1000X arrow burned into the top right of the video. */
+const ARROW: Point = { x: 482, y: 92 };
 
 /** The sponsor reads: one per milestone, each dumber than the last. */
 export const PRODUCTS: { name: string; kind: 'tube' | 'book' | 'can' | 'gloves' | 'vape' | 'tree' | 'candle' | 'kit' }[] = [
@@ -36,7 +53,23 @@ export const PRODUCTS: { name: string; kind: 'tube' | 'book' | 'can' | 'gloves' 
   { name: 'SEED PHRASE TATTOO KIT', kind: 'kit' },
 ];
 
+/** The influencer's rig: integrated talk, nod and shake phases, a head that lags his body, the free hand on a spring. */
+export interface Rig {
+  talk: number;
+  bob: number;
+  tremor: number;
+  wave: number;
+  /** Mouth flap amplitude and waving amount: eased so no phase change pops them. */
+  mouth: number;
+  waving: number;
+  head: Spring;
+  look: Spring;
+  slump: Spring;
+  hand: { x: Spring; y: Spring };
+}
+
 export interface Studio {
+  rig: Rig;
   tear: number;
   fall: Spring;
   sticker: Spring;
@@ -57,23 +90,47 @@ export interface Studio {
   truckIn: boolean;
   beepClock: number;
   beeps: number;
+  /** Sponsor reads that have finished: the truck creeps in a notch after each one. */
+  creeps: number;
+  /** The read on screen came from a milestone (an encore read does not move the truck). */
+  rungRead: boolean;
+  /** The Lambo's rear lifted on the hook. */
+  lift: number;
+  /** The product he was holding when the wallet posted SOLD, falling out of frame. */
+  drop: { x: number; y: number; vy: number; spin: number; index: number } | null;
+  /** A new take fades up from black, so the reset after a crash never pops. */
+  cut: number;
   events: { pending: boolean; read: boolean; truck: boolean; beep: boolean };
 }
 
 export interface StudioDrive {
   running: boolean;
   tension: number;
-  time: number;
   /** How many milestones the round has passed: each one is a sponsor read. */
   reads: number;
+  /** Seconds since the run started (glances at the wallet are timed on it). */
+  elapsed?: number;
+  /** A slow log driver for long rounds: 0 at 1×, 1 at 1000×. */
+  long?: number;
+  /** Reduced motion: the rig holds still instead of nodding, talking and shaking. */
+  still?: boolean;
+}
+
+function createRig(): Rig {
+  return {
+    talk: 0, bob: 0, tremor: 0, wave: 0, mouth: 1, waving: 1,
+    head: spring(0), look: spring(0), slump: spring(0),
+    hand: { x: spring(WAVE.x), y: spring(WAVE.y) },
+  };
 }
 
 export function createStudio(): Studio {
   return {
+    rig: createRig(),
     tear: 0,
     fall: spring(0),
     sticker: spring(0),
-    truck: spring(640),
+    truck: spring(660),
     pull: 0,
     sponsor: spring(0),
     crashed: false,
@@ -87,17 +144,23 @@ export function createStudio(): Studio {
     truckIn: false,
     beepClock: 0,
     beeps: 0,
+    creeps: 0,
+    rungRead: false,
+    lift: 0,
+    drop: null,
+    cut: 0,
     events: { pending: false, read: false, truck: false, beep: false },
   };
 }
 
+/** A new take. The rig keeps its springs, so he eases out of the facepalm under the fade instead of snapping. */
 export function resetStudio(s: Studio): void {
   s.tear = 0;
   s.fall.x = 0;
   s.fall.v = 0;
   s.sticker.x = 0;
   s.sticker.v = 0;
-  s.truck.x = 640;
+  s.truck.x = 660;
   s.truck.v = 0;
   s.pull = 0;
   s.sponsor.x = 0;
@@ -113,6 +176,11 @@ export function resetStudio(s: Studio): void {
   s.truckIn = false;
   s.beepClock = 0;
   s.beeps = 0;
+  s.creeps = 0;
+  s.rungRead = false;
+  s.lift = 0;
+  s.drop = null;
+  s.cut = 1;
   s.events = { pending: false, read: false, truck: false, beep: false };
 }
 
@@ -122,14 +190,19 @@ export function screenshot(s: Studio): void {
 }
 
 /** Jumps the props to where the tension has them, for a stretch of the round the scene did not draw. */
-export function settleStudio(s: Studio, tension: number, reads: number): void {
+export function settleStudio(s: Studio, tension: number, reads: number, running = true): void {
   s.tear = tension;
   settleSpring(s.sticker, peel(tension));
-  settleSpring(s.truck, towWaiting(tension));
-  s.truckIn = towWaiting(tension) < 630;
-  s.pending = pendingRows(tension);
-  // The reads so far were read; none is held up now.
+  // The reads so far were read and the truck crept in after each; none is held up now.
   s.readsShown = reads;
+  s.creeps = Math.min(reads, PRODUCTS.length);
+  settleSpring(s.truck, towWaiting(tension, s.creeps));
+  s.truckIn = s.truck.x < 645;
+  s.pending = pendingRows(tension);
+  const hand = running ? POINT : WAVE;
+  settleSpring(s.rig.hand.x, hand.x);
+  settleSpring(s.rig.hand.y, hand.y);
+  s.rig.waving = running ? 0 : 1;
 }
 
 /** The reveal. `quiet` (a crash that happened off screen) opens on its aftermath: no SOLD flash, nothing moving. */
@@ -140,53 +213,74 @@ export function endStudio(s: Studio, quiet: boolean): void {
     // The tear and the sticker follow the tension, so they stay where the round left them.
     s.crashT = 3;
     settleSpring(s.fall, 1);
-    settleSpring(s.truck, TOW_PARKED);
+    settleSpring(s.truck, TOW_LATCH);
     s.pull = HAULED;
+    s.lift = 1;
     settleSpring(s.sponsor, 1);
-    s.beeps = 9;
+    s.beeps = 3;
+    const r = s.rig;
+    settleSpring(r.slump, 1);
+    settleSpring(r.head, 8);
+    settleSpring(r.look, 0);
+    settleSpring(r.hand.x, FACE.x);
+    settleSpring(r.hand.y, FACE.y);
+    r.mouth = r.waving = 0;
+    settleSpring(s.read.hold, 0);
   } else {
     s.soldFlash = 1;
     s.fall.v = 2;
-    s.sponsor.v = 6;
-    // Whatever he was holding up gets dropped.
+    if (s.read.index >= 0 && s.read.hold.x > 0.3) {
+      // Whatever he was holding up gets dropped: it leaves his hand and falls out of frame.
+      s.drop = { x: s.rig.hand.x.x + 8, y: s.rig.hand.y.x - 16, vy: -70, spin: 0, index: s.read.index };
+    }
     s.read.age = READ_S;
   }
 }
+
+/** Seconds of a read spent fetching the product from below frame before it springs up to camera. */
+const FETCH_S = 0.2;
 
 export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
   s.events = { pending: false, read: false, truck: false, beep: false };
   s.crashT += s.crashed ? dt : 0;
   s.soldFlash = Math.max(0, s.soldFlash - dt * 1.4);
   s.flash = Math.max(0, s.flash - dt * 3);
-  s.tear = drive.tension;
+  s.cut = Math.max(0, s.cut - dt / 0.4);
+  // The tear follows the tension, and keeps opening slowly on the log driver through very long rounds.
+  s.tear = drive.tension * 0.85 + (drive.long ?? 0) * 0.4;
   stepSpring(s.sticker, peel(drive.tension), 5, 0.8, dt);
   stepSpring(s.fall, s.crashed ? 1 : 0, 3.2, 0.85, dt);
-  const truckTarget = s.crashed ? TOW_PARKED : towWaiting(drive.tension);
-  stepSpring(s.truck, truckTarget, s.crashed ? 4 : 6, 0.9, dt);
-  if (!s.truckIn && s.truck.x < 630) {
-    s.truckIn = true;
-    s.events.truck = true;
-  }
-  if (s.crashed && s.truck.x > TOW_PARKED + 6 && s.beeps < 6) {
-    // Reversing beeps while it backs in, a few, not a siren.
-    s.beepClock += dt;
-    if (s.beepClock > 0.42) {
-      s.beepClock = 0;
-      s.beeps += 1;
-      s.events.beep = true;
+  if (s.crashed) {
+    // The truck backs onto the bumper beeping (there from wherever it waited by 0.6 s), the hook lifts the Lambo's
+    // rear, then it hauls the car out of frame.
+    stepSpring(s.truck, TOW_LATCH, 8, 0.85, dt);
+    if (s.beeps < 3) {
+      s.beepClock += dt;
+      if (s.beepClock > 0.3) {
+        s.beepClock = 0;
+        s.beeps += 1;
+        s.events.beep = true;
+      }
     }
+    // Closed form in the crash's own clock: 0.25 s to lift, then 300 px/s² up to a 170 px/s haul.
+    s.lift = clamp((s.crashT - 0.6) / 0.25, 0, 1);
+    const haul = Math.max(0, s.crashT - 0.85);
+    s.pull = Math.min(HAULED, haul < 170 / 300 ? 150 * haul * haul : 170 * haul - 170 * 170 / 600);
+  } else stepSpring(s.truck, towWaiting(drive.tension, s.creeps), 7, 0.6, dt);
+  if (!s.truckIn && s.truck.x < 645) {
+    s.truckIn = true;
+    s.events.truck = !s.crashed;
   }
-  if (s.crashed && s.truck.x < 430) s.pull = Math.min(HAULED, s.pull + 90 * dt);
-  stepSpring(s.sponsor, s.crashed ? 1 : 0, 10, 0.55, dt);
+  stepSpring(s.sponsor, s.crashed && s.crashT > 0.5 ? 1 : 0, 10, 0.55, dt);
   const pending = pendingRows(drive.tension);
   if (drive.running && pending > s.pending) s.events.pending = true;
   if (drive.running || s.crashed) s.pending = pending;
-  // A sponsor read at every milestone: the product springs up to camera, wobbles, and is held for a moment.
+  // A sponsor read at every milestone: he fetches the product from below frame, it springs up to camera, wobbles, and is held for a moment.
   if (drive.running && !s.crashed && drive.reads > s.readsShown) {
     s.readsShown = drive.reads;
     s.read.index = (drive.reads - 1) % PRODUCTS.length;
     s.read.age = 0;
-    s.read.hold.v += 4;
+    s.rungRead = true;
     s.events.read = true;
     s.encoreClock = 0;
   }
@@ -196,15 +290,57 @@ export function stepStudio(s: Studio, drive: StudioDrive, dt: number): void {
       s.encoreClock %= 12;
       s.read.index = (s.read.index + 1) % PRODUCTS.length;
       s.read.age = 0;
-      s.read.hold.v += 4;
+      s.rungRead = false;
       s.events.read = true;
     }
   }
+  const held = s.read.age < READ_S;
   s.read.age += dt;
-  stepSpring(s.read.hold, s.read.index >= 0 && s.read.age < READ_S && !s.crashed ? 1 : 0, 11, 0.5, dt);
+  if (held && s.read.age >= READ_S && s.rungRead && drive.running && !s.crashed) {
+    // The read is over and the truck creeps a notch closer, beeping.
+    s.creeps = Math.min(PRODUCTS.length, s.creeps + 1);
+    s.events.beep = true;
+  }
+  stepSpring(s.read.hold, s.read.index >= 0 && s.read.age >= FETCH_S && s.read.age < READ_S && !s.crashed ? 1 : 0, 11, 0.5, dt);
+  if (s.drop) {
+    s.drop.vy += 900 * dt;
+    s.drop.y += s.drop.vy * dt;
+    s.drop.spin += 6 * dt;
+    if (s.drop.y > VIDEO_H + 60) s.drop = null;
+  }
+  stepRig(s, drive, dt);
 }
 
-type Point = { x: number; y: number };
+/** He talks, nods and points while the round runs, waves through betting, glances at the wallet from 2×, and facepalms at the crash. */
+function stepRig(s: Studio, drive: StudioDrive, dt: number): void {
+  const r = s.rig;
+  const t = drive.tension;
+  const crashed = s.crashed;
+  if (!drive.still) {
+    // Phases are integrated, so a changing tension speeds the motion up without jumping its phase.
+    r.talk += dt * (5 + 20 * t + 6 * (drive.long ?? 0));
+    r.bob += dt * (2 + 3 * t);
+    r.tremor += dt * 38;
+    r.wave += dt * 9;
+  }
+  const ease = (k: number): number => 1 - Math.exp(-k * dt);
+  r.mouth += ((crashed ? 0 : 1) - r.mouth) * ease(12);
+  r.waving += ((drive.running || crashed ? 0 : 1) - r.waving) * ease(8);
+  stepSpring(r.slump, crashed ? 1 : 0, 9, 0.7, dt);
+  // The head rides its own spring: it lags the nod, and drops 8 px when the wallet posts SOLD.
+  const nod = drive.still ? 0 : Math.sin(r.bob) * (2 + 4 * t) * (1 - r.slump.x);
+  stepSpring(r.head, nod + (crashed ? 8 : 0), 14, 0.55, dt);
+  const live = drive.running && !crashed;
+  const glance = live && t >= 0.5 && (drive.elapsed ?? 0) % 3 < 0.8;
+  const admire = live && s.read.index >= 0 && s.read.age > 0.3 && s.read.age < 1.1;
+  stepSpring(r.look, glance ? -1 : admire ? 0.6 : 0, 12, 0.7, dt);
+  let target = sponsorGrip(0);
+  if (crashed) target = FACE;
+  else if (!drive.running) target = WAVE;
+  else if (s.read.index >= 0 && s.read.age < READ_S + 0.3) target = s.read.age < FETCH_S || s.read.age >= READ_S ? FETCH : sponsorGrip(1);
+  stepSpring(r.hand.x, target.x, 16, 0.75, dt);
+  stepSpring(r.hand.y, target.y, 16, 0.75, dt);
+}
 
 function bendJoint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
   const dx = end.x - root.x;
@@ -221,23 +357,21 @@ function bendJoint(root: Point, end: Point, upper: number, lower: number, side: 
 
 function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, lower: number, side: number, width: number, colour: string): Point {
   const joint = bendJoint(a, b, upper, lower, side);
+  bone(ctx, [a, joint, b], width, colour);
+  return joint;
+}
+
+/** An inked stroke through the points: a sleeve, a forearm. */
+function bone(ctx: CanvasRenderingContext2D, points: Point[], width: number, colour: string): void {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = width + 4;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(joint.x, joint.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-  ctx.strokeStyle = colour;
-  ctx.lineWidth = width;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(joint.x, joint.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-  return joint;
+  for (const [w, c] of [[width + 4, INK], [width, colour]] as const) {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.stroke();
+  }
 }
 
 function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
@@ -317,9 +451,26 @@ function drawBeach(ctx: CanvasRenderingContext2D, time: number): void {
   ctx.stroke();
 }
 
-function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number): void {
+/** A hub mark, so a wheel visibly rolls by the distance it travels. */
+function hub(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, angle: number): void {
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - Math.cos(angle) * r, y - Math.sin(angle) * r);
+  ctx.lineTo(x + Math.cos(angle) * r, y + Math.sin(angle) * r);
+  ctx.stroke();
+  ink(ctx, 3);
+}
+
+function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number, lift: number): void {
   ctx.save();
   ctx.translate(x, 236);
+  if (lift > 0) {
+    // The hook lifts the rear about the front tyre's contact.
+    ctx.translate(-46, 26);
+    ctx.rotate(-0.12 * lift);
+    ctx.translate(46, -26);
+  }
   ctx.fillStyle = '#c6f135';
   ink(ctx, 3);
   ctx.beginPath();
@@ -347,6 +498,7 @@ function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number): v
     ctx.fillStyle = '#1b1b1f';
     ctx.fill();
     ctx.stroke();
+    hub(ctx, wx, 12, 8, (x - 400) / 14);
   }
   ctx.save();
   ctx.translate(10, -8);
@@ -375,25 +527,40 @@ function drawLambo(ctx: CanvasRenderingContext2D, x: number, sticker: number): v
   ctx.restore();
 }
 
-/** The product of the moment, held up to camera about its centre, the label on a chyron across the top of the video. */
+/** His free hand from the 1000x point (0) to a product held up to camera (1), always inside the arm's reach. */
 export function sponsorGrip(hold: number): Point {
   const k = clamp(hold, 0, 1);
-  return { x: mix(244, 310, k), y: mix(337, 226, k) };
+  return { x: mix(POINT.x, HOLD.x, k), y: mix(POINT.y, HOLD.y, k) };
 }
 
-function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
+/** The product of the moment in his hand (or falling out of frame at the crash), the label on a chyron across the top of the video. */
+function drawProduct(ctx: CanvasRenderingContext2D, s: Studio, hand: Point): void {
   const hold = clamp(s.read.hold.x, 0, 1.2);
+  if (s.drop) {
+    ctx.save();
+    ctx.translate(s.drop.x, s.drop.y);
+    ctx.rotate(-0.15 + s.drop.spin);
+    productShape(ctx, PRODUCTS[s.drop.index]!.kind);
+    ctx.restore();
+  } else if (hold >= 0.03 && s.read.index >= 0) {
+    // It springs up out of the fetch: overshoot in, a wobble that dies, then back down below frame.
+    const wobble = Math.sin(s.read.age * 11) * 0.22 * Math.exp(-s.read.age * 2.5);
+    ctx.save();
+    ctx.globalAlpha = smoothstep(0, 0.25, hold);
+    ctx.translate(hand.x + 8, hand.y - 16);
+    ctx.rotate(-0.15 + wobble);
+    const k = 0.7 + 0.3 * hold;
+    ctx.scale(k, k);
+    productShape(ctx, PRODUCTS[s.read.index]!.kind);
+    ctx.restore();
+  }
   if (hold < 0.03 || s.read.index < 0) return;
-  const product = PRODUCTS[s.read.index]!;
-  // Overshoot in, a wobble that dies, then the drop.
-  const wobble = Math.sin(s.read.age * 11) * 0.22 * Math.exp(-s.read.age * 2.5);
-  ctx.save();
-  const grip = sponsorGrip(hold);
-  ctx.globalAlpha = smoothstep(0, .18, hold);
-  ctx.translate(grip.x + 8, grip.y - 16);
-  ctx.rotate(-0.15 + wobble);
+  drawChyron(ctx, PRODUCTS[s.read.index]!.name, hold);
+}
+
+function productShape(ctx: CanvasRenderingContext2D, kind: (typeof PRODUCTS)[number]['kind']): void {
   ink(ctx, 2.5);
-  switch (product.kind) {
+  switch (kind) {
     case 'tube':
       ctx.fillStyle = '#f4f1e6';
       ctx.beginPath();
@@ -518,8 +685,9 @@ function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
       ctx.textAlign = 'center';
       ctx.fillText('SEED', 0, 4);
   }
-  ctx.restore();
-  // The chyron.
+}
+
+function drawChyron(ctx: CanvasRenderingContext2D, name: string, hold: number): void {
   ctx.save();
   ctx.globalAlpha = clamp(hold, 0, 1);
   ctx.translate(0, (1 - clamp(hold, 0, 1)) * -12);
@@ -535,15 +703,18 @@ function drawProduct(ctx: CanvasRenderingContext2D, s: Studio): void {
   const labelW = ctx.measureText('SPONSOR').width;
   ctx.fillStyle = '#ffffff';
   ctx.font = '700 11px system-ui, sans-serif';
-  ctx.fillText(product.name, 120 + labelW + 10, 50, 310 - labelW);
+  ctx.fillText(name, 120 + labelW + 10, 50, 310 - labelW);
   ctx.restore();
 }
 
-function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: number, crashed: boolean, read: Studio['read']): void {
-  const flap = Math.abs(Math.sin(time * (5 + tension * 22)));
-  const nod = Math.sin(time * (2 + tension * 3)) * (2 + tension * 3);
+/** Draws him and returns where his free hand is, which the product is held from. */
+function drawInfluencer(ctx: CanvasRenderingContext2D, s: Studio, tension: number, time: number): Point {
+  const r = s.rig;
+  const flap = Math.abs(Math.sin(r.talk)) * r.mouth;
+  // The body carries a little of the nod, a beat behind the head, and sinks into the hoodie at the crash.
+  const bodyY = Math.sin(r.bob - 0.6) * (0.5 + tension) * (1 - r.slump.x) + r.slump.x * 3;
   ctx.save();
-  ctx.translate(214, 292 + nod * 0.2);
+  ctx.translate(214, 292 + bodyY);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   // Hoodie body.
@@ -572,17 +743,12 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: nu
   ctx.stroke();
   ctx.fillStyle = '#111';
   ctx.fillRect(micHand.x + 4, micHand.y + 6, 6, 8);
-  // The free arm rests below frame, fetches the product and settles its grip for the read.
-  const grip = sponsorGrip(read.index < 0 ? 0 : read.hold.x);
-  const finger = { x: grip.x - 214, y: grip.y - 292 - nod * .2 };
-  const shoulder = { x: 18, y: -42 };
-  // The full sleeve and forearm solve to the grip, which also anchors the product.
-  const elbow = bendJoint(shoulder, finger, 49, 47, -1);
-  limb(ctx, shoulder, elbow, 25, 24, -1, 8, '#22262e');
-  limb(ctx, elbow, finger, 24, 23, -1, 5, SKIN);
-  ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(finger.x, finger.y, 4, 0, Math.PI * 2); ctx.fill();
-  // Head.
-  ctx.translate(0, -78);
+  ctx.restore();
+  // Head, on its own spring: it turns to the wallet, admires the product, and drops at the crash.
+  const look = clamp(r.look.x, -1.2, 1.2);
+  ctx.save();
+  ctx.translate(214 + look * 2, 214 + r.head.x);
+  ctx.rotate(r.slump.x * 0.1 + look * 0.04);
   ctx.beginPath();
   ctx.ellipse(0, 0, 18, 20, 0, 0, Math.PI * 2);
   ctx.fillStyle = SKIN;
@@ -591,24 +757,65 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, tension: number, time: nu
   ctx.stroke();
   ctx.fillStyle = '#2a211c';
   ctx.beginPath();
-  ctx.ellipse(0, -16, 16, 8, 0, Math.PI, 0);
+  ctx.ellipse(look * 1.5, -16, 16, 8, 0, Math.PI, 0);
   ctx.fill();
   // Shades with the tow lights living in the lenses.
+  const fx = look * 5;
   ctx.fillStyle = '#111';
-  ctx.fillRect(-14, -6, 12, 8);
-  ctx.fillRect(2, -6, 12, 8);
-  if (tension > 0.4) {
+  ctx.fillRect(-14 + fx, -6, 12, 8);
+  ctx.fillRect(2 + fx, -6, 12, 8);
+  ctx.fillRect(-3 + fx, -4, 6, 2);
+  if (tension > 0.4 || s.crashed) {
     const blink = Math.sin(time * 18) > 0;
     ctx.fillStyle = blink ? '#ff3b3b' : '#3b7cff';
-    ctx.fillRect(-12, -4, 4, 3);
+    ctx.fillRect(-12 + fx, -4, 4, 3);
     ctx.fillStyle = blink ? '#3b7cff' : '#ff3b3b';
-    ctx.fillRect(8, -4, 4, 3);
+    ctx.fillRect(8 + fx, -4, 4, 3);
   }
   ctx.fillStyle = '#6b2a2a';
   ctx.beginPath();
-  ctx.ellipse(0, 8, 5, 2 + flap * 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(fx * 0.8, 8, 5, 2 + flap * 4, 0, 0, Math.PI * 2);
   ctx.fill();
+  if (tension > 0.5 || s.crashed) {
+    // Why is he sweating.
+    const drip = (time * 0.7) % 1;
+    ctx.globalAlpha = 1 - drip * 0.6;
+    ctx.fillStyle = '#9fd8ff';
+    ctx.beginPath();
+    ctx.ellipse(16 - fx * 0.3, -2 + drip * 12, 1.8, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
+  // The free arm: a fixed sleeve and forearm solved to the hand, its elbow below and outside the line. For the
+  // facepalm the elbow swings round toward the camera (the bones foreshorten in depth, never stretch) to sit in
+  // front of his chest under the hand.
+  const shoulder = { x: SHOULDER.x, y: SHOULDER.y + bodyY };
+  // The shake from 2× settles out as he slumps, instead of stopping dead on the crash.
+  const shake = 2.2 * smoothstep(0.5, 0.95, tension) * (1 - clamp(r.slump.x, 0, 1));
+  let hand = {
+    x: r.hand.x.x + Math.sin(r.tremor) * shake + Math.sin(r.wave) * 8 * r.waving,
+    y: r.hand.y.x + Math.sin(r.tremor * 1.37) * shake * 0.6,
+  };
+  const reach = Math.hypot(hand.x - shoulder.x, hand.y - shoulder.y);
+  if (reach > REACH) hand = { x: shoulder.x + ((hand.x - shoulder.x) * REACH) / reach, y: shoulder.y + ((hand.y - shoulder.y) * REACH) / reach };
+  const elbow = bendJoint(shoulder, hand, 49, 47, Math.cos(Math.PI * 0.62 * clamp(r.slump.x, 0, 1)));
+  bone(ctx, [shoulder, elbow], 8, '#22262e');
+  bone(ctx, [elbow, hand], 5, SKIN);
+  // The 1000x point: an index finger aimed at the thumbnail arrow whenever the hand is not busy.
+  const pointing = (1 - clamp(s.read.hold.x, 0, 1)) * (1 - r.slump.x) * (1 - r.waving);
+  if (pointing > 0.35) {
+    const a = Math.atan2(ARROW.y - hand.y, ARROW.x - hand.x);
+    const tip = { x: hand.x + Math.cos(a) * 11 * pointing, y: hand.y + Math.sin(a) * 11 * pointing };
+    bone(ctx, [hand, tip], 3, SKIN);
+  }
+  ctx.fillStyle = SKIN;
+  ink(ctx, 2);
+  ctx.beginPath();
+  ctx.arc(hand.x, hand.y, r.waving > 0.5 || r.slump.x > 0.5 ? 5.5 : 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  return hand;
 }
 
 function drawMonitor(ctx: CanvasRenderingContext2D, tension: number, crashed: boolean, flash: number): void {
@@ -624,23 +831,28 @@ function drawMonitor(ctx: CanvasRenderingContext2D, tension: number, crashed: bo
   ctx.fillRect(6, 6, 138, 78);
   const pending = pendingRows(tension);
   const cousin = tension >= COUSIN_FROM || crashed;
+  ctx.textAlign = 'left';
+  // His own allocation, on top: it was never locked.
+  ctx.font = '700 9px ui-monospace, monospace';
+  ctx.fillStyle = crashed ? '#ff4d6d' : '#8fd0ff';
+  ctx.fillText(crashed ? 'KOL ALLOC 5% · DUMPED' : 'KOL ALLOC 5% · VESTED: NO', 12, 17, 128);
   for (let i = 0; i < 4; i += 1) {
     const sold = crashed;
     const pendingRow = !sold && i >= 4 - pending && pending > 0;
+    const y = 31 + i * 14;
     ctx.font = '700 11px ui-monospace, monospace';
-    ctx.textAlign = 'left';
     if (i === 0 && cousin) {
       // The cousin (the dev) dumping on everyone, the bar growing with the tension.
       ctx.fillStyle = '#ff7a3b';
-      ctx.fillText(sold ? 'COUSIN SOLD' : 'COUSIN SELL', 12, 24);
-      const dump = sold ? 1 : clamp((tension - COUSIN_FROM) / (1 - COUSIN_FROM), 0.08, 1);
+      ctx.fillText(sold ? 'COUSIN SOLD' : 'COUSIN SELL', 12, y);
+      const dump = sold ? 1 : clamp((tension - COUSIN_FROM) / (0.92 - COUSIN_FROM), 0.08, 1);
       ctx.fillStyle = '#ff4d6d';
-      ctx.fillRect(96, 16, 42 * dump, 8);
+      ctx.fillRect(96, y - 8, 42 * dump, 8);
       continue;
     }
     ctx.fillStyle = sold ? '#ff4d6d' : pendingRow ? '#ffe08a' : '#39ff8a';
     const label = sold ? 'SOLD' : pendingRow ? 'PENDING SELL' : `BUY  +${(0.4 + i * 0.3).toFixed(2)}`;
-    ctx.fillText(label, 12, 24 + i * 16);
+    ctx.fillText(label, 12, y);
   }
   if (flash > 0.02) {
     ctx.globalAlpha = flash * 0.45;
@@ -650,6 +862,7 @@ function drawMonitor(ctx: CanvasRenderingContext2D, tension: number, crashed: bo
   ctx.restore();
 }
 
+/** The tow truck reverses in hook first, its light bar over the leading end so the strobe shows early. */
 function drawTow(ctx: CanvasRenderingContext2D, x: number, time: number): void {
   ctx.save();
   ctx.translate(x, 248);
@@ -662,17 +875,18 @@ function drawTow(ctx: CanvasRenderingContext2D, x: number, time: number): void {
   ctx.fillStyle = '#2a3038';
   ctx.fillRect(-38, -24, 22, 14);
   ctx.fillStyle = '#c0392b';
-  ctx.fillRect(8, -36, 28, 10);
+  ctx.fillRect(-42, -36, 28, 10);
   const blink = Math.sin(time * 16) > 0;
   ctx.fillStyle = blink ? '#ff3b3b' : '#3b7cff';
-  ctx.fillRect(12, -34, 8, 6);
+  ctx.fillRect(-38, -34, 8, 6);
   ctx.fillStyle = blink ? '#3b7cff' : '#ff3b3b';
-  ctx.fillRect(24, -34, 8, 6);
+  ctx.fillRect(-26, -34, 8, 6);
   ctx.strokeStyle = INK;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(-46, -8);
   ctx.lineTo(-78, 4);
+  ctx.arc(-78, 9, 5, -Math.PI / 2, Math.PI * 0.8, true);
   ctx.stroke();
   for (const wx of [-20, 28]) {
     ctx.beginPath();
@@ -680,6 +894,7 @@ function drawTow(ctx: CanvasRenderingContext2D, x: number, time: number): void {
     ctx.fillStyle = '#1b1b1f';
     ctx.fill();
     ctx.stroke();
+    hub(ctx, wx, 8, 6, x / 10);
   }
   ctx.restore();
 }
@@ -691,7 +906,7 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
   ctx.clip();
   drawGarage(ctx);
   // The beach is a cloth. The edges tear back to the garage, then the cloth falls.
-  const bite = 8 + s.tear * 54;
+  const bite = 8 + s.tear * 52;
   ctx.save();
   ctx.translate(s.fall.x * 30, s.fall.x * 380);
   ctx.rotate(s.fall.x * 0.2);
@@ -709,30 +924,45 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
   ctx.clip();
   drawBeach(ctx, time);
   ctx.restore();
-  drawLambo(ctx, 400 + s.pull, s.sticker.x);
-  if (s.crashed || s.truck.x < 630) drawTow(ctx, s.truck.x, time);
-  drawInfluencer(ctx, tension, time, s.crashed, s.read);
-  drawProduct(ctx, s);
+  drawLambo(ctx, 400 + s.pull, s.sticker.x, s.lift);
+  const towX = s.truck.x + s.pull;
+  if (towX < 680) drawTow(ctx, towX, time);
+  // The light bar's strobe spills into frame before the truck itself does.
+  const glow = s.crashed ? 1 : smoothstep(0.2, 0.6, tension);
+  if (glow > 0.01 && towX < 760) {
+    const lx = towX - 28;
+    const red = Math.sin(time * 16) > 0;
+    const g = ctx.createRadialGradient(lx, 214, 4, lx, 214, 130);
+    g.addColorStop(0, red ? 'rgba(255,59,59,0.34)' : 'rgba(59,124,255,0.34)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = glow;
+    ctx.fillStyle = g;
+    ctx.fillRect(lx - 130, 84, 260, 260);
+    ctx.globalAlpha = 1;
+  }
+  const hand = drawInfluencer(ctx, s, tension, time);
+  drawProduct(ctx, s, hand);
   drawMonitor(ctx, tension, s.crashed, s.soldFlash);
   if (s.sponsor.x > 0.04) {
+    // The sponsor card slaps over his face once he has facepalmed.
     ctx.save();
-    ctx.translate(300, 150);
+    ctx.translate(238, 216 + s.rig.head.x * 0.5);
     const scale = clamp(s.sponsor.x, 0, 1.15);
     ctx.scale(scale, scale);
-    ctx.rotate(-0.06);
+    ctx.rotate(-0.1);
     ctx.fillStyle = '#111';
     ink(ctx, 4);
     ctx.beginPath();
-    ctx.roundRect(-120, -46, 240, 92, 8);
+    ctx.roundRect(-70, -32, 140, 64, 8);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#d5fb6d';
-    ctx.font = '900 32px Impact, "Arial Black", sans-serif';
+    ctx.font = '900 25px Impact, "Arial Black", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('MOONJUICE', 0, -4);
-    ctx.font = '700 14px system-ui, sans-serif';
+    ctx.fillText('MOONJUICE', 0, -2, 124);
+    ctx.font = '700 11px system-ui, sans-serif';
     ctx.fillStyle = '#fff';
-    ctx.fillText('PAID IN FULL', 0, 22);
+    ctx.fillText('PAID IN FULL', 0, 18);
     ctx.restore();
   }
   // Scanlines.
@@ -753,6 +983,13 @@ export function drawStudio(ctx: CanvasRenderingContext2D, s: Studio, tension: nu
       ctx.lineTo(cx + dx * 26, cy);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
+  }
+  if (s.cut > 0.01) {
+    // A new take fades up from black.
+    ctx.globalAlpha = s.cut * s.cut;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, VIDEO_W, VIDEO_H);
     ctx.globalAlpha = 1;
   }
   ctx.restore();
