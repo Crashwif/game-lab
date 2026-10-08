@@ -11,9 +11,10 @@
  * Music is a step sequencer scheduled a little ahead of the audio clock, so it never stutters when a frame
  * is slow. A Style names a genre: its drum pattern, chords, scale, tempo and instruments. Tension, from the
  * multiplier, brings layers in (hats, arpeggio, lead, a riser), raises the tempo and opens the filter, so a
- * round tightens as it climbs. A cash-out is a register and a fanfare over the music; the crash is a tape
- * stop with a stinger the game chooses. Everything routes through one bus, which a game's own module
- * (Boiler Room's sound.ts) can build on, so one button governs it all.
+ * round tightens as it climbs; a recording keeps its tempo, but its filter and the riser follow. A cash-out
+ * is a register and a fanfare over the music; the crash is a tape stop with a stinger the game chooses.
+ * Everything routes through one bus, which a game's own module (Boiler Room's sound.ts) can build on, so
+ * one button governs it all.
  */
 
 import localClips from './clips.json';
@@ -154,7 +155,7 @@ function remember(mode: 'off' | 'on' | 'fx'): void {
   }
 }
 
-// ---- Music theory -----------------------------------------------------------------------------------------
+// ---- Music theory --------------------------------------------------------------------------
 
 /** Scale degrees in semitones. */
 const SCALES = {
@@ -291,7 +292,7 @@ const STYLES: Record<Style, StylePreset> = {
   },
 };
 
-// ---- The engine -------------------------------------------------------------------------------------------
+// ---- The engine ----------------------------------------------------------------------------
 
 const LOOKAHEAD_S = 0.12;
 const TICK_MS = 30;
@@ -468,7 +469,7 @@ function createAudio(options: AudioOptions): Audio {
     }
   }
 
-  // ---- Instruments ----------------------------------------------------------------------------------------
+  // ---- Instruments -------------------------------------------------------------------------
 
   /** An oscillator on the music bus that the tape stop bends. */
   function voice(ctx: AudioContext, type: OscillatorType, hz: number, detune = 0): OscillatorNode {
@@ -671,7 +672,7 @@ function createAudio(options: AudioOptions): Audio {
     g.connect(out);
   }
 
-  // ---- The sequencer --------------------------------------------------------------------------------------
+  // ---- The sequencer -----------------------------------------------------------------------
 
   const degreeToMidi = (degree: number, octave = 0): number => {
     const scale = SCALES[preset.scale];
@@ -832,7 +833,7 @@ function createAudio(options: AudioOptions): Audio {
     }
   }
 
-  // ---- Effects --------------------------------------------------------------------------------------------
+  // ---- Effects -----------------------------------------------------------------------------
 
   function burst(ctx: AudioContext, t: number, out: AudioNode, hz: number, q: number, peak: number, decay: number, type: BiquadFilterType, sweepTo?: number): void {
     const src = ctx.createBufferSource();
@@ -1266,9 +1267,9 @@ function createAudio(options: AudioOptions): Audio {
         clipMusic = null;
         startMusic();
       }
-      if (filter) filter.frequency.setTargetAtTime(clipMusic ? (phase === 'running' ? 7000 + 3000 * tension : 3500) : (phase === 'running' ? 900 + 9000 * tension * tension : 700), t, 0.3);
+      if (filter) filter.frequency.setTargetAtTime(clipMusic ? (phase === 'running' ? 1200 + 6000 * tension : 1000) : (phase === 'running' ? 900 + 9000 * tension * tension : 700), t, 0.3);
       if (riser) {
-        const top = phase === 'running' && !clipMusic ? clampNum((tension - 0.55) / 0.45, 0, 1) : 0;
+        const top = phase === 'running' ? clampNum((tension - (clipMusic ? 0.3 : 0.55)) / 0.45, 0, 1) : 0;
         riser.gain.gain.setTargetAtTime(0.05 * top, t, 0.4);
         riser.noise.gain.setTargetAtTime(0.12 * top * top, t, 0.4);
         riser.osc.frequency.setTargetAtTime(midiHz(root) * (1 + 3 * top), t, 0.5);
