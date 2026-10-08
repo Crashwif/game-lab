@@ -1,4 +1,4 @@
-import { type Act, type ActorPose, type ActingInput } from './acting';
+import type { Act, ActorPose, ActingInput } from './acting';
 import { drawFace } from './actor';
 import { box, burst, clamp, ease, GOLD, GREEN, INK, label, line, mono, PAPER, RED, shape } from './ink';
 
