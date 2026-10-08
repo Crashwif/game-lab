@@ -13,7 +13,8 @@ const GOLD = '#f2c14e';
 const GOLD_DARK = '#c4932a';
 const GOLD_LIGHT = '#ffe08a';
 
-export interface Clinger { angle: number; tone: number }
+/** A holder on the rim; `age` scales them in as they hop on. */
+export interface Clinger { angle: number; tone: number; age: number }
 export interface Jeet { x: number; y: number; vx: number; vy: number; angle: number; spin: number; age: number; tone: number }
 export interface Dust { x: number; y: number; vx: number; vy: number; r: number; age: number; life: number; colour: string }
 
@@ -44,7 +45,12 @@ export interface CoinState {
   flag: Spring;
   crashed: boolean;
   crashAge: number;
+  /** Downhill speed after the crash: it starts from the coin's own motion plus the sell's shove, so nothing pops. */
   crashSpeed: number;
+  /** The coin's displayed speed up the hill, carried into the crash. */
+  vel: number;
+  /** On the flat at the foot of the hill, rolling out. */
+  flat: boolean;
   events: { bump: boolean; jeet: boolean; milestone: 'crown' | 'cap' | 'flag' | null };
   rng: () => number;
 }
@@ -53,7 +59,7 @@ const MILESTONES: { at: number; key: 'crown' | 'cap' | 'flag' }[] = [{ at: 1.6, 
 const JEET_AT = [1.5, 2.2, 3.5, 5, 8];
 
 export function createCoin(): CoinState {
-  return { time: 0, x: 0, radius: spring(40), roll: 0, back: spring(0), wobble: spring(0), bumpClock: 0, clingers: [], jeets: [], jeeted: 0, dust: [], crown: spring(0), cap: spring(0), flag: spring(0), crashed: false, crashAge: 0, crashSpeed: 0, events: { bump: false, jeet: false, milestone: null }, rng: mulberry32(7) };
+  return { time: 0, x: 0, radius: spring(40), roll: 0, back: spring(0), wobble: spring(0), bumpClock: 0, clingers: [], jeets: [], jeeted: 0, dust: [], crown: spring(0), cap: spring(0), flag: spring(0), crashed: false, crashAge: 0, crashSpeed: 0, vel: 0, flat: false, events: { bump: false, jeet: false, milestone: null }, rng: mulberry32(7) };
 }
 
 export function resetCoin(c: CoinState): void {
@@ -72,6 +78,8 @@ export function resetCoin(c: CoinState): void {
   c.crashed = false;
   c.crashAge = 0;
   c.crashSpeed = 0;
+  c.vel = 0;
+  c.flat = false;
 }
 
 /** Jumps to the state a late joiner would see. */
@@ -83,12 +91,12 @@ export function settleCoin(c: CoinState, drive: CoinDrive): void {
   for (const m of MILESTONES) if (multiplier >= m.at) settleSpring(c[m.key], 1);
   c.jeeted = JEET_AT.filter((j) => multiplier >= j).length;
   const count = Math.min(8, Math.floor(drive.growth * 3)) - c.jeeted;
-  for (let i = 0; i < Math.max(0, count); i += 1) c.clingers.push({ angle: noise(i * 2.7) * Math.PI * 2, tone: noise(i * 5.1) });
+  for (let i = 0; i < Math.max(0, count); i += 1) c.clingers.push({ angle: noise(i * 2.7) * Math.PI * 2, tone: noise(i * 5.1), age: 1 });
 }
 
-/** The contact point on the hill, the centre above it, and the slope there. */
+/** The contact point on the hill (or on the flat below its foot), the centre above it, and the slope there. */
 export function coinPose(c: CoinState): { contact: Point; centre: Point; angle: number; r: number } {
-  const x = Math.max(0, c.x - c.back.x);
+  const x = c.x - c.back.x;
   const angle = slopeAngle(x);
   const r = c.radius.x;
   const contact = { x, y: heightAt(x) };
@@ -107,13 +115,14 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
   c.events = { bump: false, jeet: false, milestone: null };
   const before = c.x - c.back.x;
   const multiplier = Math.pow(2, drive.growth);
-  const tension = clamp(drive.growth / 3.3, 0, 1);
+  // The bumps quicken through the first few multiples, where most rounds end.
+  const tension = 1 - 1 / multiplier;
   if (!c.crashed) {
     c.x += (drive.x - c.x) * (1 - Math.exp(-dt / 0.35));
     stepSpring(c.radius, drive.radius, 4, 1, dt);
     if (drive.running) {
       c.bumpClock += dt;
-      const every = 2.6 - 1.6 * tension;
+      const every = 2.6 - 1.4 * tension;
       if (c.bumpClock > every) {
         c.bumpClock = 0;
         c.back.v += 60 + 70 * tension;
@@ -122,7 +131,7 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
         puff(c, coinPose(c).contact, 6);
       }
       const want = Math.min(8, Math.floor(drive.growth * 3));
-      while (c.clingers.length + c.jeeted < want) c.clingers.push({ angle: c.rng() * Math.PI * 2, tone: c.rng() });
+      while (c.clingers.length + c.jeeted < want) c.clingers.push({ angle: c.rng() * Math.PI * 2, tone: c.rng(), age: 0 });
       for (const m of MILESTONES) {
         if (multiplier >= m.at && c[m.key].x < 0.01 && c[m.key].v === 0) {
           c[m.key].v = 8;
@@ -141,20 +150,28 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
       }
     }
     const act = endurance(drive.seconds ?? 0);
-    // A slow setback and a brace, followed by recovery; the rolling/hand/foot anchors share this pose.
-    stepSpring(c.back, drive.running ? act.effort * (act.act === 1 ? 220 : act.act === 3 ? 360 : act.act === 4 ? 90 : 0) : 0, act.act === 2 ? 2.4 : 5, 0.8, dt);
+    // A slow setback and a brace, followed by recovery; the rolling/hand/foot anchors share this pose. It follows the
+    // round's clock alone (zero before the run), so the beat between the dev's pull and the coin letting go holds it.
+    stepSpring(c.back, act.effort * (act.act === 1 ? 220 : act.act === 3 ? 360 : act.act === 4 ? 90 : 0), act.act === 2 ? 2.4 : 5, 0.8, dt);
   } else {
     c.crashAge += dt;
-    const angle = slopeAngle(Math.max(0, c.x));
-    c.crashSpeed += 700 * Math.sin(angle) * dt + 120 * dt;
-    c.x = Math.max(0, c.x - c.crashSpeed * dt);
-    settleSpring(c.back, 0);
-    if (c.crashAge < 2 && Math.floor(c.time * 12) !== Math.floor((c.time - dt) * 12)) puff(c, coinPose(c).contact, 3, '#c8b78f', 1.6);
+    // Gravity and the sell pull it down the slope; on the flat it rolls out, slows, and rocks to a stop.
+    const v0 = c.crashSpeed;
+    if (c.x > 0) c.crashSpeed += (700 * Math.sin(slopeAngle(c.x)) + 120) * dt;
+    else {
+      if (!c.flat) { c.flat = true; c.wobble.v += 0.5; }
+      c.crashSpeed = Math.max(0, c.crashSpeed - 110 * dt);
+      if (v0 > 0 && c.crashSpeed === 0) c.wobble.v -= 0.4;
+    }
+    c.x -= (v0 + c.crashSpeed) / 2 * dt;
+    if (c.crashSpeed > 30 && Math.floor(c.time * 12) !== Math.floor((c.time - dt) * 12)) puff(c, coinPose(c).contact, 3, '#c8b78f', 1.6);
   }
   stepSpring(c.wobble, 0, 9, 0.3, dt);
   for (const key of ['crown', 'cap', 'flag'] as const) stepSpring(c[key], c[key].x > 0.01 || c[key].v > 0 ? 1 : 0, 10, 0.4, dt);
   const after = c.x - c.back.x;
-  c.roll += ((after - before) * Math.sqrt(1 + Math.pow(Math.tan(slopeAngle(Math.max(0, after))), 2))) / Math.max(8, c.radius.x);
+  if (dt > 0) c.vel = (after - before) / dt;
+  c.roll += ((after - before) / Math.cos(slopeAngle(after))) / Math.max(8, c.radius.x);
+  for (const h of c.clingers) h.age += dt;
   for (const j of c.jeets) {
     j.age += dt;
     j.vy -= 900 * dt;
@@ -169,13 +186,28 @@ export function stepCoin(c: CoinState, drive: CoinDrive, dt: number): void {
   c.dust = c.dust.filter((d) => d.age < d.life);
 }
 
-/** The dev sells: the coin lets go and rolls back down. */
+/**
+ * The dev sells: the coin lets go and rolls back down. Any setback in progress is folded into its position and
+ * its speed carries over, and the holders still on the rim are thrown off. A quiet crash leaves it at rest on the
+ * flat below the foot of the hill.
+ */
 export function crashCoin(c: CoinState, seed: number, quiet: boolean): void {
   c.rng = mulberry32(seed);
+  const pose = coinPose(c);
+  c.x -= c.back.x;
+  settleSpring(c.back, 0);
   c.crashed = true;
   c.crashAge = quiet ? 10 : 0;
-  c.crashSpeed = quiet ? 0 : 40;
-  if (quiet) c.x = 0;
+  c.crashSpeed = quiet ? 0 : 60 - c.vel;
+  if (quiet) {
+    c.x = -170;
+    c.flat = true;
+  } else {
+    for (const h of c.clingers) {
+      const a = h.angle + c.roll;
+      c.jeets.push({ x: pose.centre.x + Math.cos(a) * pose.r, y: pose.centre.y + Math.sin(a) * pose.r, vx: -(60 + c.rng() * 160), vy: 140 + c.rng() * 220, angle: 0, spin: (c.rng() - 0.5) * 16, age: 0, tone: 0 });
+    }
+  }
   c.clingers = [];
 }
 
@@ -225,10 +257,14 @@ export function drawCoin(ctx: CanvasRenderingContext2D, cam: Camera, c: CoinStat
   }
   // Holders clinging to the rim, riding it round.
   for (const h of c.clingers) {
+    // A holder hops on: a quick scale up from the rim with a small overshoot.
+    const k = clamp(h.age / 0.28, 0, 1);
+    const s = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2);
     ctx.save();
     ctx.rotate(h.angle);
-    ctx.translate(0, -r - 8);
+    ctx.translate(0, -r - 2 - 6 * s);
     ctx.rotate(Math.PI);
+    ctx.scale(s, s);
     drawFigure(ctx, h.tone, true);
     ctx.restore();
   }
