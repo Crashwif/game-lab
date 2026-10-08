@@ -113,7 +113,7 @@ test('Tower running camera retains the swaying tower and crane after 180 continu
   }
   for(const x of [c.CRANE_X,c.JIB_TIP])assert.ok(480+(x-camera.x)*zoom.x>30&&480+(x-camera.x)*zoom.x<930);
  }
- assert.ok(maxTravel>900,'exercise the accumulated drift that previously escaped the camera');
+ assert.ok(maxTravel>40&&maxTravel<160,'the stack visibly sways but no longer accumulates noodle drift');
 });
 
 test('Moon hero front points toward the chase camera instead of behind the hull',async()=>{
