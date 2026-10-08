@@ -1,0 +1,10 @@
+{
+  "name": "Yes Men",
+  "hook": "Inspired, sir. I never liked Tuesday.",
+  "tagline": "A dictator's war room, six ministers with clipboards and you at the end of the table. Every step up the multiplier is a worse decree and the yes men agree harder: nodding, clapping, standing, kneeling, weeping, while medals pile onto his chest and the glass lifts off the TOTAL CONTROL button. Cash out to stand up, say that's going too far and walk out of the door before he slams the button, seizes the system and the camera flash puts you in the photo.",
+  "tags": ["A room of yes men", "A button under glass", "You're in the photo"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 24 }
+}

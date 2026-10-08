@@ -100,13 +100,14 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Rage Quit](games/rage-quit) | An articulated office rage comic with alternating fist strokes, invasive prompts and scam gurus, reactive desk props, a confirmed rolling exit and a room-collapse payoff | Playable |
 | [Beyond the Colony](games/beyond-the-colony) | An existential penguin expedition with broad waddles, leaps and belly slides, workplace enforcers and absurd summit encounters, an avalanche punchline and a confirmed refuge escape | Playable |
 | [MUMU Bull Run](games/mumu-bull-run) | A white bull with a jointed gallop, physical FUD-stall and bear-podcast encounters, a confirmed victory exit and a crash into customer support | Playable |
+| [Yes Men](games/yes-men) | A dictator's war room: a Leader facing the camera whose cap, chest and medal count swell with the multiplier, six ministers in profile who nod, clap, stand, kneel and weep harder at every decree, the first to stop clapping escorted out and replaced, a TOTAL CONTROL button whose glass lifts with the tension, a STATE TV chyron, a walk-out through the door on cash-out with a loyalist taking the chair, and a seeded slam that goes red, throws the decrees and ends in a sepia photo with a circle round your seat | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
 
 Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
 
-Rage Quit, Beyond the Colony and MUMU Bull Run use Desktop Game Studio for source remixing. Their character rigs, staged encounters and close portrait compositions fit the catalog budget; their compiled three-file bundles use the same Studio renderer upload.
+Rage Quit, Beyond the Colony, MUMU Bull Run and Yes Men use Desktop Game Studio for source remixing. Their character rigs, staged encounters and close portrait compositions fit the catalog budget; their compiled three-file bundles use the same Studio renderer upload.
 
 These are conservative input bounds calculated from UTF-8 source bytes, the system prompt and an allowance; `clips.json` counts by clip names rather than embedded audio. Artwork embedded in source does count. Run `npm run check` for the current totals instead of estimating from file count. See [`scripts/gallery/check.mjs`](scripts/gallery/check.mjs) for the calculation and [`CONTRIBUTING.md`](CONTRIBUTING.md) for source-pack limits.
 
@@ -120,7 +121,7 @@ Published games use full character and environment animation. The shell calls `c
 
 A scene calls `pageAudio({ style, crash })` from `./audio`, then `update(phase, tension)` each frame and cues such as `cashout()`, `crash()` and `fx(name)` when appropriate. [`audio.ts`](scripts/shell/audio.ts) lists the available styles, effects and options. The helper owns the Sound button and page lifecycle, and goes quiet while the page or picture is hidden.
 
-Every game has a `clips.json`: `{}` uses procedural sound, as Hello World, Rage Quit, Beyond the Colony and MUMU Bull Run do. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
+Every game has a `clips.json`: `{}` uses procedural sound, as Hello World, Rage Quit, Beyond the Colony, MUMU Bull Run and Yes Men do. Optional `music`, `crash`, `cashout` and named-effect entries contain audio data URLs that replace the corresponding synthesized sounds. The other references include recorded 150-second scores, which restart when a round starts running and repeat only after the full track.
 
 ### Generating clips with ElevenLabs
 
