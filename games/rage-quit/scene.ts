@@ -1,6 +1,9 @@
 import { pageAudio } from './audio';
-import { box, clamp, GOLD, GREEN, INK, label, line, mono, PAPER, RED } from './ink';
-import { ANNOYANCES, drawComic, drawRoom, type RoomPose } from './room';
+import { actAt, actorAt, type ActingInput } from './acting';
+import { drawActorBack, drawActorFront } from './actor';
+import { box, clamp, GOLD, GREEN, INK, label, mono, PAPER, RED } from './ink';
+import { portrait } from './portrait';
+import { drawBackground, drawDesk, drawForeground, drawProps } from './room';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -16,111 +19,82 @@ export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose?(): void;
 }
-
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 
-function header(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(0, 0, 960, 540);
-  // Registration marks and imperfect underlines frame the comic as a printed page.
-  label(ctx, 'RAGE', 24, 49, 72, INK, 239);
-  ctx.save();
-  ctx.translate(274, 7);
-  ctx.rotate(-0.025);
-  box(ctx, 0, 0, 220, 76, RED, 3);
-  label(ctx, 'QUIT', 110, 43, 66, PAPER, 204, 'center');
-  ctx.restore();
-  mono(ctx, 'A VERY SMALL PROBLEM. A VERY BIG REACTION.', 29, 95, 14, INK, 639);
-  mono(ctx, 'A RAGE COMIC IN FOUR PANELS', 681, 31, 12, INK, 255);
-  label(ctx, 'KEEP YOUR COOL.', 938, 61, 26, INK, 311, 'right');
-  line(ctx, [[684, 82], [935, 80]], RED, 5);
-  line(ctx, [[697, 91], [916, 90]], INK, 1.5);
-}
-
-function sidebar(ctx: CanvasRenderingContext2D, view: SceneView, pose: RoomPose): void {
-  const crashed = view.phase === 'crashed';
-  box(ctx, 693, 116, 243, 137, INK, 3);
-  const phase = crashed ? 'ROUND CRASHED' : view.phase === 'running' ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN THE COMIC' : 'WAITING FOR A ROUND';
-  mono(ctx, phase, 707, 138, 13, crashed ? GOLD : PAPER, 215);
-  const text = formatX(view.currentX100);
-  let size = 67;
-  ctx.font = `900 ${size}px "Arial Black", sans-serif`;
-  while (size > 20 && ctx.measureText(text).width > 216) {
-    size -= 1;
-    ctx.font = `900 ${size}px "Arial Black", sans-serif`;
-  }
-  ctx.fillStyle = crashed ? GOLD : PAPER;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 815, 192, 216);
-  mono(ctx, crashed ? 'FINAL MULTIPLIER' : 'ROUND MULTIPLIER', 707, 234, 11, '#c9bfa9', 215);
-
-  box(ctx, 693, 267, 243, 157, pose.safe ? '#e1e9cf' : PAPER, 3);
-  const mood = pose.safe ? 'ZEN MODE' : crashed ? 'ABSOLUTE MELTDOWN' : view.phase !== 'running' ? 'RESTING RAGE FACE' : pose.tension > 0.7 ? 'KEYBOARD WARRIOR' : pose.tension > 0.3 ? 'DEEP BREATHS...' : 'MILDLY IRRITATED';
-  label(ctx, mood, 707, 287, 16, pose.safe ? '#44563a' : RED, 214);
-  mono(ctx, 'MOOD · COSMETIC ONLY', 707, 310, 10.5, INK, 214);
-  for (let i = 0; i < 10; i += 1) {
-    const lit = pose.safe ? false : crashed || i / 10 <= pose.tension;
-    box(ctx, 708 + i * 21.5, 325, 16, 15, lit ? i > 5 ? RED : GOLD : '#e4dcc8', 1.5);
-  }
-  if (pose.safe) {
-    label(ctx, 'CASH-OUT CONFIRMED', 707, 365, 13, '#44563a', 214);
-    mono(ctx, `At ${formatX(view.cashoutX100!)}`, 707, 391, 17, INK, 214);
-  } else if (crashed) {
-    label(ctx, 'THE DESK IS DONE.', 707, 365, 16, INK, 214);
-    mono(ctx, 'Breathe. There is another round.', 707, 391, 10.5, INK, 215);
-  } else if (view.phase === 'running') {
-    label(ctx, ANNOYANCES[pose.annoyance][0], 707, 365, 13, INK, 214);
-    mono(ctx, ANNOYANCES[pose.annoyance][1], 707, 391, 10, INK, 214);
-  } else {
-    label(ctx, view.phase === 'betting' ? 'TAKE A SEAT.' : 'DESK ON STANDBY.', 707, 365, 16, INK, 214);
-    mono(ctx, 'Credits have no monetary value.', 707, 391, 10.5, INK, 214);
-  }
-}
-
 export function createScene(options: SceneOptions = {}): Scene {
-  const audio = pageAudio({ style: 'chiptune', crash: 'slam', bpm: 126, tempoRise: 0.22, music: 0.5 });
+  const reduced = options.reducedMotion ?? false;
+  const audio = pageAudio({ style: 'hardstyle', crash: 'slam', bpm: 138, tempoRise: 0.12, music: 0.55 });
   let previousPhase: SceneView['phase'] | null = null;
   let previousCashout: number | null = null;
-  let previousAnnoyance = -1;
   let previousElapsed = 0;
+  let previousCrashAge = 0;
+  let previousAct = -1;
+  let previousContact = -1;
+  let exitAt = -Infinity;
 
-  function draw(ctx: CanvasRenderingContext2D, view: SceneView, _now: number): void {
+  function render(c: CanvasRenderingContext2D, view: SceneView, now: number, close: boolean): string {
     const running = view.phase === 'running';
-    const crashed = view.phase === 'crashed';
-    // This bounded parameter flavours art and sound; it does not predict a crash.
-    const tension = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 8);
-    const episode = Math.floor(Math.max(0, view.elapsed) / 6500);
-    const annoyance = episode % ANNOYANCES.length;
+    const dead = view.phase === 'crashed';
     const safe = view.cashoutX100 !== null;
-    audio.update(view.phase, safe ? tension * 0.3 : tension);
-    if (previousPhase !== null && running && safe && previousCashout === null) audio.cashout();
-    if (crashed && previousPhase !== 'crashed') audio.crash('slam', previousPhase === null || view.crashAge > 1500);
-    const continuous = view.elapsed >= previousElapsed && view.elapsed - previousElapsed < 1500;
-    if (running && previousPhase === 'running' && previousAnnoyance !== episode && continuous && !safe) audio.fx('notify', 0.35);
-    previousPhase = view.phase;
-    previousCashout = view.cashoutX100;
-    previousAnnoyance = episode;
-    previousElapsed = view.elapsed;
-
-    const pose: RoomPose = {
-      phase: view.phase,
-      time: options.reducedMotion ? 0 : Math.max(0, view.elapsed) / 1000,
-      tension,
-      crashAge: Math.max(0, view.crashAge) / 1000,
-      safe,
-      reduced: options.reducedMotion ?? false,
-      annoyance,
+    const fresh = previousPhase === null;
+    if (safe && previousCashout === null) {
+      exitAt = fresh || !running ? -Infinity : now;
+      if (!fresh && running) audio.cashout();
+    }
+    if (!safe) exitAt = -Infinity;
+    // Heat changes expression and effort, and contains no information about a future result.
+    const heat = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 8);
+    const input: ActingInput = {
+      phase: view.phase, elapsed: Math.max(0, view.elapsed) / 1000,
+      crashAge: dead && reduced ? 4 : Math.max(0, view.crashAge) / 1000 * 1.55, clock: now / 1000,
+      heat, safe, exitAge: Math.max(0, (now - exitAt) / 1000), reduced,
     };
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    header(ctx);
-    drawRoom(ctx, pose);
-    sidebar(ctx, view, pose);
-    drawComic(ctx, pose);
-    ctx.restore();
-  }
+    const act = actAt(input);
+    const p = actorAt(input, act);
+    audio.update(view.phase, safe ? heat * 0.25 : 0.2 + heat * 0.8);
+    if (dead && previousPhase !== 'crashed') audio.crash('slam', fresh || view.crashAge > 1500);
+    const continuous = !fresh && view.elapsed >= previousElapsed && view.elapsed - previousElapsed < 1500;
+    const contact = Math.floor(input.elapsed * (1.15 + Math.min(heat, 0.8) * 0.4) * 2 - 0.1);
+    if (running && continuous && !safe) {
+      if (previousAct !== act.number && previousPhase === 'running') audio.fx(act.index === 4 ? 'creak' : act.index === 3 ? 'ratchet' : 'notify', 0.5);
+      if (previousContact !== contact && [0, 7].includes(act.index)) audio.fx('thud', 0.22);
+    }
+    if (dead && previousPhase === 'crashed' && view.crashAge - previousCrashAge < 1500) {
+      if (previousCrashAge < 665 && view.crashAge >= 665) audio.fx('shatter', 0.8);
+      if (previousCrashAge < 1160 && view.crashAge >= 1160) audio.fx('bell', 0.5);
+    }
+    previousPhase = view.phase; previousCashout = view.cashoutX100;
+    previousElapsed = view.elapsed; previousAct = act.number;
+    previousContact = contact; previousCrashAge = view.crashAge;
 
-  return { draw };
+    const caption = safe ? 'UNPLUGGED. UNBOTHERED. STILL SMUG.' : dead ? input.crashAge < 1.8 ? 'CTRL + ALT + DELUSION.' : 'NO REFUNDS FOR EMOTIONAL DAMAGE.' : running ? act.caption : view.phase === 'betting' ? 'CLOCK IN. LOSE YOUR SHIT.' : 'ANOTHER DAY IN THE COPE CAVE.';
+    c.save();
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    c.save();
+    if (!reduced) {
+      const kick = dead ? Math.exp(-input.crashAge * 2.3) * 13 : running && !safe ? act.impact * 2 : 0;
+      c.translate(Math.sin(input.crashAge * 57) * kick, dead ? Math.cos(input.crashAge * 41) * kick : kick);
+    }
+    drawBackground(c, input, act);
+    drawActorBack(c, p, input, act);
+    drawDesk(c, input, act, p);
+    drawActorFront(c, p, input, act);
+    drawProps(c, input, act);
+    drawForeground(c, input, act, p);
+    c.restore();
+    if (!close) {
+      c.fillStyle = INK; c.fillRect(0, 0, 960, 92);
+      label(c, 'RAGE QUIT', 22, 22, 22, RED, 227);
+      label(c, caption, 23, 60, 27, PAPER, 683);
+      label(c, formatX(view.currentX100), 940, 43, 51, dead ? GOLD : PAPER, 231, 'right');
+      mono(c, dead ? 'ROUND CRASHED' : running ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN ROUND' : 'WAITING', 934 - 200, 77, 12, PAPER, 201);
+      if (safe) {
+        box(c, 338, 473, 387, 45, GREEN, 4);
+        label(c, `CASH-OUT CONFIRMED · ${formatX(view.cashoutX100!)}`, 531, 496, 21, INK, 367, 'center');
+      }
+    }
+    c.restore();
+    return caption;
+  }
+  return { draw: portrait(render) };
 }

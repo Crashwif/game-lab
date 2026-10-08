@@ -42,3 +42,9 @@ button{border:2px solid #242220;border-radius:3px;box-shadow:3px 3px 0 #242220}
 button.secondary{box-shadow:none;border:2px solid #242220}
 #readout{font-family:ui-monospace,monospace}
 #notice{background:#f9ddc6;color:#242220;border:2px solid #242220}
+
+/* The tall stage keeps the full body and a live CRT cutaway readable on phones. */
+@media(max-width:600px){
+  .stage{position:relative;aspect-ratio:540/780;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/780;margin:0;transform:scale(.4);transform-origin:0 0}
+}

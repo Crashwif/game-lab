@@ -1,9 +1,15 @@
 {
   "name": "Rage Quit",
-  "hook": "One tiny annoyance. One spectacular meltdown.",
-  "tagline": "A hand-inked rage comic comes alive: the keyboard clatters, the pop-ups multiply and the desk is one round away from flight. Cash out for a very peaceful cup of tea.",
-  "tags": ["Rage comic", "Desk flip", "Community concept"],
+  "hook": "CTRL + ALT + DELUSION.",
+  "tagline": "Fight the CAPTCHA, reject the guru and wrestle your own keyboard. A fully animated office rage spiral with an unplugged escape and a spectacularly unhelpful support department. Contains profanity.",
+  "tags": [
+    "Rage comic",
+    "Physical comedy",
+    "Office meltdown"
+  ],
   "renderer": "Canvas 2D",
   "licence": "open",
-  "poster": { "seconds": 12 }
+  "poster": {
+    "seconds": 10
+  }
 }
