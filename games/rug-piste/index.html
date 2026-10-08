@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#24203f">
+  <title>Rug Piste — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <canvas aria-label="Rug Piste: a skier with a frog backpack dodges trees, jumps rugs and collects arcade memecoins on a retro snowy mountain. Steer with the arrow keys, A and D, the touch buttons, or by dragging the slope. Jump with Up or W. A confirmed cash-out sends a ski lift; the backend crash makes an abominable snowman burst from a hole and gobble the skier."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <div class="round-actions" aria-label="Round controls">
+        <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Ape in · 50 credits</button>
+        <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out · ski lift</button>
+        <button id="restart" hidden>Replay round</button>
+        <button id="sound" class="secondary">Sound: off</button>
+      </div>
+      <div class="ski-controls" role="group" aria-label="Skier controls">
+        <span class="control-label">SKI CONTROLS</span>
+        <button id="ski-left" type="button" class="ski-key" aria-label="Steer left" aria-keyshortcuts="ArrowLeft A"><span aria-hidden="true">←</span><span>LEFT</span></button>
+        <button id="ski-right" type="button" class="ski-key" aria-label="Steer right" aria-keyshortcuts="ArrowRight D"><span aria-hidden="true">→</span><span>RIGHT</span></button>
+        <button id="ski-jump" type="button" class="ski-key jump-key" aria-label="Jump over obstacles" aria-keyshortcuts="ArrowUp W"><span aria-hidden="true">↑</span><span>JUMP</span></button>
+        <p class="key-hint"><span class="keyboard-hint">← → / A D to steer · ↑ / W to jump</span><span class="pointer-hint">Drag the slope to carve · Space to cash out</span></p>
+      </div>
+      <p id="gameplay-help">Dodge trees. Hop rugs. Stack $SLOPE. <span>Coins and style points are arcade scores only. Credits have no monetary value.</span></p>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

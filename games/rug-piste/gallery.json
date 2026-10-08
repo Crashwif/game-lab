@@ -1,0 +1,10 @@
+{
+  "name": "Rug Piste",
+  "hook": "Shred the slope. Dodge the rug. Fear the yeti.",
+  "tagline": "A degen ski trip inside a retro desktop. Carve between pines with a frog backpack, jump rugs and stack arcade memecoins. A confirmed cash-out brings the ski lift; the round's crash brings a hungry abominable snowman out of a hole.",
+  "tags": ["Interactive skiing", "Retro desktop", "Yeti crash"],
+  "renderer": "Canvas 2D",
+  "interactive": true,
+  "licence": "open",
+  "poster": { "seconds": 12 }
+}
