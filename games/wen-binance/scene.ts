@@ -4,9 +4,9 @@
  * frame time, and nothing drawn here changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type Club, DOOR, H, INK, W, armClub, callTaxi, crashClub, createClub, drawClubBack, drawLateCheckpoint, drawClubFront, resetClub, settleClub, stepClub, waveSuit } from './club';
-import { clamp, spring, stepSpring } from './motion';
-import { type Queue, SUITS, createQueue, drawQueue, leaveQueue, panicQueue, resetQueue, settleQueue, stepQueue } from './queue';
+import { type Club, DOOR, H, INK, W, armClub, callTaxi, compact, crashClub, createClub, drawClubBack, drawLateCheckpoint, drawClubFront, jeetClub, resetClub, settleClub, stepClub, waveSuit } from './club';
+import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
+import { type Queue, SUITS, createQueue, drawQueue, hopeQueue, leaveQueue, panicQueue, resetQueue, settleQueue, stepQueue } from './queue';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -35,13 +35,19 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 /** The multipliers the milestone stingers play at: every suit waved past. */
 const RUNGS = SUITS;
-/** The crash: the record scratch on the crash frame, the doors bursting a beat later, a short freeze, then slow motion. */
+/** The crash: the record scratch on the crash frame, the doors bursting a beat later, a freeze, then slow motion. */
 const FUSE_S = 0.14;
-const FREEZE_S = 0.07;
+const FREEZE_S = 0.15;
 const SLOW_S = 0.35;
 const SLOW_RATE = 0.3;
-/** Where the camera punches in: the doorway. */
+/** Where the camera punches in (the doorway), how far (10%), and how long it holds before easing back out. */
 const IMPACT = { x: DOOR.x + DOOR.w / 2, y: DOOR.y + DOOR.h / 2 };
+const PUNCH = 0.1;
+const PUNCH_HOLD_S = 0.3;
+/** The score's tempo (measured on the recording): the bass and the tension pulse ride its grid. */
+const BPM = 128;
+/** Seconds the crash's last frame takes to dissolve into the next round's betting phase. */
+const FADE_S = 0.45;
 type Outcome = 'rekt' | 'called' | 'ended';
 type Secured = { x100: number; payout: number | null };
 
@@ -61,16 +67,21 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'LEFT THE QUEUE' : 'SELL THE NEWS';
+  if (outcome) return outcome === 'rekt' ? 'NGMI' : outcome === 'called' ? 'DODGED THE DUMP' : multiplier < 1.05 ? 'NEVER EVEN LISTED' : 'SELL THE NEWS';
   if (view.phase !== 'running') return 'GM DEGENS';
-  if (secured) return 'LEFT THE QUEUE';
+  if (secured) {
+    // The jeet's regret ladder, as the line keeps moving without you; the last word is still yours.
+    const r = view.currentX100 / secured.x100;
+    return r < 1.3 ? 'LEFT THE QUEUE' : r < 2 ? 'JEETED. NO REGRETS' : r < 4 ? 'THE LINE MOVED. SO?' : 'PROFIT IS PROFIT';
+  }
   if (multiplier < 1.5) return 'WEN LISTING';
-  if (multiplier < 2.2) return 'PAID THE LISTING FEE';
-  if (multiplier < 3.2) return 'VCS SKIP THE LINE';
-  if (multiplier < 4.8) return 'CEX OR BUST';
-  if (multiplier < 7) return 'BOUNCER IS CHECKING';
-  if (multiplier < 11) return 'THE SUITS ARE LEAVING';
-  return 'PRICED IN';
+  if (multiplier < 2) return 'PAID THE LISTING FEE';
+  if (multiplier < 2.6) return 'VCS SKIP THE LINE';
+  if (multiplier < 3.5) return 'CEX OR BUST';
+  if (multiplier < 5) return 'BOUNCER IS CHECKING';
+  if (multiplier < 9) return 'THE SUITS ARE LEAVING';
+  if (multiplier < 20) return 'PRICED IN';
+  return multiplier < 100 ? 'WEN BINANCE' : 'SER, THIS IS A QUEUE';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -82,8 +93,19 @@ export function createScene(options: SceneOptions = {}): Scene {
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
-  /** The camera's punch into the doorway. */
+  /** The camera's punch into the doorway, and the real seconds it still holds there. */
   const punch = spring(0);
+  let punchHold = 0;
+  /**
+   * Seconds into the score. The shell starts it as betting opens and starts the full-length score over as the round
+   * starts running, so while running it is the round's elapsed time since then (`beatAt`).
+   */
+  let beatClock = 0;
+  let beatAt = 0;
+  let pulseHalf = -1;
+  /** The crash's last frame, dissolving into the new round's betting phase (1 down to 0). */
+  let fadeFrom: HTMLCanvasElement | null = null;
+  let fade = 0;
   /** Seconds until the doors burst; -1 with no crash on the way. */
   let fuse = -1;
   let freeze = 0;
@@ -95,6 +117,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   let booed = false;
   let clangAt = 0;
   let last: number | null = null;
+  /** A decorative clock that only ever counts up (slowed by the hit-stop): it never jumps when a round starts. */
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
@@ -108,13 +131,29 @@ export function createScene(options: SceneOptions = {}): Scene {
     panicQueue(queue, view.currentX100, false);
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      // A snap zoom on the doorway with the freeze, held for a beat.
+      settleSpring(punch, 1);
+      punchHold = PUNCH_HOLD_S;
     }
     audio.fx('door', 1.2);
     audio.fx('crowd', 0.7);
+  }
+
+  /** Keeps what is on the canvas (the crash's last frame) to dissolve from. */
+  function snapshot(ctx: CanvasRenderingContext2D): void {
+    try {
+      const source = ctx.canvas;
+      fadeFrom ??= document.createElement('canvas');
+      fadeFrom.width = source.width;
+      fadeFrom.height = source.height;
+      fadeFrom.getContext('2d')!.drawImage(source, 0, 0);
+      fade = 1;
+    } catch {
+      fade = 0;
+    }
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
@@ -130,10 +169,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
-    if (view.phase === 'running') time = view.elapsed / 1000;
+    beatClock += real;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.5, 0, 1);
+    // 0.33 at 1.5x, 0.5 at 2x, 0.67 at 3x, 0.9 at 10x: the first dozen seconds, where most rounds end, carry the climb.
+    const tension = 1 - 1 / multiplier;
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -149,7 +188,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetQueue(queue);
       if (running || crashed) {
         settleQueue(queue, multiplier);
-        settleClub(club, queue.suits, tension);
+        settleClub(club, queue.suits, multiplier);
         if (secured) { leaveQueue(queue, true); callTaxi(club, true); badge.x = 1; taxiCalled = true; }
       }
       if (crashed) {
@@ -166,7 +205,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         outcome = outcomeFor(view, secured);
         // A crash first drawn late (a hidden tab, a throttled frame) settles the line at the crash point, and a
         // cash-out first seen with the crash still takes your coin out of the line.
-        if (quiet) { settleQueue(queue, multiplier); settleClub(club, queue.suits, tension); }
+        if (quiet) { settleQueue(queue, multiplier); settleClub(club, queue.suits, multiplier); }
         if (secured) { leaveQueue(queue, quiet, reduced); callTaxi(club, quiet); taxiCalled = true; }
         if (quiet) {
           crashClub(club, view.currentX100, true);
@@ -181,13 +220,19 @@ export function createScene(options: SceneOptions = {}): Scene {
           audio.crash('scratch');
         }
       }
+      // The score's grid starts over with the score: as betting opens, and as the round starts running.
+      if (running) beatAt = view.elapsed / 1000;
       if (view.phase === 'betting') {
+        beatClock = 0;
+        // The crash's wreckage dissolves into the new night rather than vanishing in one frame.
+        if (club.crashed) snapshot(ctx);
         resetClub(club);
         resetQueue(queue);
         outcome = null;
         secured = null;
         fuse = -1;
-        freeze = slow = 0;
+        freeze = slow = punchHold = 0;
+        settleSpring(punch, 0);
         cashFlash = 0;
         taxiCalled = false;
         booed = false;
@@ -198,12 +243,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       fuse -= real;
       if (fuse < 0 && !club.crashed) burst(view);
     }
-    if (secured && running && queue.mode === 'queued') { leaveQueue(queue, false, reduced); callTaxi(club); }
+    if (secured && running && queue.mode === 'queued') { leaveQueue(queue, false, reduced); callTaxi(club); jeetClub(club); }
     if (club.taxi && !taxiCalled) { taxiCalled = true; audio.fx('engine', 0.7); }
+    if (running) beatClock = view.elapsed / 1000 - beatAt;
 
-    stepClub(club, { running, tension, multiplier, reduced }, dt);
+    stepClub(club, { running, tension, multiplier, reduced, beat: (beatClock * BPM) / 60 }, dt);
     const wasOut = queue.mode === 'gone';
-    const reached = stepQueue(queue, { running, multiplier, tension, thump: club.thump.x }, dt);
+    const reached = stepQueue(queue, { running, multiplier, tension, kick: club.events.kick }, dt);
     if (reached) { waveSuit(club, queue.suits); if (!reduced) shake = Math.max(shake, 0.15); audio.fx('whistle', 0.7); }
     // The scene's own sounds: a suit through the door, the bouncer's head-shake, the doors cracking, a letter working
     // loose, letting go and hitting the pavement (clangs a few tenths apart at most), your coin's taxi door, the boos.
@@ -211,16 +257,26 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (ev.enter) audio.fx('door', 0.5);
     if (ev.shake) audio.fx('buzz', 0.4);
     if (ev.ajar) audio.fx('creak', 0.8);
+    if (ev.fake) { audio.fx('creak', 0.55); hopeQueue(queue, club.fakes); }
     if (ev.letterLoose) audio.fx('creak', 0.5);
     if (ev.letterDrop) audio.fx('ratchet', 0.6);
     if (ev.letterDown && time >= clangAt) { clangAt = time + 0.3; audio.fx('clang', 0.5 + 0.5 * ((club.letters.filter((l) => l.state === 'down').length % 4) / 3)); }
     if (!wasOut && queue.mode === 'gone' && running) audio.fx('door', 0.8);
     if (club.crashed && !booed && club.crashAge > 0.5) { booed = true; audio.fx('boo', 0.9); }
     if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    // The tension pulse: a tick on the score's off-beats, every 4 beats at the start, every 2 from 1.43x, every beat
+    // from 2.2x and every half-beat from 5x, until you leave the line.
+    const half = Math.floor((beatClock * BPM) / 30);
+    if (half !== pulseHalf) {
+      pulseHalf = half;
+      const every = tension < 0.3 ? 8 : tension < 0.55 ? 4 : tension < 0.8 ? 2 : 1;
+      if (running && !secured && (half - 1) % every === 0) audio.fx('tick', mix(0.5, 0.9, tension));
+    }
     audio.update(view.phase, tension);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
+    punchHold = Math.max(0, punchHold - real);
+    stepSpring(punch, punchHold > 0 ? 1 : 0, 10, 0.8, real);
     cashFlash = Math.max(0, cashFlash - dt / 0.4);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
@@ -236,16 +292,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (bass > 0.02) ctx.translate(0, Math.sin(time * 60) * 1.5 * bass);
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the doorway as it bursts and eases back out.
-      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
     drawClubBack(ctx, club, tension, reduced);
     if (running && !outcome) drawLateCheckpoint(ctx, view.elapsed / 1000, reduced);
-    drawQueue(ctx, queue, tension, outcome !== null, outcome === 'called', club.taxiX.x);
+    drawQueue(ctx, queue, tension, outcome !== null, outcome === 'called', view.stake !== null);
     drawClubFront(ctx, club, reduced);
-    if (outcome && pop.x > 0.02 && club.crashAge > 0.4) {
+    if (outcome && pop.x > 0.02 && club.crashAge > 0.25) {
       ctx.save();
       ctx.translate(W / 2, 300);
       ctx.rotate(-0.1);
@@ -282,11 +338,18 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
+    memeText(ctx, `${multiplier < 1e6 ? multiplier.toFixed(2) : compact(multiplier, 2)}×`, W - 18, H - 18, 52, colour, 'right', 600);
     ctx.restore();
     const next = SUITS.find((m) => m > multiplier);
-    memeText(ctx, `${queue.suits} SUITS`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    memeText(ctx, `${queue.suits} SUIT${queue.suits === 1 ? '' : 'S'}`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     if (running && next !== undefined && !outcome) memeText(ctx, `NEXT SUIT AT ${next.toFixed(1)}×`, 18, 228, 16, '#ffffff', 'left');
+    if (fade > 0 && fadeFrom) {
+      ctx.save();
+      ctx.globalAlpha = fade * fade * (3 - 2 * fade);
+      ctx.drawImage(fadeFrom, 0, 0, W, H);
+      ctx.restore();
+      fade = Math.max(0, fade - real / FADE_S);
+    }
   }
 
   return { draw };
