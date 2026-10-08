@@ -29,7 +29,7 @@ For the character's contact and motion regressions, run:
 node --test games/andys-loud-garden/andy.test.mjs
 ```
 
-These checks cover fixed bone lengths, the supporting palm, planted feet through acceleration and turning at 30/60/120 fps, crash hit-stop and the hop, can collision, reduced motion, and recovery for the next round. The test file is excluded from the published bundle and source pack.
+These checks cover fixed bone lengths, the supporting palm, planted feet through acceleration and turning at 30/60/120 fps, crash hit-stop and the hop, can collision, reduced motion, recovery for the next round, and the far arm's paint order: its shoulder stays behind the body while the forearm crosses in front to the can or rises behind the skull. The test file is excluded from the published bundle and source pack.
 
 ## Source and artwork
 
