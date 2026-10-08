@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('./andy.ts', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'node' });
-const { createAndy, stepAndy, settleAndy, computePose, solveLimb, worldPoint, canFloorOffset } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { createAndy, stepAndy, settleAndy, computePose, solveLimb, worldPoint, canFloorOffset, drawAndy } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const drive = (mode = 'watering', x = 216, growth = .7) => ({ mode, x, growth, ground: 480, bed: { x: 400, y: 452 }, street: { x: 940, y: 400 } });
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const near = (a, b, tolerance = 1e-7) => assert.ok(Math.abs(a - b) < tolerance, `${a} should equal ${b}`);
@@ -116,4 +116,30 @@ test('rest beats preserve the can grip; the next round recovers after a bust', (
   assert.equal(rig.can.held,true);assert.equal(rig.drops.length,0);
   near(rig.raise.x,0);near(rig.hop.x,0);
   fixedBones(computePose(rig));
+});
+
+/** A 2D context that records its calls in order, so a test can read what is painted over what. */
+function recordingContext() {
+  const calls=[];
+  const ctx=new Proxy({},{get:(styles,key)=>key in styles?styles[key]:(...args)=>calls.push({op:key,args}),set:(styles,key,value)=>{styles[key]=value;return true;}});
+  return {ctx,calls};
+}
+
+test('the far shoulder stays behind the body; the forearm steadies the can in front and rises behind the skull', () => {
+  for(const [mode,layer] of [['idle','behind'],['watering','across'],['busted','raised'],['harvest','behind']]) {
+    const rig=createAndy(216), d=drive(mode); settleAndy(rig,d);
+    const {ctx,calls}=recordingContext(); drawAndy(ctx,rig,d);
+    const {hip,backArm:{root,joint,end}}=computePose(rig);
+    const same=(call,op,args)=>call?.op===op&&args.every((value,i)=>Math.abs(call.args[i]-value)<1e-9);
+    const at=(op,...args)=>calls.findIndex(c=>same(c,op,args));
+    // The first stroke of a straight segment from a to b.
+    const segment=(a,b)=>calls.findIndex((c,i)=>c.op==='stroke'&&same(calls[i-2],'moveTo',[a.x,a.y])&&same(calls[i-1],'lineTo',[b.x,b.y]));
+    const upper=segment(root,joint), sleeve=segment(root,{x:root.x+(joint.x-root.x)*.45,y:root.y+(joint.y-root.y)*.45}), forearm=segment(joint,end);
+    const torso=at('translate',hip.x,hip.y), hipDisc=at('ellipse',hip.x,hip.y), ear=at('translate',-40,-36), skull=at('moveTo',-47,-28);
+    assert.ok([upper,sleeve,forearm,torso,hipDisc,ear,skull].every(i=>i>=0),`${mode}: every part was drawn`);
+    assert.ok(upper<torso&&sleeve<torso,`${mode}: the far shoulder and upper arm are painted before the torso`);
+    if(layer==='behind')assert.ok(forearm<torso,`${mode}: the resting forearm hangs behind the body`);
+    if(layer==='across')assert.ok(forearm>hipDisc,`${mode}: the forearm crosses in front of the body to the can`);
+    if(layer==='raised')assert.ok(forearm>ear&&forearm<skull,`${mode}: the raised forearm passes in front of the ear and behind the skull`);
+  }
 });

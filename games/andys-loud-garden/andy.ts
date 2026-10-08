@@ -560,16 +560,21 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   // Back leg and arm, then the torso over them.
   limb(pose.backLeg, 24, TEAL_DARK, TEAL_DARK);
   boot(backFoot, clamp(-backFoot.y / 16, 0, 1));
-  const backShoulder = add(shoulder, -10, 6);
-  // The far arm hangs behind the body, reaches across it to steady the can, and comes up beside the face when caught.
+  // The far arm's shoulder and upper arm always stay behind the body. Its forearm hangs behind with them at rest,
+  // crosses in front of the body to steady the can, and when caught rises beside the face, in front of the ear but
+  // behind the skull.
   const backLayer: 'behind' | 'across' | 'raised' = raise > 0.5 ? 'raised' : rig.reach.x > 0.5 ? 'across' : 'behind';
-  const backArm = (): void => {
-    const joint = limb(pose.backArm, 15, YELLOW_SHADE, YELLOW_SHADE);
-    segment(backShoulder, lerp(backShoulder, joint, 0.45), 23, INK);
-    segment(backShoulder, lerp(backShoulder, joint, 0.45), 18, TEE_SHADE);
+  const { root: backShoulder, joint: backElbow } = pose.backArm;
+  const sleeve = (): void => {
+    segment(backShoulder, lerp(backShoulder, backElbow, 0.45), 23, INK);
+    segment(backShoulder, lerp(backShoulder, backElbow, 0.45), 18, TEE_SHADE);
+  };
+  const backForearm = (): void => {
+    segment(backElbow, backHand, 21, INK); segment(backElbow, backHand, 15, YELLOW_SHADE);
     hand(backHand, raise, YELLOW_SHADE);
   };
-  if (backLayer === 'behind') backArm();
+  if (backLayer === 'behind') { limb(pose.backArm, 15, YELLOW_SHADE, YELLOW_SHADE); sleeve(); hand(backHand, raise, YELLOW_SHADE); }
+  else { segment(backShoulder, backElbow, 21, INK); segment(backShoulder, backElbow, 15, YELLOW_SHADE); sleeve(); }
 
   ctx.save();
   ctx.translate(hip.x, hip.y); ctx.rotate(torsoAngle);
@@ -588,13 +593,15 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   limb(pose.frontLeg, 26, TEAL, TEAL);
   boot(frontFoot, clamp(-frontFoot.y / 16, 0, 1));
   disc(hip, 28, 18, TEAL, 3.5);
-  if (backLayer === 'across') backArm();
+  if (backLayer === 'across') backForearm();
 
   // The head: ears behind it, the skull and muzzle as one outline, then the face.
   ctx.save();
   ctx.translate(head.x, head.y); ctx.rotate(headRot);
   drawEar(ctx, { x: 44, y: -36 }, rig.ears[1].x + 1.3, 83, 24, t);
   drawEar(ctx, { x: -40, y: -36 }, rig.ears[0].x + 1.69, 97, 31, t);
+  // The raised far forearm, drawn in body space between the ears and the skull.
+  if (backLayer === 'raised') { ctx.save(); ctx.rotate(-headRot); ctx.translate(-head.x, -head.y); backForearm(); ctx.restore(); }
   // One broad cheek-and-brow contour: no projecting dog snout or circular skull seam.
   ctx.beginPath(); ctx.moveTo(-47, -28);
   ctx.bezierCurveTo(-47, -50, -20, -60, 3, -49);
@@ -611,7 +618,6 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   ctx.restore();
   drawFace(ctx, rig, mood, headRot, toLocal, drive);
   ctx.restore();
-  if (backLayer === 'raised') backArm();
 
   // Front arm and whatever it holds: the can, or the harvest basket.
   const frontShoulder = add(shoulder, 8, 4);
