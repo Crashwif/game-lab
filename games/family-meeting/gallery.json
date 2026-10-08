@@ -1,7 +1,7 @@
 {
   "name": "Family Meeting",
-  "hook": "So, um, Mom, Dad… about my gender",
-  "tagline": "A kitchen table, a casserole, a cross on the wall. Your daughter with the rainbow hair has something to tell her parents, and every step up the multiplier takes it somewhere more abstract while their faces go red, the pearls get clutched and the kettle joins in. Cash out to leave for your room before both of their heads explode.",
+  "hook": "So, um, Mom, Dad… about the college fund",
+  "tagline": "A kitchen table, a casserole, a cross on the wall. The daughter with the rainbow hair has something to tell her parents: the college fund is in a dog coin, and every step up the multiplier gets closer to the church fund while their faces go red, the pearls get clutched and the kettle joins in. Take profits and send her to her room before both of their heads explode.",
   "tags": ["Two faces that boil over", "A cross that rattles", "Seeded head explosion"],
   "renderer": "Canvas 2D",
   "licence": "open",

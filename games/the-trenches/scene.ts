@@ -5,13 +5,15 @@ import { portrait } from './portrait';
  * squad on the field, the trench in front, then the HUD, with the sound
  * cued from what the field and the squad report. All motion is stepped
  * here with the frame time, and nothing drawn here changes the committed
- * outcome. The nuke plays as a hit-stop, a slow-motion blast and a camera
- * punch into the ridge.
+ * outcome. Tension is 1 − 1/x (0.5 at 2×, 0.67 at 3×), so the 1×–3× window
+ * where most rounds end escalates; the sky and the moon also follow a slow
+ * log driver for long rounds. The nuke plays as a hit-stop, a slow-motion
+ * blast and a held camera punch into the ridge.
  */
 import { pageAudio } from './audio';
 import { type Field, H, INK, RIDGE_X, W, createField, drawCloud, drawGround, drawAdvance, drawNukeFront, drawSky, nuke, resetField, stepField } from './field';
-import { clamp, settleSpring, spring, stepSpring } from './motion';
-import { type Squad, createSquad, diveBack, drawSquad, drawTrench, frogXs, killSquad, resetSquad, settleSquad, stepSquad } from './squad';
+import { clamp, mix, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Squad, createSquad, diveBack, drawSquad, drawTrench, killSquad, resetSquad, settleSquad, stepSquad } from './squad';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -41,12 +43,20 @@ const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'kia' | 'survived' | 'nuked';
 type Secured = { x100: number; payout: number | null };
 
-/** The caption ladder's rungs, for the milestone stingers. */
-const RUNGS = [1.3, 1.9, 2.6, 3.6, 5, 8];
-/** The hit-stop on the flash frame, then the slow motion the blast starts in. */
-const FREEZE_S = 0.08;
+/** The milestone stingers (with a small shake): every two or three seconds through the first 3×, then wider apart. */
+const RUNGS = [1.25, 1.5, 2, 2.5, 3, 5, 10];
+/** The caption ladder: each line holds until the multiplier passes its rung, and names only what is on screen by then. */
+const LADDER: ReadonlyArray<readonly [number, string]> = [
+  [1.1, 'OVER THE TOP'], [1.3, 'CHARGE THE CHART'], [1.5, 'EVEN THE RATS ARE JEETING'], [1.75, 'PAPER HANDS IN THE SQUAD'],
+  [2, 'HOLD THE LINE'], [2.4, 'DIAMOND HELMETS ON'], [3, 'SNIPERS ON THE RIDGE'], [4, 'THE SHELLS ARE WALKING IN'],
+  [6, 'LOOT IN SIGHT'], [10, 'COMMAND IS SELLING'], [Infinity, 'FEW UNDERSTAND'],
+];
+/** The hit-stop on the flash frame, then the slow motion the blast starts in, and the camera punch held through both. */
+const FREEZE_S = 0.16;
 const SLOW_S = 0.35;
 const SLOW_RATE = 0.3;
+const PUNCH = 0.1;
+const PUNCH_HOLD_S = 0.3;
 /** Where the camera punches in: the ridge, where the cloud stands. */
 const IMPACT = { x: RIDGE_X + 100, y: 260 };
 
@@ -60,21 +70,6 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.strokeText(text, x, y, maxWidth);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y, maxWidth);
-}
-
-function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'kia' ? 'DIED FOR A FROG COIN' : outcome === 'survived' ? 'SURVIVED' : 'NUKED';
-  if (view.phase !== 'running') return 'GM SOLDIER';
-  if (secured) return 'BACK IN THE TRENCH';
-  const act = endurance(view.elapsed / 1000).act;
-  if (act) return ['', 'COVER AHEAD. KEEP LOW.', 'THE MUD WANTS YOUR BOOTS', 'BRACE. PASS THE FLAG.', 'STILL MARCHING. STILL HOLDING.'][act]!;
-  if (multiplier < 1.3) return 'OVER THE TOP';
-  if (multiplier < 1.9) return 'CHARGE THE CHART';
-  if (multiplier < 2.6) return 'HOLD THE LINE';
-  if (multiplier < 3.6) return 'SNIPERS ON THE RIDGE';
-  if (multiplier < 5) return 'DIAMOND HELMETS';
-  if (multiplier < 8) return 'IS THAT A WHISTLE';
-  return 'COMMAND IS SELLING';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -100,8 +95,29 @@ export function createScene(options: SceneOptions = {}): Scene {
   let milestones = 0;
   let freeze = 0;
   let slow = 0;
+  let punchHold = 0;
+  /** A dark fade over the reset to a new round, so the nuke's aftermath does not cut to the fresh trench. */
+  let fade = 0;
+  /** The next heartbeat, in round seconds: it quickens with the tension while your bet rides. */
+  let pulseAt = 1.4;
   /** The helmets clang as they land, a few a second at most. */
   let clangNext = 0;
+
+  /** The caption: the outcome, the cash-out's regret ladder, the long round's acts, or the multiplier's rung. */
+  function captionFor(view: SceneView): string {
+    const multiplier = Math.max(1, view.currentX100 / 100);
+    if (outcome === 'survived') return 'DODGED THE NUKE';
+    if (outcome) return !squad.whistled ? 'RUGGED BEFORE THE WHISTLE' : squad.early ? 'RUGGED IN THE TRENCH' : outcome === 'kia' ? 'DIED FOR A FROG COIN' : 'NUKED. NO SKIN IN THE GAME.';
+    if (view.phase !== 'running') return 'GM SOLDIER';
+    if (secured) {
+      // Jeeted: still a good call, however far the squad gets without you.
+      const regret = view.currentX100 / secured.x100;
+      return regret < 1.2 ? 'TOOK PROFIT. FROG JEET.' : regret < 1.6 ? 'SQUAD SAYS JEET. YOU SAY ALIVE.' : regret < 2.5 ? 'STILL MARCHING WITHOUT YOU' : 'PAPER HANDS. INTACT HANDS.';
+    }
+    const act = endurance(view.elapsed / 1000).act;
+    if (act) return ['', 'COVER AHEAD. KEEP LOW.', 'THE MUD WANTS YOUR BOOTS', 'BRACE. PASS THE FLAG.', 'STILL MARCHING. STILL HOLDING.'][act]!;
+    return LADDER.find(([top]) => multiplier < top)![1];
+  }
 
   /** The nuke lands. A crash more than 1.5 s old is shown settled, so a nuke missed while the tab was hidden is not replayed late. */
   function land(view: SceneView, progress: number): void {
@@ -109,7 +125,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     outcome = view.stake === null ? 'nuked' : secured ? 'survived' : 'kia';
     // The cash-out and the crash can reach the same frame: your frog still gets back in the trench.
     if (secured) diveBack(squad, progress, quiet);
-    nuke(field, view.currentX100, quiet, frogXs(squad, progress));
+    nuke(field, view.currentX100, quiet);
     killSquad(squad, quiet, progress);
     if (quiet) {
       pop.x = 1;
@@ -118,10 +134,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      settleSpring(punch, 1);
+      punchHold = PUNCH_HOLD_S;
     }
     audio.crash('boom');
   }
@@ -139,10 +156,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
+    punchHold = Math.max(0, punchHold - real);
+    fade = Math.max(0, fade - real / 0.35);
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
-    const progress = clamp(growth / 3.6, 0, 1);
+    const tension = clamp(1 - 1 / multiplier, 0, 1);
+    const progress = tension;
+    const seconds = view.elapsed / 1000;
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -160,34 +179,44 @@ export function createScene(options: SceneOptions = {}): Scene {
       resetField(field);
       resetSquad(squad);
       if (running || crashed) {
-        settleSquad(squad, tension);
-        milestones = Math.floor(growth * 2);
+        settleSquad(squad, tension, seconds);
+        milestones = RUNGS.filter((rung) => multiplier >= rung).length;
+        pulseAt = seconds + 0.5;
         if (secured) { diveBack(squad, progress, true); settleSpring(badge, 1); }
       }
       if (crashed) land(view, progress);
     } else if (view.phase !== previous) {
       if (crashed && !field.nuked) land(view, progress);
       if (view.phase === 'betting') {
+        // A nuke still on screen (through a waiting phase too) fades to the new trench rather than cutting.
+        fade = outcome ? 1 : 0;
         resetField(field);
         resetSquad(squad);
         outcome = null;
         secured = null;
         milestones = 0;
-        freeze = slow = 0;
+        freeze = slow = punchHold = 0;
+        pulseAt = 1.4;
       }
       previous = view.phase;
     }
     if (secured && running) diveBack(squad, progress);
-    const reached = Math.floor(growth * 2);
-    if (running && reached > milestones) { milestones = reached; if (!reduced) shake = Math.max(shake, 0.12); }
+    const reached = RUNGS.filter((rung) => multiplier >= rung).length;
+    if (running && reached > milestones) { milestones = reached; if (!reduced) shake = Math.max(shake, 0.45); }
     audio.update(view.phase, tension);
+    // Your heartbeat while the bet rides: every 1.4 s at 1×, 0.88 s at 2×, 0.7 s at 3×. It stops when you cash out.
+    if (running && view.stake !== null && !secured && seconds >= pulseAt) {
+      audio.fx('heartbeat', 0.2 + 0.35 * tension);
+      pulseAt = seconds + mix(1.4, 0.35, tension);
+    }
 
     stepField(field, { running, tension, multiplier, reduced }, dt);
-    stepSquad(squad, { seconds: view.elapsed / 1000, running, tension, multiplier, progress, reduced }, dt);
+    stepSquad(squad, { seconds, running, tension, multiplier, progress, reduced }, dt);
     const fe = field.events;
     const se = squad.events;
     if (running && se.whistle) audio.fx('whistle', 1);
     if (running && se.step) audio.fx('stomp', 0.25 + 0.4 * tension);
+    if (running && se.land) audio.fx('stomp', 0.5);
     if (running && se.phone) audio.fx('phone', 0.7);
     if (running && se.glare) audio.fx('squeak', 1.3);
     if (running && fe.shell) audio.fx('whoosh', 0.45 + 0.3 * tension);
@@ -199,12 +228,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       clangNext = time + 0.15;
       audio.fx('clang', 0.5);
     }
-    if (running) audio.milestone(RUNGS.filter((rung) => multiplier >= rung).length);
+    if (running) audio.milestone(reached);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
+    stepSpring(punch, punchHold > 0 ? 1 : 0, 7, 0.9, dt);
     stepSpring(flash, 0, 6, 1, dt);
-    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    const nextCaption = captionFor(view);
     if (nextCaption !== caption) { caption = nextCaption; captionPop.v = 6; }
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.6);
@@ -213,15 +242,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
     else if (!reduced && running && tension > 0.5) ctx.translate(Math.sin(time * 90) * 1.5 * (tension - 0.5), 0);
     if (!reduced && punch.x > 0.005) {
-      // The camera punches in on the ridge and eases back out.
-      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      // The camera punches in on the ridge, holds through the hit-stop and eases back out.
+      const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
     drawSky(ctx, field, tension, multiplier, reduced);
-    drawGround(ctx, field, tension, progress);
-    if (running) drawAdvance(ctx, view.elapsed / 1000, reduced);
+    drawGround(ctx, field, tension, progress, squad.scroll);
+    // The long round's act props fade out under the nuke rather than vanishing.
+    if (running || crashed) drawAdvance(ctx, seconds, reduced, running ? 1 : 1 - smoothstep(0, 0.5, field.nukeAge));
     drawCloud(ctx, field, tension, reduced);
     drawSquad(ctx, squad, progress, tension, view.stake !== null);
     drawTrench(ctx, squad, tension, view.stake !== null, progress);
@@ -239,6 +269,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     if (flash.x > 0.01) {
       ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * clamp(flash.x, 0, 1)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (fade > 0) {
+      ctx.fillStyle = `rgba(20, 16, 14, ${fade})`;
       ctx.fillRect(0, 0, W, H);
     }
 
@@ -264,12 +298,15 @@ export function createScene(options: SceneOptions = {}): Scene {
       const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
       ctx.save();
       if (!running && !outcome) ctx.globalAlpha = 0.85;
-      memeText(ctx, `${multiplier.toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right');
+      // Both readouts keep to their own side, however many digits a long round runs to.
+      memeText(ctx, `${multiplier.toFixed(2)}×`, W - 18, H - 18, 52, colour, 'right', 560);
       ctx.restore();
       const metres = Math.round((multiplier - 1) * 42);
-      memeText(ctx, `${metres} METRES`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+      memeText(ctx, metres < 10000 ? `${metres} METRES` : `${(metres / 1000).toFixed(metres < 1e6 ? 1 : 0)} KM`, 18, H - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left', 330);
+      // A spectator has no frog in this: their own small tag.
+      if (view.stake === null && running) memeText(ctx, 'SPECTATING · NO SKIN IN THE GAME', 18, H - 50, 15, '#c9d3cf', 'left');
     }
   }
 
-  return { draw: portrait(draw, 'THE TRENCHES', () => ({ x: 135, y: 165, w: 620, h: 325 }), v => captionFor(v, Math.max(1, v.currentX100 / 100), outcome, secured)) };
+  return { draw: portrait(draw, 'THE TRENCHES', () => ({ x: 135, y: 165, w: 620, h: 325 }), captionFor) };
 }

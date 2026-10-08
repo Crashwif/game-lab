@@ -1,15 +1,17 @@
 /**
  * Composes Boiler Room from the room state: the engine room, the boiler and
  * its machinery, the stoker and his shield, two layers of particles, the
- * blow-out whiteout, then the HUD. All motion is stepped here with the real
- * frame time, and nothing drawn here changes the committed outcome.
+ * blow-out (a short fuse, a hit-stop with a punch-in, slow motion and a
+ * whiteout), then the HUD. All motion is stepped here with the real frame
+ * time, and nothing drawn here changes the committed outcome: every warning
+ * follows the displayed multiplier, never the crash point.
  */
 import { pageAudio } from './audio';
 import { DOME, type EngineDrive, type EngineState, blowEngine, createEngine, drawBoiler, drawMachine, drawMaintenance, resetEngine, settleEngine, stepEngine } from './engine';
-import { clamp, noise, smoothstep, spring, stepSpring } from './motion';
-import { type Particles, createParticles, drawParticles, emit, sparks, stepParticles } from './particles';
+import { clamp, mix, noise, smoothstep, spring, stepSpring } from './motion';
+import { type Particles, createParticles, drawParticles, emit, fadeOut, sparks, stepParticles } from './particles';
 import { type Sound, pageSound } from './sound';
-import { type StokerState, bladePoint, blastStoker, callShield, createStoker, drawShield, drawShovelOnFloor, drawStoker, resetStoker, settleStoker, stepStoker } from './stoker';
+import { type StokerState, bladePoint, blastStoker, callShield, createStoker, drawShield, drawShovelOnFloor, drawStoker, inFrontOfShield, settleStoker, standUp, startStoking, startle, stepStoker } from './stoker';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -49,6 +51,13 @@ const READOUT_MAX = 300;
 const CAPTION_X = 430;
 /** The multipliers a milestone stinger plays at. */
 const RUNGS = [1.3, 1.7, 2.5, 4, 7, 12, 25];
+/** The crash is called: the needle slams and the whistle screams for this long before the valve goes. */
+const FUSE_MS = 120;
+/** The hit-stop at the blow-out, then the slow motion easing back to full speed. */
+const FREEZE = 0.14;
+const SLOW = 0.45;
+/** The punch-in's centre: between the dome and the stoker, so both stay in frame. */
+const PUNCH = { x: 360, y: 280 };
 type Outcome = 'rekt' | 'called' | 'kaboom';
 type Secured = { x100: number; payout: number | null };
 
@@ -69,14 +78,23 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 const OVERTIME_CAPTIONS = ["THE NIGHT SHIFT CLOCKED IN", "COAL BUDGET: EXTENDED", "ANOTHER PRESSURE CHECK", "THE PRINTER NEEDS A HOLIDAY", "STEAM POWERED OVERTIME", "THE GAUGE RAN OUT OF NUMBERS", "SHIFT CHANGE: MORE RETAIL", "BRRR HAS NO OFF SWITCH"];
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'ABSOLUTELY COOKED' : outcome === 'called' ? 'OFFSHORE BEFORE THE RAID' : 'MONEY PRINTER GO BOOM';
+  if (outcome === 'called') return 'OFFSHORE BEFORE THE RAID';
+  if (outcome) return view.currentX100 <= 100 ? 'RUGGED AT 0 PSI' : outcome === 'rekt' ? 'ABSOLUTELY COOKED' : 'MONEY PRINTER GO BOOM';
   if (view.phase !== 'running') return 'WEN PRINT?';
-  if (secured) return 'HIDING OFFSHORE';
+  if (secured) {
+    // He jeeted, and it was the right call: the regret only creeps in as the printer keeps going without him.
+    const regret = view.currentX100 / secured.x100;
+    return regret < 1.25 ? 'JEETED OFFSHORE' : regret < 1.8 ? 'PROFIT TAKEN. NO REGRETS' : regret < 3 ? 'OK, A FEW REGRETS' : regret < 6 ? 'IT WAS A GOOD TRADE' : 'NOT CHECKING THE GAUGE';
+  }
   if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
-  if (multiplier < 1.3) return 'SHOVEL IN THE RETAIL';
-  if (multiplier < 1.7) return 'PRINTER GO BRRR';
-  if (multiplier < 2.5) return 'MORE RETAIL, BOYS';
-  if (multiplier < 4) return 'SELL IT TO GRANDMA';
+  if (multiplier < 1.15) return 'SHOVEL IN THE RETAIL';
+  if (multiplier < 1.3) return 'FIRE UP THE PRINTER';
+  if (multiplier < 1.5) return 'PRINTER GO BRRR';
+  if (multiplier < 1.7) return 'THAT HISS IS BULLISH';
+  if (multiplier < 2) return 'MORE RETAIL, BOYS';
+  if (multiplier < 2.5) return 'PROBABLY NOTHING';
+  if (multiplier < 3) return 'SELL IT TO GRANDMA';
+  if (multiplier < 4) return 'THE RED ZONE IS FUD';
   if (multiplier < 7) return 'INFINITE MONEY GLITCH';
   if (multiplier < 12) return 'COMPLIANCE IS ASLEEP';
   if (multiplier < 25) return 'PRINTER GO BRRRRRRRR';
@@ -218,28 +236,53 @@ export function createScene(options: SceneOptions = {}): Scene {
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
-  let whiteAge = -1;
+  /** Seconds since the valve went (real time), or -1: drives the hit-stop, the slow motion, the punch-in and the whiteout. */
+  let impact = -1;
+  let fusing = false;
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
 
+  /** The safety valve lets go, at the end of the fuse or straight away for a crash met late. */
+  function blow(x100: number, quiet: boolean): void {
+    fusing = false;
+    blowEngine(engine, ps, x100, quiet);
+    blastStoker(stoker, quiet);
+    if (quiet) pop.x = 1;
+    else {
+      shake = 1;
+      pop.v = 16;
+      impact = 0;
+      sound.blast();
+    }
+    audio.crash('boom', quiet);
+  }
+
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const dt = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
+    // The world's own time step: stopped for the hit-stop, then slowed and eased back to full speed.
+    let wdt = dt;
+    if (impact >= 0) {
+      impact += dt;
+      if (!reduced) wdt = impact < FREEZE ? 0 : dt * mix(0.3, 1, smoothstep(FREEZE, FREEZE + SLOW, impact));
+    }
     time += dt;
     if (view.phase === 'running') time = view.elapsed / 1000;
     if (view.phase === 'running') engine.time = stoker.time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
-    const pressure = 1 - Math.exp(-growth / 2.4);
-    const fear = clamp((growth - 0.35) / 2.8, 0, 1);
+    // Tension follows 1 − 1/x: 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×, 0.9 at 10×, so the window most rounds live in
+    // visibly and audibly escalates. The log2 growth still drives what long rounds keep changing.
+    const tension = 1 - 1 / multiplier;
+    const fear = clamp((tension - 0.12) / 0.75, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null && !secured) {
+    if (view.cashoutX100 !== null && !secured && (running || crashed)) {
       secured = { x100: view.cashoutX100, payout: view.payout };
       if (running) audio.cashout();
     }
-    const drive: EngineDrive = { running, crashed, pressure: running || crashed ? pressure : 0, multiplier };
+    const drive: EngineDrive = { running, crashed, pressure: running || crashed ? tension : 0, multiplier, fuse: fusing };
     const verdict: Outcome = view.stake === null ? 'kaboom' : secured ? 'called' : 'rekt';
 
     // Phase edges: joining late, the blow-out, and a fresh fire for the next round.
@@ -259,42 +302,55 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (secured) badge.x = 1;
     } else if (view.phase !== previous) {
       if (crashed && !engine.blown) {
-        const quiet = view.crashAge > 1500;
-        blowEngine(engine, ps, view.currentX100, quiet);
         outcome = verdict;
         // An exit this scene never drew (the tab was hidden) still gets him behind the shield.
         if (secured) callShield(stoker);
-        blastStoker(stoker, quiet);
-        if (quiet) pop.x = 1;
+        // A crash met late blows at once and quietly; otherwise a 120 ms fuse sells it first.
+        if (view.crashAge > 1500) blow(view.currentX100, true);
         else {
-          shake = 1;
-          pop.v = 16;
-          whiteAge = 0;
-          sound.blast();
+          fusing = true;
+          startle(stoker);
         }
-        audio.crash('boom', quiet);
       }
-      if (view.phase === 'betting') {
+      if (view.phase === 'betting' || view.phase === 'waiting') {
+        // The next round: a new valve cap drops in, he gets up, and the steam thins out rather than vanishing.
         resetEngine(engine);
-        resetStoker(stoker);
-        ps.list = [];
+        standUp(stoker);
+        fadeOut(ps);
         outcome = null;
         secured = null;
-        whiteAge = -1;
+        fusing = false;
+        impact = -1;
       }
-      if (view.phase === 'running' && stoker.mode === 'idle') stoker.mode = 'stoking';
       previous = view.phase;
     }
+    // Back to work once he is up: also after a get-up that ran past a short betting phase.
+    if (running) startStoking(stoker);
+    if (fusing && crashed && view.crashAge >= FUSE_MS) blow(view.currentX100, false);
     if (secured && (stoker.mode === 'stoking' || stoker.mode === 'idle') && running) callShield(stoker);
 
-    stepEngine(engine, drive, ps, dt);
+    drive.fuse = fusing;
+    stepEngine(engine, drive, ps, wdt);
     if (engine.events.reversal) sound.chuff(running ? 0.4 + engine.pressure : 0.25);
     if (engine.events.leak >= 0) {
       sound.ping();
       if (!reduced) shake = Math.max(shake, 0.25);
     }
-    const rate = running ? 0.5 + 1.1 * (1 - Math.exp(-growth / 2)) : 0;
-    stepStoker(stoker, { rate, fear, pressure: engine.pressure }, dt);
+    if (engine.events.scare) {
+      // A fake-out keyed to the multiplier: the boiler groans and he flinches, then it settles.
+      audio.fx('creak', 0.9);
+      startle(stoker);
+      if (!reduced) shake = Math.max(shake, 0.3);
+    }
+    // His pace picks up with the tension, and a little more as long rounds keep doubling.
+    const rate = running ? 0.5 + 0.85 * tension + 0.25 * (1 - Math.exp(-growth / 4)) : 0;
+    stoker.you = view.stake !== null;
+    stepStoker(stoker, { rate, fear: fusing ? 1 : fear, pressure: engine.pressure }, wdt);
+    if (stoker.events.slam) {
+      audio.fx('clang', 0.8);
+      if (!reduced) shake = Math.max(shake, 0.4);
+    }
+    if (stoker.events.land) audio.fx('thud', 0.6);
     if (stoker.events.throw) {
       const blade = bladePoint(stoker);
       for (let i = 0; i < 5; i += 1) {
@@ -303,12 +359,12 @@ export function createScene(options: SceneOptions = {}): Scene {
       sparks(ps, 340, 418, 14, 260, time * 17);
       engine.flame = Math.min(1.3, engine.flame + 0.3);
     }
-    stepParticles(ps, dt, -4 + 6 * Math.sin(time * 0.3));
-    sound.update(engine.pressure, running);
-    audio.update(view.phase, pressure);
+    stepParticles(ps, wdt, -4 + 6 * Math.sin(time * 0.3));
+    sound.update(engine.pressure, running, fusing ? 1 : 0);
+    audio.update(view.phase, tension);
     if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
 
-    stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
+    stepSpring(pop, outcome && engine.blown ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
@@ -317,13 +373,20 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.6);
-    if (whiteAge >= 0) whiteAge += dt;
+    // The flash peaks inside the hit-stop and clears within about a second, so the aftermath reads.
     // Reduced motion keeps the blow-out cue but softens it: a lower peak and a slower rise.
-    const rise = reduced ? 0.5 : 0.1;
-    const white = whiteAge < 0 ? 0 : (reduced ? 0.3 : 0.82) * smoothstep(0, rise, whiteAge) * Math.exp(-Math.max(0, whiteAge - rise) / 2.2);
-    const vibration = reduced || engine.blown ? 0 : engine.pressure * engine.pressure * 1.8;
+    const rise = reduced ? 0.5 : 0.08;
+    const white = impact < 0 ? 0 : (reduced ? 0.3 : 0.7) * smoothstep(0, rise, impact) * Math.exp(-Math.max(0, impact - rise) / 0.5);
+    // A low rumble from the start of every round that grows with the pressure; the fuse shakes the whole room.
+    const vibration = reduced || engine.blown ? 0 : fusing ? 4 : running ? 0.6 + 3 * engine.pressure * engine.pressure : 0;
+    const punch = reduced || impact < 0 ? 0 : smoothstep(0, 0.03, impact) * (1 - smoothstep(0.3, 0.75, impact));
 
     ctx.save();
+    if (punch > 0) {
+      ctx.translate(PUNCH.x, PUNCH.y);
+      ctx.scale(1 + 0.1 * punch, 1 + 0.1 * punch);
+      ctx.translate(-PUNCH.x, -PUNCH.y);
+    }
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 10 * shake * shake, Math.cos(time * 117) * 7 * shake * shake);
     if (vibration > 0) ctx.translate(Math.sin(time * 80) * vibration, Math.cos(time * 95) * vibration * 0.6);
     drawRoom(ctx, engine, time);
@@ -332,9 +395,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawMaintenance(ctx, engine);
     drawMachine(ctx, engine);
     drawCoalPile(ctx);
-    if (stoker.shovelDropped) drawShovelOnFloor(ctx, stoker);
+    // Thrown into the shield he lands in front of it; hiding, he is behind it.
+    const front = inFrontOfShield(stoker);
+    if (front) drawShield(ctx);
     drawStoker(ctx, stoker);
-    drawShield(ctx);
+    if (!front) drawShield(ctx);
+    // A dropped shovel stays in front of him, as it was in his hands and will be again when he picks it up.
+    if (stoker.shovelDropped) drawShovelOnFloor(ctx, stoker);
     drawParticles(ctx, ps, 1);
     if (white > 0.005) {
       ctx.fillStyle = `rgba(244, 246, 248, ${white})`;
@@ -346,7 +413,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.rotate(-0.12);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      memeText(ctx, outcome === 'rekt' ? 'REKT' : 'KABOOM!', 0, 0, 92, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
+      memeText(ctx, outcome === 'rekt' ? 'REKT' : outcome === 'called' ? 'DODGED!' : 'KABOOM!', 0, 0, 92, outcome === 'rekt' ? '#ff4d6d' : outcome === 'called' ? '#7cf67c' : '#ffe27a', 'center');
       ctx.restore();
     }
     ctx.restore();
@@ -363,6 +430,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, caption, 0, 0, 46, '#ffffff', 'center', Math.min(560, 2 * (READOUT_X - readoutWidth - 24 - CAPTION_X)) / k);
       ctx.restore();
     }
+    if (view.stake === null && !outcome && view.phase !== 'waiting') {
+      // A spectator has no stoker of their own in this: just a seat in the gallery.
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      memeText(ctx, 'SPECTATING · NO BAGS', CAPTION_X, 106, 22, '#cfd6e0', 'center');
+      ctx.restore();
+    }
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
@@ -374,7 +448,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     drawReadout(ctx, view, readout, outcome !== null);
-    memeText(ctx, `${Math.round(clamp(engine.pressure, 0, 1) * 100)} PSI`, 26, 514, 26, engine.pressure > 0.7 ? '#ff9db0' : '#e7f4f0', 'left');
+    memeText(ctx, `${Math.round(clamp(engine.pressure, 0, 1) * 100)} PSI`, 26, 514, 26, engine.pressure > 0.67 ? '#ff9db0' : engine.pressure > 0.45 ? '#ffd27a' : '#e7f4f0', 'left');
   }
 
   return { draw };

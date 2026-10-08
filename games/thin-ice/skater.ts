@@ -1,8 +1,10 @@
 /**
  * The skater: a side-view stride rig. Each stroke pushes off the back skate
  * and glides on the front one, the arms swing opposite, the torso leans into
- * the speed and a scarf trails on a chain of eased links. An accepted exit
- * carves her toward the far shore; the crash drops her through the ice.
+ * the speed and a scarf trails on a chain of eased links. Strokes follow the
+ * distance she covers, so the blades never stroke in place. An accepted exit
+ * carves her toward the far shore; the crash catches her braking, then drops
+ * her through the ice to bob up on her own buoyancy.
  */
 import { type Spring, clamp, fract, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { ICE_FAR_Y, ICE_NEAR_Y, type Point } from './ice';
@@ -16,6 +18,11 @@ const SKIN_SHADE = '#e0bda7';
 const JACKET = '#e63946';
 const JACKET_DARK = '#b8283f';
 const TROUSERS = '#2b3a55';
+
+/** World px covered per full stroke cycle, a little longer at speed. */
+const strideLength = (speed: number): number => 165 + 25 * clamp((speed - 120) / 200, 0, 1);
+/** How high she floats in the hole (px below the ice) once the plunge has spent itself. */
+const FLOAT = 52;
 
 /** Screen y of the ice under a depth, and how big things there look. */
 export const iceY = (depth: number): number => ICE_NEAR_Y - 8 - depth * (ICE_NEAR_Y - 8 - ICE_FAR_Y);
@@ -33,9 +40,8 @@ function bendJoint(root: Point, end: Point, upper: number, lower: number, side: 
 }
 
 export interface SkaterDrive {
-  /** World speed she is asked to hold, and strokes per second. */
+  /** World speed she is asked to hold. */
   speed: number;
-  strideRate: number;
   fear: number;
 }
 
@@ -60,6 +66,9 @@ export interface SkaterState {
   plunge: number;
   plungeV: number;
   fear: number;
+  /** She felt the ice go: brakes hard, crouches and throws her arms out until it gives. */
+  braced: boolean;
+  brace: Spring;
   /** Last world position on the ice: where the break happens if she is safe on the bank. */
   lastIce: Point;
   events: { push: -1 | 0 | 1 };
@@ -67,10 +76,10 @@ export interface SkaterState {
 
 export function createSkater(): SkaterState {
   return {
-    mode: 'idle', time: 0, modeAge: 0, x: 0, depth: spring(HOME_DEPTH), speed: 0, stride: 0.2, lean: spring(0.05),
+    mode: 'idle', time: 0, modeAge: 0, x: 0, depth: spring(HOME_DEPTH), speed: 0, stride: 0, lean: spring(0.05),
     scarf: Array.from({ length: 6 }, (_, i) => ({ x: 320 - i * 10, y: 380 })),
     eyeOpen: spring(1), mouthOpen: spring(0.05), mouthCurve: spring(0.25), brow: spring(0), blinkAt: 2.4, shades: spring(0), wave: spring(0),
-    plunge: 0, plungeV: 0, fear: 0, lastIce: { x: 0, y: iceY(HOME_DEPTH) }, events: { push: -1 },
+    plunge: 0, plungeV: 0, fear: 0, braced: false, brace: spring(0), lastIce: { x: 0, y: iceY(HOME_DEPTH) }, events: { push: -1 },
   };
 }
 
@@ -88,7 +97,27 @@ export function resetSkater(s: SkaterState): void {
   settleSpring(s.wave, 0);
   s.plunge = 0;
   s.plungeV = 0;
+  s.braced = false;
+  settleSpring(s.brace, 0);
   s.lastIce = { x: s.x, y: iceY(HOME_DEPTH) };
+}
+
+/** A new round: she heads back out to her mark, down off the bank or up out of the water, rather than jumping there. */
+export function rejoinSkater(s: SkaterState): void {
+  setMode(s, 'idle');
+  s.braced = false;
+  s.lastIce = { x: s.x, y: iceY(HOME_DEPTH) };
+}
+
+/** A crash met late: already floating in the hole, past the dunk. */
+export function settleSwimming(s: SkaterState): void {
+  setMode(s, 'swimming');
+  s.modeAge = 2;
+  s.plunge = FLOAT;
+  s.plungeV = 0;
+  s.speed = 0;
+  s.braced = false;
+  settleSpring(s.brace, 0);
 }
 
 /**
@@ -117,12 +146,17 @@ export function headForShore(s: SkaterState): void {
   if (s.mode === 'skating' || s.mode === 'idle') setMode(s, 'toShore');
 }
 
-/** The ice gave way. */
+/** The ice snapped round her: she brakes and braces for the few frames before it gives. */
+export function brace(s: SkaterState): void {
+  if (s.mode === 'skating' || s.mode === 'idle') s.braced = true;
+}
+
+/** The ice gave way: what is left of her speed carries into the plunge. */
 export function iceBroke(s: SkaterState): void {
   if (s.mode === 'skating' || s.mode === 'idle') {
     setMode(s, 'plunge');
     s.plungeV = 40;
-    s.speed = 0;
+    s.braced = false;
   } else if (s.mode === 'toShore') {
     // Accepted exits remain safe; finish the visible carve instead of teleporting to shore.
     s.wave.v += 1;
@@ -143,6 +177,12 @@ export function legPose(u: number): { x: number; y: number; onIce: boolean } {
   return { x: mix(-40, 8, smoothstep(0, 1, t)), y: 52 - 16 * Math.sin(Math.PI * t), onIce: false };
 }
 
+/** Where her rearmost blade's heel will be `seconds` from now at her current speed, relative to her hip, in her own units. */
+export function rearBlade(s: SkaterState, seconds: number): number {
+  const u = s.stride + (s.speed * seconds) / strideLength(s.speed);
+  return Math.min(legPose(u).x, legPose(u + 0.5).x) - 10;
+}
+
 type Mood = 'calm' | 'nervous' | 'panic' | 'shock' | 'smug' | 'cold';
 const FACES: Record<Mood, { eye: number; open: number; curve: number; brow: number }> = {
   calm: { eye: 1, open: 0.05, curve: 0.3, brow: 0 },
@@ -153,6 +193,24 @@ const FACES: Record<Mood, { eye: number; open: number; curve: number; brow: numb
   cold: { eye: 0.9, open: 0.25, curve: -0.6, brow: 0.8 },
 };
 
+/**
+ * For standing still: a foot still in the air finishes its swing and comes down, so both blades are on the ice. Only
+ * forward, so a stroke never plays backward.
+ */
+function standStride(s: SkaterState, dt: number): void {
+  const u = fract(s.stride);
+  const down = u < 0.15 || (u >= 0.5 && u < 0.65);
+  s.stride += ((down ? s.stride : s.stride - u + (u < 0.5 ? 0.5 : 1)) - s.stride) * (1 - Math.exp(-dt * 5));
+}
+
+/** Steps the plunge depth as a spring, so the water catches her rather than stopping her dead. */
+function floatTo(s: SkaterState, target: number, omega: number, zeta: number, dt: number): void {
+  const body = { x: s.plunge, v: s.plungeV };
+  stepSpring(body, target, omega, zeta, dt);
+  s.plunge = body.x;
+  s.plungeV = body.v;
+}
+
 export function stepSkater(s: SkaterState, drive: SkaterDrive, dt: number): void {
   s.time += dt;
   s.modeAge += dt;
@@ -162,19 +220,26 @@ export function stepSkater(s: SkaterState, drive: SkaterDrive, dt: number): void
   const speedNorm = clamp(s.speed / 320, 0, 1);
   switch (s.mode) {
     case 'idle':
-      s.speed += (0 - s.speed) * (1 - Math.exp(-dt / 0.6));
-      stepSpring(s.lean, 0.05 + Math.sin(s.time * 1.3) * 0.02, 6, 0.8, dt);
+      // Between rounds she drifts back to her mark: down off the bank, or up out of the refreezing hole.
+      s.speed *= Math.exp(-dt / 0.3);
+      stepSpring(s.depth, HOME_DEPTH, 2.4, 1, dt);
+      floatTo(s, 0, 4.5, 1, dt);
+      stepSpring(s.shades, 0, 10, 1, dt);
+      stepSpring(s.wave, 0, 6, 1, dt);
+      stepSpring(s.lean, (s.braced ? -0.12 : 0.05) + Math.sin(s.time * 1.3) * 0.02, 6, 0.8, dt);
+      standStride(s, dt);
       break;
     case 'skating':
-      s.speed += (drive.speed - s.speed) * (1 - Math.exp(-dt / 1.1));
-      s.stride += drive.strideRate * dt;
+      // Speed eases in over a few tenths of a second; braced, she stops almost dead in the fuse.
+      s.speed += ((s.braced ? 0 : drive.speed) - s.speed) * (1 - Math.exp(-dt / (s.braced ? 0.08 : 0.4)));
+      s.stride += (s.speed * dt) / strideLength(s.speed);
       s.x += s.speed * dt;
-      stepSpring(s.lean, 0.1 + 0.3 * speedNorm, 8, 0.7, dt);
+      stepSpring(s.lean, s.braced ? -0.12 : 0.1 + 0.3 * speedNorm, s.braced ? 20 : 8, 0.7, dt);
       s.lastIce = { x: s.x, y: iceY(s.depth.x) };
       break;
     case 'toShore':
       s.speed += (0 - s.speed) * (1 - Math.exp(-dt / 1.4));
-      s.stride += drive.strideRate * 0.6 * clamp(s.speed / 100, 0.2, 1) * dt;
+      s.stride += (s.speed * dt) / strideLength(s.speed);
       s.x += s.speed * dt;
       stepSpring(s.depth, 1, 1.3, 1, dt);
       stepSpring(s.lean, 0.08, 8, 0.7, dt);
@@ -182,34 +247,43 @@ export function stepSkater(s: SkaterState, drive: SkaterDrive, dt: number): void
       if (s.depth.x >= 0.97) setMode(s, 'shore');
       break;
     case 'shore':
-      s.speed = 0;
+      s.speed *= Math.exp(-dt / 0.25);
+      s.x += s.speed * dt;
+      standStride(s, dt);
       stepSpring(s.depth, 1, 4, 1, dt);
       stepSpring(s.lean, 0, 8, 0.7, dt);
       stepSpring(s.shades, 1, 12, 0.5, dt);
       stepSpring(s.wave, s.modeAge < 2.5 ? 1 : 0.2 + Math.sin(s.time * 1.5) * 0.15, 6, 0.6, dt);
       break;
     case 'plunge':
+      // What speed the brake left her carries on into the water and dies away there.
+      s.speed *= Math.exp(-dt / 0.3);
+      s.x += s.speed * dt;
       s.plungeV += 600 * dt;
       s.plunge += s.plungeV * dt;
       stepSpring(s.lean, -0.1, 8, 0.7, dt);
-      if (s.plunge >= 58) {
-        s.plunge = 58;
-        setMode(s, 'swimming');
-      }
+      if (s.plunge >= 40) setMode(s, 'swimming');
       break;
     case 'swimming':
-      s.plunge = 58 + Math.sin(s.time * 3) * 3;
+      // Buoyancy: the dunk overshoots under, she bobs back up, and the shivering bob fades in once she settles.
+      s.speed *= Math.exp(-dt / 0.3);
+      s.x += s.speed * dt;
+      floatTo(s, FLOAT + Math.sin(s.modeAge * 3) * 3 * smoothstep(0.6, 1.6, s.modeAge), 7, 0.35, dt);
       stepSpring(s.lean, Math.sin(s.time * 14) * 0.04, 10, 0.5, dt);
       break;
   }
-  const u0 = fract(before);
-  const u1 = fract(s.stride);
-  if ((u0 < 0.45 && u1 >= 0.45) || (u1 < u0 && u1 >= 0.45)) { s.events.push = 0; s.lean.v += 0.5; }
-  const v0 = fract(before + 0.5);
-  const v1 = fract(s.stride + 0.5);
-  if ((v0 < 0.45 && v1 >= 0.45) || (v1 < v0 && v1 >= 0.45)) { s.events.push = 1; s.lean.v += 0.5; }
+  stepSpring(s.brace, s.braced ? 1 : 0, s.braced ? 30 : 8, s.braced ? 0.7 : 1, dt);
+  // A push is the stroke passing 0.45 going forward (a wrap counts); a stroke that holds or settles pushes nothing.
+  if (s.stride > before) {
+    const u0 = fract(before);
+    const u1 = fract(s.stride);
+    if ((u0 < 0.45 && u1 >= 0.45) || (u1 < u0 && u1 >= 0.45)) { s.events.push = 0; s.lean.v += 0.5; }
+    const v0 = fract(before + 0.5);
+    const v1 = fract(s.stride + 0.5);
+    if ((v0 < 0.45 && v1 >= 0.45) || (v1 < v0 && v1 >= 0.45)) { s.events.push = 1; s.lean.v += 0.5; }
+  }
 
-  const mood: Mood = s.mode === 'plunge' ? 'shock' : s.mode === 'swimming' ? (s.modeAge < 1.4 ? 'shock' : 'cold') : s.mode === 'shore' || s.mode === 'toShore' ? 'smug' : drive.fear > 0.62 ? 'panic' : drive.fear > 0.25 ? 'nervous' : 'calm';
+  const mood: Mood = s.mode === 'plunge' || s.braced ? 'shock' : s.mode === 'swimming' ? (s.modeAge < 1.4 ? 'shock' : 'cold') : s.mode === 'shore' || s.mode === 'toShore' ? 'smug' : drive.fear > 0.62 ? 'panic' : drive.fear > 0.25 ? 'nervous' : 'calm';
   const face = FACES[mood];
   const blinking = s.time > s.blinkAt && s.time < s.blinkAt + 0.13;
   if (s.time >= s.blinkAt + 0.13) s.blinkAt = s.time + 2.2 + 2.6 * noise(s.blinkAt);
@@ -219,13 +293,28 @@ export function stepSkater(s: SkaterState, drive: SkaterDrive, dt: number): void
   stepSpring(s.brow, face.brow, 12, 0.75, dt);
 }
 
-/** Contacts stay in the ice frame; only the pelvis bobs above them. */
+/** How far she is into the water pose: eased in over the first instant of the plunge, eased out as she climbs out. */
+export function wetness(s: SkaterState): number {
+  if (s.mode === 'plunge') return smoothstep(0, 0.12, s.modeAge);
+  return s.mode === 'swimming' ? 1 : clamp(s.plunge / 40, 0, 1);
+}
+
+/** Contacts stay in the ice frame; only the pelvis bobs above them. Braced, both blades plant in a wide crouch. */
 export function skaterFooting(s: SkaterState) {
   const inWater = s.mode === 'plunge' || s.mode === 'swimming';
+  const wet = wetness(s);
+  const braced = clamp(s.brace.x, 0, 1);
   const legs = [legPose(s.stride), legPose(s.stride + 0.5)];
-  const feet = inWater ? [{ x: -14, y: -12 }, { x: 12, y: -8 }] : legs.map(p => ({ x: p.x, y: p.y - 52 }));
   const order = legs[0]!.x < legs[1]!.x ? [0, 1] : [1, 0];
-  let hipY = -52 - 3 * Math.abs(Math.sin(Math.PI * 2 * s.stride)) * clamp(s.speed / 320, 0, 1);
+  // Only a full brace plants the blades: a flinch (a near miss) moves her arms and hips but never slides a skate.
+  const planted = smoothstep(0.5, 1, braced);
+  const feet = legs.map((p, i) => {
+    const plant = i === order[1] ? 14 : -20;
+    const dry = { x: mix(p.x, plant, planted), y: mix(p.y - 52, 0, planted) };
+    const tucked = i === 0 ? { x: -14, y: -12 } : { x: 12, y: -8 };
+    return { x: mix(dry.x, tucked.x, wet), y: mix(dry.y, tucked.y, wet) };
+  });
+  let hipY = -52 - 3 * Math.abs(Math.sin(Math.PI * 2 * s.stride)) * clamp(s.speed / 320, 0, 1) + 12 * braced;
   // Lower the pelvis as needed rather than lengthening the shin at full extension.
   for (const [depth, i] of order.entries()) {
     const dx = feet[i]!.x - (depth === 0 ? -4 : 4);
@@ -260,14 +349,13 @@ export interface SkaterPlacement { x: number; y: number; scale: number }
 /** Draws her at a screen position; returns the neck position for the scarf. */
 export function drawSkater(ctx: CanvasRenderingContext2D, s: SkaterState, at: SkaterPlacement, withScarf: boolean): Point {
   const speedNorm = clamp(s.speed / 320, 0, 1);
-  const bob = -3 * Math.abs(Math.sin(Math.PI * 2 * s.stride)) * speedNorm;
   ctx.save();
   ctx.translate(at.x, at.y);
   ctx.scale(at.scale, at.scale);
   ctx.translate(0, s.plunge);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const { hip, feet, order, inWater } = skaterFooting(s);
+  const { hip, feet, order } = skaterFooting(s);
   function segment(a: Point, b: Point, width: number, colour: string) {
     ctx.strokeStyle = colour; ctx.lineWidth = width;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -296,10 +384,13 @@ export function drawSkater(ctx: CanvasRenderingContext2D, s: SkaterState, at: Sk
   ctx.rotate(s.lean.x);
   const shoulder: Point = { x: 0, y: -44 };
   const swing = Math.sin(Math.PI * 2 * s.stride) * (0.45 + 0.55 * speedNorm);
-  const flail = inWater ? 1 : 0;
   const wave = clamp(s.wave.x, 0, 1);
-  const handBack: Point = inWater ? { x: -26 - Math.sin(s.time * 9) * 6, y: -70 } : { x: -30 * swing, y: -22 + 10 * swing };
-  const handFront: Point = inWater ? { x: 28 + Math.cos(s.time * 9) * 6, y: -68 } : { x: mix(30 * swing, 26, wave), y: mix(-22 - 10 * swing, -72, wave) };
+  // Dry arms swing with the stroke, braced arms are thrown out for balance, wet ones flail overhead; blended between.
+  const wet = wetness(s);
+  const braced = clamp(s.brace.x, 0, 1);
+  const pose = (dry: Point, out: Point, flail: Point): Point => ({ x: mix(mix(dry.x, out.x, braced), flail.x, wet), y: mix(mix(dry.y, out.y, braced), flail.y, wet) });
+  const handBack = pose({ x: -30 * swing, y: -22 + 10 * swing }, { x: -38, y: -54 }, { x: -26 - Math.sin(s.time * 9) * 6, y: -70 });
+  const handFront = pose({ x: mix(30 * swing, 26, wave), y: mix(-22 - 10 * swing, -72, wave) }, { x: 40, y: -58 }, { x: 28 + Math.cos(s.time * 9) * 6, y: -68 });
   limb({ x: -3, y: -40 }, handBack, 24, 24, 1, 9, JACKET_DARK);
   segment({ x: 0, y: 0 }, shoulder, 30, INK);
   segment({ x: 0, y: -3 }, shoulder, 26, JACKET);
@@ -373,7 +464,6 @@ export function drawSkater(ctx: CanvasRenderingContext2D, s: SkaterState, at: Sk
   }
   ctx.restore();
   ctx.restore();
-  void flail;
   // The neck in screen space, for the scarf.
   const cos = Math.cos(s.lean.x);
   const sin = Math.sin(s.lean.x);

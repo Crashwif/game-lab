@@ -5,9 +5,9 @@
  * frame time, and nothing drawn here changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type Curler, SLEEVE_AT, burstBicep, createCurler, drawCurler, marketCap, poseCurler, resetCurler, settleCurler, stepCurler } from './curler';
-import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleTrail, stepGym, swoon, walkOut } from './gym';
-import { type Medic, createMedic, drawMedic, resetMedic, settleMedic, stepMedic, summonMedic } from './medic';
+import { type Curler, GRADUATE_AT, SLEEVE_AT, burstBicep, createCurler, curlerArm, curveFill, drawCurler, marketCap, poseCurler, resetCurler, settleCurler, stepCurler } from './curler';
+import { type Gym, INK, createGym, drawGymBack, drawGymCrowd, drawGymFloor, drawPhoneOverlay, drawPuffs, finishGym, heckle, puff, resetGym, settleCrowd, settleTrail, stepGym, swoon, walkOut } from './gym';
+import { type Medic, createMedic, drawMedic, drawSirenGlow, resetMedic, settleMedic, stepMedic, summonMedic } from './medic';
 import { clamp, settleSpring, spring, stepSpring } from './motion';
 
 export interface SceneView {
@@ -37,12 +37,20 @@ export interface Scene {
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 type Outcome = 'rekt' | 'called' | 'pop';
 type Secured = { x100: number; payout: number | null };
-const HECKLES = ['SHEEEESH', 'ARMS', 'HE LIFTS', 'PEAK', 'MOG', 'ALL NATTY?', "IT'S PULSING", 'CALL 911'];
-const MILESTONES = [1.5, 2, 3, 4, 6, 8, 12, 20];
-/** The burst's hit-stop and slow motion. */
-const FREEZE_S = 0.07;
+/** The crowd's shouts as the number passes each milestone: KING OF THE HILL at half the bonding curve, HALF REPS as the reps fail. */
+const HECKLES = ['LFG', 'SHEEEESH', 'KING OF THE HILL', 'WAGMI', 'MOG', 'HALF REPS', 'ALL NATTY?', "IT'S PULSING", 'CALL 911'];
+const MILESTONES = [1.2, 1.5, 2, 3, 4, 5, 8, 12, 20];
+/** The burst's hit-stop, slow motion, and the camera's punch in (a share of the frame) and how long it holds. */
+const FREEZE_S = 0.15;
 const SLOW_S = 0.4;
 const SLOW_RATE = 0.3;
+const PUNCH = 0.1;
+const PUNCH_HOLD_S = 0.3;
+/**
+ * Half way at 2× and two thirds at 3×, where most rounds end; the slower log scale (growth) still drives the size of
+ * the arm, its colour and the mirror's cracks for the long rounds.
+ */
+const tensionFor = (multiplier: number): number => clamp(1 - 1 / multiplier, 0, 1);
 
 function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign, maxWidth?: number): void {
   ctx.font = `900 ${size}px ${MEME_FONT}`;
@@ -57,20 +65,24 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 /** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
-const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "THE MEDIC CHECKED HIS WATCH", "ANOTHER CURL, ANOTHER PEAK", "THE TAPE MEASURE RESIGNED", "STILL SKIPPING LEG DAY", "BICEP AUDIT PENDING", "THE MIRROR NEEDS INSURANCE", "REST DAY IS A RUMOUR"];
+const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "THE MEDIC CHECKED HIS WATCH", "SUNS OUT GUNS OUT", "THE TAPE MEASURE RESIGNED", "STILL SKIPPING LEG DAY", "BICEP AUDIT PENDING", "THE MIRROR NEEDS INSURANCE", "REST DAY IS A RUMOUR"];
+/** After a cash-out the arm keeps pumping without you: the regret ladder, by how far it has run past your exit. */
+const JEET_CAPTIONS: [number, string][] = [[1.15, 'JEETED THE PEAK'], [1.5, 'PROFIT IS PROFIT, SER'], [2.5, "DON'T LOOK AT THE ARM"], [5, 'PAPER HANDS, CLEAN SHIRT'], [Infinity, 'IT WAS NEVER YOUR BICEP']];
 
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'NOODLE ARM' : outcome === 'called' ? 'SOLD THE PEAK' : 'PROTEIN SHAKE';
+  if (outcome === 'called' && secured) return multiplier * 100 / secured.x100 < 1.1 ? 'SOLD THE PEAK' : 'BAG SAFE, ARM GONE';
+  if (outcome) return multiplier < 1.01 ? 'RUGGED ON REP ONE' : outcome === 'rekt' ? 'NOODLE ARM' : 'PROTEIN SHAKE';
   if (view.phase !== 'running') return 'WE GO JIM';
-  if (secured) return 'CURLS FOR THE GIRLS';
+  if (secured) return JEET_CAPTIONS.find(([below]) => multiplier * 100 / secured.x100 < below)![1];
   if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
-  if (multiplier < 1.3) return 'ONE MORE REP';
-  if (multiplier < 1.7) return 'PUMP SEASON';
+  // A new line every few seconds through the first fifteen, each one naming what is happening as it happens.
+  if (multiplier < 1.25) return 'ONE MORE REP';
+  if (multiplier < 1.6) return 'PUMP SEASON';
   if (multiplier < SLEEVE_AT) return 'THE PEAK IS FORMING';
-  if (multiplier < 3.2) return 'SLEEVE BUSTED';
-  if (multiplier < 4.5) return 'SUNS OUT GUNS OUT';
-  if (multiplier < 6.5) return "HE'S NOT NATTY";
-  if (multiplier < 10) return 'PEAK IS IN';
+  if (multiplier < GRADUATE_AT) return 'SLEEVE BUSTED';
+  if (multiplier < 4.6) return 'GRADUATED TO RAYDIUM';
+  if (multiplier < 6.5) return "CAN'T FINISH THE REP";
+  if (multiplier < 10) return "HE'S NOT NATTY";
   if (multiplier < 16) return 'NEVER SKIP LEG DAY';
   return 'THE BICEP HAS A TICKER';
 }
@@ -85,8 +97,9 @@ export function createScene(options: SceneOptions = {}): Scene {
   const badge = spring(0);
   const captionPop = spring(0);
   const legArrow = spring(0);
-  /** The camera's punch into the burst. */
+  /** The camera's punch into the burst, held for a moment before it eases out. */
   const punch = spring(0);
+  let punchHold = 0;
   let last: number | null = null;
   let time = 0;
   let previous: SceneView['phase'] | null = null;
@@ -95,19 +108,25 @@ export function createScene(options: SceneOptions = {}): Scene {
   let secured: Secured | null = null;
   let caption = '';
   let milestone = 0;
+  let graduated = false;
   let encoreAt = 0;
   let freeze = 0;
   let slow = 0;
   /** The green of an accepted exit, fading. */
   let flash = 0;
+  /** A chalk-white wipe from the last crash's aftermath into the next round's warm-up. */
+  let wipe = 0;
 
   /** Jumps to where a round met late stands: the arm and the pose, the milestones passed, the mirror's chart and cracks, the medic and the badge. */
   function settleRound(view: SceneView, multiplier: number, growth: number): void {
-    settleCurler(curler, multiplier, growth, secured !== null);
+    settleCurler(curler, multiplier, growth, secured !== null, view.phase === 'running' ? view.elapsed / 1000 : 0);
+    settleCrowd(gym, view.phase === 'running', tensionFor(multiplier));
     while (milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) milestone += 1;
+    graduated = multiplier >= GRADUATE_AT;
     // Keep the final elapsed time supplied by the round through its crash.
     settleTrail(gym, view.elapsed, growth);
     settleSpring(badge, secured ? 1 : 0);
+    settleSpring(legArrow, view.phase === 'running' && multiplier >= 10 ? 1 : 0);
     settleMedic(medic, multiplier, view.phase === 'crashed');
     // The mirror's cracks, which hold through the crash once finishGym has run.
     gym.cracks = clamp((growth - 1) / 3, 0, 1);
@@ -126,12 +145,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      // A hard cut in on the burst, held through the hit-stop, then eased back out.
+      settleSpring(punch, 1);
+      punchHold = PUNCH_HOLD_S;
     }
-    summonMedic(medic);
+    // Parked, he rolls the stretcher over; otherwise he sprints in from outside, siren going.
+    if (summonMedic(medic)) audio.fx('siren', 0.5);
     audio.crash('boom');
     audio.fx('hiss', 0.7);
     if (outcome !== 'called') {
@@ -157,7 +179,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1);
+    const tension = tensionFor(multiplier);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -188,14 +210,17 @@ export function createScene(options: SceneOptions = {}): Scene {
         snap(view, quiet);
       }
       if (view.phase === 'betting') {
+        if (outcome) wipe = 1;
         resetGym(gym);
         resetCurler(curler);
         resetMedic(medic);
         outcome = null;
         secured = null;
         milestone = 0;
+        graduated = false;
         encoreAt = 0;
-        freeze = slow = 0;
+        freeze = slow = punchHold = 0;
+        settleSpring(punch, 0);
       }
       previous = view.phase;
     }
@@ -206,6 +231,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running) poseCurler(curler);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: clamp((growth - 1) / 3, 0, 1) }, dt);
     stepMedic(medic, { running, multiplier, seconds: view.elapsed / 1000 }, dt);
+    // The bonding curve fills at 3×: the cuff's LCD graduates, the girls swoon and a bell rings.
+    if (running && !graduated && multiplier >= GRADUATE_AT) { graduated = true; swoon(gym); audio.fx('bell', 0.5); }
     if (running && milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) {
       heckle(gym, HECKLES[milestone % HECKLES.length]!, milestone % 2 === 0);
       milestone += 1;
@@ -219,14 +246,21 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (running) audio.milestone(MILESTONES.filter((m) => multiplier >= m).length);
     if (curler.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.04 + 0.16 * tension); audio.fx('creak', 0.4 + 0.6 * tension); }
+    // The bicep's own pulse under the reps, quickening with the load, for as long as the player is still in.
+    if (curler.events.beat && running && !secured && tension > 0.15) audio.fx('heartbeat', 0.15 + 0.35 * tension);
     if (curler.events.hop && running) audio.fx('tick', 0.35);
+    if (curler.events.chalk) puff(gym, curlerArm(curler).hand, 5, '#f4f2ea', curler.modeAge);
     if (curler.events.sleeve) { heckle(gym, 'SLEEVE GONE', true); if (!reduced) shake = Math.max(shake, 0.3); audio.fx('ratchet', 0.9); }
     if (curler.events.dropped) { puff(gym, { x: curler.dumbbell.x, y: curler.dumbbell.y }, 10, '#ffffff', 5); if (!curler.burst) { swoon(gym); heckle(gym, 'MARRY ME', true); } if (!reduced) shake = Math.max(shake, 0.35); audio.fx('thud', 1); }
-    if (medic.events.enter) { heckle(gym, 'WHO CALLED HIM', false); audio.fx('siren', 0.6); }
+    if (medic.events.glow) audio.fx('siren', 0.2);
+    if (medic.events.peek) audio.fx('squeak', 0.5);
+    if (medic.events.enter) audio.fx('siren', 0.6);
+    if (medic.events.parked) heckle(gym, 'WHO CALLED HIM', false);
     stepSpring(legArrow, running && multiplier >= 10 ? 1 : 0, 6, 0.6, dt);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
+    if (punchHold > 0) punchHold = Math.max(0, punchHold - real);
+    else stepSpring(punch, 0, 7, 0.9, dt);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -235,12 +269,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
     if (flash > 0) flash = Math.max(0, flash - real / 0.6);
+    if (wipe > 0) wipe = Math.max(0, wipe - real / 0.45);
 
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the burst and eases back out.
-      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(curler.burstAt.x, curler.burstAt.y);
       ctx.scale(k, k);
       ctx.translate(-curler.burstAt.x, -curler.burstAt.y);
@@ -248,6 +283,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawGymBack(ctx, gym, outcome !== null);
     drawGymCrowd(ctx, gym, outcome === 'called');
     drawGymFloor(ctx);
+    drawSirenGlow(ctx, medic, reduced);
     drawMedic(ctx, medic);
     const cv = drawCurler(ctx, curler);
     drawPuffs(ctx, gym);
@@ -268,12 +304,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      const text = outcome === 'rekt' ? 'SNAP CITY' : outcome === 'called' ? 'CALLED IT' : 'POPPED';
+      const text = outcome === 'rekt' ? 'SNAP CITY' : outcome === 'called' ? 'DODGED' : 'POPPED';
       memeText(ctx, text, 0, 0, outcome === 'rekt' ? 84 : 78, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
       ctx.restore();
     }
     ctx.restore();
     if (flash > 0.01) { ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * flash})`; ctx.fillRect(0, 0, 960, 540); }
+    if (wipe > 0.01) { ctx.fillStyle = `rgba(246, 244, 236, ${0.9 * wipe * wipe})`; ctx.fillRect(0, 0, 960, 540); }
     drawPhoneOverlay(ctx, gym, !outcome);
     void cv;
 
@@ -299,9 +336,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 24, 514, 56, colour, 'left');
+    // Past a million the readout switches to an exponent rather than running off into the shaker.
+    memeText(ctx, `${multiplier < 1e6 ? multiplier.toFixed(2) : multiplier.toExponential(2).replace('+', '')}×`, 24, 514, 56, colour, 'left', 270);
     ctx.restore();
-    memeText(ctx, `MCAP ${marketCap(multiplier, curler.burst)} · PEAK ${Math.round(30 + 25 * (curler.radius.x - 16) / 128 * 4)} CM`, 936, 514, 24, outcome ? '#ff9db0' : '#e7f4f0', 'right');
+    const curve = curler.burst ? 'CURVE RUGGED' : curveFill(multiplier) >= 1 ? 'GRADUATED' : `CURVE ${Math.floor(curveFill(multiplier) * 100)}%`;
+    // Sized to stay clear of his shoes; a longer line compresses rather than reaching them.
+    memeText(ctx, `MCAP ${marketCap(multiplier, curler.burst)} · ${curve} · PEAK ${Math.round(30 + 25 * (curler.radius.x - 16) / 128 * 4)} CM`, 936, 514, 21, outcome ? '#ff9db0' : '#e7f4f0', 'right', 400);
   }
 
   return { draw };

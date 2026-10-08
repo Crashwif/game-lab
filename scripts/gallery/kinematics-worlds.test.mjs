@@ -50,10 +50,13 @@ test('Moon stagger snapshots at actual release; detached stages preserve their f
 
 test('Moon drawn 3D limbs keep fixed bones and plant all four sockets on the hull', async () => {
   const m = await game('moon-boys/rocket');
-  for (const clinging of [true, false]) for (const side of [-1, 1]) for (const arm of [true, false]) for (let i = 0; i < 90; i++) {
-    const pose = m.heroLimb(side, arm, 1.1, i / 5, i / 90, false, clinging);
+  // `grip` 1 holds the hull, 0 is free on the chute, and a bail blends through everything between.
+  for (const grip of [1, 0.75, 0.5, 0.25, 0]) for (const side of [-1, 1]) for (const arm of [true, false]) for (let i = 0; i < 90; i++) {
+    const pose = m.heroLimb(side, arm, 1.1, i / 5, i / 90, false, grip);
     close(length3(pose.root, pose.joint), pose.bone); close(length3(pose.joint, pose.end), pose.bone);
-    if (clinging) close(Math.hypot(pose.end[0] * 1.1, 0.85 + 0.44 * 1.1 + pose.end[2] * 1.1), 0.85);
+    const mid = pose.root.map((v, k) => (v + pose.end[k]) / 2);
+    assert.ok(arm ? (pose.joint[0] - mid[0]) * side > 0 : pose.joint[2] > mid[2], 'elbows bend out and knees forward, never across the body');
+    if (grip === 1) close(Math.hypot(pose.end[0] * 1.1, 0.85 + 0.44 * 1.1 + pose.end[2] * 1.1), 0.85);
   }
 });
 

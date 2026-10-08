@@ -1,11 +1,14 @@
+/** Rocket stages, crowd release and the articulated player. Positions use the rocket's local frame. */
 import { CROWD_FACES, FACE, PRINT } from './atlas';
 import { putInstance } from './gl';
 import type { Label } from './hud';
-import { type Vec3, add, cross, madd, normalize, rotateAbout, sub } from './math3d';
-import { type Spring, clamp, mulberry32, settleSpring, spring, stepSpring } from './motion';
+import { type Vec3, add, cross, lerp3, madd, normalize, rotateAbout, scale, sub } from './math3d';
+import { type Spring, clamp, mulberry32, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import type { Renderer } from './render';
 
+/** The multipliers at which a wave of holders lets go. */
 export const WAVES = [1.2, 1.5, 2, 2.6, 3.4, 4.6, 6.9, 10, 15, 25, 50];
+/** The boosters (the snipers' stage) separate here, and the core (the bundled supply) here. */
 export const BOOSTERS_AT = 1.3;
 export const CORE_AT = 2.0;
 export const HEADLINE = 69_420;
@@ -68,7 +71,7 @@ export interface Rocket {
 export interface Frame { origin: Vec3; x: Vec3; y: Vec3; z: Vec3 }
 
 export function createRocket(): Rocket {
-  const rocket: Rocket = { alt: 0, climb: (CLIMB * 0.00006 * 1000) / Math.LN2, time: 0, thrust: 0, swayX: spring(0), swayZ: spring(0), focus: spring(8), boosters: { attached: true, age: 0 }, core: { attached: true, age: 0 }, holders: [], you: { mode: 'cling', theta: 0, y: 11.6, size: 1.1, age: 0, from: [0, 0, 0], vel: [0, 0, 0] }, particles: [], events: [], wave: 0, panic: false, dead: false, deadFor: 0, random: mulberry32(0x6b0b), omega: [0, 0, 0], emissions: [] };
+  const rocket = { swayX: spring(), swayZ: spring(), focus: spring() } as Rocket;
   resetRocket(rocket);
   return rocket;
 }
@@ -114,25 +117,32 @@ export function resetRocket(rocket: Rocket): void {
   }
 }
 
+/** The tumble tips the nose toward +x and a little away from the camera: clear of the tower and the car on bricks. */
+const TIP: Vec3 = [0.98, 0, -0.2];
+
 export function rocketFrame(rocket: Rocket): Frame {
-  const lean = 0.012;
-  let y: Vec3 = normalize([rocket.swayX.v * lean, 1, rocket.swayZ.v * lean]);
+  let y: Vec3 = normalize([rocket.swayX.v * 0.012, 1, rocket.swayZ.v * 0.012]);
+  let origin: Vec3 = [rocket.swayX.x, rocket.alt, rocket.swayZ.x];
   if (rocket.dead) {
-    const t = rocket.deadFor;
-    y = rotateAbout(rocket.deadFrame?.y ?? y, [0, 0, 1], Math.min(2.7, 0.35 * t + 1.7 * t * t));
+    // Low enough to land before the cut: it tips no further than flat, over the rim of its base, and lies on the ground.
+    const t = rocket.deadFor, low = rocket.alt < 45, a = Math.min(low ? Math.PI / 2 : 2.7, 0.35 * t + 1.7 * t * t), rim = low ? (rocket.boosters.attached ? 2.1 : 1.45) : 0;
+    y = rotateAbout(rocket.deadFrame?.y ?? y, [-TIP[2], 0, TIP[0]], -a);
+    origin = madd(origin, TIP, rim * (1 - Math.cos(a)));
+    origin[1] = Math.max(rocket.alt - 10 * t * t, rim * Math.sin(a));
   }
   let x: Vec3 = normalize(cross(y, [0, 0, 1]));
-  if (!Number.isFinite(x[0]!) || Math.hypot(x[0], x[1], x[2]) < 1e-4) x = [1, 0, 0];
-  const z = cross(x, y);
-  const fall = rocket.dead ? Math.min(10 * rocket.deadFor * rocket.deadFor, rocket.alt + 1.5) : 0;
-  return { origin: [rocket.swayX.x, rocket.alt - fall, rocket.swayZ.x], x, y, z };
+  if (!Number.isFinite(x[0]!) || Math.hypot(...x) < 1e-4) x = [1, 0, 0];
+  return { origin, x, y, z: cross(x, y) };
 }
 
 export const toWorld = (f: Frame, lx: number, ly: number, lz: number): Vec3 => [f.origin[0] + f.x[0] * lx + f.y[0] * ly + f.z[0] * lz, f.origin[1] + f.x[1] * lx + f.y[1] * ly + f.z[1] * lz, f.origin[2] + f.x[2] * lx + f.y[2] * ly + f.z[2] * lz];
 
 const spot = (theta: number, y: number, radius: number): Vec3 => [Math.sin(theta) * radius, y, Math.cos(theta) * radius];
 const outward = (theta: number): Vec3 => [Math.sin(theta), 0, Math.cos(theta)];
+/** A rocket-frame direction in the xz plane, in the world. */
+const across = (x: Vec3, z: Vec3, o: Vec3): Vec3 => normalize(madd(scale(x, o[0]), z, o[2]));
 
+/** Joins a round in progress: everything the multiplier already did has happened. */
 export function settleRocket(rocket: Rocket, multiplier: number, elapsed?: number): void {
   rocket.alt = altitudeOf(multiplier);
   rocket.time = elapsed ?? rocket.alt / 4.76;
@@ -164,6 +174,7 @@ function detachStage(r: Rocket): Stage {
   return { attached: false, age: 0, frame: rocketFrame(r), vel: velocity(r, [0, 0, 0]), omega: [...r.omega] };
 }
 
+/** The room accepted your cash-out: you jump. */
 export function bailYou(rocket: Rocket): void {
   if (rocket.you.mode !== 'cling') return;
   const you = rocket.you;
@@ -175,6 +186,7 @@ export function bailYou(rocket: Rocket): void {
   rocket.bailEvent = true;
 }
 
+/** The wire snapped: the engines die, everyone lets go, the rocket tumbles. */
 export function killRocket(rocket: Rocket): void {
   if (rocket.dead) return;
   rocket.deadFrame = rocketFrame(rocket);
@@ -207,7 +219,7 @@ export function stepRocket(rocket: Rocket, drive: Drive, dt: number, reduced: bo
   stepSpring(rocket.swayX, wander * (Math.sin(t * 0.9) * 0.6 + Math.sin(t * 2.3) * 0.25), 1.8, 0.6, dt);
   stepSpring(rocket.swayZ, wander * (Math.cos(t * 0.7) * 0.5 + Math.sin(t * 1.9 + 1) * 0.2), 1.8, 0.6, dt);
   const current = rocketFrame(rocket);
-  if (dt > 0) rocket.omega = madd([0, 0, 0], add(add(cross(previous.x, current.x), cross(previous.y, current.y)), cross(previous.z, current.z)), 0.5 / dt);
+  if (dt > 0) rocket.omega = scale(add(add(cross(previous.x, current.x), cross(previous.y, current.y)), cross(previous.z, current.z)), 0.5 / dt);
   if (drive.racing && !rocket.dead) {
     if (rocket.boosters.attached && multiplier >= BOOSTERS_AT) { rocket.boosters = detachStage(rocket); rocket.events.push('boosters'); }
     if (rocket.core.attached && multiplier >= CORE_AT) { rocket.core = detachStage(rocket); rocket.events.push('core'); }
@@ -232,31 +244,31 @@ export function stepRocket(rocket: Rocket, drive: Drive, dt: number, reduced: bo
     if (holder.age > 4 || holder.from[1] + holder.vel[1] * holder.age - 0.5 * GRAVITY * holder.age * holder.age < -80) holder.state = 'gone';
   }
   const you = rocket.you;
-  if (you.mode === 'eject') {
-    you.age += dt;
-    if (you.age > 7) you.mode = 'gone';
-  }
+  if (you.mode === 'eject') you.age += dt;
+  if (you.age > 7.8) you.mode = 'gone';
   const frame = rocketFrame(rocket);
-  const burn = rocket.thrust;
-  if (burn > 0.02 && (drive.racing || rocket.dead)) {
+  // On the pad between rounds the stack vents a little smoke.
+  const vent = !drive.racing && !drive.crashed && !rocket.dead, burn = vent ? 1 : rocket.thrust;
+  if (burn > 0.02 && (drive.racing || rocket.dead || vent)) {
     const r = rocket.random;
     const clusters: [Vec3, number][] = [];
-    if (rocket.core.attached) {
+    if (vent) clusters.push([toWorld(frame, 0, 8.6, 1.2), 0.8]);
+    else if (rocket.core.attached) {
       clusters.push([toWorld(frame, 0, -0.5, 0), 1]);
       if (rocket.boosters.attached) for (let k = 0; k < 4; k += 1) { const a = (k * Math.PI) / 2; clusters.push([toWorld(frame, Math.cos(a) * BOOSTER_RADIUS, -0.2, Math.sin(a) * BOOSTER_RADIUS), 0.55]); }
     } else clusters.push([toWorld(frame, 0, 7.9, 0), 0.7]);
     const down: Vec3 = [-frame.y[0], -frame.y[1], -frame.y[2]];
     for (const [index, [at, size]] of clusters.entries()) {
       const emit = (slot: number, rate: number) => { const n = (rocket.emissions[slot] ?? 0) + rate * dt * burn; rocket.emissions[slot] = n % 1; return Math.floor(n); };
-      const flames = emit(index * 2, reduced ? 48 : 95);
+      const flames = emit(index * 2, vent ? 0 : reduced ? 48 : 95);
       for (let i = 0; i < flames; i += 1) {
         const jitter: Vec3 = [(r() - 0.5) * 0.5, (r() - 0.5) * 0.5, (r() - 0.5) * 0.5];
-        rocket.particles.push({ p: madd(at, jitter, size), v: add(madd(down, jitter, 4), [down[0] * (16 + r() * 8), down[1] * (16 + r() * 8), down[2] * (16 + r() * 8)]), age: 0, life: 0.22 + r() * 0.2, size: size * (0.45 + r() * 0.35), smoke: false });
+        rocket.particles.push({ p: madd(at, jitter, size), v: madd(madd(down, jitter, 4), down, 16 + r() * 8), age: 0, life: 0.22 + r() * 0.2, size: size * (0.45 + r() * 0.35), smoke: false });
       }
       const smokes = emit(index * 2 + 1, reduced ? 14 : 28);
       for (let i = 0; i < smokes; i += 1) {
         const jitter: Vec3 = [(r() - 0.5) * 1.2, (r() - 0.5) * 0.4, (r() - 0.5) * 1.2];
-        rocket.particles.push({ p: madd(madd(at, down, 1.2), jitter, size), v: add(madd(down, jitter, 2.5), [down[0] * 3, down[1] * 3, down[2] * 3]), age: 0, life: 1.4 + r() * 1.2, size: size * (0.5 + r() * 0.4), smoke: true });
+        rocket.particles.push({ p: madd(madd(at, down, 1.2), jitter, size), v: vent ? [jitter[0] * 3, 0, 2.6] : madd(madd(down, jitter, 2.5), down, 3), age: 0, life: 1.4 + r() * 1.2, size: size * (0.5 + r() * 0.4), smoke: true });
       }
     }
   }
@@ -280,7 +292,7 @@ export const aboard = (rocket: Rocket): number => rocket.holders.filter((h) => h
 
 export function stagePose(stage: Stage, out: Vec3): { offset: Vec3; roll: number } {
   const t = stage.age;
-  return { offset: add(madd(madd([0, -0.5 * GRAVITY * t * t, 0], stage.vel ?? [0, 0, 0], t), out, t * 2.5), madd([0, 0, 0], cross(stage.omega ?? [0, 0, 0], out), BOOSTER_RADIUS * t)), roll: Math.min(1.4, t * 0.6) };
+  return { offset: add(madd(madd([0, -0.5 * GRAVITY * t * t, 0], stage.vel ?? [0, 0, 0], t), out, t * 2.5), scale(cross(stage.omega ?? [0, 0, 0], out), BOOSTER_RADIUS * t)), roll: Math.min(1.4, t * 0.6) };
 }
 export function bailPosition(rocket: Rocket): Vec3 {
   const { from, vel, age: t } = rocket.you, a = Math.min(t, 0.45), b = Math.max(0, t - a), drag = (1 - Math.exp(-3 * b)) / 3;
@@ -288,21 +300,21 @@ export function bailPosition(rocket: Rocket): Vec3 {
   at[1] = from[1] + vel[1] * a - 0.5 * GRAVITY * a * a - 2.2 * b + (vel[1] - GRAVITY * a + 2.2) * drag;
   return at;
 }
+/** Eased onto your chute as you jump, and back onto the rocket once you have drifted out of the story. */
 export function cameraCentre(rocket: Rocket): Vec3 {
-  const centre = toWorld(rocketFrame(rocket), 0, rocket.focus.x, 0);
-  if (rocket.you.mode !== 'eject') return centre;
-  const at = add(bailPosition(rocket), [0, 1, 0]);
-  return madd(centre, sub(at, centre), clamp(rocket.you.age / 0.6, 0, 1));
+  const centre = toWorld(rocketFrame(rocket), 0, rocket.focus.x, 0), t = rocket.you.age;
+  return rocket.you.mode !== 'eject' ? centre : lerp3(centre, add(bailPosition(rocket), [0, 1, 0]), smoothstep(0, 0.6, t) - smoothstep(6.6, 7.8, t));
 }
 
 export interface Drawn {
   you: Vec3 | null;
   nose: Vec3;
-    engine: Vec3;
+  engine: Vec3;
   centre: Vec3;
 }
 
-export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: number, reduced: boolean): Drawn {
+/** Draws the rocket, its stages, everyone on it and the exhaust; `flutter` kicks the clinging holders' legs, and a spectator has no astronaut aboard. */
+export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: number, reduced: boolean, flutter: number, spectator: boolean): Drawn {
   const m = r.meshes;
   const frame = rocketFrame(rocket);
   const { x, y, z } = frame;
@@ -316,7 +328,7 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     const frame = rocket.boosters.frame ?? rocketFrame(rocket), { x, y, z } = frame;
     for (let k = 0; k < 4; k += 1) {
       const a = (k * Math.PI) / 2;
-      const out: Vec3 = normalize(add([x[0] * Math.cos(a), x[1] * Math.cos(a), x[2] * Math.cos(a)], [z[0] * Math.sin(a), z[1] * Math.sin(a), z[2] * Math.sin(a)]));
+      const out = across(x, z, [Math.cos(a), 0, Math.sin(a)]);
       let at = toWorld(frame, Math.cos(a) * BOOSTER_RADIUS, 0, Math.sin(a) * BOOSTER_RADIUS);
       let bx = x;
       let by = y;
@@ -330,10 +342,10 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
       boosters = putInstance(m.booster, boosters, at, bx, by, bz, one);
       const sx = normalize(cross(by, out));
       const sz = cross(sx, by);
-      stickers = putInstance(m.sticker, stickers, add(add(at, [by[0] * 3.2, by[1] * 3.2, by[2] * 3.2]), [out[0] * 0.535, out[1] * 0.535, out[2] * 0.535]), sx, by, sz, [0.62, 0.39, 1], [1, 1, 1, 1], [-1, 0, 0, 0], [0, PRINT.copium, 0, 0]);
-      const seat = add(add(at, [by[0] * 7.1, by[1] * 7.1, by[2] * 7.1]), [out[0] * 0.15, out[1] * 0.15, out[2] * 0.15]);
+      stickers = putInstance(m.sticker, stickers, madd(madd(at, by, 3.2), out, 0.535), sx, by, sz, [0.62, 0.39, 1], [1, 1, 1, 1], [-1, 0, 0, 0], [0, PRINT.copium, 0, 0]);
+      const seat = madd(madd(at, by, 7.1), out, 0.15);
       flails = putInstance(m.flail, flails, seat, sx, by, sz, [0.42, 0.42, 0.42], [1, 1, 1, 1], [sniperFaces[k]!, 0, 0, 0]);
-      if (k === 1 && !rocket.boosters.attached && rocket.boosters.age < 3) labels.push({ text: 'SNIPERS', at: add(seat, [by[0] * 0.7, by[1] * 0.7, by[2] * 0.7]), colour: '#ffd24a', size: 16 });
+      if (k === 1 && !rocket.boosters.attached && rocket.boosters.age < 3) labels.push({ text: 'SNIPERS', at: madd(seat, by, 0.7), colour: '#ffd24a', size: 16 });
     }
   }
   if (rocket.core.age < 6) {
@@ -343,15 +355,14 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     let cy = y;
     let cz = z;
     if (!rocket.core.attached) {
-      const pose = stagePose(rocket.core, [0.2 * x[0] + 0.1 * z[0], 0.2 * x[1] + 0.1 * z[1], 0.2 * x[2] + 0.1 * z[2]]);
+      const pose = stagePose(rocket.core, madd(scale(x, 0.2), z, 0.1));
       at = add(at, pose.offset);
       cx = rotateAbout(x, z, pose.roll * 0.8); cy = rotateAbout(y, z, pose.roll * 0.8); cz = z;
     }
     putInstance(m.core, 0, at, cx, cy, cz, one);
     r.drawLit(m.core, 1);
-    const front = cz;
-    stickers = putInstance(m.sticker, stickers, add(add(at, [cy[0] * 4.4, cy[1] * 4.4, cy[2] * 4.4]), [front[0] * 1.02, front[1] * 1.02, front[2] * 1.02]), cx, cy, cz, [1.9, 1.9, 1], [1, 1, 1, 1], [-1, 0, 0, 0], [0, PRINT.sticker, 0, 0]);
-    if (!rocket.core.attached && rocket.core.age < 3.5) labels.push({ text: 'CORE STAGE (60% OF SUPPLY)', at: add(at, [cy[0] * 4.2 + cx[0] * 1.3, cy[1] * 4.2 + cx[1] * 1.3, cy[2] * 4.2 + cx[2] * 1.3]), colour: '#ff6b86', size: 15 });
+    stickers = putInstance(m.sticker, stickers, madd(madd(at, cy, 4.4), cz, 1.02), cx, cy, cz, [1.9, 1.9, 1], [1, 1, 1, 1], [-1, 0, 0, 0], [0, PRINT.sticker, 0, 0]);
+    if (!rocket.core.attached && rocket.core.age < 3.5) labels.push({ text: 'CORE STAGE (60% OF SUPPLY)', at: madd(madd(at, cy, 4.2), cx, 1.3), colour: '#ff6b86', size: 15 });
   }
   putInstance(m.upper, 0, frame.origin, x, y, z, one);
   putInstance(m.capsule, 0, frame.origin, x, y, z, one);
@@ -361,71 +372,46 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
   r.drawLit(m.nose, 1);
   stickers = putInstance(m.sticker, stickers, toWorld(frame, 0, 10.6, 0.865), x, y, z, [1.05, 0.66, 1], [1, 1, 1, 1], [-1, 0, 0, 0], [0, PRINT.hopium, 0, 0]);
   for (let k = 0; k < 3; k += 1) {
-    const theta = (k * Math.PI * 2) / 3;
-    const out = outward(theta);
-    const worldOut = normalize(add([x[0] * out[0], x[1] * out[0], x[2] * out[0]], [z[0] * out[2], z[1] * out[2], z[2] * out[2]]));
-    const px = normalize(cross(y, worldOut));
-    const pz = cross(px, y);
-    const face = rocket.panic && k !== 2 ? FACE.crying : CREW_FACES[k]!;
-    putInstance(m.porthole, k, toWorld(frame, out[0] * 0.79, 14.1, out[2] * 0.79), px, y, pz, [0.9, 0.9, 0.9], [1, 1, 1, 1], [face, 0, 0, 0]);
+    const out = outward((k * Math.PI * 2) / 3), px = normalize(cross(y, across(x, z, out)));
+    putInstance(m.porthole, k, toWorld(frame, out[0] * 0.79, 14.1, out[2] * 0.79), px, y, cross(px, y), [0.9, 0.9, 0.9], [1, 1, 1, 1], [rocket.panic && k !== 2 ? FACE.crying : CREW_FACES[k]!, 0, 0, 0]);
   }
   r.drawLit(m.porthole, 3);
   for (const holder of rocket.holders) {
     if (holder.state === 'gone') continue;
-    const out = outward(holder.theta);
-    const worldOut = normalize(add([x[0] * out[0], x[1] * out[0], x[2] * out[0]], [z[0] * out[2], z[1] * out[2], z[2] * out[2]]));
-    const hx = normalize(cross(y, worldOut));
-    const hz = cross(hx, y);
-    const s = holder.size;
+    const out = outward(holder.theta), hx = normalize(cross(y, across(x, z, out))), s = holder.size;
     if (holder.state === 'cling' || holder.age < 0) {
+      // Legs kick in the vertex shader, harder as the tension rises; each holder on their own beat.
       const at = toWorld(frame, out[0] * (0.85 + 0.44 * s), holder.y, out[2] * (0.85 + 0.44 * s));
-      clings = putInstance(m.cling, clings, at, hx, y, hz, [s, s, s], [1, 1, 1, 1], [holder.face, 0, 0, 0]);
-      if (holder.label) labels.push({ text: holder.label, at: add(at, [y[0] * 1.2 * s, y[1] * 1.2 * s, y[2] * 1.2 * s]), colour: holder.label === 'WHALE' ? '#8ff0ff' : '#ffd0dc', size: 14 });
+      clings = putInstance(m.cling, clings, at, hx, y, cross(hx, y), [s, s, s], [1, 1, 1, 1], [holder.face, 0, -flutter, holder.theta * 5 + holder.y]);
+      if (holder.label) labels.push({ text: holder.label, at: madd(at, y, 1.2 * s), colour: holder.label === 'WHALE' ? '#8ff0ff' : '#ffd0dc', size: 14 });
       continue;
     }
-    const t = holder.age;
-    const pos = madd(holder.from, holder.vel, t); pos[1] -= 0.5 * GRAVITY * t * t;
-    const angle = t * holder.spinRate, f = holder.frame ?? frame;
-    const fx = rotateAbout(f.x, holder.spin, angle);
-    const fy = rotateAbout(f.y, holder.spin, angle);
-    const fz = rotateAbout(f.z, holder.spin, angle);
-    flails = putInstance(m.flail, flails, pos, fx, fy, fz, [s, s, s], [1, 1, 1, 1], [rocket.dead ? FACE.crying : holder.face, 0, 0, 0]);
+    const t = holder.age, angle = t * holder.spinRate, f = holder.frame ?? frame, fy = rotateAbout(f.y, holder.spin, angle);
+    // Lands on the yard, whichever way up.
+    const pos = madd(holder.from, holder.vel, t); pos[1] = Math.max(s * (0.7 - 0.6 * fy[1]), pos[1] - 0.5 * GRAVITY * t * t);
+    flails = putInstance(m.flail, flails, pos, rotateAbout(f.x, holder.spin, angle), fy, rotateAbout(f.z, holder.spin, angle), [s, s, s], [1, 1, 1, 1], [rocket.dead ? FACE.crying : holder.face, 0, 0, 0]);
     if (holder.label && t < 2.2) labels.push({ text: `${holder.label} SOLD`, at: add(pos, [0, 0.9 * s, 0]), colour: '#ff6b86', size: 14 });
   }
   let youAt: Vec3 | null = null;
-  const you = rocket.you;
-  const yo = outward(you.theta);
-  const youOut = normalize(add([x[0] * yo[0], x[1] * yo[0], x[2] * yo[0]], [z[0] * yo[2], z[1] * yo[2], z[2] * yo[2]]));
-  const ux = normalize(cross(y, youOut));
-  const uz = cross(ux, y);
+  const you = rocket.you, yo = outward(you.theta), ux = normalize(cross(y, across(x, z, yo)));
   if (you.mode === 'cling') {
-    youAt = toWorld(frame, yo[0] * (0.85 + 0.44 * you.size), you.y, yo[2] * (0.85 + 0.44 * you.size));
-    drawHero(r, youAt, ux, y, uz, you.size, rocket.time, 0, reduced, true);
+    // A spectator's place at the front goes to one more holder.
+    const s = spectator ? 0.5 : you.size, at = toWorld(frame, yo[0] * (0.85 + 0.44 * s), you.y, yo[2] * (0.85 + 0.44 * s));
+    if (spectator) clings = putInstance(m.cling, clings, at, ux, y, cross(ux, y), [s, s, s], [1, 1, 1, 1], [FACE.doge, 0, -flutter, 1]);
+    else drawHero(r, youAt = at, ux, y, cross(ux, y), s, rocket.time, 0, reduced, 1);
   } else if (you.mode === 'eject') {
-    const t = you.age;
-    const open = clamp((t - 0.45) / 0.35, 0, 1);
-    youAt = bailPosition(rocket);
-    const uz = normalize([(you.frame?.z ?? z)[0], 0, (you.frame?.z ?? z)[2]]), ux = cross([0, 1, 0], uz);
+    const t = you.age, open = clamp((t - 0.45) / 0.35, 0, 1), uz = normalize([(you.frame?.z ?? z)[0], 0, (you.frame?.z ?? z)[2]]), ux = cross([0, 1, 0], uz);
     const swing = reduced ? 0 : Math.sin(t * 2.2) * 0.18 * open * Math.exp(-t * 0.3);
-    const sx = rotateAbout(ux, uz, swing);
-    const sy = rotateAbout([0, 1, 0], uz, swing);
-    drawHero(r, youAt, sx, sy, uz, you.size, rocket.time, open, reduced, false);
+    const sx = rotateAbout(ux, uz, swing), sy = rotateAbout([0, 1, 0], uz, swing);
+    drawHero(r, youAt = bailPosition(rocket), sx, sy, uz, you.size, rocket.time, open, reduced, 1 - smoothstep(0.05, 0.35, t));
     if (open > 0) {
-      const top = add(youAt, [sy[0] * 2.4, sy[1] * 2.4, sy[2] * 2.4]);
-      const size = 1.6 * open;
+      const top = madd(youAt, sy, 2.4), size = 1.6 * open, harness = madd(youAt, sy, 0.9 * you.size);
       putInstance(m.chute, 0, top, sx, sy, uz, [size, size * 0.9, size]);
       r.drawLit(m.chute, 1, 'opaque', 'none');
       let lines = 0;
       for (let i = 0; i < 6; i += 1) {
-        const a = (i / 6) * Math.PI * 2;
-        const rim = add(top, add([sx[0] * Math.cos(a) * size, sx[1] * Math.cos(a) * size, sx[2] * Math.cos(a) * size], [uz[0] * Math.sin(a) * size, uz[1] * Math.sin(a) * size, uz[2] * Math.sin(a) * size]));
-        const harness = add(youAt, [sy[0] * 0.9 * you.size, sy[1] * 0.9 * you.size, sy[2] * 0.9 * you.size]);
-        const d = [harness[0] - rim[0], harness[1] - rim[1], harness[2] - rim[2]] as Vec3;
-        const len = Math.hypot(d[0], d[1], d[2]);
-        const ly = normalize(d);
-        const lx = normalize(cross(ly, uz));
-        const lz = cross(lx, ly);
-        lines = putInstance(m.box, lines, madd(rim, d, 0.5), lx, ly, lz, [0.02, len, 0.02], [0.9, 0.9, 0.9, 1]);
+        const a = (i / 6) * Math.PI * 2, rim = madd(madd(top, sx, Math.cos(a) * size), uz, Math.sin(a) * size), d = sub(harness, rim), ly = normalize(d), lx = normalize(cross(ly, uz));
+        lines = putInstance(m.box, lines, madd(rim, d, 0.5), lx, ly, cross(lx, ly), [0.02, Math.hypot(...d), 0.02], [0.9, 0.9, 0.9, 1]);
       }
       r.drawLit(m.box, lines, 'opaque', 'none');
     }
@@ -438,7 +424,7 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     const life = k.age / k.life;
     if (k.smoke) continue;
     const heat = 1 - life;
-    r.sprite(k.p, k.size * (0.7 + life * 0.8), [1, 0.55 + 0.45 * heat, 0.15 + 0.6 * heat * heat, 0.9 * heat], 2, [k.v[0] * 0.02, k.v[1] * 0.02, k.v[2] * 0.02]);
+    r.sprite(k.p, k.size * (0.7 + life * 0.8), [1, 0.55 + 0.45 * heat, 0.15 + 0.6 * heat * heat, 0.9 * heat], 2, scale(k.v, 0.02));
   }
   const engineAt = rocket.core.attached ? toWorld(frame, 0, -0.6, 0) : toWorld(frame, 0, 7.7, 0);
   if (rocket.thrust > 0.02 && !reduced) r.sprite(engineAt, 2.2 * rocket.thrust * (0.9 + 0.1 * Math.sin(time * 40)), [1, 0.75, 0.35, 0.55 * rocket.thrust], 2);
@@ -458,23 +444,21 @@ export function heroJoint(root: [number, number], end: [number, number], upper: 
   const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
   return [root[0] + dx / d * along - dy / d * bend, root[1] + dy / d * along + dx / d * bend];
 }
-export function heroLimb(side: number, arm: boolean, size: number, time: number, open: number, reduced: boolean, clinging: boolean) {
-  const effort = reduced ? 0 : Math.sin(time * 2.1) * 0.035;
-  const root: Vec3 = [side * (arm ? 0.24 : 0.12), (arm ? 0.65 : 0.3) + effort, 0];
-  const target: [number, number] = arm
-    ? (clinging ? [side * 0.42, 1.05] : [side * (0.57 - 0.25 * open), 0.82 + 0.3 * open])
-    : [side * (0.23 - open * 0.06), -0.1 + (reduced ? 0 : Math.sin(time * 2 + side) * (clinging ? 0 : 0.08))];
-  const end: Vec3 = [...target, clinging ? (Math.sqrt(0.85 ** 2 - (target[0] * size) ** 2) - (0.85 + 0.44 * size)) / size : 0];
+/** A limb's root, elbow or knee, and end: `grip` 1 holds the hull, 0 is free, and a bail crouches in between. Elbows bend out, knees forward. */
+export function heroLimb(side: number, arm: boolean, size: number, time: number, open: number, reduced: boolean, grip: number) {
+  const root: Vec3 = [side * (arm ? 0.24 : 0.12), (arm ? 0.65 : 0.3) + lift(time, reduced, grip), 0], hold = side * (arm ? 0.42 : 0.23);
+  const free: Vec3 = arm ? [side * (0.57 - 0.25 * open), 0.82 + 0.3 * open, 0] : [side * (0.23 - open * 0.06), -0.1 + (reduced ? 0 : Math.sin(time * 2 + side) * 0.08 * (1 - grip)), 0];
+  const end = lerp3(free, [hold, arm ? 1.05 : -0.1, (Math.sqrt(0.85 ** 2 - (hold * size) ** 2) - 0.85 - 0.44 * size) / size], grip);
   const bone = arm ? 0.4 : 0.36;
-  const d = sub(end, root), axis = normalize(d), bend = normalize(cross(axis, [0, 0, arm ? -side : side]));
+  const d = sub(end, root), axis = normalize(d), bend = normalize(cross(axis, arm ? [0, 0, side] : [1, 0, 0]));
   const joint = madd(madd(root, d, 0.5), bend, Math.sqrt(Math.max(0, bone * bone - d.reduce((n, v) => n + v * v, 0) / 4)));
   return { root, joint, end, bone };
 }
-function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number, time: number, open: number, reduced: boolean, clinging: boolean): void {
+const lift = (time: number, reduced: boolean, grip: number): number => (reduced ? 0 : Math.sin(time * 2.1) * 0.035) - 0.08 * Math.sin(Math.PI * grip);
+function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number, time: number, open: number, reduced: boolean, grip: number): void {
   const m = r.meshes;
-  const effort = reduced ? 0 : Math.sin(time * 2.1) * 0.035;
   const point = (p: Vec3): Vec3 => [0, 1, 2].map(i => at[i]! + size * (x[i]! * p[0] + y[i]! * p[1] + z[i]! * p[2])) as Vec3;
-  putInstance(m.hero, 0, point([0, effort, 0]), x, y, z, [size, size, size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
+  putInstance(m.hero, 0, point([0, lift(time, reduced, grip), 0]), x, y, z, [size, size, size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
   r.drawLit(m.hero, 1);
   let parts = 0;
   const segment = (a: Vec3, b: Vec3, width: number, dark = false) => {
@@ -484,7 +468,7 @@ function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number
     parts = putInstance(m.box, parts, madd(start, d, 0.5), lx, ly, lz, [width * size, Math.hypot(...d), width * size], dark ? [0.2, 0.22, 0.26, 1] : [0.93, 0.94, 0.96, 1]);
   };
   for (const side of [-1, 1]) for (const arm of [true, false]) {
-    const { root, joint, end } = heroLimb(side, arm, size, time, open, reduced, clinging);
+    const { root, joint, end } = heroLimb(side, arm, size, time, open, reduced, grip);
     const width = arm ? 0.13 : 0.15;
     segment(root, joint, width); segment(joint, end, width);
     if (!arm) segment(end, [end[0] + side * 0.08, end[1], end[2]], 0.17, true);

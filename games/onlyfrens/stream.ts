@@ -7,11 +7,16 @@
  * the outcome.
  */
 import { solveLimb, stepFoot } from './kinematics';
-import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Spring, clamp, fract, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
 export const VIDEO = { x: 0, y: 0, w: 620, h: 440 } as const;
 export type Point = { x: number; y: number };
+/** The door (hinged on the left, its handle on the right), and where the boyfriend steps in from (the hallway past the latch side) and stops. */
+const DOOR = { x: 400, y: 60, w: 130, h: 300 } as const;
+const BF_FROM = 560, BF_AT = 470;
+/** When the knock's two raps land, in seconds after it starts. */
+export const RAPS: readonly number[] = [0, 0.2];
 
 interface Heart { x: number; y: number; vx: number; age: number; life: number; size: number }
 
@@ -45,10 +50,27 @@ export interface Stream {
   hold: boolean;
   /** The door's rattle in its frame near the top. */
   rattle: number;
+  /** Integrated phases, so a changing rate never jumps the LED pulse, the handle bursts or her glances. */
+  ledPhase: number;
+  doorPhase: number;
+  jigglePhase: number;
+  glancePhase: number;
+  shiftPhase: number;
+  /** Whoever waits behind the frosted pane: how dark the silhouette has gathered. */
+  shadow: Spring;
+  /** Her head lags the sway and the bounce; she leans in toward the camera as the number climbs. */
+  headX: Spring;
+  headY: Spring;
+  lean: Spring;
+  /** The knock at 6 s, as a sideways jolt of the door, and how long ago it came (negative before). */
+  knock: number;
+  knockAge: number;
+  /** The room fades back in after the end card. */
+  boot: number;
 }
 
 export function createStream(): Stream {
-  return { time: 0, bounce: spring(0), wave: spring(0), kiss: spring(0), glance: spring(0), handle: spring(0), shock: spring(0), bags: 0, hearts: [], ended: false, endAge: 0, boyfriendX: spring(760), blinkAt: 2, eyeOpen: spring(1), hair: spring(0), static: 0, bagBounce: spring(0), monitor: spring(0), shortClosed: false, shortFlash: 0, cash: 0, hold: false, rattle: 0 };
+  return { time: 0, bounce: spring(0), wave: spring(0), kiss: spring(0), glance: spring(0), handle: spring(0), shock: spring(0), bags: 0, hearts: [], ended: false, endAge: 0, boyfriendX: spring(BF_FROM), blinkAt: 2, eyeOpen: spring(1), hair: spring(0), static: 0, bagBounce: spring(0), monitor: spring(0), shortClosed: false, shortFlash: 0, cash: 0, hold: false, rattle: 0, ledPhase: 0, doorPhase: .75, jigglePhase: 0, glancePhase: 0, shiftPhase: 0, shadow: spring(0), headX: spring(0), headY: spring(0), lean: spring(0), knock: 0, knockAge: -1, boot: 0 };
 }
 
 export function resetStream(s: Stream): void {
@@ -62,7 +84,7 @@ export function resetStream(s: Stream): void {
   s.hearts = [];
   s.ended = false;
   s.endAge = 0;
-  settleSpring(s.boyfriendX, 760);
+  settleSpring(s.boyfriendX, BF_FROM);
   s.static = 0;
   settleSpring(s.bagBounce, 0);
   settleSpring(s.monitor, 0);
@@ -71,6 +93,22 @@ export function resetStream(s: Stream): void {
   s.cash = 0;
   s.hold = false;
   s.rattle = 0;
+  s.doorPhase = .75;
+  settleSpring(s.shadow, 0);
+  settleSpring(s.lean, 0);
+}
+
+/** The round goes live: she waves hello to the stream. */
+export function goLive(s: Stream): void {
+  s.wave.v += 12;
+  s.bounce.v += 6;
+  s.hair.v += 4;
+}
+
+/** A scene that meets a round late: whoever is behind the door has already gathered, and she is already leaning in. */
+export function settleStream(s: Stream, tension: number, deep: number): void {
+  settleSpring(s.shadow, shadowAt(tension, deep));
+  settleSpring(s.lean, tension);
 }
 
 /** A milestone was reached: a bounce, a wave or a kiss, another bag, and the short on the monitor grows. */
@@ -96,14 +134,33 @@ export function endStream(s: Stream, seed: number, quiet: boolean): void {
   s.hearts = [];
   s.shortClosed = true;
   s.shortFlash = quiet ? 0 : 1;
-  if (quiet) { settleSpring(s.boyfriendX, 470); settleSpring(s.shock, 1); return; }
+  if (quiet) { settleSpring(s.boyfriendX, BF_AT); settleSpring(s.shock, 1); return; }
   const rng = mulberry32(seed);
   s.static = 0.4 + rng() * 0.3;
   s.shock.v += 6;
   s.monitor.v += 14;
 }
 
-export interface StreamDrive { running: boolean; tension: number; multiplier: number; reduced: boolean; attention?: number }
+export interface StreamDrive {
+  running: boolean; tension: number; multiplier: number; reduced: boolean;
+  /** Seconds the round has been running: the handle fake-outs are keyed to it, never to the outcome. */
+  elapsed?: number;
+  /** Seconds since the latest knock (the one at 6 s, or an act's), negative before it. */
+  knockAge?: number;
+  /** A slow log driver, 0 at 1× and 1 at 1000×, so long rounds keep changing after tension saturates. */
+  deep?: number;
+  /** How closely she watches the door between acts, 0 to 1. */
+  attention?: number;
+}
+
+/** Whoever waits behind the frosted pane gathers from about 1.6×, and keeps darkening through long rounds. */
+const shadowAt = (tension: number, deep: number): number => Math.min(1, .75 * smoothstep(.33, .6, tension) + .25 * deep);
+/** Someone tries the handle and lets go: a turn, a couple of jiggles and a release over half a second. */
+const tryHandle = (t: number): number => t < 0 || t > .5 ? 0 : smoothstep(0, .08, t) * (1 - smoothstep(.36, .5, t)) * (.7 + .3 * Math.sin(t * 34));
+/** Two knuckle raps, each a damped sideways jolt of the door. */
+const knockAt = (t: number): number => RAPS.reduce((sum, at) => t < at || t > at + .6 ? sum : sum + Math.exp(-(t - at) * 16) * Math.sin((t - at) * 70), 0);
+/** Her idle: two incommensurate sways, so it never reads as one metronome. */
+const queenSway = (s: Stream, reduced: boolean): number => reduced ? 0 : Math.sin(s.time * 1.4) * 4 + Math.sin(s.time * .53 + 1) * 1.5;
 
 export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
@@ -111,6 +168,10 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   const sdt = s.hold ? 0 : dt;
   const previousTime = s.time;
   s.time += sdt;
+  const { tension, deep = 0, elapsed = 0 } = drive;
+  const live = drive.running && !s.ended;
+  const knockAge = live ? drive.knockAge ?? elapsed - 6 : -1;
+  s.ledPhase += sdt * (2 + 6 * tension);
   stepSpring(s.bounce, 0, 10, 0.4, sdt);
   stepSpring(s.wave, 0, 6, 0.5, sdt);
   stepSpring(s.kiss, 0, 6, 0.5, sdt);
@@ -119,32 +180,62 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   stepSpring(s.monitor, 0, 12, 0.4, sdt);
   s.shortFlash = Math.max(0, s.shortFlash - dt / 1.2);
   s.cash = Math.max(0, s.cash - dt / 0.8);
-  const glanceOn = drive.running && drive.tension > 0.55 && !s.ended && Math.floor(s.time * 0.8) % 3 === 0;
-  stepSpring(s.glance, s.ended ? 1 : drive.attention ?? (glanceOn ? 1 : 0), 8, 0.8, sdt);
-  stepSpring(s.handle, s.ended ? 1 : drive.running && drive.tension > 0.7 ? 0.5 + 0.5 * Math.sin(s.time * 2) : 0, 5, 0.7, sdt);
-  // Anticipation: the door rattles in its frame as the handle works, harder the higher it goes. Not under reduced motion.
-  s.rattle = drive.running && !s.ended && !drive.reduced && drive.tension > 0.6 ? Math.sin(s.time * 38) * 1.8 * (drive.tension - 0.6) / 0.4 : 0;
+  s.boot = Math.max(0, s.boot - dt / 0.4);
+  // The door: a knock at 6 s (and with some acts) and the handle tried and let go at 7 s and 12 s, then from 2× it is worked in bursts
+  // that come oftener and last longer the higher it goes.
+  const work = live ? smoothstep(.4, .5, tension) : 0;
+  s.doorPhase += sdt * work * (.16 + .3 * (tension - .5) + .25 * deep);
+  s.jigglePhase += sdt * 15;
+  const u = fract(s.doorPhase) / (.3 + .25 * deep);
+  const burst = u < 1 ? work * smoothstep(0, .15, u) * (1 - smoothstep(.75, 1, u)) * (.72 + .28 * Math.sin(s.jigglePhase)) : 0;
+  const fake = live ? Math.max(tryHandle(elapsed - 7), tryHandle(elapsed - 12)) : 0;
+  stepSpring(s.handle, s.ended ? 1 : Math.max(burst, fake), 12, 0.55, sdt);
+  // She flinches at a knock (only as it lands, not on a late frame) and looks round at the door.
+  if ((s.knockAge < 0 || s.knockAge > knockAge) && knockAge >= 0 && knockAge < 0.1) s.shock.v += 6;
+  s.knockAge = knockAge;
+  s.knock = drive.reduced ? 0 : 2.6 * knockAt(knockAge);
+  // Anticipation: the door rattles in its frame while the handle works, from about 2.5×, harder through long rounds. Not under reduced motion.
+  s.rattle = live && !drive.reduced ? Math.sin(s.time * 38) * 2.2 * smoothstep(.5, .7, tension) * clamp(s.handle.x, 0, 1) * (1 + .6 * deep) : 0;
+  stepSpring(s.shadow, live ? shadowAt(tension, deep) : 0, 3, 0.9, sdt);
+  s.shiftPhase += sdt * (.6 + .8 * deep);
+  // Her eyes flick to the door from about 1.3×, oftener as it climbs, and whenever the handle moves.
+  s.glancePhase += sdt * (.3 + .3 * tension);
+  const glanceOn = live && tension > .23 && fract(s.glancePhase) < .25 + .15 * tension ? 1 : 0;
+  const heard = knockAge > 0.08 && knockAge < 1.4 ? 1 : 0;
+  stepSpring(s.glance, s.ended ? 1 : Math.max(glanceOn, heard, drive.attention ?? 0, live ? clamp(s.handle.x * 1.6, 0, 1) : 0), 8, 0.8, sdt);
+  // She leans in toward the camera as the number climbs; her head follows the sway and the bounce a beat late.
+  stepSpring(s.lean, live ? tension : 0, 3, 0.9, sdt);
+  stepSpring(s.headX, queenSway(s, drive.reduced), 6, 0.5, sdt);
+  stepSpring(s.headY, drive.reduced ? 0 : -clamp(s.bounce.x, -1, 1.5) * 12, 6, 0.5, sdt);
   const blinking = s.time > s.blinkAt && s.time < s.blinkAt + 0.12;
   if (s.time >= s.blinkAt + 0.12) s.blinkAt = s.time + 2 + 3 * noise(s.blinkAt);
   stepSpring(s.eyeOpen, blinking ? 0.08 : s.kiss.x > 0.4 ? 0.2 : 1, 24, 0.9, sdt);
   if (s.ended) {
     s.endAge += dt;
-    stepSpring(s.boyfriendX, 470, 4, 0.9, sdt);
+    stepSpring(s.boyfriendX, BF_AT, 4, 0.9, sdt);
     stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, sdt);
-  } else if (drive.running && !drive.reduced && drive.tension > .2) {
+  } else if (drive.running && !drive.reduced && tension > .2) {
     for (let tick = Math.floor(previousTime * 8 + 1e-9) + 1; tick <= Math.floor((s.time + 1e-9) * 8); tick++) {
-      if (noise(tick) <= .7 - .3 * drive.tension || s.hearts.length >= 40) continue;
+      if (noise(tick) <= .7 - .3 * tension || s.hearts.length >= 40) continue;
       const born = tick / 8;
       s.hearts.push({ x: 60 + noise(tick * 13) * 500, y: VIDEO.h - 60, vx: (noise(tick * 7) - .5) * 30, age: previousTime - born, life: 2.2 + noise(tick), size: 6 + noise(tick * 3) * 8 });
     }
   }
+  if (!s.ended) stepSpring(s.shock, 0, 8, 0.8, sdt);
   for (const h of s.hearts) { h.age += sdt; h.x += h.vx * sdt; h.y -= 70 * sdt; }
   s.hearts = s.hearts.filter((h) => h.age < h.life);
 }
 
+/** The push-in on the doorway as he walks through, held through the freeze frame; the cut to static ends it. */
+export function revealZoom(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): void {
+  if (!s.ended || reduced || s.endAge >= 0.9) return;
+  const k = 1 + 0.1 * smoothstep(0.05, 0.45, s.endAge);
+  ctx.translate(DOOR.x + DOOR.w / 2, 230); ctx.scale(k, k); ctx.translate(-(DOOR.x + DOOR.w / 2), -230);
+}
+
 const withCommas = (n: number): string => n.toLocaleString('en-US');
-/** Millions, or billions past a thousand of them. */
-const millions = (n: number): string => (n < 1000 ? `${n.toFixed(1)}M` : `${(n / 1000).toFixed(2)}B`);
+/** Millions, then billions, then trillions. */
+const millions = (n: number): string => (n < 1000 ? `${n.toFixed(1)}M` : n < 1e6 ? `${(n / 1000).toFixed(2)}B` : `${(n / 1e6).toFixed(2)}T`);
 
 /** The second monitor she forgot to angle away: her short on her own coin, growing with the number, closed in profit at the reveal. */
 function drawMonitor(ctx: CanvasRenderingContext2D, s: Stream, multiplier: number): void {
@@ -229,7 +320,7 @@ function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, 
   ctx.lineJoin = 'round';
   const weight = reduced ? 0 : clamp(Math.abs(speed) / 80, 0, 1);
   for (const side of [-1, 1]) {
-    const step = stepFoot((760 - x) / .86, 72, side > 0 ? .5 : 0, 14);
+    const step = stepFoot((BF_FROM - x) / .86, 72, side > 0 ? .5 : 0, 14);
     const hip = { x: side * 12, y: -80 };
     const foot = { x: side * 14 - step.x * weight, y: step.y * weight };
     const knee = solveLimb(hip, foot, 46, 44, -side).joint;
@@ -261,12 +352,42 @@ function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, 
   ctx.restore();
 }
 
+/** The door's frosted pane: the hallway light behind it, and whoever is gathering on the other side. */
+function drawPane(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): void {
+  const pane = { x: DOOR.x + 16, y: DOOR.y + 20, w: DOOR.w - 32, h: 110 };
+  ctx.save();
+  ctx.fillStyle = '#8a7096';
+  ctx.fillRect(pane.x, pane.y, pane.w, pane.h);
+  ctx.beginPath(); ctx.rect(pane.x, pane.y, pane.w, pane.h); ctx.clip();
+  const glow = ctx.createRadialGradient(pane.x + pane.w / 2, pane.y + 20, 6, pane.x + pane.w / 2, pane.y + 30, 90);
+  glow.addColorStop(0, 'rgba(255, 233, 176, 0.75)'); glow.addColorStop(1, 'rgba(255, 233, 176, 0.12)');
+  ctx.fillStyle = glow; ctx.fillRect(pane.x, pane.y, pane.w, pane.h);
+  const shadow = clamp(s.shadow.x, 0, 1);
+  if (shadow > 0.02) {
+    // Closer to the glass as it darkens; shifting his weight, and leaning toward the handle when he works it.
+    const k = 0.8 + 0.3 * shadow;
+    const cx = pane.x + pane.w / 2 + (reduced ? 0 : Math.sin(s.shiftPhase) * 5) + 7 * clamp(s.handle.x, 0, 1);
+    const top = pane.y + 50 - 22 * k;
+    for (let i = 2; i >= 0; i -= 1) {
+      const blur = 1 + i * 0.07;
+      ctx.fillStyle = `rgba(36, 18, 44, ${(i ? 0.3 : 0.75) * shadow})`;
+      ctx.beginPath(); ctx.ellipse(cx, top + 16 * k, 15 * k * blur, 19 * k * blur, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx - 42 * k * blur, top + 38 * k, 84 * k * blur, 90, 22 * k); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2;
+  ctx.strokeRect(pane.x, pane.y, pane.w, pane.h);
+}
+
 /** The whole video feed, clipped to its frame. */
 export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean, multiplier: number): void {
   ctx.save();
   ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
   // Room: dark wall lit by LED strips that pulse with the hype, and flash green for an accepted exit.
-  const pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(s.time * (2 + 6 * tension));
+  const pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(s.ledPhase);
+  ctx.save();
+  revealZoom(ctx, s, reduced);
   ctx.fillStyle = '#2a1f3d';
   ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
   const led = ctx.createLinearGradient(0, 0, VIDEO.w, 0);
@@ -295,31 +416,56 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.beginPath(); ctx.roundRect(60, 24, 90, 70, 3); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#ffe27a'; ctx.font = '900 30px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('GM', 105, 70);
-  // The door behind her, its handle, and the shadow under it; it rattles in its frame near the top.
-  const door = { x: 400, y: 60, w: 130, h: 300 };
+  // The door behind her: a frosted upper pane with the hallway lit behind it, and its handle. It jolts at the knock
+  // and rattles in its frame while the handle works; at the reveal it swings open and he walks through.
+  const door = DOOR;
   ctx.save();
-  ctx.translate(s.rattle, 0);
+  ctx.translate(s.rattle + s.knock, 0);
   ctx.fillStyle = '#5a4470'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
-  const open = s.ended ? smoothstep(0, 0.6, s.endAge) : 0;
+  // Flung open: fast off the latch, easing out against the wall.
+  const open = s.ended ? 1 - (1 - Math.min(1, s.endAge / 0.45)) ** 3 : 0;
   if (open > 0.02) {
     ctx.fillStyle = '#ffe9b0';
     ctx.fillRect(door.x, door.y, door.w, door.h);
+    // He steps in from the hallway, so he shows only inside the doorway.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(door.x, door.y, door.w, door.h); ctx.clip();
     drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.boyfriendX.v, reduced);
+    ctx.restore();
+    // The leaf swings on its hinge from its full width, so the first frame of the reveal does not jump. Its pane, its
+    // panel and its handle go round with it, foreshortened: `on` maps a point of the closed door onto the leaf.
+    const leaf = door.w * Math.cos(open * Math.PI / 2);
+    const on = (x: number, y: number): [number, number] => [door.x + leaf * x / door.w, door.y + 12 * open * x / door.w + (door.h - 24 * open * x / door.w) * y / door.h];
+    const quad = (x0: number, y0: number, x1: number, y1: number): void => { ctx.beginPath(); for (const [x, y] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as const) ctx.lineTo(...on(x, y)); ctx.closePath(); };
     ctx.fillStyle = '#5a4470';
-    ctx.beginPath(); ctx.moveTo(door.x, door.y); ctx.lineTo(door.x + door.w * (1 - open) * 0.6, door.y + 12 * open); ctx.lineTo(door.x + door.w * (1 - open) * 0.6, door.y + door.h - 12 * open); ctx.lineTo(door.x, door.y + door.h); ctx.closePath(); ctx.fill(); ctx.stroke();
+    quad(0, 0, door.w, door.h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#b9a0a2'; ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2;
+    quad(16, 20, door.w - 16, 130); ctx.fill(); ctx.stroke();
+    quad(16, 160, door.w - 16, 270); ctx.stroke();
+    const turn = clamp(s.handle.x, 0, 1) * 0.9;
+    ctx.lineCap = 'round';
+    for (const [width, colour] of [[9, INK], [5, '#ffe27a']] as const) { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(...on(door.w - 20, 150)); ctx.lineTo(...on(door.w - 22 - 20 * Math.cos(turn), 150 + 20 * Math.sin(turn))); ctx.stroke(); }
   } else {
     ctx.beginPath(); ctx.roundRect(door.x, door.y, door.w, door.h, 3); ctx.fill(); ctx.stroke();
+    drawPane(ctx, s, reduced);
     ctx.strokeStyle = 'rgba(28, 31, 38, 0.4)'; ctx.lineWidth = 2;
-    ctx.strokeRect(door.x + 16, door.y + 20, door.w - 32, 110);
     ctx.strokeRect(door.x + 16, door.y + 160, door.w - 32, 110);
+    // The handle, on the latch side: pressed down as it turns.
     ctx.save();
-    ctx.translate(door.x + 22, door.y + 150);
-    ctx.rotate(clamp(s.handle.x, 0, 1) * 0.9);
+    ctx.translate(door.x + door.w - 22, door.y + 150);
+    ctx.rotate(-clamp(s.handle.x, 0, 1) * 0.9);
     ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.roundRect(-4, -4, 26, 8, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(-22, -4, 26, 8, 4); ctx.fill(); ctx.stroke();
     ctx.restore();
-    const shadow = clamp(s.handle.x, 0, 1);
-    if (shadow > 0.05) { ctx.fillStyle = `rgba(0, 0, 0, ${0.5 * shadow})`; ctx.beginPath(); ctx.ellipse(door.x + door.w / 2, door.y + door.h + 4, 40, 6, 0, 0, Math.PI * 2); ctx.fill(); }
+    // The knock, lettered for anyone with the sound off.
+    ctx.fillStyle = '#ffe9b0'; ctx.font = 'italic 900 16px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'left';
+    for (const [i, at] of RAPS.entries()) {
+      const age = s.knockAge - at;
+      if (age < 0 || age > 1.2) continue;
+      ctx.globalAlpha = 1 - smoothstep(0.6, 1.2, age);
+      ctx.fillText('knock', door.x + door.w + 8 + 10 * i, door.y + 168 + 20 * i - 6 * age);
+    }
+    ctx.globalAlpha = 1;
   }
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.strokeRect(door.x, door.y, door.w, door.h);
@@ -350,6 +496,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   drawQueen(ctx, s, tension, reduced);
   for (const h of s.hearts) { ctx.globalAlpha = 1 - h.age / h.life; heart(ctx, h.x, h.y, h.size, '#ff4d6d'); }
   ctx.globalAlpha = 1;
+  ctx.restore();
   // The end: a freeze frame, a hard cut to static, then the card.
   if (s.ended) {
     if (s.hold) {
@@ -377,6 +524,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
       ctx.globalAlpha = 1;
     }
   }
+  if (s.boot > 0) { ctx.fillStyle = `rgba(17, 17, 20, ${s.boot})`; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h); }
   ctx.restore();
   // Frame.
   ctx.strokeStyle = INK; ctx.lineWidth = 5;
@@ -400,10 +548,16 @@ function sleeve(ctx: CanvasRenderingContext2D, a: Point, b: Point, side: number,
 /** The queen at her desk: hoodie, cat ears, big eyes, the wave and the kiss, the glance at the door. */
 function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean): void {
   const bounce = reduced ? 0 : clamp(s.bounce.x, -1, 1.5);
-  const sway = reduced ? 0 : Math.sin(s.time * 1.4) * 4;
+  const sway = queenSway(s, reduced);
   const shock = clamp(s.shock.x, 0, 1);
+  // Leaning in toward the camera (lower and a touch bigger), breathing, with her hands kept planted on the desk.
+  const lean = clamp(s.lean.x, 0, 1);
+  const breath = reduced ? 0 : Math.sin(s.time * 1.1);
+  const kx = (1 + 0.06 * lean) * (1 + 0.005 * breath), ky = (1 + 0.06 * lean) * (1 + 0.015 * breath);
+  const base = 372 - bounce * 12 + 12 * lean;
   ctx.save();
-  ctx.translate(300 + sway, 372 - bounce * 12);
+  ctx.translate(300 + sway, base);
+  ctx.scale(kx, ky);
   ctx.lineJoin = 'round';
   const hoodie = '#ff5d9e';
   ctx.fillStyle = hoodie; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -414,16 +568,18 @@ function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number, re
   const wave = clamp(s.wave.x, 0, 1);
   const kiss = smoothstep(0, .65, clamp(s.kiss.x, 0, 1));
   for (const side of [-1, 1]) {
-    const rest = { x: side * 70 - sway, y: -6 + bounce * 12 };
+    const rest = { x: (side * 70 - sway) / kx, y: (366 - base) / ky };
     const raised = side > 0 ? { x: mix(rest.x, 92, wave), y: mix(rest.y, -153 - Math.sin(s.time * 12) * 5 * wave, wave) } : rest;
     const hand = { x: mix(mix(raised.x, side * 30, kiss), side * 30, shock), y: mix(mix(raised.y, -140, kiss), -150, shock) };
     sleeve(ctx, { x: side * 60, y: -80 }, hand, side, hoodie);
     ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(hand.x, hand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
-  // Head.
+  // Head: a beat behind the body's sway and bounce, and turned a little toward the door when she glances at it.
   const hy = -166;
   const glance = clamp(s.glance.x, 0, 1);
+  ctx.translate(s.headX.x - sway + 5 * glance, s.headY.x + bounce * 12);
+  ctx.translate(0, hy); ctx.rotate(0.07 * glance); ctx.translate(0, -hy);
   ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.ellipse(0, hy, 40, 44, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // Hair and cat-ear headset.

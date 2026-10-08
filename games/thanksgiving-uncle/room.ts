@@ -15,61 +15,71 @@ export const TABLE = { far: 330, near: 474, farLeft: 236, farRight: 728, nearLef
 /** The window onto the driveway, and where the truck's bumper sits in it, parked. */
 const WINDOW = { x: 690, y: 60, w: 210, h: 172 } as const;
 const PARKED = { x: 800, y: 226, scale: 0.5 } as const;
-/** Where the truck ends up once it is in the room, and where the turkey lands on its hood. */
+/** Where the truck ends up once it is in the room, where Dale backs it to with the rug, and its hood in its own frame. */
 const CRASHED = { x: 836, y: 446, scale: 1.12 } as const;
-const HOOD = { x: 806, y: 302 } as const;
+const BACKED = { x: 868, y: 420, scale: 1 } as const;
+const HOOD = { x: -27, y: -129 } as const;
+/** How far the parked truck inches up the driveway over a long round, and when Dale throws it in reverse. */
+const CREEP = { y: 18, scale: 0.12 } as const;
+const REVERSE_AT = 0.75;
+/** The dining-room rug under the table and Rick's chair: far edge, near edge. */
+const RUG = { far: 428, near: 534, farLeft: 176, farRight: 784, nearLeft: 120, nearRight: 840 } as const;
 /** The turkey's platter, and the smart speaker. */
 const PLATTER = { x: 482, y: 366 } as const;
 const SPEAKER = { x: 92, y: 300 } as const;
 const SIGN = { x: 482, y: 94 } as const;
 
 export type Who = 'rick' | 'dad' | 'niece' | 'echo' | 'gran' | 'dale';
-export interface Line { at: number; who: Who; text: string; price?: number }
+/** A line of the conversation; `cap` becomes the HUD caption when it is said, `film` brings the niece's phone up. */
+export interface Line { at: number; who: Who; text: string; price?: number; cap?: string; film?: boolean }
 /**
- * The conversation, keyed to the multiplier: Rick goes further every time, the family gets a word in, and the
- * smart speaker on the sideboard mishears him and orders things. Once Grandma has said grace, nobody speaks.
+ * The conversation, keyed to the multiplier: Rick, the crypto uncle, shills his dog's coin and goes further every
+ * time, the family gets a word in, and the smart speaker on the sideboard mishears him and apes in. Once Grandma
+ * has said grace, nobody speaks.
  */
 export const LINES: Line[] = [
-  { at: 1.04, who: 'rick', text: 'this turkey’s got hormones in it' },
-  { at: 1.18, who: 'dad', text: 'it’s heritage, Rick. from the co-op' },
-  { at: 1.32, who: 'rick', text: 'co-op. so it’s communist' },
-  { at: 1.48, who: 'niece', text: 'it’s a dead bird either way' },
-  { at: 1.68, who: 'rick', text: 'birds aren’t real, sweetheart' },
-  { at: 1.9, who: 'echo', text: 'ordering: 40 lb of birdseed', price: 38 },
-  { at: 2.2, who: 'rick', text: 'the moon landing was filmed in Ohio' },
-  { at: 2.55, who: 'dad', text: 'okay. let’s keep it civil' },
-  { at: 2.9, who: 'rick', text: 'the gravy is 5G' },
-  { at: 3.35, who: 'niece', text: 'I’m filming this' },
-  { at: 3.8, who: 'rick', text: 'I did my own research. on the gravy' },
-  { at: 4.4, who: 'echo', text: 'ordering: Faraday cage, large', price: 219 },
-  { at: 5, who: 'rick', text: 'your Subaru listens to you. mine doesn’t' },
-  { at: 5.7, who: 'rick', text: 'the pilgrims were crypto' },
-  { at: 6.5, who: 'dad', text: 'RICK.' },
-  { at: 7.2, who: 'rick', text: 'chemtrails are why the pie’s dry' },
-  { at: 8, who: 'rick', text: 'the deep state took my gun. and my hair' },
-  { at: 9, who: 'niece', text: 'this is going on TikTok' },
-  { at: 10, who: 'rick', text: 'the stuffing is a psyop' },
-  { at: 11, who: 'echo', text: 'ordering: 200 cans of beans, bunker size', price: 480 },
-  { at: 12.5, who: 'rick', text: 'wake up. the yams are in on it' },
-  { at: 14.5, who: 'rick', text: 'Dale knows. Dale’s seen things' },
-  { at: 17, who: 'rick', text: 'I’m running for school board' },
-  { at: 20, who: 'rick', text: 'the cranberry sauce is a hologram' },
-  { at: 24, who: 'rick', text: 'ask your dad what he did in 2008' },
-  { at: 29, who: 'rick', text: 'I’m just asking questions' },
-  { at: 36, who: 'rick', text: 'the questions are also asking questions' },
-  { at: 45, who: 'echo', text: 'ordering: one (1) school board', price: 9999 },
+  { at: 1.04, who: 'rick', text: 'so. has anyone here heard of $DALE', cap: 'UNCLE RICK HAS A COIN' },
+  { at: 1.15, who: 'dad', text: 'Rick. it’s Thanksgiving' },
+  { at: 1.27, who: 'rick', text: 'it’s a dog coin. Dale’s the dev', cap: 'DALE IS THE DEV' },
+  { at: 1.4, who: 'niece', text: 'Dale can’t read, Uncle Rick' },
+  { at: 1.55, who: 'rick', text: 'your 401k is a ponzi. mine’s a DAO', cap: 'YOUR 401K IS A PONZI' },
+  { at: 1.72, who: 'echo', text: 'buying 4B $DALE at market. slippage: 100%', price: 400, cap: 'THE SPEAKER APED IN' },
+  { at: 1.82, who: 'niece', text: 'I’m filming this', film: true, cap: 'SHE’S FILMING' },
+  { at: 1.95, who: 'rick', text: 'Grandma, you’re early. she’s early', cap: 'GRANDMA IS EARLY' },
+  { at: 2.15, who: 'dad', text: 'okay. let’s keep it civil', cap: 'KEEP IT CIVIL' },
+  { at: 2.35, who: 'rick', text: 'the turkey’s on-chain. the gravy is a rug', cap: 'THE GRAVY IS A RUG' },
+  { at: 2.65, who: 'echo', text: 'ordering: hardware wallet, family size', price: 149 },
+  { at: 2.9, who: 'rick', text: 'the pilgrims were the first DAO', cap: 'THE PILGRIMS WERE A DAO' },
+  { at: 3.25, who: 'niece', text: 'this is going on TikTok', cap: 'GOING ON TIKTOK' },
+  { at: 3.65, who: 'rick', text: 'I did my own research. it’s on-chain' },
+  { at: 4.1, who: 'dad', text: 'RICK.', cap: 'RICK.' },
+  { at: 4.6, who: 'rick', text: 'the Fed printed this cranberry sauce', cap: 'THE SAUCE IS PRINTED' },
+  { at: 5.2, who: 'echo', text: 'buying more $DALE. slippage: yes', price: 1200, cap: 'ALEXA IS ALL IN' },
+  { at: 6, who: 'rick', text: 'birds aren’t real. neither is the dollar', cap: 'BIRDS AREN’T REAL' },
+  { at: 7, who: 'niece', text: 'he has 40k followers. all bots' },
+  { at: 8, who: 'rick', text: 'Dale knows. Dale’s seen the order book', cap: 'DALE HAS SEEN THINGS' },
+  { at: 9.5, who: 'rick', text: 'Ma. Ma. wen moon', cap: 'WEN MOON' },
+  { at: 11, who: 'echo', text: 'ordering: Lambo (scale model)', price: 2400 },
+  { at: 12.5, who: 'rick', text: 'few understand. Dale understands', cap: 'FEW UNDERSTAND' },
+  { at: 15, who: 'dad', text: 'we have moved on to pie, Rick' },
+  { at: 17, who: 'rick', text: 'I’m running for school board. on-chain', cap: 'SCHOOL BOARD CANDIDATE' },
+  { at: 21, who: 'rick', text: 'the yams are a honeypot. wake up' },
+  { at: 26, who: 'rick', text: 'ask your dad what he sold in 2008' },
+  { at: 32, who: 'rick', text: 'I’m just asking questions', cap: 'JUST ASKING QUESTIONS' },
+  { at: 40, who: 'rick', text: 'the questions are also asking questions', cap: 'FULL TINFOIL' },
+  { at: 50, who: 'echo', text: 'ordering: one (1) school board', price: 9999 },
 ];
 const SECONDS: Omit<Line, 'at'>[] = [
   { who: 'dad', text: 'we have moved on to leftovers, Rick' },
-  { who: 'rick', text: 'exactly. who decides what gets left over' },
-  { who: 'echo', text: 'reordering: aluminum foil, industrial roll', price: 24 },
+  { who: 'rick', text: 'leftovers are unrealized gains', cap: 'UNREALIZED GAINS' },
+  { who: 'echo', text: 'reordering: tinfoil, cold-wallet grade', price: 24 },
   { who: 'niece', text: 'part two just passed part one' },
   { who: 'rick', text: 'the algorithm fears my potato research' },
   { who: 'dad', text: 'Dale is still in the truck' },
-  { who: 'rick', text: 'Dale is an independent journalist' },
+  { who: 'rick', text: 'Dale is doxxed. he has a collar', cap: 'DALE IS DOXXED' },
   { who: 'echo', text: 'ordering: dog podcast microphone', price: 49 },
   { who: 'niece', text: 'Grandma is pretending to be asleep' },
-  { who: 'rick', text: 'the nap goes all the way to the top' },
+  { who: 'rick', text: 'the nap goes all the way to the top', cap: 'FULL TINFOIL' },
 ];
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
@@ -85,7 +95,13 @@ export interface Bubble { who: Who; text: string; age: number; life: number; pop
 export type BitKind = 'drywall' | 'splinter' | 'glass' | 'poster' | 'frame' | 'shard' | 'leaf';
 export interface Bit { x: number; y: number; vx: number; vy: number; rot: number; vr: number; r: number; kind: BitKind; color: string; floor: number; rest: boolean; hits: number }
 export interface Puff { x: number; y: number; r: number; vx: number; vy: number; age: number; life: number; color: string; grow: number }
-interface Truck { state: 'parked' | 'crashing' | 'in'; x: Spring; y: Spring; scale: Spring; lights: boolean; revClock: number; exhaust: Puff[]; bark: number; agitation: number }
+/**
+ * The truck. Parked, Dale gets worked up with the tension (`agitation`) and his first beats are keyed to the
+ * multiplier (`beats`: the headlights at 1.5×, a WOOF at 2×, a rev at 2.5×); `perk` is the time since Rick last
+ * spoke, which pricks his ears; `phase` is his integrated bob; `creep` is how far he has inched up the driveway.
+ */
+interface Truck { state: 'parked' | 'crashing' | 'in'; x: Spring; y: Spring; scale: Spring; lights: boolean; revClock: number; exhaust: Puff[]; bark: number; agitation: number; beats: number; blink: number; perk: number; phase: number; creep: number; reversing: boolean }
+/** The turkey in flight, in room coordinates; once landed, `x` is its offset along the hood. */
 interface Turkey { x: number; y: number; rot: number; vx: number; vy: number; flying: boolean; landed: boolean }
 interface Queued { at: number; who: Who; text: string }
 
@@ -105,28 +121,34 @@ export interface Room {
   cart: number;
   /** The light ring: lit for a moment after Rick says something. */
   listening: number;
-  /** DAYS SINCE POLITICS: 3 until Rick opens his mouth; the flip's progress. */
+  /** DAYS SINCE POLITICS: 3 until Rick opens his mouth, −1 deep into a long round; the flip's progress. */
   days: number;
+  shownDays: number;
   flip: number;
   /** The monstera's droop and the candle's flame. */
   droop: Spring;
   candle: boolean;
+  /** The caption of the last captioned line said, and whether the niece has said she is filming. */
+  caption: string;
+  filming: boolean;
+  /** The rug under the table, yanked toward the truck as Dale reverses: 0 in place, 1 pulled. */
+  rug: Spring;
   crashed: boolean;
   harmless: boolean;
   crashT: number;
   flash: number;
   /** She has said grace: no more lines, the dog settles. */
   holding: boolean;
-  events: { line: Line | null; listen: boolean; order: boolean; rev: boolean; bark: boolean; flip: boolean; wall: boolean; landed: number; turkey: boolean };
+  events: { line: Line | null; listen: boolean; order: boolean; rev: boolean; bark: boolean; blink: boolean; flip: boolean; wall: boolean; landed: number; turkey: boolean };
 }
 
 function noEvents(): Room['events'] {
-  return { line: null, listen: false, order: false, rev: false, bark: false, flip: false, wall: false, landed: 0, turkey: false };
+  return { line: null, listen: false, order: false, rev: false, bark: false, blink: false, flip: false, wall: false, landed: 0, turkey: false };
 }
 
 function fresh(): Room {
   return {
-    truck: { state: 'parked', x: spring(PARKED.x), y: spring(PARKED.y), scale: spring(PARKED.scale), lights: false, revClock: 0, exhaust: [], bark: 0, agitation: 0 },
+    truck: { state: 'parked', x: spring(PARKED.x), y: spring(PARKED.y), scale: spring(PARKED.scale), lights: false, revClock: 0, exhaust: [], bark: 0, agitation: 0, beats: 0, blink: 0, perk: 9, phase: 0, creep: 0, reversing: false },
     turkey: { x: PLATTER.x, y: PLATTER.y, rot: 0, vx: 0, vy: 0, flying: false, landed: false },
     bubbles: [],
     nextLine: 0,
@@ -139,9 +161,13 @@ function fresh(): Room {
     cart: 0,
     listening: 0,
     days: 3,
+    shownDays: 3,
     flip: 0,
     droop: spring(0),
     candle: true,
+    caption: '',
+    filming: false,
+    rug: spring(0),
     crashed: false,
     harmless: false,
     crashT: 0,
@@ -164,9 +190,45 @@ export interface RoomDrive {
   reduced: boolean;
 }
 
+/** The slow, log-paced driver for long rounds: 0 at 1×, a third at 10×, all the way at 1000×. */
+const depth = (multiplier: number): number => clamp(Math.log10(Math.max(1, multiplier)) / 3, 0, 1);
+const droopFor = (tension: number, multiplier: number): number => smoothstep(0.15, 0.85, tension) + 0.35 * depth(multiplier);
+const agitationFor = (tension: number): number => smoothstep(0.2, 0.85, tension);
+const beatsAt = (multiplier: number): number => (multiplier >= 2.5 ? 3 : multiplier >= 2 ? 2 : multiplier >= 1.5 ? 1 : 0);
+
 function say(r: Room, who: Who, text: string, life = who === 'rick' ? 5.5 : who === 'dale' ? 1.2 : 3.2): void {
   for (const b of r.bubbles) if (b.who === who && b.age < b.life) b.life = Math.min(b.life, b.age + 0.12);
   r.bubbles.push({ who, text, age: 0, life, pop: spring(0.6) });
+}
+
+/** A line outside the multiplier ladder (the regret after a cash-out), spoken now. */
+export function aside(r: Room, who: Who, text: string): void {
+  say(r, who, text);
+  r.events.line = { at: 0, who, text };
+}
+
+/** What a line does beyond its bubble: Rick's wake the speaker and prick Dale's ears, orders fill the cart. */
+function heard(r: Room, line: Line): void {
+  r.events.line = line;
+  if (line.cap) r.caption = line.cap;
+  if (line.film) r.filming = true;
+  if (line.who === 'rick') {
+    r.listening = 1.1;
+    r.events.listen = true;
+    r.truck.perk = 0;
+    if (r.days === 3) flipSign(r, 0);
+  }
+  if (line.who === 'echo') {
+    r.cart += line.price ?? 0;
+    r.events.order = true;
+  }
+}
+
+function flipSign(r: Room, days: number): void {
+  r.shownDays = r.days;
+  r.days = days;
+  r.flip = 1;
+  r.events.flip = true;
 }
 
 function schedule(r: Room, lines: Queued[]): void {
@@ -174,27 +236,30 @@ function schedule(r: Room, lines: Queued[]): void {
   r.queueT = 0;
 }
 
-/** Grandma says grace: the moment the cash-out is accepted. Everyone goes quiet. */
+/** Grandma says grace: the moment the cash-out is accepted. She took profits; everyone goes quiet. */
 export function sayGrace(r: Room): void {
   r.holding = true;
   say(r, 'gran', 'GRACE. NOW.', 4);
-  schedule(r, [{ at: 1.3, who: 'rick', text: 'yes ma’am' }]);
+  schedule(r, [{ at: 1.2, who: 'rick', text: 'paper hands, Ma' }]);
 }
 
 /**
- * The crash. Hard, Dale puts the truck in gear: the flash, the wall, the turkey, the aftermath lines. Harmless
- * (grace has been said), Rick nods off and the pie comes out. `quiet` is a crash met late, shown settled.
+ * The crash. Hard, Dale puts the truck in gear: the flash, the wall, the turkey, then he throws it in reverse with
+ * the rug snagged on the bumper. Harmless (grace has been said), Rick nods off, the speaker reads out the dump and
+ * the pie comes out. `quiet` is a crash met late, shown settled.
  */
 export function crashRoom(r: Room, crashX100: number, quiet: boolean, harmless: boolean): void {
   if (r.crashed) return;
+  const unsaid = r.nextLine === 0;
   r.crashed = true;
   r.harmless = harmless;
   r.holding = true;
   const rand = mulberry32(crashX100 * 5 + 3);
   if (harmless) {
-    schedule(r, [{ at: 1.6, who: 'dad', text: 'pie?' }, { at: 3, who: 'niece', text: 'finally' }]);
+    schedule(r, [{ at: 0.5, who: 'echo', text: '$DALE: −99%. Grandma sold' }, { at: 1.6, who: 'dad', text: 'pie?' }, { at: 3, who: 'niece', text: 'finally' }]);
   } else {
-    schedule(r, [{ at: 1.1, who: 'rick', text: 'DALE, NO' }, { at: 2.4, who: 'echo', text: 'playing: Free Bird' }, { at: 3.7, who: 'niece', text: 'got it' }]);
+    // An instant bust cuts Rick off before his first pitch.
+    schedule(r, [...(unsaid ? [{ at: 0, who: 'rick' as const, text: 'so. has anyone heard of $DA—' }] : []), { at: 0.8, who: 'rick', text: 'DALE, NO' }, { at: 2.2, who: 'echo', text: 'playing: Free Bird' }, { at: 3.5, who: 'niece', text: 'got it' }]);
     r.truck.state = 'crashing';
     r.truck.lights = true;
     r.candle = false;
@@ -207,12 +272,18 @@ export function crashRoom(r: Room, crashX100: number, quiet: boolean, harmless: 
     for (const q of r.queue) say(r, q.who, q.text);
     r.queue = [];
     for (const b of r.bubbles) b.age = 1;
+    // Only the last word of each speaker stays up.
+    r.bubbles = r.bubbles.filter((b) => b.life > b.age + 0.2);
     if (!harmless) {
-      settleSpring(r.truck.x, CRASHED.x);
-      settleSpring(r.truck.y, CRASHED.y);
-      settleSpring(r.truck.scale, CRASHED.scale);
-      r.truck.state = 'in';
-      r.turkey = { x: HOOD.x, y: HOOD.y, rot: 0.6, vx: 0, vy: 0, flying: false, landed: true };
+      const t = r.truck;
+      settleSpring(t.x, BACKED.x);
+      settleSpring(t.y, BACKED.y);
+      settleSpring(t.scale, BACKED.scale);
+      t.state = 'in';
+      t.reversing = true;
+      t.exhaust = [];
+      settleSpring(r.rug, 1);
+      r.turkey = { x: -30, y: 0, rot: 0.6, vx: 0, vy: 0, flying: false, landed: true };
       for (let i = 0; i < 360; i += 1) stepBits(r, 1 / 60);
       r.puffs = [];
       r.events = noEvents();
@@ -280,9 +351,10 @@ function stepPuffs(list: Puff[], dt: number): void {
 function stepBits(r: Room, dt: number): void {
   for (const b of r.bits) {
     if (b.rest) continue;
-    b.vy += 1100 * dt;
+    // The exact constant-gravity step, so a piece lands in the same place at any frame rate.
     b.x += b.vx * dt;
-    b.y += b.vy * dt;
+    b.y += (b.vy + 550 * dt) * dt;
+    b.vy += 1100 * dt;
     b.rot += b.vr * dt;
     if (b.y >= b.floor && b.vy > 0) {
       b.y = b.floor;
@@ -301,32 +373,66 @@ function stepBits(r: Room, dt: number): void {
   }
 }
 
+/** Where the hood is right now, so the turkey lands on it and rides it as Dale reverses. */
+function hood(t: Truck): { x: number; y: number } {
+  return { x: t.x.x + HOOD.x * t.scale.x, y: t.y.x + HOOD.y * t.scale.x };
+}
+
+function bark(r: Room, time: number): void {
+  r.truck.bark = 0;
+  r.events.bark = true;
+  say(r, 'dale', noise(time) > 0.5 ? 'WOOF' : 'BORF', 0.9);
+}
+
+function rev(r: Room, time: number): void {
+  const t = r.truck;
+  t.revClock = 0;
+  r.events.rev = true;
+  const rand = mulberry32(Math.floor(time * 40) + 9);
+  for (let i = 0; i < 4; i += 1) puff(t.exhaust, t.x.x - 100 * t.scale.x, t.y.x - 6, 3 + rand() * 3, -20 - rand() * 20, 0.8, 'rgba(120,120,130,0.7)', rand);
+}
+
 function stepTruck(r: Room, drive: RoomDrive, dt: number): void {
   const t = r.truck;
+  t.perk += dt;
   if (t.state === 'parked') {
-    t.agitation += clamp((drive.running && !r.holding ? smoothstep(0.3, 1, drive.tension) : 0) - t.agitation, -dt * 0.8, dt * 0.6);
+    const live = drive.running && !r.holding;
+    t.agitation += clamp((live ? agitationFor(drive.tension) : 0) - t.agitation, -dt * 0.8, dt * 0.6);
     const a = t.agitation;
-    t.lights = a > 0.6 && !drive.reduced ? Math.sin(drive.time * 14) > 0 : false;
-    if (a > 0.4) {
-      t.revClock += dt * (0.4 + a);
-      if (t.revClock > 1.3) {
-        t.revClock = 0;
-        r.events.rev = true;
-        const rand = mulberry32(Math.floor(drive.time * 40) + 9);
-        for (let i = 0; i < 4; i += 1) puff(t.exhaust, PARKED.x - 50, PARKED.y - 6, 3 + rand() * 3, -20 - rand() * 20, 0.8, 'rgba(120,120,130,0.7)', rand);
+    t.phase += dt * (6 + a * 16);
+    if (live) {
+      // His first beats land on the curve, so every round past 1.5× gets the foreshadowing.
+      while (t.beats < beatsAt(drive.multiplier)) {
+        t.beats += 1;
+        if (t.beats === 1) {
+          t.blink = 0.6;
+          r.events.blink = true;
+        } else if (t.beats === 2) bark(r, drive.time);
+        else rev(r, drive.time);
       }
+      if (t.beats >= 2 && (t.bark += dt * (0.2 + a * 0.6)) > 1) bark(r, drive.time);
+      if (t.beats >= 3 && (t.revClock += dt * (0.4 + a + 0.6 * depth(drive.multiplier))) > 1.3) rev(r, drive.time);
+      // Over a long round he inches up the driveway toward the window.
+      t.creep = Math.max(t.creep, depth(drive.multiplier));
     }
-    t.bark += dt * (0.2 + a * 1.4);
-    if (a > 0.45 && t.bark > 1) {
-      t.bark = 0;
-      r.events.bark = true;
-      say(r, 'dale', noise(drive.time) > 0.5 ? 'WOOF' : 'BORF', 0.9);
-    }
+    t.blink = Math.max(0, t.blink - dt);
+    // Reduced motion holds the headlight beat steady instead of flashing it.
+    t.lights = t.blink > 0 ? drive.reduced || t.blink % 0.3 > 0.15 : live && a > 0.8 && !drive.reduced && Math.sin(drive.time * 14) > 0;
+    stepSpring(t.y, PARKED.y + CREEP.y * t.creep, 3, 1, dt);
+    stepSpring(t.scale, PARKED.scale + CREEP.scale * t.creep, 3, 1, dt);
   } else {
-    stepSpring(t.x, CRASHED.x, 7, 0.75, dt);
-    stepSpring(t.y, CRASHED.y, 7, 0.75, dt);
-    stepSpring(t.scale, CRASHED.scale, 7, 0.75, dt);
-    if (t.state === 'crashing' && Math.abs(t.scale.x - CRASHED.scale) < 0.02) t.state = 'in';
+    // In through the wall, then Dale throws it in reverse with the rug caught on the bumper.
+    const back = r.crashT > REVERSE_AT;
+    const to = back ? BACKED : CRASHED;
+    if (back && !t.reversing) {
+      t.reversing = true;
+      r.events.rev = true;
+    }
+    stepSpring(t.x, to.x, 7, 0.75, dt);
+    stepSpring(t.y, to.y, 7, 0.75, dt);
+    stepSpring(t.scale, to.scale, 7, 0.75, dt);
+    stepSpring(r.rug, back ? 1 : 0, 9, 0.6, dt);
+    if (t.state === 'crashing' && back && Math.abs(t.scale.x - to.scale) < 0.02) t.state = 'in';
     if (r.crashT < 2.5) {
       const rand = mulberry32(Math.floor(drive.time * 40) + 9);
       t.revClock += dt;
@@ -341,16 +447,23 @@ function stepTruck(r: Room, drive: RoomDrive, dt: number): void {
 
 function stepTurkey(r: Room, dt: number): void {
   const t = r.turkey;
+  if (t.landed) {
+    // It tumbles on into its rest on the hood, the short way round, instead of snapping upright.
+    const rest = 0.6 + Math.PI * 2 * Math.round((t.rot - 0.6) / (Math.PI * 2));
+    t.rot += (rest - t.rot) * (1 - Math.exp(-10 * dt));
+    return;
+  }
   if (!t.flying) return;
-  t.vy += 1000 * dt;
   t.x += t.vx * dt;
-  t.y += t.vy * dt;
+  t.y += (t.vy + 500 * dt) * dt;
+  t.vy += 1000 * dt;
   t.rot += 4 * dt;
-  if (t.vy > 0 && t.y >= HOOD.y && t.x > 700) {
+  const h = hood(r.truck);
+  if (t.vy > 0 && t.y >= h.y && t.x > 700) {
     t.flying = false;
     t.landed = true;
-    t.y = HOOD.y;
-    t.rot = 0.6;
+    t.x -= h.x;
+    t.y = 0;
     r.events.turkey = true;
   }
 }
@@ -358,27 +471,13 @@ function stepTurkey(r: Room, dt: number): void {
 export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
   r.events = noEvents();
   if (r.crashed) r.crashT += dt;
-  r.flash = Math.max(0, r.flash - dt * 4);
   r.listening = Math.max(0, r.listening - dt);
 
   while (!r.holding && drive.running && r.nextLine < LINES.length && drive.multiplier >= LINES[r.nextLine]!.at) {
     const line = LINES[r.nextLine]!;
     say(r, line.who, line.text);
-    r.events.line = line;
+    heard(r, line);
     r.nextLine += 1;
-    if (line.who === 'rick') {
-      r.listening = 1.1;
-      r.events.listen = true;
-      if (r.days !== 0) {
-        r.days = 0;
-        r.flip = 1;
-        r.events.flip = true;
-      }
-    }
-    if (line.who === 'echo') {
-      r.cart += line.price ?? 0;
-      r.events.order = true;
-    }
   }
   if (!r.holding && drive.running && r.nextLine === LINES.length) {
     r.secondsClock += dt;
@@ -386,11 +485,11 @@ export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
       r.secondsClock %= 6;
       const line = { at: drive.multiplier, ...SECONDS[r.secondsLine++ % SECONDS.length]! };
       say(r, line.who, line.text);
-      r.events.line = line;
-      if (line.who === 'rick') { r.listening = 1.1; r.events.listen = true; }
-      if (line.who === 'echo') { r.cart += line.price ?? 0; r.events.order = true; }
+      heard(r, line);
     }
   }
+  // Deep into a long round the sign goes past zero.
+  if (!r.holding && drive.running && r.days === 0 && drive.multiplier >= 50) flipSign(r, -1);
   r.queueT += dt;
   while (r.queue.length && r.queueT >= r.queue[0]!.at) {
     const q = r.queue.shift()!;
@@ -405,7 +504,7 @@ export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
   }
   r.bubbles = r.bubbles.filter((b) => b.age < b.life + 0.3);
 
-  stepSpring(r.droop, drive.running && !r.holding ? smoothstep(0.2, 0.9, drive.tension) : r.crashed && !r.harmless ? 1 : 0, 2.5, 0.9, dt);
+  stepSpring(r.droop, drive.running && !r.holding ? droopFor(drive.tension, drive.multiplier) : r.crashed && !r.harmless ? 1.2 : 0, 2.5, 0.9, dt);
   stepTruck(r, drive, dt);
   stepTurkey(r, dt);
   stepBits(r, dt);
@@ -414,16 +513,24 @@ export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
 
 /**
  * Settles a fresh room into a round already under way at `multiplier`, for a scene that missed the start:
- * the last things said are up, the cart holds what has been ordered, the sign has flipped, the dog is as
- * worked up as the round has him.
+ * the last things said are up, the cart holds what has been ordered, the sign has flipped, the caption is the
+ * last one said, the dog is as worked up as the round has him and the truck as far up the driveway.
  */
 export function settleRoom(r: Room, multiplier: number, tension: number, left: boolean): void {
   while (r.nextLine < LINES.length && multiplier >= LINES[r.nextLine]!.at) {
     const line = LINES[r.nextLine]!;
     if (line.who === 'echo') r.cart += line.price ?? 0;
-    if (line.who === 'rick') r.days = 0;
+    if (line.who === 'rick') r.days = r.shownDays = 0;
+    if (line.cap) r.caption = line.cap;
+    if (line.film) r.filming = true;
     r.nextLine += 1;
   }
+  if (r.days === 0 && multiplier >= 50) r.days = r.shownDays = -1;
+  const t = r.truck;
+  t.beats = beatsAt(multiplier);
+  t.creep = depth(multiplier);
+  settleSpring(t.y, PARKED.y + CREEP.y * t.creep);
+  settleSpring(t.scale, PARKED.scale + CREEP.scale * t.creep);
   if (!left) {
     const recent = LINES.slice(0, r.nextLine).reverse();
     const his = recent.find((l) => l.who === 'rick');
@@ -431,10 +538,10 @@ export function settleRoom(r: Room, multiplier: number, tension: number, left: b
     const theirs = recent.find((l) => l.who !== 'rick');
     if (theirs && recent.indexOf(theirs) < 2) say(r, theirs.who, theirs.text);
     for (const b of r.bubbles) b.age = 1;
-    r.truck.agitation = smoothstep(0.3, 1, tension);
+    t.agitation = agitationFor(tension);
   }
   r.holding = left;
-  settleSpring(r.droop, left ? 0 : smoothstep(0.2, 0.9, tension));
+  settleSpring(r.droop, left ? 0 : droopFor(tension, multiplier));
 }
 
 // ---- Drawing --------------------------------------------------------------------------------------------
@@ -582,7 +689,7 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
   ctx.lineTo(86, -146);
   ctx.closePath();
   ctx.clip();
-  drawDale(ctx, 0, -158, a, time, reduced, t.state !== 'parked');
+  drawDale(ctx, 0, -158, t, time, reduced);
   ctx.restore();
   ctx.fillStyle = '#2a2a30';
   ink(ctx, 2.5);
@@ -628,11 +735,18 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
   ctx.globalAlpha = 1;
 }
 
-/** Dale: a brown dog at the wheel, paws up, tongue out, ears flapping harder the more worked up he is. */
-function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, agitation: number, time: number, reduced: boolean, driving: boolean): void {
+/**
+ * Dale: a brown dog at the wheel, paws up, tongue out, ears flapping harder the more worked up he is. Every time
+ * Rick speaks his ears prick up and a paw taps the horn.
+ */
+function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, t: Truck, time: number, reduced: boolean): void {
+  const agitation = t.agitation;
+  const driving = t.state !== 'parked';
+  const perk = t.perk < 0.8 ? Math.sin((Math.PI * t.perk) / 0.8) : 0;
+  const tap = reduced ? 0 : perk * Math.abs(Math.sin(t.perk * Math.PI * 5)) * 6;
   ctx.save();
   ctx.translate(x, y);
-  const bob = reduced ? 0 : Math.sin(time * (6 + agitation * 16)) * (2 + agitation * 5);
+  const bob = reduced ? 0 : Math.sin(t.phase) * (2 + agitation * 5);
   ctx.translate(0, bob);
   ink(ctx, 2.5);
   // Wheel.
@@ -647,7 +761,7 @@ function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, agitation
   const flap = reduced ? 0 : Math.sin(time * 15) * 8 * agitation;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.ellipse(side * 30, -4 + flap * side, 10, 22, side * 0.4, 0, Math.PI * 2);
+    ctx.ellipse(side * (30 + 3 * perk), -4 + flap * side - 10 * perk, 10, 22, side * (0.4 - 0.5 * perk), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
@@ -691,7 +805,7 @@ function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, agitation
   ink(ctx, 2.5);
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.ellipse(side * 24, 24 + (driving ? -4 : 0), 9, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(side * 24, 24 + (driving ? -4 : 0) - (side > 0 ? tap : 0), 9, 7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
@@ -832,7 +946,7 @@ function drawSign(ctx: CanvasRenderingContext2D, r: Room): void {
   // The flip card: it squashes to a line and comes back with the new number.
   const f = r.flip;
   const squash = f > 0.5 ? (f - 0.5) * 2 : 1 - f * 2;
-  const shown = f > 0.5 ? 3 : r.days;
+  const shown = f > 0.5 ? r.shownDays : r.days;
   ctx.save();
   ctx.translate(46, 0);
   ctx.scale(1, Math.max(0.05, squash));
@@ -842,7 +956,7 @@ function drawSign(ctx: CanvasRenderingContext2D, r: Room): void {
   ctx.roundRect(-20, -24, 40, 48, 4);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = shown === 0 ? '#c4302b' : INK;
+  ctx.fillStyle = shown <= 0 ? '#c4302b' : INK;
   ctx.font = '900 34px Impact, "Arial Black", sans-serif';
   ctx.fillText(String(shown), 0, 2);
   ctx.restore();
@@ -1045,26 +1159,122 @@ function drawWindow(ctx: CanvasRenderingContext2D, r: Room, time: number, reduce
   }
 }
 
+/**
+ * A point on the rug, `u` along it (left to right) and `v` into the room (far edge to near). Pulled, the trailing
+ * end slides further than the end on the truck's bumper, so the rug bunches into folds.
+ */
+function rugAt(r: Room, u: number, v: number): { x: number; y: number } {
+  const p = clamp(r.rug.x, 0, 1.2);
+  const x = mix(mix(RUG.farLeft, RUG.nearLeft, v), mix(RUG.farRight, RUG.nearRight, v), u) + mix(170, 60, u) * p;
+  const fold = p * 9 * Math.sin(u * Math.PI * 7) ** 2 * (1 - u);
+  return { x, y: mix(RUG.far, RUG.near, v) - fold * (0.8 + 0.4 * v) };
+}
+const rugEdge = (r: Room) => rugAt(r, 1, 0.45);
+
+function rugPath(ctx: CanvasRenderingContext2D, r: Room, iu: number, iv: number): void {
+  ctx.beginPath();
+  for (let i = 0; i <= 28; i += 1) {
+    const p = rugAt(r, mix(iu, 1 - iu, i / 28), iv);
+    if (i) ctx.lineTo(p.x, p.y);
+    else ctx.moveTo(p.x, p.y);
+  }
+  for (let i = 0; i <= 28; i += 1) {
+    const p = rugAt(r, mix(1 - iu, iu, i / 28), 1 - iv);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+}
+
+/** The dining-room rug under the table and Rick's chair: a border, a red field, a medallion, fringed ends. */
+function drawRug(ctx: CanvasRenderingContext2D, r: Room): void {
+  ctx.strokeStyle = '#efe2c4';
+  ctx.lineWidth = 2;
+  for (const u of [0, 1]) {
+    for (let i = 0; i <= 8; i += 1) {
+      const p = rugAt(r, u, 0.06 + i * 0.11);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + (u ? 9 : -9), p.y + 1);
+      ctx.stroke();
+    }
+  }
+  ink(ctx, 2.5);
+  ctx.fillStyle = '#e8d3a8';
+  rugPath(ctx, r, 0, 0);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#9b3b34';
+  rugPath(ctx, r, 0.03, 0.14);
+  ctx.fill();
+  ctx.strokeStyle = '#2f4b6e';
+  ctx.lineWidth = 3;
+  rugPath(ctx, r, 0.06, 0.26);
+  ctx.stroke();
+  for (const [k, color] of [[1, '#2f4b6e'], [0.45, '#e8d3a8']] as const) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (const [u, v] of [[0.5, 0.5 - 0.3 * k], [0.5 + 0.09 * k, 0.5], [0.5, 0.5 + 0.3 * k], [0.5 - 0.09 * k, 0.5]]) {
+      const p = rugAt(r, u!, v!);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Shadowed folds where it bunches.
+  const pull = clamp(r.rug.x, 0, 1);
+  if (pull > 0.02) {
+    ctx.lineWidth = 3;
+    for (let k = 0; k < 6; k += 1) {
+      const u = (k + 0.5) / 7;
+      const a = rugAt(r, u + 0.02, 0.02);
+      const b = rugAt(r, u + 0.02, 0.98);
+      ctx.strokeStyle = `rgba(40, 14, 14, ${0.45 * pull * (1 - u)})`;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+}
+
 export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
   drawWalls(ctx);
   drawGalleryWall(ctx, r);
   drawSign(ctx, r);
   drawWindow(ctx, r, time, reduced);
   drawFloor(ctx);
+  drawRug(ctx, r);
   drawSideboard(ctx, r, time);
 }
 
 /** The truck once it is through the wall, drawn after the table so its bumper sits in the room. */
 export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
   if (r.truck.state === 'parked') return;
-  drawTruck(ctx, r.truck, time, reduced);
+  const t = r.truck;
+  // The tow strap from the bumper to the rug Dale has hooked, showing as the truck lands.
+  const end = rugEdge(r);
+  ctx.save();
+  ctx.globalAlpha = smoothstep(0.3, 0.6, r.crashT);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(end.x, end.y);
+  ctx.lineTo(t.x.x + 30 * t.scale.x, t.y.x - 34 * t.scale.x);
+  ctx.stroke();
+  ctx.strokeStyle = '#f2c230';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
+  drawTruck(ctx, t, time, reduced);
   if (r.turkey.landed) {
-    // Gravy down the hood, and the bird on it.
+    // Gravy down the hood, and the bird on it, riding it back.
+    const h = hood(t);
     ctx.fillStyle = '#8a5a2b';
     ctx.beginPath();
-    ctx.ellipse(HOOD.x, HOOD.y + 10, 40, 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(h.x + r.turkey.x, h.y + 10, 40, 10, 0, 0, Math.PI * 2);
     ctx.fill();
-    drawTurkey(ctx, r.turkey.x, r.turkey.y, r.turkey.rot, false);
+    drawTurkey(ctx, h.x + r.turkey.x, h.y, r.turkey.rot, false);
   }
 }
 

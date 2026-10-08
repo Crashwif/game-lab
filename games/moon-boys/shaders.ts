@@ -40,7 +40,7 @@ void main() {
     float w = aExtra.x;
     p.z += sin(w * 6.0 - uTime * 7.0 + iParams.w) * iParams.z * w * w;
     p.y -= 0.1 * iParams.z * w * w;
-  }
+  } else p.z += sin(uTime * 9.0 + iParams.w + p.x * 8.0) * iParams.z * clamp(0.75 - p.y * 2.5, 0.0, 1.0); // a negative flex kicks the legs
   mat4 m = mat4(iM0, iM1, iM2, iM3);
   vec3 s2 = vec3(dot(iM0.xyz, iM0.xyz), dot(iM1.xyz, iM1.xyz), dot(iM2.xyz, iM2.xyz));
   vec4 world = m * vec4(p, 1.0);

@@ -1,4 +1,4 @@
-import { clamp, fract, joint, TAU, type Point } from './motion';
+import { clamp, fract, limb, TAU, type Point } from './motion';
 import { box, CORAL, ellipse, GOLD, INK, line, polygon, WHITE, words } from './drawing';
 
 export type Mood = 'bored' | 'defiant' | 'panic' | 'smug' | 'cosmic' | 'dazed';
@@ -9,20 +9,24 @@ export interface PenguinPose {
   reduced: boolean; aura?: number; paper?: boolean; look?: number;
 }
 
-/** Grounded stance is linear against the belt speed; the returning foot clears the ice on a high arc. */
-function footAt(phase: number, walk: boolean, airborne: boolean, side: number): Point {
+interface Foot extends Point { tilt: number }
+/** Grounded stance is linear against the belt speed; the returning foot clears the ice toe-up on a high arc. */
+function footAt(phase: number, walk: boolean, airborne: boolean, side: number): Foot {
   const p = fract(phase);
-  if (airborne) return { x: side * 34, y: -18 - Math.sin(p * TAU) * 12 };
-  if (!walk) return { x: side * 25, y: 0 };
-  if (p < .62) return { x: 31 - p / .62 * 62, y: 0 };
+  if (airborne) return { x: side * 30, y: -16 - Math.sin(p * TAU) * 10, tilt: .55 };
+  if (!walk) return { x: side * 24, y: 0, tilt: 0 };
+  if (p < .62) return { x: 31 - p / .62 * 62, y: 0, tilt: 0 };
   const u = (p - .62) / .38;
-  return { x: -31 + 62 * (1 - Math.cos(u * Math.PI)) / 2, y: -Math.sin(u * Math.PI) * 25 };
+  return { x: -31 + 62 * (1 - Math.cos(u * Math.PI)) / 2, y: -Math.sin(u * Math.PI) * 25, tilt: -Math.sin(u * Math.PI) * .4 };
 }
-function leg(c: CanvasRenderingContext2D, root: Point, foot: Point, side: number, far: boolean): void {
-  const knee = joint(root, foot, 36, side);
-  line(c, [[root.x, root.y], [knee.x, knee.y], [foot.x, foot.y - 4]], INK, far ? 13 : 16);
-  line(c, [[root.x, root.y], [knee.x, knee.y], [foot.x, foot.y - 4]], far ? '#c37d56' : GOLD, far ? 8 : 10);
-  c.save(); c.translate(foot.x, foot.y); c.rotate(foot.y < -2 ? -.25 : 0);
+const THIGH = 26;
+const SHIN = 28;
+/** Both knees bend forward; the stance leg is nearly straight and the swing leg folds under the body. */
+function leg(c: CanvasRenderingContext2D, root: Point, foot: Foot, far: boolean): void {
+  const { joint: knee, end } = limb(root, { x: foot.x, y: foot.y - 4 }, THIGH, SHIN, 1);
+  line(c, [[root.x, root.y], [knee.x, knee.y], [end.x, end.y]], INK, far ? 13 : 16);
+  line(c, [[root.x, root.y], [knee.x, knee.y], [end.x, end.y]], far ? '#c37d56' : GOLD, far ? 8 : 10);
+  c.save(); c.translate(end.x, end.y + 4); c.rotate(foot.tilt);
   polygon(c, [[-14, -6], [9, -9], [26, -3], [20, 3], [-15, 2]], far ? '#d88f59' : '#f8b875', 3);
   line(c, [[8, -5], [11, 0]], '#b9784f', 1.5); line(c, [[17, -3], [19, 0]], '#b9784f', 1.5); c.restore();
 }
@@ -46,7 +50,7 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   c.translate(0, -81 * p.scale); c.rotate(p.angle + waddle); c.scale(p.scale * squash, p.scale / squash * (1 + p.stretch * .16)); c.translate(0, 81);
   const footL = footAt(gait + .5, p.walk, p.airborne, -1);
   const footR = footAt(gait, p.walk, p.airborne, 1);
-  leg(c, { x: -22, y: -41 + p.crouch * 12 }, footL, -1, true);
+  leg(c, { x: -12, y: -41 + p.crouch * 12 }, footL, true);
   const bodyY = bob + breath + p.crouch * 15;
   c.save(); c.translate(0, bodyY);
   const wing = p.arm + (p.walk ? Math.sin(gait * TAU) * .56 : Math.sin(time * 2.8) * .09);
@@ -111,6 +115,6 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
     words(c, 'NO.', 4, -10, 24, INK, 37); line(c, [[-10, 7], [17, 7]], '#a6b3a6', 2); c.restore();
   }
   c.restore();
-  leg(c, { x: 22, y: -40 + p.crouch * 12 }, footR, 1, false);
+  leg(c, { x: 12, y: -40 + p.crouch * 12 }, footR, false);
   c.restore();
 }

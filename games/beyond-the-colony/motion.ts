@@ -9,13 +9,21 @@ export const noise = (n: number): number => fract(Math.sin(n * 78.233 + 12.98) *
 /** A visible strike overshoots, then rings down without accumulating frame error. */
 export const recoil = (age: number, strength = 1): number => age < 0 ? 0 : Math.sin(age * 18) * Math.exp(-age * 4.5) * strength;
 export interface Point { x: number; y: number }
-export function joint(root: Point, foot: Point, length: number, side: number): Point {
-  const dx = foot.x - root.x; const dy = foot.y - root.y;
+/**
+ * A two-bone limb solved toward `end`: the reach is clamped inside the bones' range before either
+ * segment is placed, and the joint bends toward +x for a downward limb when `pole` is positive.
+ */
+export function limb(root: Point, end: Point, upper: number, lower: number, pole: number): { joint: Point; end: Point } {
+  const dx = end.x - root.x; const dy = end.y - root.y;
   const distance = Math.max(0.001, Math.hypot(dx, dy));
-  const reach = Math.min(length * 2 - 0.001, distance);
-  const h = Math.sqrt(Math.max(0, length * length - reach * reach / 4));
-  return { x: root.x + dx * 0.5 - dy / distance * h * side, y: root.y + dy * 0.5 + dx / distance * h * side };
+  const reach = clamp(distance, Math.abs(upper - lower) + 0.001, upper + lower - 0.001);
+  const ux = dx / distance; const uy = dy / distance;
+  const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * pole;
+  return { joint: { x: root.x + ux * along + uy * bend, y: root.y + uy * along - ux * bend }, end: { x: root.x + ux * reach, y: root.y + uy * reach } };
 }
+/** The shortest signed turn between two angles. */
+export const turn = (from: number, to: number): number => ((to - from + Math.PI) % TAU + TAU) % TAU - Math.PI;
 
 export interface Act {
   index: number;

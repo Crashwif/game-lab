@@ -2,7 +2,7 @@ import { pageAudio } from './audio';
 import { herd, setpiece } from './actors';
 import { perform } from './choreography';
 import { balloon, box, burst, GOLD, INK, JADE, polygon, WHITE, words } from './drawing';
-import { avalanche, cloudSeat, floes, impactSnow, office, sky, weather } from './landscape';
+import { avalanche, cloudSeat, floes, impactSnow, office, sky, slideSpray, weather } from './landscape';
 import { actAt, between, clamp, recoil, smooth, TAU } from './motion';
 import { penguin, type PenguinPose } from './penguin';
 import { portrait } from './portrait';
@@ -113,6 +113,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
     }
     if (!safe) {
+      if (running && !reduced) slideSpray(c, p.x, 429, liveTime, performance.spray);
       penguin(c, p);
       if (!crashed && !reduced) impactSnow(c, p.x, 429, performance.landAge, 1.1);
       if (running && act.kind === 2 && act.age > 3.2 && act.age < 3.65) { burst(c, 634, 315, 58, GOLD); words(c, 'DECLINED', 634, 315, 21, INK, 101); }

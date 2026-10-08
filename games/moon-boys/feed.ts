@@ -61,12 +61,12 @@ export function post(feed: Feed, who: string, text: string, kind: Kind = 'chat')
   if (feed.lines.length > ROWS) feed.lines.length = ROWS;
 }
 
-/** Steps the chat; returns true when a rung line came out this step. */
-export function stepFeed(feed: Feed, running: boolean, tension: number, dt: number, multiplier: number): boolean {
+/** Steps the chat (`mode` 2 in flight, 1 on the pad as holders join, 0 quiet); returns true when a rung line came out. */
+export function stepFeed(feed: Feed, mode: number, tension: number, dt: number, multiplier: number): boolean {
   for (const line of feed.lines) line.age += dt;
-  if (!running) return false;
+  if (!mode) return false;
   const due = RUNGS[feed.rung];
-  if (due && multiplier >= due[0]) {
+  if (mode > 1 && due && multiplier >= due[0]) {
     feed.rung += 1;
     post(feed, due[1], due[2], 'news');
     return true;
@@ -77,7 +77,7 @@ export function stepFeed(feed: Feed, running: boolean, tension: number, dt: numb
   feed.next = 1.1 - 0.7 * tension + r() * 0.5;
   const who = HANDLES[Math.floor(r() * HANDLES.length)]!;
   const roll = r();
-  if (roll < 0.12) post(feed, who, 'joined the call', 'join');
+  if (roll < 0.12 || mode < 2) post(feed, who, 'joined the call', 'join');
   else if (roll < 0.2 + 0.25 * tension) post(feed, who, 'left the call', 'leave');
   else post(feed, who, CHATTER[Math.floor(r() * CHATTER.length)]!, 'chat');
   return false;

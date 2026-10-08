@@ -1,7 +1,18 @@
 import { C, bolt, box, hatch, label, line, mono, oval } from './ink';
-import { clamp, ease, mix, type Direction } from './direction';
+import { HIT, PEANUT, allocationAt, ease, joltAt, mix, stampReach, type Direction } from './direction';
 
-export interface MinistryView { d: Direction; time: number; reduced: boolean; running: boolean; crash: number | null; escaped: boolean }
+export interface MinistryView {
+  d: Direction; time: number; reduced: boolean; running: boolean; crash: number | null; escaped: boolean;
+  /** Smoothed 0–1: the machinery parks after the crash's hit-stop and unparks for the next applicant. */
+  park: number;
+  /** Smoothed 0–1: applicant props fade once he has left; the exit door fades with it. */
+  gone: number;
+  /** Integrated conveyor travel, in px. */
+  belt: number;
+}
+
+/** Fine print rotates under the allocation: the airdrop terms keep getting worse. */
+const FINE = ['VESTING: 4-YEAR CLIFF', 'CLAIM FEE: 2 PEANUTS', 'POINTS: SEE SEASON 2', 'SNAPSHOT: LAST WEEK', 'TGE: SOON™'];
 
 function textLines(c: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, color = C.ink): void {
   c.font = `800 ${size}px Arial, sans-serif`;
@@ -14,7 +25,7 @@ function textLines(c: CanvasRenderingContext2D, text: string, x: number, y: numb
 }
 
 export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { d, time, reduced, running, crash } = v;
+  const { d, reduced, crash } = v;
   const wall = c.createLinearGradient(0, 80, 0, 470);
   wall.addColorStop(0, '#ebe0c3'); wall.addColorStop(.75, '#dccca8'); wall.addColorStop(1, '#b9b89c');
   c.fillStyle = wall; c.fillRect(0, 0, 960, 540);
@@ -41,9 +52,9 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
   oval(c, 525, 449, 165, 13, '#19343b26', C.ink, 0);
   box(c, 281, 437, 463, 30, 12, C.ink, C.ink, 2);
   box(c, 288, 437, 449, 13, 6, '#728985', C.ink, 1);
-  const beltTime = reduced || !running || crash !== null || v.escaped ? 0 : time * 35;
+  const belt = reduced ? 0 : v.belt % 28;
   c.save(); c.beginPath(); c.rect(291, 438, 443, 11); c.clip();
-  for (let i = -1; i < 20; i++) line(c, [291 + i * 28 + beltTime % 28, 438, 284 + i * 28 + beltTime % 28, 449], '#3d5454', 2);
+  for (let i = -1; i < 20; i++) line(c, [291 + i * 28 + belt, 438, 284 + i * 28 + belt, 449], '#3d5454', 2);
   c.restore();
   for (let x = 300; x < 735; x += 23) oval(c, x, 455, 6, 6, '#586d69', '#8da197', 1);
   hatch(c, 330, 461, 365, 7);
@@ -51,7 +62,7 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
 }
 
 export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { d, reduced, time, crash } = v;
+  const { d, reduced, time, crash, park } = v;
   box(c, 324, 125, 376, 307, 65, '#142e351c', C.ink, 0);
   box(c, 331, 119, 362, 308, 63, C.ink, C.ink, 3);
   const bg = c.createLinearGradient(0, 129, 0, 428);
@@ -68,9 +79,9 @@ export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
   const glow = crash !== null ? C.coral : C.mint;
   for (const x of [356, 669]) { box(c, x, 190, 5, 209, 2, glow, glow, 0); }
   // A smooth travelling scan sheet, never a flashing full-screen overlay.
-  if (crash === null) {
+  if (park < .99) {
     const scanY = reduced ? 283 : 220 + (Math.sin(time * 1.8) * .5 + .5) * 179;
-    c.save(); c.beginPath(); c.roundRect(359, 170, 309, 251, 25); c.clip();
+    c.save(); c.globalAlpha *= 1 - park; c.beginPath(); c.roundRect(359, 170, 309, 251, 25); c.clip();
     const g = c.createLinearGradient(0, scanY - 38, 0, scanY + 2);
     g.addColorStop(0, '#75d9c000'); g.addColorStop(1, '#75d9c04d');
     c.fillStyle = g; c.fillRect(359, scanY - 38, 309, 39);
@@ -81,9 +92,11 @@ export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
   oval(c, 511, 161, 63, 39, '#152c31', C.ink, 3);
   oval(c, 511, 159, 54, 33, C.brass, '#d3c99d', 2);
   oval(c, 511, 157, 39, 27, '#173d40', C.ink, 3);
-  const look = reduced ? 0 : Math.sin(time * .9) * 8;
-  oval(c, 511 + look, 157, 24, 22, crash !== null ? C.red : '#76c1a5', C.ink, 2);
-  oval(c, 511 + look, 157, 12 + Math.sin(d.action * Math.PI) * 3, 17, C.ink, C.ink, 0);
+  // The iris settles on the applicant at the crash; it narrows to a slit as dread rises and flares on a crate twitch.
+  const look = reduced ? 0 : Math.sin(time * .9) * 8 * (1 - park);
+  const jolt = v.running && !reduced ? joltAt(d.seconds).age : 9;
+  oval(c, 511 + look, 157, 24, 22, crash !== null ? C.red : jolt < .35 ? C.coral : '#76c1a5', C.ink, 2);
+  oval(c, 511 + look, 157, (12 + Math.sin(d.action * Math.PI) * 3) * (1 - .45 * ease((d.dread - .3) / .5)), 17, C.ink, C.ink, 0);
   oval(c, 506 + look, 151, 5, 5, C.cream, C.cream, 0);
   for (const x of [470, 552]) bolt(c, x, 153, 3);
   box(c, 450, 190, 122, 21, 3, C.paper, C.ink, 2);
@@ -91,7 +104,7 @@ export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
 }
 
 export function drawDepartment(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { d, crash, escaped } = v;
+  const { d, crash, escaped, gone } = v;
   // A bolted physical caseboard; supporting copy stays secondary to the applicant and multiplier.
   box(c, 26, 118, 270, 191, 10, '#132c3122', C.ink, 0);
   box(c, 22, 113, 270, 191, 10, C.cream, C.ink, 3);
@@ -99,21 +112,26 @@ export function drawDepartment(c: CanvasRenderingContext2D, v: MinistryView): vo
   mono(c, `DEPARTMENT ${String(d.stage + 1).padStart(2, '0')} / CASE 000069`, 36, 135, 11, C.cream);
   const title = escaped ? 'CLAIM ABANDONED' : crash !== null ? 'IDENTITY EXPORTED' : d.title;
   textLines(c, title, 38, 175, 237, 22, crash !== null && !escaped ? C.red : C.ink);
-  textLines(c, escaped ? 'Some dignity recovered.' : crash !== null ? 'Thank you for being the product.' : d.demand, 38, 236, 235, 16, '#5c675c');
+  textLines(c, escaped ? 'Paper hands. Intact face.' : crash !== null ? 'Thank you for being the product.' : d.demand, 38, 236, 235, 16, '#5c675c');
   line(c, [38, 273, 274, 273], '#b3b19a', 1);
   mono(c, `PROCEDURE ${String(d.serial + 1).padStart(3, '0')}`, 39, 291, 11, C.ink);
   oval(c, 262, 288, 4, 4, crash !== null ? C.red : C.mint, C.ink, 1);
-  if (escaped) {
+  // A witness desk morphs into a paper mountain as the audit grows; the exit door fades in over it.
+  if (gone < .99) drawDesk(c, d);
+  if (gone > .01) {
+    c.save(); c.globalAlpha *= gone;
     box(c, 74, 313, 139, 125, 12, '#87ba9c', C.ink, 3);
     box(c, 83, 322, 121, 106, 7, '#284844', C.mint, 2);
     label(c, 'EXIT', 143, 336, 13, C.lime, 'center');
-    return;
+    c.restore();
   }
-  // A witness desk morphs into a paper mountain as the audit grows.
+}
+
+function drawDesk(c: CanvasRenderingContext2D, d: Direction): void {
   box(c, 46, 397, 236, 20, 2, C.brass, C.ink, 3);
   box(c, 61, 417, 12, 46, 1, C.ink, C.ink, 0);
   box(c, 255, 417, 12, 46, 1, C.ink, C.ink, 0);
-  const pile = Math.min(14, 3 + Math.floor(d.seconds / 12));
+  const pile = Math.min(14, 3 + Math.floor(d.seconds / 4));
   for (let i = 0; i < pile; i++) {
     const offset = Math.sin(i * 2.7) * 6;
     box(c, 188 + offset, 389 - i * 4, 79, 5, 1, i % 3 ? C.cream : '#d4c49f', C.ink, .8);
@@ -125,32 +143,37 @@ export function drawDepartment(c: CanvasRenderingContext2D, v: MinistryView): vo
 }
 
 export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { crash, time, reduced, d } = v;
+  const { crash, time, reduced, d, escaped } = v;
   box(c, 739, 168, 189, 274, 24, '#16323825', C.ink, 0);
   box(c, 733, 159, 185, 277, 22, '#f1bd75', C.ink, 3);
   box(c, 742, 167, 166, 253, 17, '#ffe0a3', C.brass, 1.5);
   box(c, 753, 179, 144, 59, 6, C.ink, C.ink, 2);
   mono(c, 'YOUR ALLOCATION', 825, 196, 10, C.mint, 'center');
-  label(c, crash === null ? 'PENDING' : '1 PEANUT', 825, 223, 21, crash === null ? C.cream : C.lime, 'center');
+  // An eligibility checker, keyed to the multiplier: a false hope at 2×, then the usual answer.
+  // After a crash it keeps processing until the peanut drops, so the payoff is not spoiled.
+  const status = escaped ? { text: crash === null ? 'JEETED' : 'DODGED', hope: true, bad: false }
+    : crash !== null ? { text: crash < PEANUT ? 'PROCESSING…' : '1 PEANUT', hope: crash >= PEANUT, bad: false } : allocationAt(d.x100);
+  label(c, status.text, 825, 223, 21, escaped ? C.mint : status.hope ? C.lime : status.bad ? C.coral : C.cream, 'center', 134);
   for (const x of [747, 904]) for (const y of [174, 417]) bolt(c, x, y, 3);
   // The peanut is always visible: the absurd reward is legible before a short round ends.
   oval(c, 825, 290, 55, 42, '#cf9658', C.ink, 2);
   oval(c, 825, 287, 49, 36, '#213c3c', '#eacc8e', 3);
   const bob = reduced ? 0 : Math.sin(time * 1.7) * 2;
-  if (crash === null || crash < 2.8) drawPeanut(c, 825, 288 + bob, 1.2, -.28);
+  if (crash === null || crash < PEANUT || escaped) drawPeanut(c, 825, 288 + bob, 1.2, -.28);
   c.beginPath(); c.ellipse(807, 273, 10, 5, -.5, 0, Math.PI * 2); c.fillStyle = '#fff8dc24'; c.fill();
   box(c, 772, 342, 108, 15, 5, C.ink, C.ink, 2);
+  mono(c, FINE[Math.floor(time / 2.4) % FINE.length]!, 826, 353, 8, C.mint, 'center', 100);
   box(c, 763, 372, 126, 32, 5, '#c38b58', C.ink, 2);
   line(c, [772, 397, 880, 397], '#f6d395', 2);
   mono(c, 'LIFE-CHANGING.', 825, 426, 11, C.ink, 'center');
-  if (crash !== null && crash >= 2.8) {
-    const age = crash - 2.8;
-    const fall = reduced ? 1 : ease(age / .6);
-    const bounce = age > .6 ? Math.exp(-(age - .6) * 4) * Math.abs(Math.sin((age - .6) * 15)) * 12 : 0;
+  if (crash !== null && crash >= PEANUT && !escaped) {
+    const age = crash - PEANUT;
+    const fall = reduced ? 1 : ease(age / .4);
+    const bounce = age > .4 ? Math.exp(-(age - .4) * 5) * Math.abs(Math.sin((age - .4) * 15)) * 12 : 0;
     drawPeanut(c, mix(825, 815, fall), mix(351, 385, fall) - (reduced ? 0 : bounce), .74, fall * .6);
-  }
-  if (crash !== null && crash >= 2.8 && !v.escaped) {
-    c.save(); c.translate(684, 389); c.rotate(reduced ? -.05 : -.05 * ease((crash - 2.8) / .35));
+    // The receipt stamps in beside the crate with the peanut.
+    const pop = reduced ? 1 : 1 + .18 * (1 - ease(age / .2));
+    c.save(); c.globalAlpha *= reduced ? 1 : ease(age / .08); c.translate(684, 389); c.rotate(reduced ? -.05 : -.05 * ease(age / .35)); c.scale(pop, pop);
     box(c, -70, -51, 140, 99, 3, C.cream, C.ink, 2);
     mono(c, 'FINAL ALLOCATION', 0, -30, 11, C.ink, 'center');
     label(c, '1', -13, 17, 51, C.ink, 'right');
@@ -161,7 +184,7 @@ export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): voi
   }
   // A data receipt prints continuously; the amount of paper is capped, the content keeps rotating.
   c.save(); c.translate(890, 324); c.rotate(-.09);
-  const length = 17 + Math.min(53, d.seconds * .45);
+  const length = 17 + Math.min(53, d.seconds * 1.2);
   box(c, -6, 0, 32, length, 0, C.cream, C.ink, 1);
   for (let y = 7; y < length - 3; y += 6) line(c, [-1, y, 19 - y % 8, y], '#8b8c74', 1);
   c.restore();
@@ -206,43 +229,50 @@ export function drawArm(c: CanvasRenderingContext2D, base: [number, number], elb
 }
 
 export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, front: boolean): void {
-  const { d, reduced, time, crash, escaped } = v;
+  const { d, reduced, time, park, gone } = v;
   const motion = reduced ? 0 : Math.sin(d.action * Math.PI * 2);
   const inspect = reduced ? .5 : Math.sin(Math.PI * d.action) ** 2;
-  if (crash !== null || escaped) return;
+  // After a crash the arms fold against the bay and the props fade; after a cash-out they keep scanning the empty booth.
+  const fade = 1 - Math.max(park, front ? gone : 0);
   if (!front) {
-    if (d.stage === 3) drawAncestry(c, time, reduced);
-    if (d.stage === 4) {
-      for (let i = 0; i < 4; i++) {
-        const on = i === Math.floor((reduced ? 0 : time * 1.6) % 4);
-        box(c, 407 + i * 49, 414, 42, 17, 4, on ? C.lime : '#739d8b', C.ink, 1.5);
-        label(c, ['←', '↑', '↓', '→'][i]!, 428 + i * 49, 427, 15, C.ink, 'center');
+    if (fade > .01) {
+      c.save(); c.globalAlpha *= fade;
+      if (d.stage === 3) drawAncestry(c, time, reduced);
+      if (d.stage === 4) {
+        for (let i = 0; i < 4; i++) {
+          const on = i === Math.floor((reduced ? 0 : time * 1.6) % 4);
+          box(c, 407 + i * 49, 414, 42, 17, 4, on ? C.lime : '#739d8b', C.ink, 1.5);
+          label(c, ['←', '↑', '↓', '→'][i]!, 428 + i * 49, 427, 15, C.ink, 'center');
+        }
       }
-    }
-    if (d.stage >= 5) {
-      const count = d.stage === 7 ? 7 : 4;
-      for (let i = 0; i < count; i++) {
-        const a = (reduced ? 0 : time * .35) + i * Math.PI * 2 / count;
-        const x = 511 + Math.cos(a) * 137; const y = 274 + Math.sin(a) * 76;
-        if (Math.sin(a) > .1) continue;
-        oval(c, x, y, 15, 9, C.cream, C.ink, 2); oval(c, x + Math.sin(a) * 2, y, 6, 7, C.red, C.ink, 1);
-        line(c, [x - 20, y, x - 30, y - 5], C.ink, 2); line(c, [x + 20, y, x + 30, y - 5], C.ink, 2);
+      if (d.stage >= 5) {
+        const count = d.stage === 7 ? 7 : 4;
+        for (let i = 0; i < count; i++) {
+          const a = (reduced ? 0 : time * .35) + i * Math.PI * 2 / count;
+          const x = 511 + Math.cos(a) * 137; const y = 274 + Math.sin(a) * 76;
+          if (Math.sin(a) > .1) continue;
+          oval(c, x, y, 15, 9, C.cream, C.ink, 2); oval(c, x + Math.sin(a) * 2, y, 6, 7, C.red, C.ink, 1);
+          line(c, [x - 20, y, x - 30, y - 5], C.ink, 2); line(c, [x + 20, y, x + 30, y - 5], C.ink, 2);
+        }
       }
-    }
-    const leftY = d.stage === 1 ? 285 : d.stage === 4 ? 355 : 260;
-    drawArm(c, [340, 328], [377, 302 + motion * 7], [429 + inspect * 15, leftY + motion * 6], d.stage === 1 ? 'probe' : 'camera', inspect > .4, .1 + motion * .1);
-    drawArm(c, [682, 337], [645, 326 - motion * 8], [591 - inspect * 10, d.stage === 5 ? 241 : 289 + motion * 12], 'camera', inspect < .7, -.15);
-    return;
-  }
-  if (d.stage === 0 && v.running) {
-    const reach = reduced ? 0 : ease((d.action - .48) / .21) * (1 - ease((d.action - .77) / .18));
-    drawArm(c, [681, 343], [639, 257], [mix(590, 514, reach), mix(252, 334, reach)], 'stamp', reach > .8, -.05);
-    if (reduced || d.action >= .69) {
-      c.save(); c.translate(512, 361); c.rotate(-.09);
-      box(c, -73, -17, 146, 33, 2, C.cream, C.red, 3);
-      label(c, 'EXIT LIQUIDITY', 0, 6, 17, C.red, 'center', 135);
       c.restore();
     }
+    const leftY = d.stage === 1 ? 285 : d.stage === 4 ? 355 : 260;
+    drawArm(c, [340, 328], [377, 302 + motion * 7], [mix(429 + inspect * 15, 392, park), mix(leftY + motion * 6, 238, park)], d.stage === 1 ? 'probe' : 'camera', inspect > .4 && park < .5, .1 + motion * .1);
+    drawArm(c, [682, 337], [645, 326 - motion * 8], [mix(591 - inspect * 10, 632, park), mix(d.stage === 5 ? 241 : 289 + motion * 12, 240, park)], 'camera', inspect < .7 && park < .5, -.15);
+    return;
+  }
+  if (fade <= .01) return;
+  c.save(); c.globalAlpha *= fade;
+  // Stages 0–2 each end their first cycle with the stamp arm landing a label on the applicant; it fades out as the ancestry arrives.
+  const retire = d.serial <= 2 ? 1 : d.serial === 3 && !reduced ? 1 - ease(d.age / .5) : 0;
+  if (retire > 0) {
+    const reach = reduced ? 0 : stampReach(d);
+    const [x, y] = STAMP_TARGETS[Math.min(2, d.stage)]!;
+    // At rest the arm hangs high on its wall mount, clear of the dental index.
+    c.save(); c.globalAlpha *= retire;
+    drawArm(c, [681, 343], [639, 257], [mix(620, x, reach), mix(198, y, reach)], 'stamp', reach > .8, -.05);
+    c.restore();
   }
   if (d.stage === 0 || d.stage === 1) {
     // The projected brackets frame a face rather than imitating an actionable account-verification form.
@@ -259,7 +289,8 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
   if (d.stage === 2) {
     // A microphone reaches the witness desk; the applicant can see his dog turn state's evidence.
     line(c, [282, 397, 282, 368, 175, 356], C.ink, 4); oval(c, 176, 356, 9, 5, C.ink, '#739d8b', 1);
-    c.save(); c.translate(604, 357); c.rotate(-.08);
+    // The card stands clear of the labels already stamped on his hoodie.
+    c.save(); c.translate(631, 360); c.rotate(-.08);
     box(c, -41, -22, 82, 56, 2, C.cream, C.ink, 2); mono(c, 'TESTIMONY', 0, -7, 9, C.ink, 'center');
     label(c, 'WOOF.', 0, 15, 16, C.red, 'center'); c.restore();
   }
@@ -282,7 +313,7 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
   }
   if (d.stage === 6) {
     const y = 252 - (reduced ? 12 : Math.sin(d.action * Math.PI) * 23);
-    c.save(); c.globalAlpha = .67;
+    c.save(); c.globalAlpha *= .67;
     c.beginPath(); c.moveTo(592, y + 55); c.bezierCurveTo(574, y + 12, 605, y - 15, 623, y); c.bezierCurveTo(639, y + 14, 637, y + 41, 651, y + 55);
     c.lineTo(637, y + 49); c.lineTo(626, y + 58); c.lineTo(614, y + 50); c.lineTo(605, y + 60); c.closePath();
     c.fillStyle = '#c7ffe0'; c.fill(); c.strokeStyle = C.mint; c.lineWidth = 2; c.stroke();
@@ -296,7 +327,11 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
     c.save(); c.translate(610, 358); c.rotate(-.12); box(c, -43, -23, 86, 62, 3, C.cream, C.ink, 2);
     label(c, 'FINAL', 0, 0, 20, C.red, 'center'); label(c, 'FINAL?', 0, 23, 17, C.red, 'center'); c.restore();
   }
+  c.restore();
 }
+
+/** Where the stamp face meets each label: the hoodie hem, the right shoulder, the ID badge. */
+const STAMP_TARGETS: [number, number][] = [[514, 334], [531, 284], [521, 308]];
 
 function drawAncestry(c: CanvasRenderingContext2D, time: number, reduced: boolean): void {
   const y0 = 225; const positions = [[414, y0], [605, y0], [386, y0 + 66], [632, y0 + 66], [511, y0 + 129]];
@@ -312,8 +347,36 @@ function drawAncestry(c: CanvasRenderingContext2D, time: number, reduced: boolea
   }
 }
 
-export function drawPacking(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
-  const collect = ease((age - .3) / .9); const packed = ease((age - 1) / .6);
+/**
+ * The crate: side walls creep up around the applicant before the crash, and its flaps hang open outward.
+ * At the crash the front rises, the dossier is swept in and the flaps close. An empty crate ships after a cash-out.
+ */
+export function drawCrate(c: CanvasRenderingContext2D, wall: number, front: number, close: number, empty: boolean): void {
+  if (wall < 1 && front < 1) return;
+  const top = 441 - wall;
+  // Open flaps droop outward and grow with the walls; closing swings them up and over the top.
+  const flap = mix(Math.min(72, wall * 1.6), 72, close);
+  for (const x of [439, 572]) box(c, x, top, 12, wall, 2, '#a97a48', C.ink, 2);
+  c.save(); c.translate(439, top); c.rotate(mix(-3.66, 0, close)); box(c, 0, -6, flap, 7, 0, '#caa570', C.ink, 2); c.restore();
+  c.save(); c.translate(584, top); c.rotate(mix(3.66, 0, close)); box(c, -flap, -6, flap, 7, 0, '#caa570', C.ink, 2); c.restore();
+  if (front < 1) return;
+  box(c, 439, 441 - front, 145, front, 3, '#b58753', C.ink, 3);
+  if (front > 90) {
+    box(c, 464, 365, 96, 48, 1, C.cream, C.ink, 1);
+    mono(c, 'IDENTITY', 512, 380, 11, C.ink, 'center');
+    label(c, empty ? 'NOT FOUND' : 'SOLD', 512, 402, empty ? 17 : 23, C.red, 'center', 88);
+    mono(c, 'THIS WAY UP ↑', 510, 431, 8, '#483f2f', 'center');
+    for (let i = 0; i < 8; i++) line(c, [452 + i * 3, 354, 452 + i * 3, 364], C.ink, i % 3 === 0 ? 2 : 1);
+  }
+  if (close === 1) {
+    box(c, 502, 323, 19, 120, 0, '#d8c49b88', C.ink, 0);
+    mono(c, empty ? 'RETURN TO SENDER' : 'HANDLE WITHOUT CARE', 512, 458, 10, C.cream, 'center');
+  }
+}
+
+/** Crash packing on the crash clock, continuous with the crate's pre-crash wall height. */
+export function drawPacking(c: CanvasRenderingContext2D, age: number, reduced: boolean, wall: number, empty: boolean): void {
+  const collect = empty ? 0 : ease((age - .3) / .6);
   if (collect > 0 && collect < 1) {
     for (let i = 0; i < 14; i++) {
       const a = i * 2.399; const r = (1 - collect) * (65 + i * 4);
@@ -322,19 +385,6 @@ export function drawPacking(c: CanvasRenderingContext2D, age: number, reduced: b
       box(c, -11, -7, 23, 15, 1, i % 2 ? C.cream : C.mint, C.ink, 1); line(c, [-6, -2, 6, -2], C.ink, 1); c.restore();
     }
   }
-  const rise = ease(age / .5);
-  box(c, 439, 441 - rise * 112, 145, rise * 112, 3, '#b58753', C.ink, 3);
-  if (rise > .8) {
-    box(c, 464, 365, 96, 48, 1, C.cream, C.ink, 1);
-    mono(c, 'IDENTITY', 512, 380, 11, C.ink, 'center');
-    label(c, 'SOLD', 512, 402, 23, C.red, 'center');
-    mono(c, 'THIS WAY UP ↑', 510, 431, 8, '#483f2f', 'center');
-    for (let i = 0; i < 8; i++) line(c, [452 + i * 3, 354, 452 + i * 3, 364], C.ink, i % 3 === 0 ? 2 : 1);
-  }
-  c.save(); c.translate(439, 329); c.rotate(mix(-1.2, 0, packed)); box(c, 0, -6, 72, 7, 0, '#caa570', C.ink, 2); c.restore();
-  c.save(); c.translate(584, 329); c.rotate(mix(1.2, 0, packed)); box(c, -73, -6, 73, 7, 0, '#caa570', C.ink, 2); c.restore();
-  if (packed === 1) {
-    box(c, 502, 323, 19, 120, 0, '#d8c49b88', C.ink, 0);
-    mono(c, 'HANDLE WITHOUT CARE', 512, 458, 10, C.cream, 'center');
-  }
+  const rise = ease((age - HIT) / .4);
+  drawCrate(c, mix(wall, 112, rise), rise * 112, ease((age - .8) / .35), empty);
 }

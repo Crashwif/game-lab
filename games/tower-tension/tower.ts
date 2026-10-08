@@ -1,14 +1,16 @@
 /**
  * The tower: a stack of prefab floors joined by small lateral springs (a
  * shear-building model). Each landing floor arrives with the crane hook's
- * swing, the storeys below flex under it, and wind pushes harder the higher
- * the stack gets, so the sway grows with the multiplier. At the crash the
- * joints release: the stack tips about its base and breaks apart from the top
- * down into a seeded debris fall. Residents move into the windows a moment
- * after each floor lands (more of them the higher the stack), wave harder the
- * worse the sway gets, and go down with the floors.
+ * swing and the storeys below flex under it. The wind leans the stack and a
+ * steady sway drive rocks it from the top, both sized from the stack's own
+ * compliance, so it sways about a planted base, visibly from the first floors
+ * and wider with the tension, but never bends like a noodle. At the crash the joints release: the stack tips
+ * about its base and breaks apart from the top down into a seeded debris
+ * fall. Residents move into the windows a moment after each floor lands (more
+ * of them the higher the stack), say so, wave harder the worse the sway gets,
+ * and go down with the floors.
  */
-import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Spring, clamp, gust, mix, mulberry32, noise, settleSpring, spring, stepSpring } from './motion';
 import { type Mood, drawWojak, drawWojakBust } from './people';
 
 export const TOWER_X = 560;
@@ -19,14 +21,21 @@ export const FLOOR_H = 30;
 /** The hoist rail runs this far right of the tower axis. */
 export const RAIL_DX = 72;
 /**
- * Storey stiffness, inter-storey damping and air damping, per unit floor mass. Soft, so a stack that gains
- * only three floors a doubling still leans hard as the multiplier climbs.
+ * Storey stiffness per unit floor mass: the frame stiffens by GROWTH a floor as the stack grows and each storey by
+ * CARRY for every floor it carries, so the base stays planted, the top does the swaying, and a tall tower sways
+ * slower and wider (about 1 s a sway on the first floor, 6 s fifty floors up). The tension softens it. Joint
+ * damping is proportional to the stiffness, so landings ring for a few sways; a little air damps the rest.
  */
-const STIFFNESS = 350;
-const DAMPING = 5.7;
-const AIR = 1.0;
+const STIFFNESS = 40;
+const GROWTH = 0.25;
+const CARRY = 0.08;
+const DAMPING = 0.05;
+const AIR = 0.3;
+/** The sway drive runs at this fraction of the stack's first mode, so it rocks the stack without running away. */
+const DRIVE = 0.7;
 const GRAVITY = 900;
 const INK = '#1c1f26';
+const FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 
 export const TONES = [
   { fill: '#f6d8a8', edge: '#c9a66f', glass: '#5a7aa0' },
@@ -39,7 +48,8 @@ export const TONES = [
 export interface Resident {
   window: number;
   tone: number;
-  phase: number;
+  /** The wave's phase, integrated so the rate can follow the fear without jumping. */
+  wave: number;
   delay: number;
   arrive: Spring;
 }
@@ -55,6 +65,8 @@ export interface Faller {
   tone: number;
   resting: boolean;
   hits: number;
+  /** Seconds lying still, which calms the flailing. */
+  still: number;
 }
 
 export interface Floor {
@@ -70,7 +82,12 @@ export interface Floor {
 /** Window centres across a block, and the number of units sold on the nth floor: the higher, the more suckers. */
 const WINDOWS = [-32, 0, 32];
 const MAX_FALLERS = 26;
-const residentCount = (n: number): number => (n < 1 ? 0 : n < 3 ? 1 : n < 5 ? 2 : 3);
+const residentCount = (n: number): number => (n < 3 ? 1 : n < 5 ? 2 : 3);
+/** What the newest buyer says moving in, by the fear: GM on the first floors, NGMI and worse at the top. */
+const PANIC_LINES = ['NGMI', 'SER PLS', 'IT IS SO OVER', 'WEN EXIT', 'FEW UNDERSTAND'];
+const chatter = (n: number, fear: number): string => (fear < 0.25 ? 'GM' : fear < 0.45 ? 'WAGMI' : fear < 0.7 ? 'WEN EXIT' : PANIC_LINES[n % PANIC_LINES.length]!);
+/** Half the height a block or a person stands at, for the angle it lies at: what keeps it on the ground. */
+const support = (angle: number, half: number, thick: number): number => half * Math.abs(Math.cos(angle)) + thick * Math.abs(Math.sin(angle));
 
 export interface Debris {
   x: number;
@@ -93,6 +110,12 @@ export interface Dust { x: number; y: number; vx: number; vy: number; r: number;
 
 export interface TowerState {
   floors: Floor[];
+  /** The sway drive's phase, integrated at a rate that follows the stack's first mode. */
+  sway: number;
+  /** A resident's speech bubble on the floor they just moved into. */
+  bubble: { floor: number; window: number; text: string; age: number } | null;
+  /** The last round's rubble fading as a new site opens (1 to 0). */
+  fade: number;
   /** Whole-stack vertical bump when a floor lands. */
   thud: Spring;
   collapsed: boolean;
@@ -110,18 +133,21 @@ export interface TowerState {
 }
 
 export function createTower(): TowerState {
-  return { floors: [], thud: spring(0), collapsed: false, fallAge: 0, fallHeight: 0, rod: { angle: 0, omega: 0, height: 0, dir: 1 }, debris: [], dust: [], fallers: [], events: { hits: 0, ejected: 0 }, rng: mulberry32(1) };
+  return { floors: [], sway: 0, bubble: null, fade: 0, thud: spring(0), collapsed: false, fallAge: 0, fallHeight: 0, rod: { angle: 0, omega: 0, height: 0, dir: 1 }, debris: [], dust: [], fallers: [], events: { hits: 0, ejected: 0 }, rng: mulberry32(1) };
 }
 
 export function resetTower(t: TowerState): void {
+  // The last round's rubble fades under a cloud of dust rather than vanishing as the new site opens.
+  if (t.debris.length || t.fallers.length) {
+    t.fade = 1;
+    for (const d of t.debris) addDust(t, d.x, GROUND_Y, 3, d.index % 2 ? 1 : -1, d.index * 5.3, 0.8);
+  }
   t.floors = [];
+  t.bubble = null;
   settleSpring(t.thud, 0);
   t.collapsed = false;
   t.fallAge = 0;
   t.fallHeight = 0;
-  t.debris = [];
-  t.dust = [];
-  t.fallers = [];
   t.events = { hits: 0, ejected: 0 };
 }
 
@@ -130,7 +156,7 @@ function residentsFor(n: number, quiet: boolean): Resident[] {
   const count = residentCount(n);
   const start = Math.floor(noise(n * 3.3) * 3);
   return Array.from({ length: count }, (_, k) => ({
-    window: (start + k) % 3, tone: noise(n * 1.7 + k * 4.1), phase: noise(n * 2.9 + k) * Math.PI * 2,
+    window: (start + k) % 3, tone: noise(n * 1.7 + k * 4.1), wave: noise(n * 2.9 + k) * Math.PI * 2,
     delay: quiet ? 0 : 0.8 + k * 0.35, arrive: spring(quiet ? 1 : 0),
   }));
 }
@@ -186,65 +212,117 @@ export function landFloor(t: TowerState, offset: number, lateralVelocity: number
   addDust(t, TOWER_X + floor.x + FLOOR_W / 2, y, 3, 1, n * 7 + 3);
 }
 
-function substep(t: TowerState, wind: number, h: number): void {
-  const n = t.floors.length;
-  if (!n) return;
-  const forces = new Array<number>(n);
-  for (let i = 0; i < n; i += 1) {
-    const f = t.floors[i]!;
-    const below = i ? t.floors[i - 1]! : null;
-    const above = i + 1 < n ? t.floors[i + 1]! : null;
-    const xb = below ? below.x : 0;
-    const vb = below ? below.vx : 0;
-    let force = -STIFFNESS * (f.x - xb) - DAMPING * (f.vx - vb) - AIR * f.vx + wind * (1 + i / 24);
-    if (above) force += STIFFNESS * (above.x - f.x) + DAMPING * (above.vx - f.vx);
-    forces[i] = force;
-  }
-  for (let i = 0; i < n; i += 1) t.floors[i]!.vx += forces[i]! * h;
-  for (let i = 0; i < n; i += 1) t.floors[i]!.x += t.floors[i]!.vx * h;
+/**
+ * How far the top leans in a full gust and sways either side of that. Both grow by the storey, more per storey
+ * with the tension, then more slowly past six floors, so a long round keeps swaying wider without the top ever
+ * going much past 120 px. A lone block on the slab barely slides, but two already rock like a stack: about ±6 px
+ * on the two floors of 1.7×, ±10 on three at 2.2× and ±20 on the four of 3×.
+ */
+export function swayFor(n: number, tension: number): { lean: number; sway: number } {
+  const storeys = (n <= 6 ? n : 6 + 0.5 * (n - 6)) * (n === 1 ? 0.6 : n === 2 ? 1.5 : 1);
+  return { lean: Math.min(35, (0.8 + 2 * tension) * storeys), sway: Math.min(70, 45 + 0.5 * n, (2.2 + 4.4 * tension) * storeys) };
 }
 
-export function stepTower(t: TowerState, wind: number, dt: number): void {
+/**
+ * A storey's stiffness: stiffer for each floor it carries (up to forty), and the joint to the slab half as stiff
+ * again. Its damping is capped so the substeps stay stable however tall the stack gets.
+ */
+const storeyK = (k: number, carried: number, base: boolean): number => k * (1 + CARRY * Math.min(40, carried)) * (base ? 1.5 : 1);
+const storeyC = (k: number): number => DAMPING * Math.min(k, 1200);
+
+/** Storey forces, reused between substeps. */
+const storey: number[] = [];
+
+/** One substep; `push` acts on the top floor. */
+function substep(t: TowerState, push: number, k: number, h: number): void {
+  const f = t.floors;
+  const n = f.length;
+  for (let i = 0; i < n; i += 1) {
+    const ki = storeyK(k, n - i, i === 0);
+    storey[i] = ki * (f[i]!.x - (i ? f[i - 1]!.x : 0)) + storeyC(ki) * (f[i]!.vx - (i ? f[i - 1]!.vx : 0));
+  }
+  for (let i = 0; i < n; i += 1) f[i]!.vx += ((i + 1 < n ? storey[i + 1]! : push) - storey[i]! - AIR * f[i]!.vx) * h;
+  for (let i = 0; i < n; i += 1) f[i]!.x += f[i]!.vx * h;
+}
+
+/**
+ * `wind` is the gust (-1..1) and `tension` (0..1) how bad it is; `fear` works the residents up. The push on the
+ * top is sized from the stack's compliance, so the lean and sway come out as `swayFor` asks at any height, and
+ * the sway drive's phase is integrated at a rate that follows the stack's first mode as it grows.
+ */
+export function stepTower(t: TowerState, wind: number, dt: number, tension = 0, fear = tension): void {
   t.events = { hits: 0, ejected: 0 };
   if (!t.collapsed) {
-    let left = dt;
-    while (left > 0) {
-      const h = Math.min(1 / 240, left);
-      left -= h;
-      substep(t, wind, h);
+    const n = t.floors.length;
+    if (n) {
+      const k = (STIFFNESS * (1 + GROWTH * Math.min(60, n - 1))) / (1 + tension);
+      // Top deflection per unit push on the top, and the first mode from the same shape (Rayleigh).
+      let u = 0, su2 = 0;
+      for (let j = n; j >= 1; j -= 1) {
+        u += 1 / storeyK(k, j, j === n);
+        su2 += u * u;
+      }
+      t.sway += DRIVE * Math.sqrt(u / su2) * dt;
+      const { lean, sway } = swayFor(n, tension);
+      const push = (clamp(wind, -1, 1) * lean + sway * (1 - DRIVE * DRIVE) * (0.8 + 0.25 * gust(t.sway * 0.3, 5)) * Math.sin(t.sway)) / u;
+      let left = dt;
+      while (left > 0) {
+        const h = Math.min(1 / 240, left);
+        left -= h;
+        substep(t, push, k, h);
+      }
     }
-    for (const f of t.floors) {
+    for (const [i, f] of t.floors.entries()) {
       stepSpring(f.squash, 0, 30, 0.35, dt);
-      for (const r of f.residents) {
-        if (r.delay > 0) r.delay -= dt;
-        else stepSpring(r.arrive, 1, 9, 0.45, dt);
+      for (const [j, r] of f.residents.entries()) {
+        r.wave += (3 + 9 * fear) * dt;
+        if (r.delay > 0) {
+          r.delay -= dt;
+          // The first buyer in says something about it.
+          if (r.delay <= 0 && j === 0) t.bubble = { floor: i, window: r.window, text: chatter(i, fear), age: 0 };
+        } else stepSpring(r.arrive, 1, 9, 0.45, dt);
       }
     }
     stepSpring(t.thud, 0, 22, 0.5, dt);
+    if (t.bubble && (t.bubble.age += dt) > 1.8) t.bubble = null;
+    if (t.fade > 0 && (t.fade -= dt / 0.45) <= 0) {
+      t.debris = [];
+      t.fallers = [];
+    }
   } else {
     stepCollapse(t, dt);
   }
   for (const p of t.fallers) {
+    p.still += dt;
     if (p.resting) continue;
     p.vy += GRAVITY * dt;
     p.vx *= Math.exp(-1.2 * dt);
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.angle += p.spin * dt;
-    if (p.y >= GROUND_Y) {
-      p.y = GROUND_Y;
-      p.hits += 1;
-      if (p.vy > 90 && p.hits <= 2) addDust(t, p.x, GROUND_Y, 2, p.vx >= 0 ? 1 : -1, p.x * 0.37 + p.hits, 0.6);
-      p.vy = -p.vy * 0.3;
-      p.vx *= 0.5;
-      p.spin *= 0.4;
-      if (Math.abs(p.vy) < 60) {
-        // Face down in the site dust, head pointing the way they were flying.
-        p.resting = true;
-        p.angle = (p.vx >= 0 ? 1 : -1) * (Math.PI / 2);
-        p.vy = p.vx = p.spin = 0;
+    // (x, y) is the middle of the body: it lies 4 px off the ground and stands 13 px up.
+    const half = support(p.angle, 13, 4);
+    if (p.y + half >= GROUND_Y - 1 && p.vy > -60) {
+      if (p.vy > 60) {
+        p.hits += 1;
+        if (p.vy > 90 && p.hits <= 2) addDust(t, p.x, GROUND_Y, 2, p.vx >= 0 ? 1 : -1, p.x * 0.37 + p.hits, 0.6);
+        p.y = GROUND_Y - half;
+        p.vy = -p.vy * 0.3;
+        p.vx *= 0.5;
+        p.spin *= 0.4;
+      } else {
+        // Down on the ground they ride it as they topple onto their side the way they were going, then lie still.
+        p.y = GROUND_Y - half;
+        p.vy = 0;
+        const off = p.angle - (Math.round(p.angle / Math.PI - 0.5) + 0.5) * Math.PI;
+        p.spin = (p.spin - 30 * off * dt) * Math.exp(-7 * dt);
+        p.vx *= Math.exp(-6 * dt);
+        if (Math.abs(off) < 0.03 && Math.abs(p.spin) < 0.4) {
+          p.resting = true;
+          p.vx = p.spin = 0;
+        }
       }
-    }
+    } else p.still = 0;
   }
   for (const d of t.dust) {
     d.age += dt;
@@ -267,6 +345,8 @@ export function collapseTower(t: TowerState, seed: number, quiet: boolean): void
   const dir = Math.abs(lean) > 0.5 ? Math.sign(lean) : rng() < 0.5 ? -1 : 1;
   const height = Math.max(FLOOR_H, n * FLOOR_H);
   t.collapsed = true;
+  t.bubble = null;
+  t.fade = 0;
   t.fallAge = quiet ? 10 : 0;
   t.fallHeight = n * FLOOR_H;
   t.rod = { angle: clamp(lean / height, -0.06, 0.06), omega: dir * 0.8 + (top?.vx ?? 0) / height, height, dir };
@@ -294,7 +374,7 @@ function layRubble(t: TowerState, d: Debris): void {
   for (const r of d.residents) {
     if (t.fallers.length >= MAX_FALLERS) break;
     const side = t.rng() < 0.5 ? -1 : 1;
-    t.fallers.push({ x: d.x + (t.rng() - 0.5) * 60, y: GROUND_Y, vx: 0, vy: 0, angle: side * Math.PI / 2, spin: 0, tone: r.tone, resting: true, hits: 1 });
+    t.fallers.push({ x: d.x + (t.rng() - 0.5) * 60, y: GROUND_Y - 4, vx: 0, vy: 0, angle: side * Math.PI / 2, spin: 0, tone: r.tone, resting: true, hits: 1, still: 1 });
   }
   d.residents = [];
 }
@@ -306,10 +386,11 @@ function eject(t: TowerState, d: Debris): void {
     const wx = WINDOWS[r.window]!;
     const cos = Math.cos(d.angle);
     const sin = Math.sin(d.angle);
+    // From the sill, the middle of the body 13 px above it.
     t.fallers.push({
-      x: d.x + wx * cos - (-FLOOR_H / 2) * sin, y: d.y + wx * sin + (-FLOOR_H / 2) * cos,
+      x: d.x + wx * cos - (-FLOOR_H / 2) * sin, y: d.y + wx * sin + (-FLOOR_H / 2) * cos - 13,
       vx: d.vx * 0.8 + (t.rng() - 0.5) * 200, vy: d.vy - 80 - t.rng() * 180,
-      angle: 0, spin: (t.rng() - 0.5) * 16, tone: r.tone, resting: false, hits: 0,
+      angle: 0, spin: (t.rng() - 0.5) * 16, tone: r.tone, resting: false, hits: 0, still: 0,
     });
     t.events.ejected += 1;
   }
@@ -331,6 +412,7 @@ function stepCollapse(t: TowerState, dt: number): void {
   const sin = Math.sin(rod.angle);
   const cos = Math.cos(rod.angle);
   for (const d of t.debris) {
+    for (const r of d.residents) r.wave += 18 * dt;
     if (d.resting) continue;
     const r = (d.index + 0.5) * FLOOR_H;
     if (!d.released) {
@@ -353,10 +435,10 @@ function stepCollapse(t: TowerState, dt: number): void {
     d.x += d.vx * dt;
     d.y += d.vy * dt;
     d.angle += d.spin * dt;
-    const half = (FLOOR_H / 2) * Math.abs(Math.cos(d.angle)) + (FLOOR_W / 2) * Math.abs(Math.sin(d.angle));
-    if (d.y + half > GROUND_Y) {
+    const half = support(d.angle, FLOOR_H / 2, FLOOR_W / 2);
+    if (d.y + half >= GROUND_Y - 1 && d.vy > -35) {
       d.y = GROUND_Y - half;
-      if (d.vy > 0) {
+      if (d.vy > 35) {
         if (d.vy > 140 && d.hits < 3) {
           addDust(t, d.x, GROUND_Y, 4, d.vx >= 0 ? 1 : -1, d.index * 13 + d.hits, 1.4);
           t.events.hits += 1;
@@ -365,15 +447,17 @@ function stepCollapse(t: TowerState, dt: number): void {
         d.vy = -d.vy * 0.25;
         d.vx *= 0.55;
         d.spin *= 0.4;
-      }
-      if (Math.abs(d.vy) < 35 && Math.abs(d.spin) < 0.8) {
-        d.resting = true;
+      } else {
+        // Down on the ground a block rides it as it topples onto its broad face (gravity about the corner it rests
+        // on) and scrapes to a stop, rather than snapping flat: it is at rest only once it lies flat.
         d.vy = 0;
-        d.spin = 0;
-        // Rubble lies flat.
-        const flat = Math.round(d.angle / Math.PI) * Math.PI;
-        d.angle = flat;
-        d.y = GROUND_Y - ((FLOOR_H / 2) * Math.abs(Math.cos(flat)) + (FLOOR_W / 2) * Math.abs(Math.sin(flat)));
+        const off = d.angle - Math.round(d.angle / Math.PI) * Math.PI;
+        d.spin = (d.spin - 16 * off * dt) * Math.exp(-4 * dt);
+        d.vx *= Math.exp(-4 * dt);
+        if (Math.abs(off) < 0.03 && Math.abs(d.spin) < 0.4 && Math.abs(d.vx) < 25) {
+          d.resting = true;
+          d.vx = d.spin = 0;
+        }
       }
     }
   }
@@ -432,13 +516,12 @@ export function drawBlock(ctx: CanvasRenderingContext2D, tone: number, crack = 0
  * sway the more frantic the wave, until they are screaming with both hands up. `hold` (the collapse) keeps
  * both hands up on whatever they are riding.
  */
-function drawResidents(ctx: CanvasRenderingContext2D, residents: Resident[], fear: number, time: number, hold: boolean): void {
+function drawResidents(ctx: CanvasRenderingContext2D, residents: Resident[], fear: number, hold: boolean): void {
   for (const r of residents) {
     const k = clamp(r.arrive.x, 0, 1.25);
     if (k < 0.03) continue;
     const mood: Mood = hold || fear > 0.72 ? 'panic' : fear > 0.4 ? 'meh' : 'hype';
-    const rate = 3 + 9 * fear;
-    const wave = hold ? Math.sin(time * 18 + r.phase) * 0.25 : Math.sin(time * rate + r.phase) * (0.45 + 0.5 * fear) - 0.2;
+    const wave = hold ? Math.sin(r.wave) * 0.25 : Math.sin(r.wave) * (0.45 + 0.5 * fear) - 0.2;
     ctx.save();
     ctx.translate(WINDOWS[r.window]!, 6);
     ctx.scale(k, k);
@@ -447,7 +530,8 @@ function drawResidents(ctx: CanvasRenderingContext2D, residents: Resident[], fea
   }
 }
 
-function drawFoundation(ctx: CanvasRenderingContext2D): void {
+/** The slab; split down the middle once the tower is down (rugged at the foundation). */
+function drawFoundation(ctx: CanvasRenderingContext2D, split: boolean): void {
   ctx.beginPath();
   ctx.roundRect(TOWER_X - 92, GROUND_Y - 10, 184, 14, 3);
   ctx.fillStyle = '#a8aeb6';
@@ -457,25 +541,86 @@ function drawFoundation(ctx: CanvasRenderingContext2D): void {
   ctx.stroke();
   ctx.fillStyle = '#6f757d';
   for (const x of [-76, -40, 36, 72]) ctx.fillRect(TOWER_X + x - 3, GROUND_Y - 7, 6, 4);
+  if (!split) return;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(TOWER_X - 6, GROUND_Y - 10); ctx.lineTo(TOWER_X + 3, GROUND_Y - 5); ctx.lineTo(TOWER_X - 4, GROUND_Y - 1); ctx.lineTo(TOWER_X + 5, GROUND_Y + 4);
+  ctx.moveTo(TOWER_X + 3, GROUND_Y - 5); ctx.lineTo(TOWER_X + 16, GROUND_Y - 7);
+  ctx.stroke();
 }
 
-/** The stack and its people; `fear` (0..1) works the residents up and cracks the two base floors as the round runs long. */
-export function drawTower(ctx: CanvasRenderingContext2D, t: TowerState, fear = 0, time = 0): void {
-  drawFoundation(ctx);
+/**
+ * A speech bubble with its tail at (x, y), opening to `side` (-1 left, 1 right). `k` pops it in and fades it,
+ * `ui` scales it up when the camera pulls back so it stays legible.
+ */
+export function drawBubble(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, side: number, k: number, ui = 1): void {
+  if (k < 0.02) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha *= clamp(k * 1.5, 0, 1);
+  ctx.scale(ui * Math.min(1, k * 1.2), ui * Math.min(1, k * 1.2));
+  ctx.font = `900 12px ${FONT}`;
+  const w = ctx.measureText(text).width + 12;
+  const bx = side > 0 ? 2 : -2 - w;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.roundRect(bx, -27, w, 19, 7);
+  ctx.moveTo(side * 6, -9); ctx.lineTo(0, 0); ctx.lineTo(side * 14, -9);
+  ctx.fill(); ctx.stroke();
+  // Paint out the box's edge across the tail's mouth.
+  ctx.beginPath(); ctx.moveTo(side * 7, -10); ctx.lineTo(side * 1.5, -2); ctx.lineTo(side * 13, -10); ctx.fill();
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, bx + w / 2, -17);
+  ctx.restore();
+}
+
+/** A fake-out: the stack lurches one way and the slab coughs dust. Keyed to the multiplier, never the outcome. */
+export function lurch(t: TowerState, dir: number, strength: number): void {
+  const n = t.floors.length;
+  for (const [i, f] of t.floors.entries()) f.vx += dir * strength * ((i + 1) / n);
+  t.thud.v += 70;
+  if (n) {
+    addDust(t, TOWER_X - FLOOR_W / 2 + 4, GROUND_Y - 4, 4, -1, n * 3.1, 0.9);
+    addDust(t, TOWER_X + FLOOR_W / 2 - 4, GROUND_Y - 4, 4, 1, n * 3.1 + 2, 0.9);
+  }
+}
+
+/** The tilt a block draws at: the stack's slope across it, flat where it sits on the slab, softened. */
+export function slopeAt(t: TowerState, i: number): number {
+  const f = t.floors;
+  const drift = (j: number): number => (j > 0 && j < f.length ? f[j]!.x - f[j - 1]!.x : 0);
+  return Math.atan2((drift(i) + (i + 1 < f.length ? drift(i + 1) : drift(i))) / 2, FLOOR_H) * 0.6;
+}
+
+/**
+ * The stack and its people; `fear` (0..1) works the residents up and `crack` (0..1) splits the two base floors.
+ * `ui` scales the speech bubbles for a pulled-back camera.
+ */
+export function drawTower(ctx: CanvasRenderingContext2D, t: TowerState, fear = 0, crack = 0, ui = 1): void {
+  drawFoundation(ctx, t.collapsed);
   if (t.collapsed) return;
   const n = t.floors.length;
-  const baseCrack = smoothstep(0.3, 1, fear);
   for (let i = 0; i < n; i += 1) {
     const f = t.floors[i]!;
-    const below = i ? t.floors[i - 1]!.x : 0;
-    const tilt = Math.atan2(f.x - below, FLOOR_H) * 0.4;
+    const tilt = slopeAt(t, i);
     ctx.save();
     ctx.translate(TOWER_X + f.x, GROUND_Y - (i + 0.5) * FLOOR_H + t.thud.x);
     ctx.rotate(tilt);
     ctx.scale(1, 1 - 0.12 * clamp(f.squash.x, -1, 1));
-    drawBlock(ctx, f.tone, i === 0 ? baseCrack : i === 1 ? baseCrack * 0.6 : 0);
-    drawResidents(ctx, f.residents, fear, time, false);
+    drawBlock(ctx, f.tone, i === 0 ? crack : i === 1 ? crack * 0.6 : 0);
+    drawResidents(ctx, f.residents, fear, false);
     ctx.restore();
+  }
+  const b = t.bubble;
+  if (b && b.floor < n) {
+    const f = t.floors[b.floor]!;
+    const side = b.window === 2 || (b.window === 1 && b.floor % 2 === 1) ? 1 : -1;
+    drawBubble(ctx, b.text, TOWER_X + f.x + WINDOWS[b.window]! + side * 4, GROUND_Y - (b.floor + 0.5) * FLOOR_H - 8 + t.thud.x, side, Math.min(b.age / 0.15, (1.8 - b.age) / 0.3), ui);
   }
   // The hoist rail follows the stack's bend.
   if (n) {
@@ -496,35 +641,34 @@ export function drawTower(ctx: CanvasRenderingContext2D, t: TowerState, fear = 0
   }
 }
 
-export function drawDebris(ctx: CanvasRenderingContext2D, t: TowerState, time = 0): void {
+export function drawDebris(ctx: CanvasRenderingContext2D, t: TowerState): void {
+  ctx.save();
+  if (t.fade > 0) ctx.globalAlpha = t.fade;
   for (const d of t.debris) {
     ctx.save();
     ctx.translate(d.x, d.y);
     ctx.rotate(d.angle);
     drawBlock(ctx, d.tone, 1);
-    if (d.residents.length) drawResidents(ctx, d.residents, 1, time, true);
+    if (d.residents.length) drawResidents(ctx, d.residents, 1, true);
     ctx.restore();
   }
+  ctx.restore();
 }
 
-/** Residents in the air and in the dust: flailing while they spin, face down once they land. */
+/** Residents in the air and in the dust: flailing while they spin, calming as they topple, face down once they lie still. */
 export function drawFallers(ctx: CanvasRenderingContext2D, t: TowerState, time = 0): void {
+  ctx.save();
+  if (t.fade > 0) ctx.globalAlpha = t.fade;
   for (const p of t.fallers) {
+    const calm = clamp(p.still / 0.5, 0, 1);
     ctx.save();
     ctx.translate(p.x, p.y);
-    if (p.resting) {
-      ctx.translate(0, -4);
-      ctx.rotate(p.angle);
-      ctx.translate(0, 4);
-      drawWojak(ctx, 'out', 0.6, 0, p.tone);
-    } else {
-      ctx.translate(0, -13);
-      ctx.rotate(p.angle);
-      ctx.translate(0, 13);
-      drawWojak(ctx, 'panic', 1, Math.sin(time * 30) * 0.8, p.tone);
-    }
+    ctx.rotate(p.angle);
+    ctx.translate(0, 13);
+    drawWojak(ctx, p.resting ? 'out' : 'panic', 1 - 0.4 * calm, Math.sin(time * 30) * 0.8 * (1 - calm), p.tone);
     ctx.restore();
   }
+  ctx.restore();
 }
 
 export function drawDust(ctx: CanvasRenderingContext2D, t: TowerState): void {

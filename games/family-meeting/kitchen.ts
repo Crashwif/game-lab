@@ -19,54 +19,68 @@ export const CASSEROLE = { x: 482, y: 376 } as const;
 const SPOUT = { x: 214, y: 268 } as const;
 
 export type Who = 'her' | 'dad' | 'mom';
-export interface Line { at: number; who: Who; text: string }
+/** `cap` is the caption the line puts up when it is said, so a caption never runs ahead of the line it names. */
+export interface Line { at: number; who: Who; text: string; cap?: string }
 /**
- * The conversation, keyed to the multiplier: her lines go further every time, the parents get a word in between.
- * Each line is a speech bubble and a cue; once she has left the table no more are said.
+ * The confession, keyed to the multiplier: the college fund, then the church fund, into memecoins, and the
+ * parents get a word in between. A line every second and a half or so through the first 15 s, where most
+ * rounds end; each line is a speech bubble and a cue; once she has left the table no more are said.
  */
 export const LINES: Line[] = [
-  { at: 1.04, who: 'her', text: 'so… I’ve been thinking about my gender' },
+  { at: 1.04, who: 'her', text: 'so… I’ve been thinking about my portfolio', cap: 'SO, UM, ABOUT MY PORTFOLIO' },
   { at: 1.18, who: 'dad', text: 'pass the potatoes' },
-  { at: 1.32, who: 'her', text: 'I think I might be nonbinary' },
+  { at: 1.32, who: 'her', text: 'I put the college fund in a dog coin', cap: 'THE COLLEGE FUND IS IN A DOG COIN' },
   { at: 1.48, who: 'mom', text: 'is this from the internet' },
-  { at: 1.68, who: 'her', text: 'gender is a social construct, mom' },
-  { at: 1.9, who: 'dad', text: 'this casserole is a social construct' },
-  { at: 2.2, who: 'her', text: 'my pronouns are they/them. for now' },
+  { at: 1.68, who: 'her', text: 'it’s not gambling, it’s a DAO', cap: 'IT’S NOT GAMBLING, IT’S A DAO' },
+  { at: 1.9, who: 'dad', text: 'what in god’s name is a DAO' },
+  { at: 2.2, who: 'her', text: 'I’m a KOL now. 40k followers. mostly bots', cap: 'SHE’S A KOL NOW' },
   { at: 2.55, who: 'mom', text: 'we raised you in a christian home' },
-  { at: 2.9, who: 'her', text: 'actually I’m demigender with a xenogender lean' },
-  { at: 3.35, who: 'dad', text: 'a what' },
-  { at: 3.8, who: 'her', text: 'the binary is a colonial import, dad' },
+  { at: 2.9, who: 'her', text: 'so I aped the church building fund', cap: 'SHE APED THE CHURCH FUND' },
+  { at: 3.35, who: 'dad', text: 'WHAT DID YOU DO WITH THE CHURCH FUND' },
+  { at: 3.8, who: 'her', text: 'few understand', cap: 'FEW UNDERSTAND' },
   { at: 4.4, who: 'mom', text: 'pastor rick is going to hear about this' },
-  { at: 5, who: 'her', text: 'also property is theft. pass the salt' },
-  { at: 5.7, who: 'her', text: 'I’m agender but I present post-gender' },
-  { at: 6.5, who: 'her', text: 'gender is a performance. like church' },
-  { at: 7.2, who: 'dad', text: 'WHAT DID YOU SAY ABOUT CHURCH' },
-  { at: 8, who: 'her', text: 'my identity is a superposition until observed' },
-  { at: 9, who: 'her', text: 'the nuclear family is a cold war psyop' },
-  { at: 10, who: 'mom', text: 'lord give me strength' },
-  { at: 11, who: 'her', text: 'the self is a non-euclidean manifold' },
-  { at: 12.5, who: 'her', text: 'it’s praxis, dad' },
-  { at: 14.5, who: 'her', text: 'I identify as the concept of tuesday' },
-  { at: 17, who: 'her', text: 'there is no self. only vibes' },
-  { at: 20, who: 'her', text: 'I’m dating a polycule, by the way' },
-  { at: 24, who: 'her', text: 'my they/them is itself a construct' },
-  { at: 29, who: 'her', text: 'anyway, who wants pie' },
-  { at: 36, who: 'her', text: 'the pie is also a construct' },
-  { at: 45, who: 'her', text: 'I contain multitudes. legally' },
+  { at: 5, who: 'her', text: 'pastor rick is in my discord, mom', cap: 'PASTOR RICK IS IN THE DISCORD' },
+  { at: 5.7, who: 'dad', text: 'is THAT why he drives a lambo' },
+  { at: 6.5, who: 'her', text: 'I’m not selling. diamond hands', cap: 'DIAMOND HANDS AT DINNER' },
+  { at: 7.4, who: 'mom', text: 'lord give me strength' },
+  { at: 8, who: 'her', text: 'also I borrowed against the minivan. 100x', cap: 'THE MINIVAN IS LEVERAGED' },
+  { at: 9, who: 'dad', text: 'WE NEED THE MINIVAN' },
+  { at: 10, who: 'her', text: 'money is a social construct, dad', cap: 'MONEY IS A CONSTRUCT' },
+  { at: 11.2, who: 'mom', text: 'I’m calling your grandmother' },
+  { at: 12.6, who: 'her', text: 'grandma’s in the discord too. she’s a whale', cap: 'GRANDMA IS A WHALE' },
+  { at: 15.8, who: 'her', text: 'it’s not a ponzi if grandma got in early', cap: 'IT’S NOT A PONZI' },
+  { at: 20, who: 'dad', text: 'how much is left' },
+  { at: 25, who: 'her', text: 'define “left”', cap: 'DEFINE “LEFT”' },
+  { at: 31.6, who: 'mom', text: 'lord, take the wheel. of the minivan' },
+  { at: 40, who: 'her', text: 'I minted the family bible as an NFT', cap: 'THE FAMILY BIBLE IS AN NFT' },
+  { at: 54, who: 'her', text: 'wagmi, mom. we’re all gonna make it', cap: 'WAGMI' },
+  { at: 73, who: 'dad', text: 'we are NOT all gonna make it' },
+  { at: 100, who: 'her', text: 'anyway, who wants pie. it’s tokenized', cap: 'THE PIE IS TOKENIZED' },
+  { at: 316, who: 'her', text: 'I sold the house to buy the dip', cap: 'SHE SOLD THE HOUSE' },
+  { at: 540, who: 'dad', text: 'WE LIVE IN THE HOUSE' },
+  { at: 1000, who: 'her', text: 'we rent it back from the DAO now', cap: 'THE DAO OWNS THE HOUSE' },
 ];
-/** Dinner keeps going after the scripted ladder, with time to read each exchange. */
+/** Dinner keeps going between and after the scripted ladder: a filler exchange whenever six seconds pass in silence. */
 const SECONDS: Omit<Line, 'at'>[] = [
   { who: 'dad', text: 'can we discuss literally anything else' },
-  { who: 'her', text: 'sure. who owns the leftovers' },
+  { who: 'her', text: 'sure. wen dessert' },
   { who: 'mom', text: 'the kettle has been screaming for ten minutes' },
-  { who: 'her', text: 'it has a lot to unpack' },
+  { who: 'her', text: 'same. it’s been a rough cycle' },
   { who: 'dad', text: 'I am starting a second casserole' },
-  { who: 'her', text: 'a sequel? in this economy?' },
+  { who: 'her', text: 'a second casserole? bullish' },
   { who: 'mom', text: 'dessert was supposed to be the easy part' },
-  { who: 'her', text: 'wait until we get to the group chat' },
+  { who: 'her', text: 'wait until you see the group chat' },
   { who: 'dad', text: 'why is the cross doing that' },
-  { who: 'her', text: 'even the decorations have questions' },
+  { who: 'her', text: 'even the decorations are capitulating' },
 ];
+/** The betting window: grace, and a warning. */
+const GRACE: Line[] = [
+  { at: 0.6, who: 'mom', text: 'who’s saying grace?' },
+  { at: 1.5, who: 'dad', text: 'not it' },
+  { at: 2.4, who: 'her', text: 'before we eat… I have an announcement' },
+];
+/** Seconds a bubble stays up before the same speaker's next line may replace it. */
+const READ_S = 2.6;
 /** Where each speaker's bubble sits and where its tail points. */
 const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: number }; width: number }> = {
   her: { x: 356, y: 400, tail: { x: 558, y: 410 }, width: 280 },
@@ -78,7 +92,8 @@ export interface Bubble { who: Who; text: string; age: number; life: number; pop
 export type BitKind = 'chunk' | 'pearl' | 'tooth' | 'tuft' | 'glasses' | 'band' | 'eye';
 export interface Bit { x: number; y: number; vx: number; vy: number; rot: number; vr: number; r: number; kind: BitKind; color: string; floor: number; rest: boolean; splat: boolean; hits: number }
 export interface Puff { x: number; y: number; r: number; vx: number; vy: number; age: number; life: number; color: string; grow: number }
-interface Cross { angle: Spring; fallen: boolean; x: number; y: number; rot: number; vx: number; vy: number; vr: number; rest: boolean; hits: number }
+/** `lie` is the angle it comes to rest at once it has hit the dish, and `settle` how far it has got there. */
+interface Cross { angle: Spring; fallen: boolean; x: number; y: number; rot: number; vx: number; vy: number; vr: number; rest: boolean; hits: number; lie: number; settle: number }
 interface Kettle { whistle: number; lid: Spring; steam: Puff[]; puffClock: number }
 
 export interface Kitchen {
@@ -86,8 +101,13 @@ export interface Kitchen {
   kettle: Kettle;
   bubbles: Bubble[];
   nextLine: number;
+  /** Lines the multiplier has reached that wait for their speaker's last bubble to be read. */
+  queue: Line[];
+  /** Seconds since anyone said anything: six of them bring a filler line. */
   secondsClock: number;
   secondsLine: number;
+  /** Seconds into the betting window, for the grace exchange. */
+  graceT: number;
   /** Lines the crash's aftermath adds (her shrug, or the parents' sigh), played out by crashT. */
   aftermath: { at: number; who: Who; text: string }[];
   bits: Bit[];
@@ -112,12 +132,14 @@ function noEvents(): Kitchen['events'] {
 
 function fresh(): Kitchen {
   return {
-    cross: { angle: spring(0), fallen: false, x: NAIL.x, y: NAIL.y, rot: 0, vx: 0, vy: 0, vr: 0, rest: false, hits: 0 },
+    cross: { angle: spring(0), fallen: false, x: NAIL.x, y: NAIL.y, rot: 0, vx: 0, vy: 0, vr: 0, rest: false, hits: 0, lie: 0, settle: 0 },
     kettle: { whistle: 0, lid: spring(0), steam: [], puffClock: 0 },
     bubbles: [],
     nextLine: 0,
-    secondsClock: 0,
+    queue: [],
+    secondsClock: 1,
     secondsLine: 0,
+    graceT: 0,
     aftermath: [],
     bits: [],
     puffs: [],
@@ -141,6 +163,8 @@ export function resetKitchen(k: Kitchen): void {
 
 export interface KitchenDrive {
   running: boolean;
+  /** The betting window, when grace is (not) said. */
+  betting?: boolean;
   multiplier: number;
   tension: number;
   time: number;
@@ -153,11 +177,24 @@ function say(k: Kitchen, who: Who, text: string, life = who === 'her' ? 5.5 : 3.
   k.bubbles.push({ who, text, age: 0, life, pop: spring(0.6) });
 }
 
-/** Her leaving line, the moment the cash-out is accepted. */
+/** Her leaving line, the moment the cash-out is accepted: paper hands, full plate. */
 export function sayLeaving(k: Kitchen): void {
   k.holding = true;
-  say(k, 'her', 'anyway I’m eating in my room', 2.6);
+  k.queue = [];
+  say(k, 'her', 'anyway I’m taking profits in my room', 2.6);
 }
+
+/** The caption of the last scripted line said, for a scene that opens mid-round. */
+export function lastCaption(k: Kitchen): string {
+  for (let i = k.nextLine - 1; i >= 0; i -= 1) if (LINES[i]!.cap) return LINES[i]!.cap!;
+  return '';
+}
+
+/** The kettle and the cross at a tension: the kettle steams from about 2.6× and whistles by 3.3×; the cross trembles from 1.3× and creaks by 1.5×. */
+const kettleAt = (tension: number): number => smoothstep(0.57, 0.94, tension);
+const rattleAt = (tension: number): number => smoothstep(0.15, 0.75, tension);
+/** The cross at rest in the dish, lying across it. */
+const LIE = Math.PI / 2 + 0.42;
 
 /**
  * The crash. Hard, both heads go: the flash, the cross off its nail, the aftermath lines. Harmless (she had
@@ -168,12 +205,16 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
   k.crashed = true;
   k.harmless = harmless;
   k.holding = true;
+  k.queue = [];
   const rand = mulberry32(crashX100 * 7 + 1);
+  // The key beats land inside the two seconds the crash is held: her shrug, or their sigh; the car is a bonus for replays.
   if (harmless) {
-    k.aftermath = [{ at: 1.1, who: 'mom', text: 'we’ll pray about it' }, { at: 2.6, who: 'dad', text: 'pass the potatoes' }];
+    k.aftermath = [{ at: 0.5, who: 'mom', text: 'we’ll pray about it' }, { at: 1.6, who: 'dad', text: 'pass the potatoes' }];
   } else {
+    // A bust before she has said a word: she barely got the first syllable out.
+    if (k.nextLine === 0 && !quiet) say(k, 'her', 'so, um—', 1.2);
     k.smokeFrom = necks;
-    k.aftermath = [{ at: 1.4, who: 'her', text: '…so anyway' }, { at: 3.6, who: 'her', text: 'can I borrow the car' }];
+    k.aftermath = [{ at: 0.75, who: 'her', text: '…so anyway' }, { at: 2.6, who: 'her', text: 'can I borrow the car' }];
     const c = k.cross;
     c.fallen = true;
     c.vx = (rand() - 0.5) * 60;
@@ -184,7 +225,11 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
   }
   if (quiet) {
     k.crashT = 5;
-    for (const line of k.aftermath) say(k, line.who, line.text);
+    // Met late, each aftermath line is the only bubble up from that mouth, rather than one fading out behind it.
+    for (const line of k.aftermath) {
+      k.bubbles = k.bubbles.filter((b) => b.who !== line.who);
+      say(k, line.who, line.text);
+    }
     k.aftermath = [];
     for (const b of k.bubbles) b.age = 1;
     if (!harmless) {
@@ -192,7 +237,8 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
       c.rest = true;
       c.x = CASSEROLE.x + 8;
       c.y = CASSEROLE.y - 14;
-      c.rot = 0.42;
+      c.rot = c.lie = LIE;
+      c.settle = 1;
       c.vx = c.vy = c.vr = 0;
     }
   }
@@ -205,11 +251,8 @@ export function burstHead(k: Kitchen, x: number, y: number, kind: 'dad' | 'mom',
     const s = power * (0.45 + rand());
     const vx = Math.cos(a) * s + (rand() - 0.5) * 60;
     const vy = Math.sin(a) * s;
-    // Where it lands: on the table if its throw stays over it, else the floor beyond.
-    const flight = 0.9 + rand() * 0.5;
-    const lx = x + vx * flight;
-    const onTable = lx > TABLE.nearLeft + 10 && lx < TABLE.nearRight - 10;
-    const floor = onTable ? mix(TABLE.far + 12, TABLE.near - 14, rand()) : 522;
+    // The depth on the table it would come down at; whether the table is there is decided when it gets there.
+    const floor = mix(TABLE.far + 12, TABLE.near - 14, rand());
     k.bits.push({ ...bit, x, y, vx, vy, rot: rand() * Math.PI * 2, vr: (rand() - 0.5) * 16, floor, rest: false, splat: false, hits: 0 });
   };
   for (let i = 0; i < 16; i += 1) throwBit({ r: 4 + rand() * 7, kind: 'chunk', color: skin }, 300);
@@ -247,6 +290,12 @@ function stepPuffs(list: Puff[], dt: number): void {
   list.length = w;
 }
 
+/** Whether a point on the table's plane at depth `y` is over the cloth, a little in from its edge. */
+function overTable(x: number, y: number): boolean {
+  const u = (y - TABLE.far) / (TABLE.near - TABLE.far);
+  return u >= 0 && u <= 1 && x > mix(TABLE.farLeft, TABLE.nearLeft, u) + 10 && x < mix(TABLE.farRight, TABLE.nearRight, u) - 10;
+}
+
 function inCasserole(x: number, y: number): boolean {
   const dx = (x - CASSEROLE.x) / 58;
   const dy = (y - CASSEROLE.y) / 20;
@@ -261,6 +310,11 @@ function stepBits(k: Kitchen, dt: number): void {
     b.y += b.vy * dt;
     b.rot += b.vr * dt;
     if (b.y >= b.floor && b.vy > 0) {
+      // Off the edge of the cloth there is nothing to land on: it carries on down to the floor.
+      if (b.floor < 522 && !overTable(b.x, b.floor)) {
+        b.floor = 522;
+        continue;
+      }
       if (b.kind !== 'glasses' && b.kind !== 'band' && inCasserole(b.x, b.y)) {
         // It lands in the dish and stays there as a splat.
         b.rest = true;
@@ -288,10 +342,10 @@ function stepBits(k: Kitchen, dt: number): void {
 function stepCross(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const c = k.cross;
   if (!c.fallen) {
-    const rattle = drive.running && !k.crashed && !k.holding ? smoothstep(0.32, 1, drive.tension) : 0;
+    const rattle = drive.running && !k.crashed && !k.holding ? rattleAt(drive.tension) : 0;
     const target = drive.reduced ? 0 : (noise(Math.floor(drive.time * 17)) - 0.5) * 0.5 * rattle;
     stepSpring(c.angle, target, 14, 0.3, dt);
-    if (rattle > 0.3) {
+    if (rattle > 0.1) {
       k.creakClock += dt;
       if (k.creakClock > 1.5 - rattle * 0.9) {
         k.creakClock = 0;
@@ -301,6 +355,11 @@ function stepCross(k: Kitchen, drive: KitchenDrive, dt: number): void {
     } else k.creakClock = 0;
     return;
   }
+  // Once it has hit the dish it topples toward lying across it, from whichever way round it came down.
+  if (c.hits > 0) {
+    c.settle = Math.min(1, c.settle + dt * 2.5);
+    c.rot += (c.lie - c.rot) * (1 - Math.exp(-9 * dt));
+  }
   if (c.rest) return;
   c.vy += 1000 * dt;
   c.x += c.vx * dt;
@@ -309,6 +368,17 @@ function stepCross(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const floor = CASSEROLE.y - 14;
   if (c.y >= floor && c.vy > 0) {
     c.y = floor;
+    if (c.hits === 0) {
+      // The nearest way for it to lie across the dish, wrapped so it never spins the long way round.
+      let gap = Infinity;
+      for (const base of [LIE, LIE - 0.84, LIE - Math.PI, LIE - Math.PI - 0.84]) {
+        const a = base + 2 * Math.PI * Math.round((c.rot - base) / (2 * Math.PI));
+        if (Math.abs(a - c.rot) < gap) {
+          gap = Math.abs(a - c.rot);
+          c.lie = a;
+        }
+      }
+    }
     if (c.vy > 90) {
       c.vy *= -0.28;
       c.vx *= 0.5;
@@ -317,15 +387,15 @@ function stepCross(k: Kitchen, drive: KitchenDrive, dt: number): void {
       c.hits += 1;
     } else {
       c.rest = true;
+      c.hits = Math.max(1, c.hits);
       c.vx = c.vy = c.vr = 0;
-      c.rot = c.rot > 0 ? 0.42 : -0.42;
     }
   }
 }
 
 function stepKettle(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const t = k.kettle;
-  const target = drive.running && !k.crashed && !k.holding ? smoothstep(0.5, 0.85, drive.tension) : 0;
+  const target = drive.running && !k.crashed && !k.holding ? kettleAt(drive.tension) : 0;
   const was = t.whistle;
   t.whistle += clamp(target - t.whistle, -dt * 1.2, dt * 0.9);
   if (was < 0.25 && t.whistle >= 0.25) k.events.whistle = true;
@@ -346,17 +416,28 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
   k.flash = Math.max(0, k.flash - dt * 4);
 
   // The conversation follows the multiplier while the round runs; she says nothing more once she has left or the heads have gone.
-  while (!k.holding && drive.running && k.nextLine < LINES.length && drive.multiplier >= LINES[k.nextLine]!.at) {
-    const line = LINES[k.nextLine]!;
-    say(k, line.who, line.text);
-    k.events.line = line;
-    k.nextLine += 1;
-  }
-  if (!k.holding && drive.running && k.nextLine === LINES.length) {
+  const talking = !k.holding && drive.running;
+  while (talking && k.nextLine < LINES.length && drive.multiplier >= LINES[k.nextLine]!.at) k.queue.push(LINES[k.nextLine++]!);
+  if (talking) {
     k.secondsClock += dt;
-    if (k.secondsClock >= 6) {
-      k.secondsClock %= 6;
+    // In order, and each bubble up long enough to read before the same mouth says the next thing.
+    const next = k.queue[0];
+    if (next && k.secondsClock > 0.9 && !k.bubbles.some((b) => b.who === next.who && b.age < Math.min(b.life, READ_S))) {
+      k.queue.shift();
+      say(k, next.who, next.text);
+      k.events.line = next;
+      k.secondsClock = 0;
+    } else if (!next && k.secondsClock >= 6) {
       const line = { at: drive.multiplier, ...SECONDS[k.secondsLine++ % SECONDS.length]! };
+      say(k, line.who, line.text);
+      k.events.line = line;
+      k.secondsClock = 0;
+    }
+  }
+  if (drive.betting) {
+    const was = k.graceT;
+    k.graceT += dt;
+    for (const line of GRACE) if (was < line.at && k.graceT >= line.at) {
       say(k, line.who, line.text);
       k.events.line = line;
     }
@@ -409,7 +490,7 @@ export function settleKitchen(k: Kitchen, multiplier: number, tension: number, l
     for (const b of k.bubbles) b.age = 1;
   }
   k.holding = left;
-  k.kettle.whistle = left ? 0 : smoothstep(0.5, 0.85, tension);
+  k.kettle.whistle = left ? 0 : kettleAt(tension);
   settleSpring(k.kettle.lid, 0);
 }
 
@@ -1062,7 +1143,7 @@ export function drawTable(ctx: CanvasRenderingContext2D, k: Kitchen, time: numbe
   ctx.globalAlpha = 1;
   ctx.restore();
   // The cross, once it lies in the dinner.
-  if (k.cross.fallen && k.cross.rest) drawCross(ctx, k.cross.x, k.cross.y, k.cross.rot + Math.PI / 2, 0.9);
+  if (k.cross.fallen && k.cross.rest) drawCross(ctx, k.cross.x, k.cross.y, k.cross.rot, 1 - 0.1 * k.cross.settle);
   // Her phone, face up beside her place.
   ctx.save();
   ctx.translate(462, 452);
@@ -1152,7 +1233,7 @@ export function drawAir(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   }
   ctx.globalAlpha = 1;
   for (const b of k.bits) if (!b.rest) drawBit(ctx, b);
-  if (k.cross.fallen && !k.cross.rest) drawCross(ctx, k.cross.x, k.cross.y, k.cross.rot);
+  if (k.cross.fallen && !k.cross.rest) drawCross(ctx, k.cross.x, k.cross.y, k.cross.rot, 1 - 0.1 * k.cross.settle);
 }
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {

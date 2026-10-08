@@ -54,31 +54,31 @@ async function sceneHarness(options = {}) {
   };
 }
 
-test('Know Your Clown introduces distinct physical acts beyond two minutes', () => {
-  const earlier = [0, 18_000, 37_000, 57_000, 78_000].map(directionAt);
-  const late = [100_000, 125_000, 150_000].map(directionAt);
+test('Know Your Clown introduces distinct physical acts beyond twenty-five seconds', () => {
+  const earlier = [0, 6_000, 11_000, 16_000, 21_000].map((ms) => directionAt(ms));
+  const late = [27_000, 34_000, 42_000].map((ms) => directionAt(ms));
   assert.equal(new Set(late.map((act) => act.stage)).size, 3);
   for (const act of late) {
     assert.ok(earlier.every((before) => before.stage !== act.stage), `${act.title} has its own late physical act`);
     assert.ok(act.demand.length > 0);
     assert.equal(act.age, 0);
   }
-  assert.equal(directionAt(124_999).stage, late[0].stage);
-  assert.equal(directionAt(149_999).stage, late[1].stage);
+  assert.equal(directionAt(33_999).stage, late[0].stage);
+  assert.equal(directionAt(41_999).stage, late[1].stage);
 });
 
 test('Know Your Clown continues changing appointments throughout exceptionally long rounds', () => {
-  const appointments = [174_000, 192_000, 210_000, 600_000].map(directionAt);
+  const appointments = [50_000, 62_000, 74_000, 600_000].map((ms) => directionAt(ms));
   assert.equal(new Set(appointments.map((act) => act.serial)).size, appointments.length);
   assert.equal(new Set(appointments.map((act) => act.title)).size, appointments.length);
-  assert.ok(appointments.every((act) => act.serial > directionAt(150_000).serial));
+  assert.ok(appointments.every((act) => act.serial > directionAt(42_000).serial));
   assert.equal(appointments[0].age, 0);
   assert.equal(appointments[1].age, 0);
   assert.equal(appointments[2].age, 0);
-  assert.ok(appointments[3].age < 18);
+  assert.ok(appointments[3].age < 12);
 
-  const first = directionAt(174_000);
-  const recurring = directionAt(282_000);
+  const first = directionAt(50_000);
+  const recurring = directionAt(122_000);
   assert.equal(recurring.title, first.title);
   assert.ok(recurring.serial > first.serial, 'a returning procedure has another appointment identity');
   assert.equal(recurring.age, 0);
@@ -102,13 +102,13 @@ test('Know Your Clown keeps bounded changing motion after the authored acts', ()
 });
 
 test('Know Your Clown seeks directly to the same act and action regardless of frame history', () => {
-  const sampleTimes = [0, 57_123, 124_999, 125_000, 173_999, 174_000, 193_200, 604_321];
-  const firstPass = sampleTimes.map(directionAt);
+  const sampleTimes = [0, 16_123, 33_999, 34_000, 49_999, 50_000, 51_200, 604_321];
+  const firstPass = sampleTimes.map((ms) => directionAt(ms));
   for (let elapsed = 0; elapsed < 610_000; elapsed += 1_000) directionAt(elapsed);
   for (let index = sampleTimes.length - 1; index >= 0; index--) {
     assert.deepEqual(directionAt(sampleTimes[index]), firstPass[index]);
   }
-  const sought = directionAt(193_200);
+  const sought = directionAt(51_200);
   assert.ok(Math.abs(sought.age - 1.2) < 1e-9);
   assert.ok(Math.abs(sought.action - 0.25) < 1e-9);
   for (const invalid of [-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
@@ -175,7 +175,7 @@ test('a KYC scene opened after the crash settles quietly into the final aftermat
 test('joining or resuming a long KYC audit does not replay historical cues', async () => {
   const game = await sceneHarness();
   const text = game.draw({ phase: 'running', elapsed: 600_000 }, 1_000);
-  assert.match(text, /FINALITY REASSESSMENT/);
+  assert.match(text, /SOUL REFINANCING/);
   game.draw({ phase: 'running', elapsed: 600_016 }, 1_016);
   game.draw({ phase: 'running', elapsed: 900_000 }, 5_000);
   game.draw({ phase: 'running', elapsed: 900_016 }, 5_016);

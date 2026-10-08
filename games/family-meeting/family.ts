@@ -5,7 +5,7 @@ import { solveLimb, walkingFoot } from './kinematics';
  * daughter in the foreground with her back to us, rainbow hair down to her shoulders, explaining with her
  * hands. Rigs and drawing only; nothing here picks or changes the outcome.
  */
-import { INK, blend, burstHead, puff, type Kitchen, type Puff } from './kitchen';
+import { INK, blend, burstHead, puff, type Kitchen, type Puff, type Who } from './kitchen';
 import { clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring, type Spring } from './motion';
 
 /** The parents' seats: the base of the neck, on the far side of the table. */
@@ -47,11 +47,25 @@ export interface Parent {
   dripClock: number;
   exploded: boolean;
   deflated: boolean;
+  /** 0 to 1 as the air goes out of them once she has left and it is over. */
+  sag: number;
   gasps: number;
+  /** Seconds into the double take at her latest line (brows up, pupils pinned), and the delay before it lands. */
+  take: number;
+  takeIn: number;
+  /** Seconds to the next blink; a blink is the 0.12 s below zero. */
+  blink: number;
+  blinks: number;
+  /** How much they are talking (the mouth flaps), and where their pupils point. */
+  talk: number;
+  lookX: number;
+  lookY: number;
+  /** The long-round strain, on a log scale of the multiplier: the head keeps swelling and cracking past 10×. */
+  strain: number;
 }
 
 function parent(kind: Parent['kind'], x: number, seed: number): Parent {
-  return { kind, x, seed, rage: spring(0), kick: spring(0), clutch: spring(0), slamT: 1, slamClock: 0, sweat: [], sweatClock: 0, steam: [], steamClock: 0, drips: [], dripClock: 0, exploded: false, deflated: false, gasps: 0 };
+  return { kind, x, seed, rage: spring(0), kick: spring(0), clutch: spring(0), slamT: 1, slamClock: 0, sweat: [], sweatClock: 0, steam: [], steamClock: 0, drips: [], dripClock: 0, exploded: false, deflated: false, sag: 0, gasps: 0, take: 9, takeIn: -1, blink: 1.2 + 2 * noise(seed), blinks: 0, talk: 0, lookX: 0, lookY: 1.5, strain: 0 };
 }
 
 export const createParents = (): Parent[] => [parent('dad', DAD_X, 3), parent('mom', MOM_X, 17)];
@@ -60,8 +74,14 @@ export function resetParents(ps: Parent[]): void {
   ps[1] = parent('mom', MOM_X, 17);
 }
 
-/** The heat each of them reaches at a tension: he boils first, she holds out a little longer. */
-const heatFor = (p: Parent, tension: number): number => (p.kind === 'dad' ? smoothstep(0, 0.82, tension) : smoothstep(0.06, 0.95, tension));
+/**
+ * The heat each of them reaches at a tension (1 - 1/x: 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×): he boils first, she holds
+ * out a little longer. Dad is pink by 1.5×, sweating and veined by 2×, steaming by 2.6×, slamming from 2.9× and cracking by 3.8×; she cracks by 5×.
+ */
+const heatFor = (p: Parent, tension: number): number => (p.kind === 'dad' ? smoothstep(0.05, 0.9, tension) : smoothstep(0.12, 0.97, tension));
+/** Where everyone's face is, for whoever they look at. */
+const FACES: Record<Who, { x: number; y: number }> = { her: { x: DAUGHTER_X - 6, y: 394 }, dad: { x: DAD_X, y: SEAT_Y + HEAD_Y }, mom: { x: MOM_X, y: SEAT_Y + HEAD_Y } };
+const clutchFor = (heat: number): number => smoothstep(0.2, 0.48, heat);
 /** Where the head is, in the room: for the burst, the smoke and anything aimed at it. */
 export const headAt = (p: Parent): { x: number; y: number } => ({ x: p.x, y: SEAT_Y + HEAD_Y });
 export const neckAt = (p: Parent): { x: number; y: number } => ({ x: p.x, y: SEAT_Y - 14 });
@@ -75,31 +95,59 @@ export interface FamilyDrive {
   herLine: boolean;
   /** She has left the table (an accepted cash-out): they simmer rather than boil. */
   left: boolean;
+  /** Seconds since each of them last started a line, for who talks and who gets looked at. */
+  said?: Partial<Record<Who, number>>;
+  /** The slow long-round driver, 0 at 1× to 1 at 1000×. */
+  long?: number;
 }
 export interface FamilyEvents { slam: boolean; gasp: boolean; steam: boolean }
 
 export function stepParents(ps: Parent[], drive: FamilyDrive, dt: number): FamilyEvents {
   const ev: FamilyEvents = { slam: false, gasp: false, steam: false };
+  const said = (who: Who): number => drive.said?.[who] ?? Infinity;
   for (const p of ps) {
     const base = drive.running ? heatFor(p, drive.tension) : 0;
     const target = p.exploded ? p.rage.x : p.deflated ? 0 : drive.left ? base * 0.3 : base;
     if (drive.herLine && !p.exploded && !p.deflated) {
       p.rage.v += 0.5;
-      p.kick.v += p.kind === 'dad' ? 90 : -70;
-      if (p.kind === 'mom' && p.rage.x > 0.3) {
-        p.gasps += 1;
-        if (p.gasps % 2 === 1) ev.gasp = true;
+      // Dad takes it first; Mom's take lands a beat later, so the two reactions overlap instead of moving as one.
+      p.takeIn = p.kind === 'dad' ? 0 : 0.18;
+    }
+    if (p.takeIn >= 0) {
+      p.takeIn -= dt;
+      if (p.takeIn < 0 && !p.exploded && !p.deflated) {
+        p.take = 0;
+        p.kick.v += p.kind === 'dad' ? 90 : -70;
+        if (p.kind === 'mom' && p.rage.x > 0.3 && ++p.gasps % 2 === 1) ev.gasp = true;
       }
     }
+    p.take += dt;
     stepSpring(p.rage, target, p.deflated ? 2.2 : 3, 0.85, dt);
     stepSpring(p.kick, 0, 16, 0.4, dt);
+    p.sag += ((p.deflated ? 1 : 0) - p.sag) * (1 - Math.exp(-7 * dt));
+    const strainTo = p.exploded ? p.strain : drive.running && !drive.left && !p.deflated ? drive.long ?? 0 : 0;
+    p.strain += (strainTo - p.strain) * (1 - Math.exp(-0.8 * dt));
     const heat = clamp(p.rage.x, 0, 1);
-    const clutchTarget = p.deflated ? 1 : p.kind === 'mom' ? smoothstep(0.25, 0.55, heat) : 0;
+    const clutchTarget = p.deflated ? 1 : p.kind === 'mom' ? clutchFor(heat) : 0;
     stepSpring(p.clutch, clutchTarget, 6, 0.7, dt);
     if (p.exploded) continue;
+    // Seeded blinks, 2.5 to 4.5 s apart.
+    p.blink -= dt;
+    if (p.blink < -0.12) p.blink = 2.5 + 2 * noise(p.seed * 7 + ++p.blinks);
+    // The mouth moves while their own bubble is new; the eyes go to whoever is talking, else to her.
+    const own = said(p.kind);
+    p.talk += clamp((own < 1.2 ? 1 : 0) - p.talk, -dt * 6, dt * 10);
+    const other: Who = p.kind === 'dad' ? 'mom' : 'dad';
+    const at = said('her') < 1.6 || said(other) >= 1.6 ? FACES.her : FACES[other];
+    const dx = at.x - p.x;
+    const dy = at.y - (SEAT_Y + HEAD_Y);
+    const len = Math.hypot(dx, dy) || 1;
+    const ease = 1 - Math.exp(-14 * dt);
+    p.lookX += ((3.5 * dx) / len - p.lookX) * ease;
+    p.lookY += ((2.5 * dy) / len - p.lookY) * ease;
 
-    // His fist: it comes down on the table every so often once he is past half way.
-    if (p.kind === 'dad' && heat > 0.55 && !p.deflated) {
+    // His fist: it comes down on the table every so often once he is well past half way.
+    if (p.kind === 'dad' && heat > 0.7 && !p.deflated) {
       p.slamClock += dt * (0.5 + heat);
       if (p.slamT >= 1 && p.slamClock > 1.6) {
         p.slamClock = 0;
@@ -126,10 +174,10 @@ export function stepParents(ps: Parent[], drive: FamilyDrive, dt: number): Famil
       d.y += d.vy * dt;
     }
     p.sweat = p.sweat.filter((d) => d.y < 36);
-    if (heat > 0.55) {
+    if (heat > 0.7) {
       const wasQuiet = p.steam.length === 0;
       p.steamClock += dt;
-      if (p.steamClock > 0.09 / heat) {
+      if (p.steamClock > 0.09 / (heat * (1 + p.strain))) {
         p.steamClock = 0;
         for (const side of [-1, 1]) puff(p.steam, side * 50, HEAD_Y + 2, 3 + heat * 3, -30 - heat * 40, 0.7 + rand() * 0.4, 'rgba(255,255,255,0.8)', rand);
         p.steam[p.steam.length - 1]!.vx = 14;
@@ -183,10 +231,11 @@ export function deflateParents(ps: Parent[]): void {
 }
 
 /** A fresh scene that meets a round under way: the heat they would have reached by now, and the hand already where it would be. */
-export function settleParents(ps: Parent[], tension: number, left: boolean): void {
+export function settleParents(ps: Parent[], tension: number, left: boolean, long = 0): void {
   for (const p of ps) {
     settleSpring(p.rage, left ? heatFor(p, tension) * 0.3 : heatFor(p, tension));
-    settleSpring(p.clutch, p.kind === 'mom' ? smoothstep(0.25, 0.55, p.rage.x) : 0);
+    settleSpring(p.clutch, p.kind === 'mom' ? clutchFor(p.rage.x) : 0);
+    p.strain = left ? 0 : long;
   }
 }
 
@@ -209,8 +258,9 @@ export function fistLift(phase: number): number {
   if (phase < .8) return 4 * Math.sin(Math.PI * (phase - .55) / .25) ** 2;
   return 0;
 }
-function arm(ctx: CanvasRenderingContext2D, color: string, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string): void {
-  const solved = solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, 48, 38, sx < 0 ? 1 : -1);
+/** An arm from the shoulder to the hand; the elbow bends outward unless `pole` swings it round through depth. */
+function arm(ctx: CanvasRenderingContext2D, color: string, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string, pole = sx < 0 ? 1 : -1): void {
+  const solved = solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, 48, 38, pole);
   ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
   ctx.strokeStyle = color;
   ctx.lineWidth = 17;
@@ -287,7 +337,7 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
   if (p.exploded) {
     ctx.translate(0, 12);
     ctx.rotate(p.kind === 'dad' ? 0.07 : -0.07);
-  } else if (p.deflated) ctx.translate(0, 6);
+  } else if (p.sag > 0) ctx.translate(0, 6 * p.sag);
   ink(ctx, 2.5);
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -401,7 +451,8 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
     // Fork hand, or the hand on the forehead once it is over; the fist that comes down.
     const fx = mix(-46, -22, clutch);
     const fy = mix(60, -34, clutch);
-    arm(ctx, color, -54, -2, mix(-76, -70, clutch), mix(42, 10, clutch), fx, fy, skin);
+    // As the hand comes up past the shoulder the elbow swings round toward us and out, rather than across his chest.
+    arm(ctx, color, -54, -2, mix(-76, -70, clutch), mix(42, 10, clutch), fx, fy, skin, 1 - 2 * smoothstep(0.55, 0.95, clutch));
     if (clutch < 0.5) drawFork(ctx, fx - 2, fy - 8, heat);
     const lift = fistLift(p.slamT);
     arm(ctx, color, 54, -2, 76, 42 - lift * 0.5, 46, 58 - lift, skin);
@@ -415,7 +466,7 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
     const cx = mix(-46, -14, clutch);
     const cy = mix(60, 0, clutch);
     arm(ctx, color, -54, -2, mix(-76, -58, clutch), mix(42, 20, clutch), cx, cy, skin);
-    const tilt = p.deflated ? 0.15 : (noise(Math.floor(time * 30) + 4) - 0.5) * 0.5 * heat * heat;
+    const tilt = p.deflated ? 0.15 * p.sag : (noise(Math.floor(time * 30) + 4) - 0.5) * 0.5 * heat * heat;
     arm(ctx, color, 54, -2, 78, 40, 48, 52, skin);
     drawMug(ctx, 48, 44, tilt);
     ctx.fillStyle = '#5a3a22';
@@ -451,13 +502,18 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
 
 function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduced: boolean): void {
   const heat = clamp(p.rage.x, 0, 1);
-  const s = 1 + 0.22 * heat + (reduced ? 0 : 0.035 * heat * Math.sin(time * 9));
-  const jit = reduced ? 0 : 7 * heat * heat;
+  const strain = clamp(p.strain, 0, 1);
+  const s = 1 + 0.22 * heat + 0.12 * strain + (reduced ? 0 : 0.035 * heat * Math.sin(time * 9));
+  const jit = reduced ? 0 : 7 * heat * heat + 3 * strain;
   const jx = (noise(Math.floor(time * 42) + p.seed) - 0.5) * 2 * jit;
   const jy = (noise(Math.floor(time * 38) + p.seed + 9) - 0.5) * 2 * jit;
   const skin = heatColour(p, heat);
+  // The take at each of her lines: a nod of about 5 px (none with reduced motion), the brows shooting up 6 px for a quarter
+  // second, the pupils pinning.
+  const up = p.take < 0.5 ? 6 * smoothstep(0, 0.06, p.take) * (1 - smoothstep(0.25, 0.5, p.take)) : 0;
+  const closed = p.sag > 0.5 || (p.blink < 0 && p.blink > -0.12);
   ctx.save();
-  ctx.translate(jx, HEAD_Y + jy + p.kick.x * 0.08 + (p.deflated ? 8 : 0));
+  ctx.translate(jx, HEAD_Y + jy + (reduced ? 0 : p.kick.x * 1.5) + 8 * p.sag);
   ctx.scale(s, s);
   ink(ctx, 2.5);
   if (p.kind === 'mom') {
@@ -531,8 +587,8 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
   }
   // Brows: polite, then a V.
   ink(ctx, p.kind === 'dad' ? 7 : 4.5);
-  const browIn = p.deflated ? -30 : p.kind === 'dad' ? -22 + 12 * heat : -27 + 16 * heat;
-  const browOut = p.deflated ? -24 : -24 - 4 * heat;
+  const browIn = mix(p.kind === 'dad' ? -22 + 12 * heat : -27 + 16 * heat, -30, p.sag) - up;
+  const browOut = mix(-24 - 4 * heat, -24, p.sag) - up;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(side * 32, browOut);
@@ -544,10 +600,14 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     const twitch = side < 0 && heat > 0.5 && !reduced ? 1 + 0.35 * heat * Math.max(0, Math.sin(time * 27)) : 1;
     const rx = 9 + 4 * heat;
     const ry = (7 + 5 * heat) * twitch;
-    if (p.deflated) {
+    if (closed) {
       ink(ctx, 2.5);
       ctx.beginPath();
-      ctx.arc(side * 16, -8, 8, 0.2, Math.PI - 0.2);
+      if (p.sag > 0.5) ctx.arc(side * 16, -8, 8, 0.2, Math.PI - 0.2);
+      else {
+        ctx.moveTo(side * 16 - rx, -7);
+        ctx.quadraticCurveTo(side * 16, -3, side * 16 + rx, -7);
+      }
       ctx.stroke();
       continue;
     }
@@ -569,7 +629,7 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     }
     ctx.fillStyle = INK;
     ctx.beginPath();
-    ctx.arc(side * 16 + 1, -6, Math.max(1.2, 4 - 2.4 * heat), 0, Math.PI * 2);
+    ctx.arc(side * 16 + clamp(p.lookX, -rx + 4, rx - 4), -7 + clamp(p.lookY, -ry + 4, ry - 4), Math.max(1.2, 4 - 2.4 * heat - up * 0.25), 0, Math.PI * 2);
     ctx.fill();
   }
   if (p.kind === 'dad') {
@@ -623,10 +683,11 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
       ctx.fill();
     }
   }
-  // The mouth: a smile, a line, then a shout with teeth.
-  const open = p.deflated ? 0 : smoothstep(0.55, 0.95, heat);
+  // The mouth: a smile, a line, then a shout with teeth; it flaps while they are saying something.
+  const flap = reduced ? 0.5 * p.talk : p.talk * Math.abs(Math.sin(time * 14));
+  const open = p.sag > 0.5 ? 0 : Math.max(smoothstep(0.55, 0.95, heat), 0.45 * flap);
   ink(ctx, 2.5);
-  if (p.deflated) {
+  if (p.sag > 0.5) {
     ctx.fillStyle = '#5a1a1a';
     ctx.beginPath();
     ctx.ellipse(0, 28, 5, 6, 0, 0, Math.PI * 2);
@@ -667,7 +728,7 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     ctx.restore();
   }
   // Veins at the temples, sweat down the face, and cracks when the pressure is nearly there.
-  if (heat > 0.4 && !p.deflated) {
+  if (heat > 0.4 && p.sag < 0.5) {
     ctx.strokeStyle = `rgba(122, 42, 74, ${smoothstep(0.4, 0.8, heat) * (0.7 + 0.3 * Math.sin(time * 10))})`;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -705,6 +766,15 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     ctx.lineTo(22, -18);
     ctx.moveTo(-36, 10);
     ctx.lineTo(-28, 16);
+    // Past 10× the cracks keep spreading in from the rim, one more every few seconds of a long round.
+    for (let i = 0; i < Math.floor(strain * 8); i += 1) {
+      const a = -Math.PI * (0.12 + 0.76 * noise(p.seed + i * 3.7));
+      const x = Math.cos(a) * 42;
+      const y = Math.sin(a) * 46;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x * 0.74 + (noise(p.seed + i) - 0.5) * 10, y * 0.74);
+      ctx.lineTo(x * 0.5, y * 0.5 + 4);
+    }
     ctx.stroke();
   }
   ctx.restore();
@@ -739,37 +809,44 @@ export interface Daughter {
   /** Her phone comes up for the selfie once it is over. */
   phone: Spring;
   mode: 'seated' | 'leaving' | 'gone' | 'selfie';
+  /** Seconds since she started walking off. */
   walk: number;
   /** Set the frame she takes the picture. */
   snapped: boolean;
+  /** Her heel bouncing under the chair while she waits to say it: the bounce's phase and how restless she is. */
+  fidget: number;
+  restless: Spring;
 }
 
-export const createDaughter = (): Daughter => ({ x: DAUGHTER_X, stand: spring(0), talk: 0, gesture: spring(0), phone: spring(0), mode: 'seated', walk: 0, snapped: false });
+export const createDaughter = (): Daughter => ({ x: DAUGHTER_X, stand: spring(0), talk: 0, gesture: spring(0), phone: spring(0), mode: 'seated', walk: 0, snapped: false, fidget: 0, restless: spring(0) });
 export function resetDaughter(d: Daughter): void {
   Object.assign(d, createDaughter());
 }
 
-export interface DaughterDrive { speaking: boolean; tension: number; time: number; crashT: number; rekt: boolean }
+export interface DaughterDrive { speaking: boolean; tension: number; time: number; crashT: number; rekt: boolean; waiting?: boolean; reduced?: boolean }
 export interface DaughterEvents { door: boolean; camera: boolean }
 
 export function stepDaughter(d: Daughter, drive: DaughterDrive, dt: number): DaughterEvents {
   const ev: DaughterEvents = { door: false, camera: false };
   d.talk += clamp((drive.speaking ? 1 : 0) - d.talk, -dt * 3, dt * 8);
   stepSpring(d.gesture, d.talk * (0.45 + 0.55 * drive.tension), 5, 0.6, dt);
+  stepSpring(d.restless, drive.waiting && !drive.reduced && d.mode === 'seated' ? 1 : 0, 9, 1, dt);
+  d.fidget = (d.fidget + dt * 3 * 2 * Math.PI) % (2 * Math.PI);
   if (d.mode === 'leaving') {
     stepSpring(d.stand, 1, 7, 0.75, dt);
     if (d.stand.x > 0.85) {
+      // She gets up to speed over 0.4 s; her feet follow the distance covered, not the clock.
       d.walk += dt;
-      d.x += 300 * dt;
+      d.x += 300 * smoothstep(0, 0.4, d.walk) * dt;
       if (d.x > 1080) {
         d.mode = 'gone';
         ev.door = true;
       }
     }
   }
-  if (drive.rekt && d.mode === 'seated' && drive.crashT > 2.2) d.mode = 'selfie';
+  if (drive.rekt && d.mode === 'seated' && drive.crashT > 1.2) d.mode = 'selfie';
   stepSpring(d.phone, d.mode === 'selfie' ? 1 : 0, 9, 0.6, dt);
-  if (d.mode === 'selfie' && !d.snapped && drive.crashT > 3.1) {
+  if (d.mode === 'selfie' && !d.snapped && drive.crashT > 1.85) {
     d.snapped = true;
     ev.camera = true;
   }
@@ -855,20 +932,34 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   const stand = clamp(d.stand.x, 0, 1);
   const walking = d.walk > 0 && !reduced;
   const distance = Math.max(0, d.x - DAUGHTER_X);
+  const bounce = clamp(d.restless.x, 0, 1) * (0.5 - 0.5 * Math.cos(d.fidget));
   ctx.save();
   ctx.translate(d.x, CHAIR_Y - 74 * stand);
-  // Soles stay on the floor while the pelvis rises from the chair.
-  for (const side of [-1, 1]) {
-    const step = walking ? walkingFoot(distance, 84, side > 0 ? .5 : 0, 16) : { x: 0, y: 0 };
-    const hip = { x: side * 22, y: -6 };
-    const foot = { x: side * 22 + step.x, y: 30 + 74 * stand + step.y };
-    const knee = solveLimb(hip, foot, 59, 58, -side).joint;
+  // Soles stay on the floor while the pelvis rises from the chair. Seated, the thighs run away from us under the
+  // seat, so the legs are foreshortened; standing, they are full length. On the way out the knees lead the
+  // way, and the pelvis dips at the long end of each 170 px stride so a planted leg never stretches.
+  const leg = mix(19, 56, stand);
+  const lead = smoothstep(0, 0.3, d.walk);
+  const feet = [-1, 1].map((side) => {
+    const step = walking ? walkingFoot(distance, 170, side > 0 ? 0.5 : 0, 16) : { x: 0, y: 0 };
+    return { x: side * 22 + step.x, y: 30 + 74 * stand + step.y - (side > 0 ? 3 * bounce : 0) };
+  });
+  let drop = 0;
+  feet.forEach((foot, i) => {
+    const dx = foot.x - (i ? 22 : -22);
+    drop = Math.max(drop, foot.y + 6 - Math.sqrt(Math.max(0, (2 * leg - 1) ** 2 - dx * dx)));
+  });
+  feet.forEach((foot, i) => {
+    const side = i ? 1 : -1;
+    const hip = { x: side * 22, y: -6 + drop };
+    const knee = solveLimb(hip, foot, leg, leg, mix(-side, -1, lead)).joint;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = '#3a5a8a'; ctx.lineWidth = 24;
     ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(knee.x, knee.y); ctx.lineTo(foot.x, foot.y); ctx.stroke();
     ink(ctx, 2.5); ctx.fillStyle = '#f7f3ea';
     ctx.beginPath(); ctx.roundRect(foot.x - 13, foot.y - 8, 30, 12, 4); ctx.fill(); ctx.stroke();
-  }
+  });
+  ctx.translate(0, drop - 1.2 * bounce);
   // The hoodie, the hood on her back, a pin.
   ctx.fillStyle = '#2b2b33';
   ink(ctx, 2.5);
@@ -890,43 +981,46 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   ink(ctx, 1.2);
   ctx.strokeRect(-7, -6, 14, 12);
   ctx.restore();
-  // Arms: on the table, or up and explaining; the phone hand for the selfie.
+  // Arms: on the table, or up and explaining; the phone hand for the selfie; the plate on the way out.
   const carrying = d.mode === 'leaving' ? stand : 0;
   const g = clamp(d.gesture.x, 0, 1) * (1 - carrying);
   const ph = clamp(d.phone.x, 0, 1);
-  if (carrying > .01) {
-    ctx.save(); ctx.globalAlpha = carrying; ctx.fillStyle = '#f7f3ea'; ink(ctx, 2.5);
-    ctx.beginPath(); ctx.ellipse(0, -45, 45, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#d4a05a'; ctx.beginPath(); ctx.ellipse(0, -49, 22, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  }
-  for (const side of [-1, 1]) {
+  const hands = [-1, 1].map((side) => {
     const wave = Math.sin(time * 7.5 + (side > 0 ? 0 : 1.8)) * g;
     let hx = side * (62 + 16 * g) + wave * 14;
     let hy = -82 - 46 * g + Math.sin(time * 9 + side) * 12 * g;
-    let ex = side * 86;
-    let ey = -40 - 30 * g;
-    if (side > 0 && ph > 0) {
-      hx = mix(hx, 26, ph);
-      hy = mix(hy, -150, ph);
-      ex = mix(ex, 88, ph);
-      ey = mix(ey, -110, ph);
-    }
-    hx = mix(hx, side * 40, carrying); hy = mix(hy, -48, carrying);
-    const solved = solveLimb({ x: side * 62, y: -54 }, { x: hx, y: hy }, 55, 54, -side);
-    ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
+    const phone = side > 0 ? ph : 0;
+    hx = mix(hx, 26, phone);
+    hy = mix(hy, -150, phone);
+    // On the way out the plate rides on her right hand at shoulder height. The left hand swings out round the
+    // shoulder rather than through it, and the arm comes to hang almost straight at her side.
+    const hang = side < 0 ? carrying : 0;
+    hx = mix(hx, side > 0 ? 88 : -66, carrying) - 30 * Math.sin(Math.PI * hang); hy = mix(hy, side > 0 ? -62 : 4, carrying);
+    // Hands on the table reach away from us, so the arm reads short with the elbow out to the side; it opens to
+    // full length as the hands come up. Elbows bend outward; the left one swings round through depth as it drops.
+    const upper = mix(mix(mix(26, 42, g), 55, phone), 31, hang);
+    const lower = mix(mix(mix(40, 44, g), 54, phone), 30, hang);
+    const solved = solveLimb({ x: side * 62, y: -54 }, { x: hx, y: hy }, upper, lower, side > 0 ? 1 : 2 * hang - 1);
+    return { side, elbow: solved.joint, hand: solved.end };
+  });
+  // Her plate: at her place on the table, hidden behind her head, until she lifts it out onto her right hand.
+  const lift = smoothstep(0, 0.6, carrying);
+  const tray = hands[1]!.hand;
+  const plate = { x: mix(0, tray.x + 10, lift), y: mix(-84 + 74 * stand - drop + 1.2 * bounce, tray.y - 7, lift), w: mix(26, 36, lift) };
+  for (const { side, elbow, hand } of hands) {
     ctx.strokeStyle = '#2b2b33';
     ctx.lineWidth = 20;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(side * 62, -54);
-    ctx.lineTo(ex, ey);
-    ctx.lineTo(hx, hy);
+    ctx.lineTo(elbow.x, elbow.y);
+    ctx.lineTo(hand.x, hand.y);
     ctx.stroke();
-    drawHand(ctx, hx, hy, side > 0 && ph > 0.5 ? 0 : g);
+    drawHand(ctx, hand.x, hand.y, side > 0 && ph > 0.5 ? 0 : g);
     if (side > 0 && ph > 0.05) {
       ctx.save();
-      ctx.translate(hx - 4, hy - 8);
+      ctx.translate(hand.x - 4, hand.y - 8);
       ctx.rotate(-0.25);
       ctx.fillStyle = '#2a2a30';
       ink(ctx, 2);
@@ -939,6 +1033,9 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
       ctx.restore();
     }
   }
+  ctx.fillStyle = '#f7f3ea'; ink(ctx, 2.5);
+  ctx.beginPath(); ctx.ellipse(plate.x, plate.y, plate.w, plate.w * 0.24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#d4a05a'; ctx.beginPath(); ctx.ellipse(plate.x, plate.y - 3, plate.w * 0.5, plate.w * 0.14, 0, 0, Math.PI * 2); ctx.fill();
   // The head: a cheek and the corner of her mouth on the left, the hair over the rest down to her shoulders.
   ctx.save();
   ctx.translate(-6, -112 + (d.talk > 0 && !reduced ? Math.sin(time * 5) * 1.5 : 0));

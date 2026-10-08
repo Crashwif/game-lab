@@ -91,14 +91,16 @@ test('Pump and Dump draws fingers at the forearm endpoint through release and pr
   const mode = b.mode; api.dumpBar(b, 1, false); assert.equal(b.mode, mode, 'a crash must not teleport the accepted lifter');
 });
 
-test('Bonding Curl releases its held weight at the hand and emits one first-contact event', async () => {
+test('Bonding Curl releases its held weight at the hand, lands it on its lowest corner once, and topples it flat', async () => {
   const api = await load('bonding-curl/curler');
   for (const curl of [0, .3, .7, 1]) {
     const c = api.createCurler(); c.mode = 'curling'; c.curl.x = curl; c.curl.v = .5;
-    const held = api.curlerArm(c); api.poseCurler(c); near(distance(c.dumbbell, held.hand), 0); assert.equal(c.events.dropped, false);
+    const held = api.curlerArm(c); api.poseCurler(c); near(distance(c.dumbbell, held.hand), 0); near(c.dumbbell.angle, held.bar); assert.equal(c.events.dropped, false);
     let contacts = 0;
-    for (let n = 0; n < 240; n++) { api.stepCurler(c, { running: true, multiplier: 3, growth: 1, tension: 0, seconds: n / 120 }, 1 / 120); if (c.events.dropped) { contacts++; near(c.dumbbell.y, 490); } }
+    for (let n = 0; n < 240; n++) { api.stepCurler(c, { running: true, multiplier: 3, growth: 1, tension: 0, seconds: n / 120 }, 1 / 120); if (c.events.dropped) { contacts++; near(c.dumbbell.y + api.dumbbellDepth(c.dumbbell.angle), 510); } }
     assert.equal(contacts, 1);
+    // At rest it lies flat on both plates, not balanced on a rim.
+    near(Math.sin(c.dumbbell.angle), 0, 0.01); near(c.dumbbell.y, 490, 0.5);
   }
 });
 
@@ -120,7 +122,7 @@ test('The Trenches captures drawn marching scale and squash before either exit',
   const api = await load('the-trenches/squad');
   for (const exit of ['dive', 'flung']) { const s = api.createSquad(); s.over.x = 1; s.act = 3; s.effort = .8; s.frogs.forEach(f => { f.mode = 'marching'; f.squash.x = .1; });
     if (exit === 'dive') api.diveBack(s, .7); else api.killSquad(s, false, .7);
-    const f = s.frogs.find(f => f.mode === (exit === 'dive' ? 'diving' : 'flung')); near(f.diveFrom.scale, 1 - .18 * .7); near(f.diveFrom.squash, .82);
+    const f = s.frogs.find(f => f.mode === (exit === 'dive' ? 'diving' : 'flung')); near(f.diveFrom.scale, 1 - .45 * .7); near(f.diveFrom.squash, .82);
     const c = canvas(); api.drawSquad(c, s, .7, .2, false); assert.ok(c.records.some(r => Math.abs(r.scale - f.diveFrom.scale) < 1e-6), 'renderer retains captured scale');
   }
 });

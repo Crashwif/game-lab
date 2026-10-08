@@ -38,7 +38,8 @@ export interface Obstacle {
   seed: number;
 }
 
-export type PickupKind = 'cope' | 'wagmi' | 'lambo' | 'honey' | 'magnet' | 'double';
+/** `slip` is a SLIPPAGE puddle on the floor: steering goes loose for a moment. */
+export type PickupKind = 'cope' | 'wagmi' | 'lambo' | 'honey' | 'magnet' | 'double' | 'slip';
 export interface Pickup {
   kind: PickupKind;
   /** Lateral position in lane widths; a magnet pulls a coin off its lane. */
@@ -54,7 +55,7 @@ export interface Pickup {
 }
 
 /** What each coin adds to the bag. */
-export const COIN_VALUE: Record<PickupKind, number> = { cope: 1, wagmi: 5, lambo: 25, honey: 0, magnet: 0, double: 0 };
+export const COIN_VALUE: Record<PickupKind, number> = { cope: 1, wagmi: 5, lambo: 25, honey: 0, magnet: 0, double: 0, slip: 0 };
 /** How long a power-up lasts. */
 export const POWER_S = 6;
 /** Every this many coins in a row pays a bonus of the same size. */
@@ -76,9 +77,19 @@ export interface Runner {
   down: number;
   /** After a hit nothing else counts for this long. */
   grace: number;
-  /** The stride cycle: two footfalls a cycle. */
+  /** The stride cycle: two footfalls a cycle, advanced by the distance run. */
   stride: number;
   air: number;
+  /** Seconds a jump or slide press stays buffered, and the coyote time left after running off a roof. */
+  jumpBuf: number;
+  slideBuf: number;
+  coyote: number;
+  /** One lane command (-1 or 1) held through a knockdown, or 0. */
+  queued: number;
+  /** Seconds of loose steering left after a SLIPPAGE puddle. */
+  slip: number;
+  /** The car a head-on knockdown rolled the runner away from: it does not collide while the runner is down. */
+  dodge: Obstacle | null;
 }
 
 /** What happened this step, for the scene's sound and captions; counts and flags last one frame. */
@@ -94,8 +105,11 @@ export interface WorldEvents {
   swerve: boolean;
   land: boolean;
   stumble: boolean;
+  /** The stumble was a car or wall clipped from the side mid-swerve. */
+  swipe: boolean;
   heavy: boolean;
   audit: boolean;
+  slip: boolean;
   /** The streak that just paid a bonus, or 0. */
   streak: number;
   /** Coins that flew out of the bag this step. */
@@ -127,14 +141,18 @@ export interface World {
   double: number;
   /** Seconds since the Taxman's grab, or -1. */
   audit: number;
-  bot: { clock: number; late: number; blind: boolean };
+  /** The bot keeps its own generator, so the course never depends on how often it was consulted. */
+  bot: { clock: number; late: number; blind: boolean; rand: () => number };
   events: WorldEvents;
 }
 
 export interface Drive {
+  /** The round is running: steering, pickups and collisions are live only then. */
   running: boolean;
+  /** The round's displayed multiplier; patterns are laid with the curve's value where they will meet the runner. */
   multiplier: number;
-  tension: number;
+  /** Seconds the round has run: with the multiplier, it gives the room's own pace, never a compiled-in curve. */
+  seconds?: number;
   /** The runner is off the rails (hovering after a cash-out, or fallen): no steering, no pickups, no collisions. */
   off: boolean;
 }
@@ -153,28 +171,33 @@ const HEAT_PER_HIT = 0.6;
 const HEAT_DECAY = 0.3;
 const RUNNER_HEIGHT = 0.85;
 const SLIDE_HEIGHT = 0.4;
-/** Half the runner's depth and width, for overlap. */
+/** Half the runner's depth and width (about the drawn frog's), for overlap. */
 const REACH = 0.22;
-const WIDTH = 0.5;
+const WIDTH = 0.2;
 const COIN_GAP = 0.7;
+const BUFFER_S = 0.15;
+const COYOTE_S = 0.1;
+const SLIP_S = 1;
+/** The physics never steps more than this, so a slow frame cannot carry the runner through a wall or a coin. */
+const SUBSTEP_S = 1 / 120;
 
-const noEvents = (): WorldEvents => ({ coins: 0, value: 0, lambo: false, honey: false, magnet: false, double: false, jump: false, slide: false, swerve: false, land: false, stumble: false, heavy: false, audit: false, streak: 0, spill: 0, step: false, expired: null });
+const noEvents = (): WorldEvents => ({ coins: 0, value: 0, lambo: false, honey: false, magnet: false, double: false, jump: false, slide: false, swerve: false, land: false, stumble: false, swipe: false, heavy: false, audit: false, slip: false, streak: 0, spill: 0, step: false, expired: null });
 
 function makeRunner(): Runner {
-  return { lane: 0, x: spring(0), h: 0, vh: 0, ground: 0, slide: 0, stumble: 0, down: 0, grace: 0, stride: 0, air: 0 };
+  return { lane: 0, x: spring(0), h: 0, vh: 0, ground: 0, slide: 0, stumble: 0, down: 0, grace: 0, stride: 0, air: 0, jumpBuf: 0, slideBuf: 0, coyote: 0, queued: 0, slip: 0, dodge: null };
 }
 
 export function createWorld(seed: number): World {
   const w: World = {
     time: 0, runner: makeRunner(), obstacles: [], pickups: [], zNext: 0, lastFree: 0, rand: mulberry32(seed), speed: spring(0), distance: 0,
-    bag: 0, streak: 0, heat: 0, magnet: 0, double: 0, audit: -1, bot: { clock: 0, late: 0, blind: false }, events: noEvents(),
+    bag: 0, streak: 0, heat: 0, magnet: 0, double: 0, audit: -1, bot: { clock: 0, late: 0, blind: false, rand: mulberry32(seed) }, events: noEvents(),
   };
   resetWorld(w, seed);
   return w;
 }
 
 /** A fresh course for a new round: an open stretch out of the station, then the generator takes over. */
-export function resetWorld(w: World, seed: number): void {
+export function resetWorld(w: World, seed: number, multiplier = 1): void {
   w.rand = mulberry32(seed);
   w.time = 0;
   w.runner = makeRunner();
@@ -189,22 +212,25 @@ export function resetWorld(w: World, seed: number): void {
   w.magnet = 0;
   w.double = 0;
   w.audit = -1;
-  w.bot = { clock: 0, late: 0, blind: false };
+  w.bot = { clock: 0, late: 0, blind: false, rand: mulberry32(seed ^ 0x5bd1e995) };
   w.events = noEvents();
   w.zNext = RUNNER_Z + 9;
   coinLine(w, 0, RUNNER_Z + 3.5, RUNNER_Z + 7.5);
-  while (w.zNext < FAR + 6) lay(w, 0);
+  while (w.zNext < FAR + 6) lay(w, multiplier);
 }
 
 /** The speed the course runs at for a multiplier: brisk at 1×, capped well before the number goes vertical. */
 export const speedFor = (multiplier: number): number => Math.min(MAX_SPEED, BASE_SPEED * (1 + SPEED_RISE * Math.log2(Math.max(1, multiplier))));
+
+/** Lane widths a stride cycle covers: longer strides as the course speeds up, so the cadence keeps rising too. */
+const strideLength = (v: number): number => 2.4 + 0.13 * v;
 
 /** Joins a round already running: the course is up to speed and the runner is mid-sprint. */
 export function settleRunning(w: World, multiplier: number, elapsedS: number): void {
   const v = speedFor(multiplier);
   settleSpring(w.speed, v);
   w.distance = elapsedS * v * 0.8;
-  w.runner.stride = w.distance * 0.4;
+  w.runner.stride = w.distance / strideLength(v);
 }
 
 // ---- The generator --------------------------------------------------------------------------------------
@@ -225,6 +251,11 @@ function coinArc(w: World, lane: Lane, at: number): void {
     const z = at + i * 0.5;
     w.pickups.push({ kind: i === 0 ? 'wagmi' : 'cope', x: lane, z, h: 0.22 + 0.45 * (1 - (i / 2.4) ** 2), sortZ: z, taken: false, age: 0, seed: w.rand() });
   }
+}
+
+/** A SLIPPAGE puddle flat on the floor of a lane: run through it and the steering goes loose; jump it and nothing happens. */
+function puddle(w: World, lane: Lane, z: number): void {
+  w.pickups.push({ kind: 'slip', x: lane, z, h: 0.01, sortZ: z + 0.4, taken: false, age: 0, seed: w.rand() });
 }
 
 function obstacle(w: World, kind: ObstacleKind, lane: Lane, z: number, length: number, ramp = false): Obstacle {
@@ -254,11 +285,20 @@ function block(w: World, count: number): { shut: Lane[]; open: Lane } {
   return { shut: [shutLane], open };
 }
 
-/** Lays the next pattern at zNext: obstacles, the coins that reward getting past them, a trap or a power-up. */
-function lay(w: World, tension: number): void {
+/**
+ * Lays the next pattern at zNext: obstacles, the coins that reward getting past them, a trap or a power-up. Its
+ * difficulty is the tension (1 - 1/x) of the room's public curve at the moment the pattern reaches the runner,
+ * from the multiplier now, the course speed and the pace in decades per second: a forecast of the display, never of
+ * the crash point. With no pace yet (before the curve can be measured) it uses the multiplier now.
+ */
+/** The room's pace in decades per second, read off the display (x = 10^(pace·t) on an exponential curve). */
+export const paceOf = (multiplier: number, seconds = 0): number => seconds > 0.5 && multiplier > 1.001 ? Math.log10(multiplier) / seconds : 0;
+
+function lay(w: World, multiplier: number, pace = 0): void {
   const r = w.rand;
   const z = w.zNext;
   const v = Math.max(BASE_SPEED, w.speed.x);
+  const tension = 1 - 1 / (Math.max(1, multiplier) * 10 ** ((z - RUNNER_Z) / Math.max(v, speedFor(multiplier)) * pace));
   const pick = r();
   let length = 0.4;
   if (pick < 0.2) {
@@ -280,13 +320,15 @@ function lay(w: World, tension: number): void {
     length = 0.3;
   } else if (pick < 0.54) {
     // Rolled-up rugs: nothing gets over or under one, so a lane stays open within a swerve.
-    const { shut, open } = block(w, tension > 0.25 && r() < 0.45 ? 2 : 1);
+    const { shut, open } = block(w, tension > 0.12 && r() < 0.45 ? 2 : 1);
     for (const lane of shut) obstacle(w, 'rug', lane, z, 0.7);
     coinLine(w, open, z - 1.2, z + 1.6, 0.15, r() < 0.3 ? 'wagmi' : 'cope');
+    // Sometimes the way out is slippery.
+    if (r() < 0.12 + 0.2 * tension) puddle(w, open, z + 2.3);
     length = 0.7;
   } else if (pick < 0.78) {
     // The Exit Scam Express: a ramped car is a road to the roof and its coins, an unramped one a wall.
-    const { shut, open } = block(w, tension > 0.2 && r() < 0.5 ? 2 : 1);
+    const { shut, open } = block(w, tension > 0.12 && r() < 0.5 ? 2 : 1);
     const trainLength = 5 + r() * 4;
     for (const lane of shut) {
       const ramp = r() < 0.65;
@@ -306,6 +348,7 @@ function lay(w: World, tension: number): void {
     let lane: Lane = w.lastFree;
     let at = z;
     for (let segment = 0; segment < 3; segment += 1) {
+      if (segment === 0 && r() < 0.25) puddle(w, lane, at + 0.9);
       const coins = coinLine(w, lane, at, at + 1.8);
       if (segment === 1 && r() < 0.3 + 0.35 * tension && coins[1]) coins[1].kind = 'honey';
       if (segment === 2 && r() < 0.25 && coins[coins.length - 1]) coins[coins.length - 1]!.kind = 'lambo';
@@ -328,36 +371,41 @@ function lay(w: World, tension: number): void {
 
 // ---- The step ----------------------------------------------------------------------------------------------
 
-/** Where the rails (or a ramp, or a roof) are under the runner, and the obstacle it ran into, if any. */
-function contact(w: World): { ground: number; heavy: Obstacle | null; light: Obstacle | null } {
+interface Contact { ground: number; heavy: Obstacle | null; light: Obstacle | null; side: Obstacle | null }
+
+/**
+ * Where the rails (or a ramp, or a roof) are under the runner, and the obstacle it ran into, if any. An obstacle
+ * whose near end is already behind the runner, met off-centre, was entered from the side mid-swerve: a swipe.
+ */
+function contact(w: World): Contact {
   const r = w.runner;
   const top = r.h + (r.slide > 0 ? SLIDE_HEIGHT : RUNNER_HEIGHT);
-  let ground = 0;
-  let heavy: Obstacle | null = null;
-  let light: Obstacle | null = null;
+  const out: Contact = { ground: 0, heavy: null, light: null, side: null };
   for (const o of w.obstacles) {
-    if (o.hit || Math.abs(r.x.x - o.lane) > WIDTH + HALF) continue;
+    const dx = Math.abs(r.x.x - o.lane);
+    if (o.hit || dx > WIDTH + HALF || (o === r.dodge && r.down > 0)) continue;
     const near = o.kind === 'train' && o.ramp ? o.z - RAMP : o.z;
     if (near > RUNNER_Z + REACH || o.z + o.length < RUNNER_Z - REACH) continue;
+    const side = near < RUNNER_Z - REACH && dx > 0.15;
     switch (o.kind) {
       case 'wall':
-        if (r.h < 0.3) light = o;
+        if (r.h < 0.3) out[side ? 'side' : 'light'] = o;
         break;
       case 'gate':
-        if (top > 0.5) light = o;
+        if (top > 0.5) out[side ? 'side' : 'light'] = o;
         break;
       case 'rug':
-        heavy = o;
+        out[side ? 'side' : 'heavy'] = o;
         break;
       case 'train': {
         const g = o.ramp && RUNNER_Z < o.z ? ROOF * clamp((RUNNER_Z - (o.z - RAMP)) / RAMP, 0, 1) : ROOF;
-        if (r.h >= g - 0.3) ground = Math.max(ground, g);
-        else heavy = o;
+        if (r.h >= g - 0.3) out.ground = Math.max(out.ground, g);
+        else out[side ? 'side' : 'heavy'] = o;
         break;
       }
     }
   }
-  return { ground, heavy, light };
+  return out;
 }
 
 function spill(w: World, coins: number): void {
@@ -366,13 +414,15 @@ function spill(w: World, coins: number): void {
   w.events.spill += n;
 }
 
-function hitLight(w: World, o: Obstacle): void {
+/** A light hit: a quarter of the bag spills, the course stutters and the Taxman closes in. */
+function hitLight(w: World, o: Obstacle | null): void {
   const r = w.runner;
-  o.hit = true;
+  if (o) o.hit = true;
   spill(w, Math.max(Math.min(w.bag, 3), Math.ceil(w.bag * 0.25)));
   w.streak = 0;
   r.stumble = STUMBLE_S;
   r.grace = GRACE_S;
+  w.speed.x *= 0.75;
   w.heat += HEAT_PER_HIT;
   w.events.stumble = true;
   if (w.heat >= 1) {
@@ -384,14 +434,38 @@ function hitLight(w: World, o: Obstacle): void {
   }
 }
 
+/** Clipped a car or a wall from the side mid-swerve: bounced back to the lane beside it, and a stumble unless in grace. */
+function swipe(w: World, o: Obstacle): void {
+  const r = w.runner;
+  const back = clamp(o.lane + ((r.x.x - o.lane || -r.x.v) < 0 ? -1 : 1), -1, 1) as Lane;
+  if (back !== r.lane) {
+    r.lane = back;
+    r.x.v *= -0.3;
+  }
+  if (r.grace > 0 || r.down > 0) return;
+  hitLight(w, null);
+  w.events.swipe = true;
+}
+
+/**
+ * Head-on into a rug or a car: the whole bag goes, the course all but stops and the runner rolls. A car has no
+ * broken drawing, so the roll carries the runner into a safe lane beside it; with none, the car glitches out.
+ */
 function hitHeavy(w: World, o: Obstacle): void {
   const r = w.runner;
-  o.hit = true;
+  const aside = o.kind === 'train' ? LANES.filter((l) => Math.abs(l - o.lane) === 1 && laneSafe(w, l, 2)).sort((a, b) => Math.abs(a - r.x.x) - Math.abs(b - r.x.x))[0] : undefined;
+  if (aside === undefined) o.hit = true;
+  else {
+    r.lane = aside;
+    r.dodge = o;
+  }
   spill(w, w.bag);
   w.streak = 0;
   r.down = DOWN_S;
   r.grace = GRACE_S + 0.5;
   r.slide = 0;
+  r.queued = 0;
+  settleSpring(w.speed, w.speed.x * 0.3);
   w.heat = Math.min(1, w.heat + 0.5);
   w.events.heavy = true;
 }
@@ -414,6 +488,10 @@ function take(w: World, p: Pickup): void {
       w.double = POWER_S;
       e.double = true;
       return;
+    case 'slip':
+      w.runner.slip = SLIP_S;
+      e.slip = true;
+      return;
     default: {
       const value = COIN_VALUE[p.kind] * (w.double > 0 ? 2 : 1);
       w.bag += value;
@@ -429,9 +507,20 @@ function take(w: World, p: Pickup): void {
   }
 }
 
-/** Advances the course by `dt` seconds with the runner's commands. */
+const NO_COMMANDS: Commands = { left: false, right: false, jump: false, slide: false };
+
+/**
+ * Advances the course by `dt` seconds with the runner's commands, in substeps no longer than SUBSTEP_S so a slow
+ * frame steps the same course as a fast one; the events of every substep add up for the frame.
+ */
 export function stepWorld(w: World, cmd: Commands, drive: Drive, dt: number): void {
-  const e = (w.events = noEvents());
+  w.events = noEvents();
+  const n = Math.max(1, Math.ceil(dt / SUBSTEP_S - 1e-9));
+  for (let i = 0; i < n; i += 1) substep(w, i ? NO_COMMANDS : cmd, drive, dt / n);
+}
+
+function substep(w: World, cmd: Commands, drive: Drive, dt: number): void {
+  const e = w.events;
   const r = w.runner;
   w.time += dt;
   stepSpring(w.speed, drive.running ? speedFor(drive.multiplier) : 0, drive.running ? 2.2 : 6, 1, dt);
@@ -449,13 +538,15 @@ export function stepWorld(w: World, cmd: Commands, drive: Drive, dt: number): vo
   w.obstacles = w.obstacles.filter((o) => o.z + o.length > 0.5);
   w.pickups = w.pickups.filter((p) => p.z > 0.6 && (!p.taken || p.age < 0.4));
   w.zNext -= move;
-  while (w.zNext < FAR + 6) lay(w, drive.tension);
+  while (w.zNext < FAR + 6) lay(w, drive.multiplier, paceOf(drive.multiplier, drive.seconds));
 
   // Timers.
   r.slide = Math.max(0, r.slide - dt);
   r.stumble = Math.max(0, r.stumble - dt);
   r.down = Math.max(0, r.down - dt);
   r.grace = Math.max(0, r.grace - dt);
+  r.slip = Math.max(0, r.slip - dt);
+  if (r.down <= 0) r.dodge = null;
   w.heat = Math.max(0, w.heat - HEAT_DECAY * dt);
   if (w.audit >= 0) w.audit += dt;
   if (w.audit > 2) w.audit = -1;
@@ -468,68 +559,91 @@ export function stepWorld(w: World, cmd: Commands, drive: Drive, dt: number): vo
     if (w.double <= 0) e.expired = 'double';
   }
 
-  // Steering, unless the runner is down or off the rails.
-  const steering = drive.running && !drive.off && r.down <= 0;
+  // Steering, unless the runner is down or off the rails. A jump or slide pressed a moment early (in the air, or at
+  // the end of a knockdown) is buffered; a jump just after running off a roof still counts; one lane command
+  // waits out a knockdown.
+  const live = drive.running && !drive.off;
+  const steering = live && r.down <= 0;
   const onGround = r.h <= r.ground + 0.02;
+  if (cmd.jump) r.jumpBuf = BUFFER_S;
+  if (cmd.slide) r.slideBuf = BUFFER_S;
+  const turn = (cmd.right ? 1 : 0) - (cmd.left ? 1 : 0);
+  if (live && !steering && turn) r.queued = turn;
   if (steering) {
-    if (cmd.left && r.lane > -1) { r.lane = (r.lane - 1) as Lane; e.swerve = true; }
-    if (cmd.right && r.lane < 1) { r.lane = (r.lane + 1) as Lane; e.swerve = true; }
-    if (cmd.jump && onGround) {
+    const lane = clamp(r.lane + (turn || r.queued), -1, 1) as Lane;
+    r.queued = 0;
+    if (lane !== r.lane) {
+      r.lane = lane;
+      e.swerve = true;
+    }
+    if (r.jumpBuf > 0 && (onGround || r.coyote > 0)) {
       r.vh = JUMP_V;
       r.slide = 0;
+      r.jumpBuf = r.coyote = 0;
       e.jump = true;
     }
-    if (cmd.slide) {
+    if (r.slideBuf > 0) {
       // In the air a slide slams the runner down; on the ground it ducks.
       if (!onGround) r.vh = Math.min(r.vh, SLAM_V);
       r.slide = SLIDE_S;
+      r.slideBuf = 0;
       e.slide = true;
     }
   }
-  stepSpring(r.x, r.lane, 16, 0.78, dt);
+  r.jumpBuf = Math.max(0, r.jumpBuf - dt);
+  r.slideBuf = Math.max(0, r.slideBuf - dt);
+  // A SLIPPAGE puddle loosens the lane spring: the swerve overshoots and wobbles back.
+  stepSpring(r.x, r.lane, 16, r.slip > 0 ? 0.35 : 0.78, dt);
 
-  // Gravity and the surface: the rails, or the ramp or roof under the runner.
+  // Gravity and the surface: the rails, or the ramp or roof under the runner. Exact for constant gravity.
+  r.h += r.vh * dt - 0.5 * GRAVITY * dt * dt;
   r.vh -= GRAVITY * dt;
-  r.h += r.vh * dt;
-  const { ground, heavy, light } = drive.off ? { ground: 0, heavy: null, light: null } : contact(w);
-  r.ground = ground;
+  const hit = contact(w);
+  r.ground = drive.off ? Math.min(r.ground, hit.ground) : hit.ground;
   if (r.h <= r.ground) {
     if (r.vh < -1.5 && r.air > 0.12) e.land = true;
     r.h = r.ground;
     r.vh = 0;
     r.air = 0;
-  } else r.air += dt;
+    r.coyote = COYOTE_S;
+  } else {
+    r.air += dt;
+    r.coyote = Math.max(0, r.coyote - dt);
+  }
   if (r.h < -6) r.h = -6;
 
-  // Collisions: a knocked obstacle stays knocked, and a hit in grace costs nothing.
-  if (!drive.off) {
-    const struck = heavy ?? light;
-    if (struck && (r.grace > 0 || r.down > 0)) struck.hit = true;
-    else if (heavy) hitHeavy(w, heavy);
-    else if (light) hitLight(w, light);
+  // Collisions, only while the round runs: a side swipe bounces back, a knocked obstacle stays knocked, and a
+  // hit in grace costs nothing (a car is only knocked when run through square).
+  if (live) {
+    const struck = hit.heavy ?? hit.light;
+    if (hit.side) swipe(w, hit.side);
+    else if (struck && (r.grace > 0 || r.down > 0)) {
+      if (struck.kind !== 'train' || Math.abs(r.x.x - struck.lane) < 0.3) struck.hit = true;
+    } else if (hit.heavy) hitHeavy(w, hit.heavy);
+    else if (hit.light) hitLight(w, hit.light);
   }
 
   // Pickups: what the runner touches, and what the magnet pulls in.
-  if (!drive.off && r.down <= 0) {
+  if (live && r.down <= 0) {
+    const pull = 1 - Math.exp(-9 * dt);
     for (const p of w.pickups) {
       if (p.taken) continue;
       const coin = COIN_VALUE[p.kind] > 0;
       if (w.magnet > 0 && coin && p.z > 0.8 && p.z < 7 && Math.abs(p.x - r.x.x) < 2.2) {
-        const k = Math.min(1, 9 * dt);
-        p.x += (r.x.x - p.x) * k;
-        p.h += (r.h + 0.3 - p.h) * k;
+        p.x += (r.x.x - p.x) * pull;
+        p.h += (r.h + 0.3 - p.h) * pull;
       }
       if (Math.abs(p.z - RUNNER_Z) < 0.36 && Math.abs(p.x - r.x.x) < 0.55 && Math.abs(p.h - (r.h + 0.25)) < 0.55) take(w, p);
     }
   }
 
-  // The stride, with a footfall each half cycle.
-  const moving = drive.running && !drive.off && w.speed.x > 0.5 && onGround && r.slide <= 0 && r.down <= 0;
-  if (moving) {
+  // The stride follows the distance run, so the feet keep pace with the rails as the course speeds up or slows
+  // to a stop after the crash; standing, the feet settle flat.
+  if (!drive.off && w.speed.x > 0.3 && onGround && r.slide <= 0 && r.down <= 0) {
     const before = Math.floor(r.stride * 2);
-    r.stride += dt * Math.min(2.3, 1.25 + w.speed.x * 0.1);
+    r.stride += move / strideLength(w.speed.x);
     if (Math.floor(r.stride * 2) !== before) e.step = true;
-  }
+  } else if (onGround && w.speed.x <= 0.3) r.stride += (Math.round(r.stride * 2) / 2 - r.stride) * (1 - Math.exp(-6 * dt));
 }
 
 // ---- The copy-trading bot --------------------------------------------------------------------------------
@@ -556,7 +670,7 @@ function laneValue(w: World, lane: Lane, horizon: number): number {
   let value = 0;
   for (const p of w.pickups) {
     if (p.taken || Math.round(p.x) !== lane || p.z < RUNNER_Z || p.z > RUNNER_Z + horizon) continue;
-    value += p.kind === 'honey' ? -8 : p.kind === 'magnet' || p.kind === 'double' ? 6 : COIN_VALUE[p.kind];
+    value += p.kind === 'honey' ? -8 : p.kind === 'slip' ? -4 : p.kind === 'magnet' || p.kind === 'double' ? 6 : COIN_VALUE[p.kind];
   }
   return value;
 }
@@ -571,7 +685,9 @@ export function autopilot(w: World, dt: number): Commands {
   w.bot.clock -= dt;
   if (w.bot.clock > 0) return cmd;
   w.bot.clock = 0.1;
-  w.bot.late = w.rand() * 0.14;
+  w.bot.late = w.bot.rand() * 0.14;
+  // One look at the phone costs one wall: the hit (which takes that wall out of the threats) ends it.
+  if (r.stumble > 0 || r.down > 0) w.bot.blind = false;
   const v = Math.max(3, w.speed.x);
   const horizon = clamp(v * 1.1, 4, 12);
   let threat: Obstacle | null = null;
@@ -587,7 +703,7 @@ export function autopilot(w: World, dt: number): Commands {
   if (threat) {
     const tt = (threat.z - RUNNER_Z) / v;
     if (threat.kind === 'wall' || threat.kind === 'gate') {
-      if (tt < 0.36) w.bot.blind = w.bot.blind || w.rand() < 0.02;
+      if (tt < 0.36) w.bot.blind = w.bot.blind || w.bot.rand() < 0.02;
       if (tt < 0.22 + w.bot.late && !w.bot.blind) {
         if (threat.kind === 'wall') cmd.jump = true;
         else cmd.slide = true;
@@ -605,7 +721,7 @@ export function autopilot(w: World, dt: number): Commands {
   }
   // A honeypot on the line ahead: hop over it, most of the time.
   const honey = w.pickups.find((p) => !p.taken && p.kind === 'honey' && Math.round(p.x) === r.lane && p.z > RUNNER_Z && p.z < RUNNER_Z + v * 0.3);
-  if (honey && w.rand() < 0.75 && r.h <= r.ground + 0.02) {
+  if (honey && w.bot.rand() < 0.75 && r.h <= r.ground + 0.02) {
     cmd.jump = true;
     return cmd;
   }

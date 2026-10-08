@@ -80,6 +80,7 @@ export function limb(root: Point, target: Point, upper: number, lower: number, p
   return { elbow: { x: root.x + ux * along - uy * bend, y: root.y + uy * along + ux * bend }, end: { x: root.x + ux * reach, y: root.y + uy * reach } };
 }
 
+export type HandStyle = 'open' | 'fist' | 'rude';
 export interface ActorPose {
   hip: Point;
   shoulder: Point;
@@ -99,6 +100,8 @@ export interface ActorPose {
   exit: number;
   magnifier: boolean;
   rude: boolean;
+  leftStyle: HandStyle;
+  rightStyle: HandStyle;
 }
 
 export function actorAt(input: ActingInput, act: Act): ActorPose {
@@ -228,5 +231,10 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
     eye = 1.5 - collapsed * 0.95;
     magnifier = rude = false;
   }
-  return { hip, shoulder, head, headAngle, headSquash: reduced ? 0 : running ? act.impact * 0.09 : breath * 0.005, leftHand, rightHand, leftFoot, rightFoot, keyboard, keyboardAngle, mouth, eye, calm: safe, collapsed, exit, magnifier, rude };
+  // Fists for the hammering acts; open hands for the magnifier, the keyboard grip, the mindfulness clasp, the mug and the wreck.
+  const fists = phase === 'running' && !safe && [0, 2, 3, 5, 6].includes(act.index);
+  let leftStyle: HandStyle = rude ? 'rude' : fists ? 'fist' : 'open';
+  let rightStyle: HandStyle = fists ? 'fist' : 'open';
+  if (phase === 'crashed' && !safe) leftStyle = rightStyle = collapsed < 0.5 ? 'fist' : 'open';
+  return { hip, shoulder, head, headAngle, headSquash: reduced ? 0 : running ? act.impact * 0.09 : breath * 0.005, leftHand, rightHand, leftFoot, rightFoot, keyboard, keyboardAngle, mouth, eye, calm: safe, collapsed, exit, magnifier, rude, leftStyle, rightStyle };
 }

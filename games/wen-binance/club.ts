@@ -8,7 +8,7 @@
  * tickets in the foreground, the taxi for an accepted exit, and the crash:
  * sell the news. Nothing here changes the outcome.
  */
-import { type Spring, clamp, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { type Spring, clamp, fract, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
 export const W = 960;
@@ -24,13 +24,26 @@ export type Point = { x: number; y: number };
 const MARQUEE = { x: 540, y: 78, w: 380, h: 96 } as const;
 const SIGN_Y = MARQUEE.y + 76;
 const SIGN_SIZE = 22;
-/** The sign's letters, and the tension each one works loose at and drops at (the rest hold on until the crash). */
+/**
+ * The sign's letters, and the multiplier each one works loose at and drops at: the first two inside the first
+ * dozen seconds, then further apart so a long round keeps shedding (the rest hold on until the crash).
+ */
 const SIGN_TEXT = 'LISTING SOON';
-const SIGN_DROPS: Record<number, [number, number]> = { 4: [0.3, 0.48], 9: [0.44, 0.62], 2: [0.58, 0.76], 11: [0.72, 0.88], 6: [0.84, 0.97] };
+const SIGN_DROPS: Record<number, [number, number]> = { 4: [1.35, 1.8], 9: [1.6, 2.3], 2: [2.6, 3.6], 11: [4.5, 7], 6: [9, 14], 0: [25, 50], 10: [100, 200] };
 /** Glyph widths for the sign before a canvas has measured the real font. */
 const GLYPH_GUESS: Record<string, number> = { I: 7, L: 11, S: 12, T: 12, N: 14, G: 14, O: 14, D: 14, E: 12, ' ': 6 };
-/** Seconds after the crash that the DELISTED sign lights up over the empty marquee. */
-const DELISTED_AT = 1.2;
+/** Crash seconds (slowed by the hit-stop) at which the DELISTED sign, the house lights and the sign flip land: all inside the 2 s crash hold. */
+const DELISTED_AT = 0.75;
+const LIGHTS_AT = 0.85;
+const FLIP_AT = 1.1;
+/** The multiplier the doors first crack at, and the ones the handles rattle at as if the doors were opening (they are not). */
+const AJAR_X = 2.33;
+const FAKEOUTS = [1.9, 2.75, 4.2];
+/** How far the doors stand open in a running round: cracked from 2.33x, wider through the climb, and wider still on a slow log driver for long rounds. */
+const ajarAt = (m: number, time: number): number => (m >= AJAR_X ? 0.08 + 0.22 * smoothstep(0.57, 0.9, 1 - 1 / m) + 0.15 * clamp(Math.log10(m) / 3, 0, 1) + 0.05 * Math.sin(time * 1.3) : 0);
+/** Stride lengths in local units: a walk (planted 60% of the cycle) and a run (38%, with a flight phase). */
+const WALK = 110;
+const RUN = 180;
 
 /** A letter of the sign: lit in place, hanging loose from one corner, falling, or lying on the pavement. */
 export interface Letter {
@@ -57,15 +70,21 @@ export interface Letter {
 
 interface Ticket { x: number; y: number; vx: number; vy: number; angle: number; va: number; age: number }
 
-/** The scalper: off, patrolling the foreground with his board, or running for it. */
-export interface Scalper { x: number; dir: number; mode: 'off' | 'hawking' | 'fleeing'; bubble: string; bubbleAge: number; bubbleAt: number; tickets: Ticket[] }
+/**
+ * The scalper: off, patrolling the foreground with his board, or running for it. `v` eases toward the way he
+ * is heading, so he slows, squashes through the turn and sets off again; his feet step on `walked`.
+ */
+export interface Scalper { x: number; v: number; walked: number; dir: number; mode: 'off' | 'hawking' | 'fleeing'; bubble: string; bubbleAge: number; bubbleAt: number; tickets: Ticket[] }
 
 const SCALPER_LINES = ['psst. skip the line?', 'fast-track tix, cash only', 'tier 1 listing, trust me', 'i know the bouncer', '2 tix left (there are 400)', 'price goes up next candle', 'my cousin is the exchange', 'no refunds, no receipts', 'the fee? that is the fee'];
 
 export interface Suit {
   x: number;
-  /** Walking speed in px/s; negative runs left (leaving with the bag). */
+  /** Walking speed in px/s; negative runs left (leaving with the bag). `speed` eases toward it. */
   vx: number;
+  speed: number;
+  /** Distance covered in px: it drives the feet, so they never skate. */
+  walked: number;
   bag: boolean;
   seed: number;
   /** Depth 0..1: drawn smaller and higher when further back on the dance floor. */
@@ -85,7 +104,17 @@ export interface Club {
   wave: Spring;
   signFlip: Spring;
   lights: Spring;
-  beatAt: number;
+  /** The half-beat last kicked on the score's grid. */
+  half: number;
+  /** The marquee bulbs' chase, integrated so its speed can climb without the pattern jumping. */
+  chase: number;
+  /** The displayed multiplier, for what the hype drives directly (the dancers slipping out the back). */
+  mult: number;
+  /** The doors have cracked this round; fake-out rattles used so far. */
+  cracked: boolean;
+  fakes: number;
+  /** The NO JEETS poster flashing as your coin leaves the line, 1 down to 0. */
+  jeet: number;
   suits: Suit[];
   /** Flicker state for the marquee text: 0 LISTING SOON, 1 LISTING, 2 DELISTING. */
   flicker: number;
@@ -106,20 +135,20 @@ export interface Club {
   flinch: Spring;
   /** The handles jiggle on the fuse between the crash frame and the doors bursting. */
   rattle: number;
-  /** What happened this step, for the scene's sound. */
-  events: { enter: boolean; shake: boolean; letterLoose: boolean; letterDrop: boolean; letterDown: boolean; ajar: boolean };
+  /** What happened this step, for the scene's sound and the line: `kick` is the bass hit's strength, 0 for none. */
+  events: { enter: boolean; shake: boolean; letterLoose: boolean; letterDrop: boolean; letterDown: boolean; ajar: boolean; fake: boolean; kick: number };
 }
 
 function createLetters(): Letter[] {
   return Array.from(SIGN_TEXT, (ch, i) => ({ ch, x: 0, w: GLYPH_GUESS[ch] ?? 12, state: 'fixed' as const, side: noise(i * 3.3) > 0.5 ? 1 : -1, swing: spring(0), px: 0, py: 0, vx: 0, vy: 0, angle: 0, va: 0, landY: GROUND + 6 + noise(i * 7.1) * 26, dropAt: Infinity, seed: noise(i * 5.7) }));
 }
 
-const noEvents = (): Club['events'] => ({ enter: false, shake: false, letterLoose: false, letterDrop: false, letterDown: false, ajar: false });
+const noEvents = (): Club['events'] => ({ enter: false, shake: false, letterLoose: false, letterDrop: false, letterDown: false, ajar: false, fake: false, kick: 0 });
 
 export function createClub(): Club {
   return {
-    time: 0, doors: spring(0), thump: spring(0), lookDown: spring(0), headShake: spring(0), wave: spring(0), signFlip: spring(0), lights: spring(0), beatAt: 0, suits: [], flicker: 0, crashed: false, crashAge: 0, taxiX: spring(W + 260), taxi: false, waved: 0, strobe: 0,
-    letters: createLetters(), glyphs: {}, scalper: { x: -60, dir: 1, mode: 'off', bubble: '', bubbleAge: 10, bubbleAt: 0, tickets: [] }, fee: 5, flinch: spring(0), rattle: 0, events: noEvents(),
+    time: 0, doors: spring(0), thump: spring(0), lookDown: spring(0), headShake: spring(0), wave: spring(0), signFlip: spring(0), lights: spring(0), half: -1, chase: 0, mult: 1, cracked: false, fakes: 0, jeet: 0, suits: [], flicker: 0, crashed: false, crashAge: 0, taxiX: spring(W + 260), taxi: false, waved: 0, strobe: 0,
+    letters: createLetters(), glyphs: {}, scalper: { x: -60, v: 0, walked: 0, dir: 1, mode: 'off', bubble: '', bubbleAge: 10, bubbleAt: 0, tickets: [] }, fee: 5, flinch: spring(0), rattle: 0, events: noEvents(),
   };
 }
 
@@ -139,6 +168,10 @@ export function resetClub(c: Club): void {
   c.taxi = false;
   c.waved = 0;
   c.strobe = 0;
+  c.mult = 1;
+  c.cracked = false;
+  c.fakes = 0;
+  c.jeet = 0;
   c.letters = createLetters();
   // The scalper walks off on his own if he was still around.
   if (c.scalper.mode !== 'off') c.scalper.mode = 'fleeing';
@@ -174,33 +207,47 @@ function dropLetter(c: Club, l: Letter): void {
 }
 
 /** Joins a round already in progress: the suits already inside are inside, and the letters the hype has shaken off are on the pavement. */
-export function settleClub(c: Club, waved: number, tension = 0): void {
+export function settleClub(c: Club, waved: number, multiplier = 1): void {
   c.waved = waved;
+  c.mult = multiplier;
   layoutLetters(c);
   for (const [i, l] of c.letters.entries()) {
     const drops = SIGN_DROPS[i];
     if (!drops) continue;
-    if (tension >= drops[1]) {
+    if (multiplier >= drops[1]) {
       l.state = 'down';
       l.px = MARQUEE.x + MARQUEE.w / 2 + l.x + (l.x < 0 ? 1 : -1) * (30 + 60 * l.seed);
       l.py = l.landY;
       l.angle = (l.seed - 0.5) * 2.4;
-    } else if (tension >= drops[0]) {
+    } else if (multiplier >= drops[0]) {
       l.state = 'loose';
       settleSpring(l.swing, l.side * 0.42);
     }
   }
-  if (tension > SCALPER_AT) { c.scalper.mode = 'hawking'; c.scalper.x = 180 + 100 * noise(waved * 2.1); c.scalper.bubbleAt = c.time + 1.5; }
+  // Beats already past stay past: no rattle or creak replays for a round joined late.
+  c.fakes = FAKEOUTS.filter((x) => multiplier >= x).length;
+  c.cracked = multiplier >= AJAR_X;
+  settleSpring(c.doors, ajarAt(multiplier, c.time));
+  if (multiplier > SCALPER_X) {
+    const sc = c.scalper;
+    sc.mode = 'hawking'; sc.x = 180 + 100 * noise(waved * 2.1); sc.dir = 1; sc.v = 48 + 30 * (1 - 1 / multiplier); sc.bubbleAt = c.time + 1.5;
+  }
 }
 
-/** The tension the scalper shows up at, and his size: small enough that his beanie stays under the line's faces. */
-const SCALPER_AT = 0.2;
+/** The multiplier the scalper shows up at (about 3 s in), and his size: small enough that his beanie stays under the line's faces. */
+const SCALPER_X = 1.25;
 const SCALPER_SCALE = 0.66;
 
-/** A milestone: another suit walks up and is waved straight past the rope. */
+/** A milestone: another suit power-walks up and is waved straight past the rope. */
 export function waveSuit(c: Club, index: number): void {
   c.waved += 1;
-  c.suits.push({ x: -60, vx: 190 + 20 * noise(index * 3.7), bag: false, seed: index * 17 + 5, depth: 0, entering: true, gone: false });
+  const vx = 125 + 15 * noise(index * 3.7);
+  c.suits.push({ x: -60, vx, speed: vx, walked: 0, bag: false, seed: index * 17 + 5, depth: 0, entering: true, gone: false });
+}
+
+/** Your coin steps out of the line: the NO JEETS poster lights up. */
+export function jeetClub(c: Club): void {
+  c.jeet = 1;
 }
 
 /** The taxi pulls up for your coin. `quiet` parks it at the kerb already, for an exit that already happened. */
@@ -235,7 +282,11 @@ export function crashClub(c: Club, seed: number, quiet: boolean): void {
   c.crashAge = quiet ? 10 : 0;
   const rng = mulberry32(seed);
   const count = 7 + Math.floor(rng() * 5);
-  for (let i = 0; i < count; i += 1) c.suits.push({ x: DOOR.x + 20 + rng() * 60, vx: -(230 + rng() * 160), bag: true, seed: Math.floor(rng() * 1000), depth: 0, entering: false, gone: false });
+  for (let i = 0; i < count; i += 1) {
+    // They burst out of the doorway at a third of their speed and get up to a run with the bags.
+    const vx = -(220 + rng() * 100);
+    c.suits.push({ x: DOOR.x + 20 + rng() * 60, vx, speed: vx * 0.3, walked: rng() * 40, bag: true, seed: Math.floor(rng() * 1000), depth: 0, entering: false, gone: false });
+  }
   scarper(c, quiet);
   c.rattle = 0;
   if (quiet) {
@@ -264,30 +315,41 @@ export function crashClub(c: Club, seed: number, quiet: boolean): void {
   }
 }
 
-export interface ClubDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
+/** `beat` counts beats of the score (128 BPM) on the scene's clock; `tension` is the scene's 1 - 1/x. */
+export interface ClubDrive { running: boolean; tension: number; multiplier: number; reduced: boolean; beat: number }
 
 export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
   c.time += dt;
   const t = drive.tension;
+  const m = drive.multiplier;
+  c.mult = m;
   c.events = noEvents();
-  if (drive.running) c.fee = 5 * drive.multiplier;
-  // The bass: beats per second rise with the hype.
-  const bpm = drive.running ? 1.8 + 2.6 * t : 1.2;
-  let beat = false;
-  if (c.time >= c.beatAt) { c.beatAt = c.time + 1 / bpm; c.thump.v += drive.running ? 6 + 14 * t : 3; beat = true; }
+  if (drive.running) c.fee = 5 * m;
+  // The bass rides the score's grid: a kick every beat, harder with the hype, and on the half-beats too past 2x.
+  // Behind closed doors before the round it is a muffled thud; the crash pulled the record, so nothing after it.
+  const half = Math.floor(drive.beat * 2);
+  if (half !== c.half && !c.crashed) {
+    const down = half % 2 === 0;
+    c.half = half;
+    const kick = !drive.running ? (down ? 3 : 0) : down ? 6 + 14 * t : t > 0.5 ? 2 + 8 * t : 0;
+    if (kick > 0) { c.thump.v += kick; c.events.kick = kick; }
+  }
   stepSpring(c.thump, 0, 18, 0.5, dt);
   stepSpring(c.flinch, 0, 9, 0.4, dt);
   if (c.rattle > 0) c.rattle = Math.max(0, c.rattle - dt / 0.3);
+  if (c.jeet > 0) c.jeet = Math.max(0, c.jeet - dt / 1.6);
+  if (!drive.reduced) c.chase += dt * (3 + 8 * t);
+  // The handles rattle as if the doors were finally opening. They are not.
+  if (drive.running && !c.crashed && c.fakes < FAKEOUTS.length && m >= FAKEOUTS[c.fakes]!) { c.fakes += 1; c.rattle = 2; c.events.fake = true; }
   // The sign: letters work loose with the hype, swing on the bass and drop; after the crash, all of them.
   for (const [i, l] of c.letters.entries()) {
+    const drops = SIGN_DROPS[i];
     if (l.state === 'fixed' && !c.crashed && drive.running) {
-      const drops = SIGN_DROPS[i];
-      if (drops && t >= drops[0]) { l.state = 'loose'; l.swing.v += 4 * l.side; c.events.letterLoose = true; }
+      if (drops && m >= drops[0]) { l.state = 'loose'; l.swing.v += 4 * l.side; c.events.letterLoose = true; }
     } else if (l.state === 'loose') {
-      const drops = SIGN_DROPS[i];
-      if (!c.crashed && drive.running && drops && t >= drops[1]) dropLetter(c, l);
+      if (!c.crashed && drive.running && drops && m >= drops[1]) dropLetter(c, l);
       else {
-        if (beat) l.swing.v += (1.5 + 4 * t) * (noise(Math.floor(c.time * 3) + i) > 0.5 ? 1 : -1);
+        if (c.events.kick) l.swing.v += 0.22 * c.events.kick * (noise(Math.floor(c.time * 3) + i) > 0.5 ? 1 : -1);
         stepSpring(l.swing, l.side * 0.42, 4, 0.14, dt);
       }
     }
@@ -305,55 +367,60 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
       }
     }
   }
+  // Suits walking: arrivals power-walk to the door, step up into it and go in; leavers run left with the bags.
+  let waving = false;
+  let letIn = false;
+  for (const s of c.suits) {
+    if (s.gone) continue;
+    s.speed += (s.vx - s.speed) * (1 - Math.exp(-dt * 9));
+    if (s.entering) {
+      if (s.depth === 0) s.x += s.speed * dt;
+      s.walked += (s.depth === 0 ? s.speed : 55) * dt;
+      waving ||= s.x > BOUNCER_X - 150 && s.x < BOUNCER_X + 30;
+      letIn ||= s.x > BOUNCER_X - 40 && s.depth < 0.7;
+      if (s.x > DOOR.x + DOOR.w / 2) { if (s.depth === 0) c.events.enter = true; s.depth = Math.min(1, s.depth + dt * 1.6); if (s.depth >= 1) s.gone = true; }
+    } else {
+      s.x += s.speed * dt;
+      s.walked -= s.speed * dt;
+      if (s.x < -80) s.gone = true;
+    }
+  }
+  c.suits = c.suits.filter((s) => !s.gone);
   if (c.crashed) {
     c.crashAge += dt;
     stepSpring(c.doors, 1, 6, 0.75, dt);
-    stepSpring(c.signFlip, c.crashAge > 2.2 ? 1 : 0, 9, 0.7, dt);
-    stepSpring(c.lights, c.crashAge > 1.6 ? 1 : 0, 5, 0.9, dt);
-    c.flicker = c.crashAge > 2.2 ? 2 : 1;
+    stepSpring(c.signFlip, c.crashAge > FLIP_AT ? 1 : 0, 9, 0.7, dt);
+    stepSpring(c.lights, c.crashAge > LIGHTS_AT ? 1 : 0, 5, 0.9, dt);
+    c.flicker = c.crashAge > FLIP_AT ? 2 : 1;
     if (c.strobe > 0) c.strobe = Math.max(0, c.strobe - dt / 1.2);
     stepSpring(c.lookDown, 0, 8, 0.8, dt);
     stepSpring(c.wave, 0, 6, 0.6, dt);
     stepSpring(c.headShake, 0, 10, 0.4, dt);
   } else {
-    const ajar = drive.running && t > 0.62 ? 0.1 + 0.08 * Math.sin(c.time * 1.3) + 0.06 * (t - 0.62) : 0;
-    const wasShut = c.doors.x < 0.04;
-    stepSpring(c.doors, ajar, 5, 0.6, dt);
-    if (wasShut && c.doors.x >= 0.04 && drive.running) c.events.ajar = true;
+    // The doors crack at 2.33x and the gap keeps growing through a long round; a suit being let in swings them wide.
+    const ajar = drive.running ? ajarAt(m, c.time) : 0;
+    if (ajar > 0 && !c.cracked) { c.cracked = true; c.events.ajar = true; }
+    stepSpring(c.doors, letIn ? Math.max(ajar, 0.55) : ajar, 5, 0.6, dt);
     stepSpring(c.signFlip, 0, 9, 0.7, dt);
     stepSpring(c.lights, 0, 5, 0.9, dt);
-    // The bouncer checks his clipboard longer the higher it goes.
-    const checking = drive.running && t > 0.35 && noise(Math.floor(c.time * 0.5)) < 0.3 + 0.6 * t;
+    // The bouncer checks his clipboard a second or so in, then more often the higher it goes.
+    const checking = drive.running && ((m >= 1.1 && m < 1.2) || (t > 0.25 && noise(Math.floor(c.time * 0.5)) < 0.15 + 0.75 * t));
     stepSpring(c.lookDown, checking ? 1 : 0, 6, 0.8, dt);
-    if (drive.running && t > 0.5 && Math.floor(c.time * 2) !== Math.floor((c.time - dt) * 2) && noise(Math.floor(c.time * 2) * 1.7) > 0.8) { c.headShake.v += 30; c.events.shake = true; }
+    if (drive.running && t > 0.45 && Math.floor(c.time * 2) !== Math.floor((c.time - dt) * 2) && noise(Math.floor(c.time * 2) * 1.7) > 0.8) { c.headShake.v += 30; c.events.shake = true; }
     stepSpring(c.headShake, 0, 14, 0.35, dt);
-    stepSpring(c.wave, 0, 6, 0.6, dt);
-    // Marquee flicker between LISTING SOON, LISTING and DELISTING.
+    stepSpring(c.wave, waving ? 1 : 0, 7, 0.6, dt);
+    // Marquee flicker between LISTING SOON, LISTING (from 1.43x) and DELISTING (from 2.2x).
     const slot = Math.floor(c.time * 6);
     const n = noise(slot * 2.3);
-    c.flicker = drive.reduced ? 0 : t > 0.55 && n > 1 - 0.35 * (t - 0.55) / 0.45 ? 2 : t > 0.3 && n > 0.85 ? 1 : 0;
+    c.flicker = drive.reduced || !drive.running ? 0 : t > 0.55 && n > 1 - 0.35 * (t - 0.55) / 0.45 ? 2 : t > 0.3 && n > 0.85 ? 1 : 0;
   }
-  // Suits walking: arrivals go to the door and in; leavers run left with the bags.
-  for (const s of c.suits) {
-    if (s.gone) continue;
-    if (s.entering) {
-      s.x += s.vx * dt;
-      if (s.x > BOUNCER_X - 40 && s.x < BOUNCER_X + 20) c.wave.x = Math.max(c.wave.x, 0.6);
-      if (s.x > DOOR.x + DOOR.w / 2) { if (s.depth === 0) c.events.enter = true; s.depth = Math.min(1, s.depth + dt * 1.6); if (s.depth >= 1) s.gone = true; }
-    } else {
-      s.x += s.vx * dt;
-      if (s.x < -80) s.gone = true;
-    }
-  }
-  c.suits = c.suits.filter((s) => !s.gone);
   if (c.taxi) stepSpring(c.taxiX, KERB, 3.2, 0.85, dt);
   else settleSpring(c.taxiX, W + 260);
   // The scalper: in from the left once there is a line worth working, back and forth in front of it, off at a run.
   const sc = c.scalper;
-  if (sc.mode === 'off' && drive.running && !c.crashed && !c.taxi && t > SCALPER_AT) { sc.mode = 'hawking'; sc.x = -60; sc.dir = 1; sc.bubbleAt = c.time + 2; }
+  if (sc.mode === 'off' && drive.running && !c.crashed && !c.taxi && m > SCALPER_X) { sc.mode = 'hawking'; sc.x = -60; sc.dir = 1; sc.v = 0; sc.bubbleAt = c.time + 1.2; }
   if (sc.mode === 'hawking') {
     if (!drive.running && !c.crashed) scarper(c, false);
-    sc.x += sc.dir * (48 + 30 * t) * dt;
     if (sc.x > 300) sc.dir = -1;
     if (sc.x < 170 && sc.dir < 0) sc.dir = 1;
     sc.bubbleAge += dt;
@@ -362,9 +429,14 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
       sc.bubbleAge = 0;
       sc.bubbleAt = c.time + mix(5.5, 2.6, t) * (0.8 + 0.4 * noise(c.time));
     }
-  } else if (sc.mode === 'fleeing') {
-    sc.x -= 430 * dt;
-    if (sc.x < -80) sc.mode = 'off';
+  }
+  if (sc.mode !== 'off') {
+    // Velocity eases toward where he is heading (about 0.3 s), so he slows into a turn and bolts without a pop.
+    const target = sc.mode === 'fleeing' ? -270 : sc.dir * (48 + 30 * t);
+    sc.v += (target - sc.v) * (1 - Math.exp(-dt * (sc.mode === 'fleeing' ? 8 : 6)));
+    sc.x += sc.v * dt;
+    sc.walked += Math.abs(sc.v) * dt;
+    if (sc.mode === 'fleeing' && sc.x < -80) sc.mode = 'off';
   }
   for (const k of sc.tickets) { k.age += dt; k.vy += 300 * dt; k.vx *= Math.exp(-dt * 1.5); k.x += k.vx * dt; k.y += k.vy * dt; k.angle += k.va * dt; }
   sc.tickets = sc.tickets.filter((k) => k.age < 1.6);
@@ -404,6 +476,13 @@ function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, upper: number, 
   return joint;
 }
 
+/** A price that fits a plaque however long the round runs: 950, 12.5K, 3.1M, 40.0B, then powers of ten. */
+export function compact(n: number, digits: number): string {
+  if (n < 1000) return n.toFixed(digits);
+  const tier = Math.min(4, Math.floor(Math.log10(n) / 3));
+  return n >= 1e15 ? n.toExponential(1).replace('e+', 'e') : `${(n / 1000 ** tier).toFixed(1)}${'KMBT'[tier - 1]}`;
+}
+
 function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'center', maxWidth?: number): void {
   ctx.font = `900 ${size}px Impact, "Arial Black", sans-serif`;
   ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
@@ -411,22 +490,41 @@ function memeSmall(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   ctx.fillStyle = fill; ctx.fillText(text, x, y, maxWidth);
 }
 
-/** A man in a suit, walking. `stride` in radians drives the knees; the bag lags a step behind. */
-export function drawSuit(ctx: CanvasRenderingContext2D, x: number, footY: number, stride: number, bag: boolean, seed: number, scale = 1, facing = 1): void {
+/** A foot on a distance-driven cycle: planted for `duty` of it, sliding back exactly with the ground, then lifted forward. */
+function gaitFoot(cycle: number, side: number, len: number, duty: number, lift: number): Point {
+  const p = fract(cycle + (side > 0 ? 0.5 : 0)), s = smoothstep(duty, 1, p);
+  return { x: (duty / 2 - p + s) * len, y: -Math.sin(Math.PI * s) * lift };
+}
+
+/**
+ * Two legs (40 + 36, knees forward; local +x is the way he faces) stepping on `walked` px of world distance at
+ * `scale`, so the planted foot keeps pace with the pavement at any speed. Returns the stride cycle and the body's
+ * bob (up at mid-stance, down as the weight changes feet) for the torso to follow.
+ */
+function walkLegs(ctx: CanvasRenderingContext2D, walked: number, scale: number, run: boolean, hip: number, colour: string, width: number): { cycle: number; bob: number } {
+  const len = run ? RUN : WALK, duty = run ? 0.38 : 0.6;
+  const cycle = walked / (len * scale);
+  const bob = -1.5 * Math.cos(4 * Math.PI * (fract(cycle) - duty / 2));
+  for (const side of [-1, 1]) {
+    const f = gaitFoot(cycle, side, len, duty, run ? 16 : 11);
+    const foot = { x: side * 9 + f.x, y: f.y };
+    limb(ctx, { x: side * 8, y: hip + bob }, foot, 40, 36, -1, width, colour);
+    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(foot.x, foot.y + 3, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  return { cycle, bob };
+}
+
+/** A man in a suit, walking or running on `walked` px; the arms and coat tails follow the stride, the bag lags it. */
+export function drawSuit(ctx: CanvasRenderingContext2D, x: number, footY: number, walked: number, bag: boolean, seed: number, scale = 1, facing = 1, run = false): void {
   ctx.save();
   ctx.translate(x, footY);
   ctx.scale(scale * facing, scale);
   ctx.lineJoin = 'round';
   const tie = ['#c1121f', '#1d4ed8', '#f4c20d', '#0f766e'][Math.floor(noise(seed * 1.3) * 4)]!;
-  for (const side of [-1, 1]) {
-    const phase = stride + (side > 0 ? Math.PI : 0);
-    const lift = Math.max(0, Math.sin(phase)) * 14;
-    // Airborne foot travels from behind the hip to in front. Local +x is the way he faces.
-    const reach = -Math.cos(phase) * 11;
-    limb(ctx, { x: side * 8, y: -66 }, { x: side * 10 + reach, y: -lift }, 38, 34, -1, 12, '#23232b');
-    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(side * 10 + reach, 3 - lift, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
+  const gait = walkLegs(ctx, walked, scale, run, -68, '#23232b', 12);
+  const stride = gait.cycle * Math.PI * 2;
+  ctx.translate(0, gait.bob);
   const tail = Math.sin(stride) * 8;
   ctx.fillStyle = '#1a1a20';
   ctx.beginPath(); ctx.moveTo(-12, -68); ctx.quadraticCurveTo(-24 - tail, -28, -6 - tail, -4); ctx.lineTo(0, -8); ctx.quadraticCurveTo(-10, -30, -4, -68); ctx.fill();
@@ -503,10 +601,11 @@ function drawBouncer(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(-8, -26, 16, 8, 2); ctx.stroke();
   ctx.restore();
-  // Right arm waves a suit through or stays folded.
+  // Right arm waves a suit through or stays folded. As the hand passes the shoulder the elbow swings from above the
+  // forearm to under it through a moment of pointing at the camera, rather than flipping over in one frame.
   const wave = clamp(c.wave.x, 0, 1);
   const waveHand = { x: 48 + 36 * wave, y: -118 - 46 * wave };
-  limb(ctx, { x: 44, y: -150 }, waveHand, 32, 28, waveHand.y >= -150 ? -1 : 1, 16, '#151519');
+  limb(ctx, { x: 44, y: -150 }, waveHand, 32, 28, clamp((-150 - waveHand.y) / 8, -1, 1), 16, '#151519');
   if (wave > 0.3) { ctx.fillStyle = '#c68e6a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(waveHand.x, waveHand.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   // Head with an earpiece, shades, a head-shake.
   ctx.save();
@@ -597,10 +696,13 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.restore();
   ctx.save();
   ctx.translate(330, 130);
-  ctx.rotate(0.06);
-  ctx.fillStyle = '#e7e7ef'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  // It flashes red and rattles on its tape as your coin walks out on the line (lit steadily under reduced motion).
+  const jeet = c.jeet > 0 && (reduced || Math.floor(c.jeet * 14) % 2 === 0) ? 1 : 0;
+  ctx.rotate(0.06 + (reduced ? 0 : 0.05 * c.jeet * Math.sin(c.time * 30)));
+  ctx.scale(1 + 0.08 * c.jeet, 1 + 0.08 * c.jeet);
+  ctx.fillStyle = jeet ? '#ff4d6d' : '#e7e7ef'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-50, -40); ctx.lineTo(50, -40); ctx.lineTo(50, 10); ctx.lineTo(20, 40); ctx.lineTo(-20, 20); ctx.lineTo(-50, 36); ctx.closePath(); ctx.fill(); ctx.stroke();
-  memeSmall(ctx, 'NO JEETS', 0, 0, 20, INK);
+  memeSmall(ctx, 'NO JEETS', 0, 0, 20, jeet ? '#ffffff' : INK);
   ctx.restore();
   // The marquee.
   const mq = MARQUEE;
@@ -610,7 +712,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.beginPath(); ctx.roundRect(mq.x, mq.y, mq.w, mq.h, 10); ctx.fill(); ctx.stroke();
   const bulbs = 22;
   for (let i = 0; i < bulbs; i += 1) {
-    const on = reduced ? i % 2 === 0 : (i + Math.floor(c.time * (3 + 8 * tension))) % 3 !== 0;
+    const on = reduced ? i % 2 === 0 : (i + Math.floor(c.chase)) % 3 !== 0;
     ctx.fillStyle = on ? '#ffe27a' : '#5a5040';
     for (const y of [mq.y + 8, mq.y + mq.h - 8]) { ctx.beginPath(); ctx.arc(mq.x + 12 + (i * (mq.w - 24)) / (bulbs - 1), y, 4, 0, Math.PI * 2); ctx.fill(); }
   }
@@ -660,22 +762,27 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
     ctx.beginPath(); ctx.arc(DOOR.x + DOOR.w / 2, DOOR.y + 26, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ffffff';
     for (let i = 0; i < 6; i += 1) ctx.fillRect(DOOR.x + DOOR.w / 2 - 12 + ((i * 5 + Math.floor(c.time * 8)) % 24), DOOR.y + 18 + (i % 3) * 6, 3, 3);
-    // Silhouettes of the suits inside: dancing, or heading for the back exit at high tension.
-    const leaving = smoothstep(0.55, 0.9, tension);
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    // Silhouettes of the suits inside: dancing, then slipping out of the back exit one by one from about 3.5x,
+    // the one nearest it first, each over a 1.6x stretch of the multiplier (so about 6 s), and gone once there.
+    const exit = DOOR.x + DOOR.w - 8;
+    const lm = Math.log(c.mult);
+    const leaving = smoothstep(Math.log(3.3), Math.log(4), lm);
     for (let i = 0; i < 6; i += 1) {
       const base = DOOR.x + 18 + i * 19;
-      const drift = leaving * ((c.time * 26 + i * 40) % 160);
-      const sx = base + drift;
-      const bounce = (1 - leaving) * Math.abs(Math.sin(c.time * 6 + i)) * 8;
+      const from = Math.log(3.5) + (5 - i) * Math.log(1.45);
+      const go = smoothstep(from, from + Math.log(1.6), lm);
+      if (go >= 1) continue;
+      const sx = mix(base, exit, go);
+      const bounce = (1 - go) * Math.abs(Math.sin(c.time * 6 + i)) * 8 + go * Math.abs(Math.sin(c.time * 9 + i)) * 2;
       const sy = DOOR.y + DOOR.h - 30 - bounce;
+      ctx.fillStyle = `rgba(0,0,0,${0.85 * (1 - smoothstep(0.75, 1, go))})`;
       ctx.beginPath(); ctx.arc(sx, sy - 24, 6, 0, Math.PI * 2); ctx.fill();
       ctx.fillRect(sx - 6, sy - 18, 12, 20);
     }
     if (leaving > 0.05) {
       ctx.fillStyle = `rgba(124, 246, 124, ${leaving})`;
-      ctx.font = '900 9px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'right';
-      ctx.fillText('BACK EXIT →', DOOR.x + DOOR.w - 8, DOOR.y + 60);
+      ctx.font = '900 9px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('BACK EXIT →', DOOR.x + DOOR.w / 2, DOOR.y + 60);
     }
     ctx.globalAlpha = 1;
   }
@@ -697,11 +804,11 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
     ctx.globalAlpha = 1;
   }
   // Suits deep in the doorway (entering ones fade back).
-  for (const s of c.suits) if (s.entering && s.depth > 0) { ctx.globalAlpha = 1 - s.depth; drawSuit(ctx, DOOR.x + DOOR.w / 2, GROUND - 20 * s.depth, c.time * 10 + s.seed, false, s.seed, 0.62 * (1 - 0.3 * s.depth)); ctx.globalAlpha = 1; }
+  for (const s of c.suits) if (s.entering && s.depth > 0) { ctx.globalAlpha = 1 - s.depth; drawSuit(ctx, DOOR.x + DOOR.w / 2, GROUND + 4 - 24 * s.depth, s.walked, false, s.seed, 0.66 * (1 - 0.3 * s.depth)); ctx.globalAlpha = 1; }
   ctx.restore();
   // The doors themselves, ajar by `doors`, jittering with the bass.
   const open = clamp(c.doors.x, 0, 1);
-  const jitter = reduced ? 0 : Math.sin(c.time * 40) * (1.5 * thump + 4 * c.rattle) * (1 - open);
+  const jitter = reduced ? 0 : Math.sin(c.time * 40) * (1.5 * thump + 4 * Math.min(1, c.rattle)) * (1 - open);
   for (const side of [0, 1]) {
     const hinge = side === 0 ? DOOR.x : DOOR.x + DOOR.w;
     const dir = side === 0 ? 1 : -1;
@@ -746,7 +853,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.fillStyle = '#d4af37'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-52, -22, 104, 44, 5); ctx.fill(); ctx.stroke();
   memeSmall(ctx, c.crashed ? 'REFUNDS' : 'LISTING FEE', 0, -4, 12, INK);
-  memeSmall(ctx, c.crashed ? 'NO' : `${Math.round(c.fee)} BTC`, 0, 14, 15, c.crashed ? '#c1121f' : '#5c3d00');
+  memeSmall(ctx, c.crashed ? 'NO' : `${compact(c.fee, 0)} BTC`, 0, 14, 15, c.crashed ? '#c1121f' : '#5c3d00', 'center', 94);
   ctx.restore();
   // The letters off the sign, in the air and on the pavement, over everything but the queue.
   for (const l of c.letters) {
@@ -813,21 +920,16 @@ function drawScalper(ctx: CanvasRenderingContext2D, c: Club): void {
   }
   if (sc.mode === 'off') return;
   const fleeing = sc.mode === 'fleeing';
-  const stride = c.time * (fleeing ? 15 : 6.5);
-  const facing = fleeing ? -1 : sc.dir;
+  // He faces the way he moves and squashes thin through a turn, so the flip reads as turning on the spot.
+  const facing = (sc.v < 0 || (sc.v === 0 && sc.dir < 0) ? -1 : 1) * mix(0.3, 1, smoothstep(0, 28, Math.abs(sc.v)));
   const footY = H - 6;
   ctx.save();
   ctx.translate(sc.x, footY);
   ctx.scale(SCALPER_SCALE * facing, SCALPER_SCALE);
   ctx.lineJoin = 'round';
-  for (const side of [-1, 1]) {
-    const phase = stride + (side > 0 ? Math.PI : 0);
-    const lift = Math.max(0, Math.sin(phase)) * (fleeing ? 16 : 9);
-    const reach = -Math.cos(phase) * (fleeing ? 14 : 8);
-    limb(ctx, { x: side * 8, y: -70 }, { x: side * 8 + reach, y: -lift }, 38, 34, -1, 11, '#2f2f38');
-    ctx.fillStyle = '#111114'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(side * 8 + reach, 3 - lift, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
+  const gait = walkLegs(ctx, sc.walked, SCALPER_SCALE, fleeing, -68, '#2f2f38', 11);
+  const stride = gait.cycle * Math.PI * 2;
+  ctx.translate(0, gait.bob);
   // A long coat with the tails lagging the step.
   const tail = Math.sin(stride) * 6;
   ctx.fillStyle = '#4b5320'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -856,18 +958,16 @@ function drawScalper(ctx: CanvasRenderingContext2D, c: Club): void {
   ctx.restore();
   // The sandwich board, never mirrored, hung off the shoulders.
   ctx.save();
-  ctx.translate(sc.x, footY);
+  ctx.translate(sc.x, footY + gait.bob * SCALPER_SCALE);
   ctx.scale(SCALPER_SCALE, SCALPER_SCALE);
-  ctx.rotate(fleeing ? Math.sin(c.time * 20) * 0.08 : 0);
+  ctx.rotate(fleeing ? Math.sin(stride) * 0.08 : 0);
   ctx.fillStyle = '#f7f3e8'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(-34, -112, 68, 70, 4); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-24, -112); ctx.lineTo(-16, -128); ctx.moveTo(24, -112); ctx.lineTo(16, -128); ctx.stroke();
   memeSmall(ctx, 'FAST-TRACK', 0, -92, 12, '#c1121f');
   memeSmall(ctx, 'LISTING TIX', 0, -76, 12, INK);
-  const price = 0.5 * (c.fee / 5) ** 2;
-  const ticket = price >= 1e9 ? `${(price / 1e9).toFixed(1)}B` : price >= 1e6 ? `${(price / 1e6).toFixed(1)}M` : price >= 1000 ? `${(price / 1000).toFixed(1)}K` : price.toFixed(1);
-  memeSmall(ctx, `${ticket} BTC`, 0, -54, 15, '#c1121f', 'center', 60);
+  memeSmall(ctx, `${compact(0.5 * (c.fee / 5) ** 2, 1)} BTC`, 0, -54, 15, '#c1121f', 'center', 60);
   ctx.restore();
   // His pitch.
   if (!fleeing && sc.bubbleAge < 2.4) {
@@ -891,8 +991,9 @@ function drawScalper(ctx: CanvasRenderingContext2D, c: Club): void {
 /** Suits walking along the front, the taxi, the strobe: drawn over the queue. */
 export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club, reduced: boolean): void {
   for (const s of c.suits) {
-    if (s.entering) { if (s.depth === 0) drawSuit(ctx, s.x, GROUND + 52, c.time * 10 + s.seed, false, s.seed, 0.66); }
-    else drawSuit(ctx, s.x, GROUND + 34, c.time * 14 + s.seed, s.bag, s.seed, 0.7, -1);
+    // Arrivals cut across the front of the line and step up to the doorway; leavers step down out of it at a run.
+    if (s.entering) { if (s.depth === 0) drawSuit(ctx, s.x, GROUND + 52 - 48 * smoothstep(BOUNCER_X - 20, DOOR.x + DOOR.w / 2, s.x), s.walked, false, s.seed, 0.66); }
+    else drawSuit(ctx, s.x, GROUND + 34 * smoothstep(DOOR.x + 60, DOOR.x - 20, s.x), s.walked, s.bag, s.seed, 0.7, -1, true);
   }
   drawScalper(ctx, c);
   if (c.taxi || c.taxiX.x < W + 200) drawTaxi(ctx, c.taxiX.x, c.time, Math.abs(c.taxiX.v) > 8);

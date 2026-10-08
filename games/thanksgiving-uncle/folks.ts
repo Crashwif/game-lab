@@ -1,11 +1,11 @@
-import { solveLimb } from './kinematics';
+import { solveLimb, type Joint } from './kinematics';
 /**
  * The people of Thanksgiving Uncle: Dad and the niece behind the table facing us, whose civility drains with
  * the tension (his smile freezes wider, her eyes roll further and her phone comes up); Grandma dozing at the
  * end of the table until grace; and Uncle Rick in the foreground with his back to us, cap, vest and beer,
  * making his points. Rigs and drawing only; nothing here picks or changes the outcome.
  */
-import { INK, blend } from './room';
+import { INK, blend, type Who } from './room';
 import { clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring, type Spring } from './motion';
 
 /** The family's seats: the base of the neck, on the far side of the table. */
@@ -20,6 +20,8 @@ export const RICK_X = 604;
  * Its feet reach 528, which keeps floor under them through the camera's crash punch (1.043× about y 260).
  */
 const CHAIR_Y = 470;
+/** Where his chair's feet meet the floor (or the rug, when Dale pulls it). */
+export const RICK_FEET = CHAIR_Y + 58;
 export const GRAN = { x: 182, y: 362 } as const;
 /** Dad's wine glass, in the room, for the shards. */
 export const GLASS_AT = { x: DAD_X - 46, y: SEAT_Y + 34 } as const;
@@ -45,10 +47,22 @@ export interface Relative {
   gasps: number;
   /** The frozen smile's twitch. */
   twitch: number;
+  /** The take on the truck coming in: mouth, glasses and hair. */
+  shock: Spring;
+  /** Seconds until a delayed take lands (she reacts a beat after him), and since the last one. */
+  takeIn: number;
+  takeAge: number;
+  /** Seeded blinks: seconds to the next, how many so far, and the one under way. */
+  blinkIn: number;
+  blinks: number;
+  blink: number;
+  /** The pupils' offset toward whoever is talking, and the mouth's flap on their own lines. */
+  look: Joint;
+  mouth: number;
 }
 
 function relative(kind: Relative['kind'], x: number, seed: number): Relative {
-  return { kind, x, seed, heat: spring(0), kick: spring(0), bow: spring(0), phone: spring(0), glass: 'whole', sweat: [], sweatClock: 0, gasps: 0, twitch: 0 };
+  return { kind, x, seed, heat: spring(0), kick: spring(0), bow: spring(0), phone: spring(0), glass: 'whole', sweat: [], sweatClock: 0, gasps: 0, twitch: 0, shock: spring(0), takeIn: -1, takeAge: 9, blinkIn: 1.5 + seed * 0.1, blinks: 0, blink: 0, look: { x: 0, y: 0 }, mouth: 0 };
 }
 
 export const createFamily = (): Relative[] => [relative('dad', DAD_X, 3), relative('niece', NIECE_X, 17)];
@@ -57,7 +71,12 @@ export function resetFamily(f: Relative[]): void {
   f[1] = relative('niece', NIECE_X, 17);
 }
 
-const heatFor = (r: Relative, tension: number): number => (r.kind === 'dad' ? smoothstep(0, 0.9, tension) : smoothstep(0.05, 0.85, tension));
+const heatFor = (r: Relative, tension: number): number => (r.kind === 'dad' ? smoothstep(0.05, 0.9, tension) : smoothstep(0.1, 0.85, tension));
+/** Where each of them looks while someone is talking: at Rick below, along the table, at the speaker or the window. */
+const LOOK: Record<Relative['kind'], Partial<Record<Who | 'none', [number, number]>>> = {
+  dad: { rick: [3, 2], dad: [2, 2], niece: [3, 0], echo: [-3, 1], gran: [-3, 1], dale: [3, -2], none: [1.5, 1.5] },
+  niece: { rick: [-1, 3], dad: [-3, 0], niece: [-1, 2], echo: [-3, 1], gran: [-3, 1], dale: [3, -2], none: [-1, 1.5] },
+};
 
 export interface FamilyDrive {
   running: boolean;
@@ -70,6 +89,12 @@ export interface FamilyDrive {
   grace: boolean;
   /** The truck is in the room: she keeps filming. */
   wrecked: boolean;
+  /** She has said she is filming: the phone comes up. */
+  filming: boolean;
+  /** Who has the newest bubble, and how old it is; how old each speaker's own newest bubble is. */
+  talker: Who | null;
+  talkAge: number;
+  said: (who: Who) => number;
 }
 export interface FamilyEvents { crack: boolean; gasp: boolean }
 
@@ -79,17 +104,34 @@ export function stepFamily(f: Relative[], drive: FamilyDrive, dt: number): Famil
     const target = drive.grace ? 0 : drive.wrecked ? r.heat.x : drive.running ? heatFor(r, drive.tension) : 0;
     if (drive.rickLine && !drive.grace && !drive.wrecked) {
       r.heat.v += 0.45;
-      r.kick.v += r.kind === 'dad' ? -70 : 60;
+      // Overlapping action: Dad recoils on the line, the niece nods and rolls her eyes 0.18 s later.
+      if (r.kind === 'dad') take(r);
+      else r.takeIn = 0.18;
       if (r.kind === 'dad' && r.heat.x > 0.5) {
         r.gasps += 1;
         if (r.gasps % 2 === 1) ev.gasp = true;
       }
     }
+    if (r.takeIn >= 0 && (r.takeIn -= dt) < 0) take(r);
+    r.takeAge += dt;
     stepSpring(r.heat, target, drive.grace ? 2 : 3, 0.85, dt);
     stepSpring(r.kick, 0, 16, 0.4, dt);
     stepSpring(r.bow, drive.grace ? 1 : 0, 6, 0.8, dt);
+    stepSpring(r.shock, drive.wrecked ? 1 : 0, 18, 0.45, dt);
     const heat = clamp(r.heat.x, 0, 1);
-    stepSpring(r.phone, r.kind === 'niece' && !drive.grace && (heat > 0.4 || drive.wrecked) ? 1 : 0, 8, 0.65, dt);
+    stepSpring(r.phone, r.kind === 'niece' && !drive.grace && (drive.filming || drive.wrecked) ? 1 : 0, 8, 0.65, dt);
+    r.blink = Math.max(0, r.blink - dt);
+    if ((r.blinkIn -= dt) <= 0) {
+      r.blinks += 1;
+      r.blink = 0.12;
+      r.blinkIn = 2.5 + 2 * noise(r.seed * 7 + r.blinks);
+    }
+    const [lx, ly] = drive.wrecked ? [4, -1] : LOOK[r.kind][drive.talker && drive.talkAge < 2.5 ? drive.talker : 'none'] ?? LOOK[r.kind].none!;
+    const k = 1 - Math.exp(-12 * dt);
+    r.look.x += (lx - r.look.x) * k;
+    r.look.y += (ly - r.look.y) * k;
+    const own = drive.said(r.kind);
+    r.mouth = own < 1.2 ? Math.abs(Math.sin(own * 14)) : 0;
     if (r.kind === 'dad' && r.glass === 'whole' && heat > 0.75) {
       r.glass = 'cracked';
       ev.crack = true;
@@ -113,16 +155,26 @@ export function stepFamily(f: Relative[], drive: FamilyDrive, dt: number): Famil
   return ev;
 }
 
-/** The truck is in: Dad's glass goes. */
-export function wreckFamily(f: Relative[]): void {
-  for (const r of f) if (r.kind === 'dad') r.glass = 'gone';
+function take(r: Relative): void {
+  r.kick.v += r.kind === 'dad' ? -70 : 60;
+  r.takeAge = 0;
+  r.takeIn = -1;
 }
 
-export function settleFamily(f: Relative[], tension: number, grace: boolean): void {
+/** The truck is in: Dad's glass goes and both jolt. A crash met late shows the take already held. */
+export function wreckFamily(f: Relative[], quiet = false): void {
+  for (const r of f) {
+    if (r.kind === 'dad') r.glass = 'gone';
+    if (quiet) settleSpring(r.shock, 1);
+    else r.kick.v -= 60;
+  }
+}
+
+export function settleFamily(f: Relative[], tension: number, grace: boolean, filming = false): void {
   for (const r of f) {
     settleSpring(r.heat, grace ? 0 : heatFor(r, tension));
     settleSpring(r.bow, grace ? 1 : 0);
-    settleSpring(r.phone, r.kind === 'niece' && !grace && r.heat.x > 0.4 ? 1 : 0);
+    settleSpring(r.phone, r.kind === 'niece' && !grace && filming ? 1 : 0);
     if (r.kind === 'dad' && !grace && r.heat.x > 0.75) r.glass = 'cracked';
   }
 }
@@ -134,9 +186,12 @@ function ink(ctx: CanvasRenderingContext2D, width = 2.5): void {
   ctx.lineCap = 'round';
 }
 
-function arm(ctx: CanvasRenderingContext2D, color: string, width: number, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string): void {
-  const upper = width >= 22 ? 60 : 49, lower = width >= 22 ? 57 : 47;
-  const solved = solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, upper, lower, sx < 0 ? 1 : -1);
+/**
+ * A two-bone arm from the shoulder `s` toward the hand `h`, with fixed segment lengths and the elbow on the side of
+ * the authored hint `e`. Returns where the hand is, for whatever it holds.
+ */
+function arm(ctx: CanvasRenderingContext2D, color: string, width: number, sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, skin: string, upper = 49, lower = 47): Joint {
+  const solved = solveArm(sx, sy, ex, ey, hx, hy, upper, lower);
   ex = solved.joint.x; ey = solved.joint.y; hx = solved.end.x; hy = solved.end.y;
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
@@ -153,6 +208,31 @@ function arm(ctx: CanvasRenderingContext2D, color: string, width: number, sx: nu
   ctx.arc(hx, hy, 11, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  return solved.end;
+}
+
+type Pose = { joint: Joint; end: Joint };
+/** The elbow bends to the side of the hint (the sign of the cross product), so it keeps its side as the hand moves. */
+function solveArm(sx: number, sy: number, ex: number, ey: number, hx: number, hy: number, upper = 49, lower = 47): Pose {
+  const pole = Math.sign((hx - sx) * (ey - sy) - (hy - sy) * (ex - sx)) || 1;
+  return solveLimb({ x: sx, y: sy }, { x: hx, y: hy }, upper, lower, pole);
+}
+
+const heading = (from: Joint, to: Joint): number => Math.atan2(to.y - from.y, to.x - from.x);
+/** `t` of the way from angle `a` to `b`, the short way round. */
+const turnTo = (a: number, b: number, t: number): number => a + ((((b - a) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI) * t;
+
+/**
+ * Blends two solved poses of an arm by its shoulder and elbow angles, so a hand dropping past its shoulder swings
+ * the forearm down while the elbow stays out. Blending the hand's target instead flips the elbow across mid-way.
+ */
+function swing(shoulder: Joint, a: Pose, b: Pose, t: number, upper: number, lower: number): Pose {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  const up = turnTo(heading(shoulder, a.joint), heading(shoulder, b.joint), t);
+  const joint = { x: shoulder.x + Math.cos(up) * upper, y: shoulder.y + Math.sin(up) * upper };
+  const fore = turnTo(heading(a.joint, a.end), heading(b.joint, b.end), t);
+  return { joint, end: { x: joint.x + Math.cos(fore) * lower, y: joint.y + Math.sin(fore) * lower } };
 }
 
 function drawGlass(ctx: CanvasRenderingContext2D, x: number, y: number, tilt: number, cracked: boolean): void {
@@ -244,8 +324,8 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
     const skin = blend(SKIN, FLUSH, heat * 0.5);
     const gx = mix(-46, -16, bow);
     const gy = mix(50, 60, bow);
-    arm(ctx, '#5b6b7a', 17, -54, -2, mix(-76, -60, bow), 40, gx, gy, skin);
-    if (r.glass !== 'gone' && bow < 0.5) drawGlass(ctx, gx, gy - 6, (noise(Math.floor(time * 24) + 2) - 0.5) * 0.5 * heat * heat, r.glass === 'cracked');
+    const hand = arm(ctx, '#5b6b7a', 17, -54, -2, mix(-76, -60, bow), 40, gx, gy, skin);
+    if (r.glass !== 'gone' && bow < 0.5) drawGlass(ctx, hand.x, hand.y - 6, (noise(Math.floor(time * 24) + 2) - 0.5) * 0.5 * heat * heat, r.glass === 'cracked');
     const pat = heat > 0.3 && bow < 0.5 ? Math.max(0, Math.sin(time * 5)) * 14 * smoothstep(0.3, 0.6, heat) : 0;
     const px = mix(46, 16, bow);
     const py = mix(58 - pat, 60, bow);
@@ -287,10 +367,11 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
     const hx = mix(-46, -16, bow);
     const hy = mix(60, 60, bow);
     arm(ctx, '#7f8f6a', 19, -58, -2, mix(-80, -60, bow), 42, hx, hy, skin);
-    const fx = mix(mix(46, 34, ph), 16, bow);
-    const fy = mix(mix(58, -14, ph), 60, bow);
-    arm(ctx, '#7f8f6a', 19, 58, -2, mix(mix(80, 70, ph), 60, bow), mix(mix(42, 20, ph), 40, bow), fx, fy, skin);
-    if (bow < 0.5) drawPhone(ctx, fx + 2, fy - 10, -0.2 + ph * 0.1, ph > 0.6, time);
+    // Filming, the phone comes up to her chest below her chin, clear of the bob, with the elbow down at her side.
+    const fx = mix(mix(46, 32, ph), 16, bow);
+    const fy = mix(mix(58, 16, ph), 60, bow);
+    const hand = arm(ctx, '#7f8f6a', 19, 58, -2, mix(80, 60, bow), mix(42, 40, bow), fx, fy, skin);
+    if (bow < 0.5) drawPhone(ctx, hand.x + 2, hand.y - 10, -0.2 + ph * 0.1, ph > 0.6, time);
   }
   ink(ctx, 2.5);
   ctx.fillStyle = blend(SKIN, FLUSH, heat * 0.6);
@@ -303,15 +384,22 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
 function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, reduced: boolean): void {
   const heat = clamp(r.heat.x, 0, 1);
   const bow = clamp(r.bow.x, 0, 1);
+  const shock = clamp(r.shock.x, 0, 1.2);
+  /** The take: a nod or recoil of a few pixels, the brows up and the pupils pinned while it lasts. */
+  const jolt = clamp(Math.abs(r.kick.x) / 2.5, 0, 1);
   const jit = reduced ? 0 : 3 * heat * heat;
   const jx = (noise(Math.floor(time * 42) + r.seed) - 0.5) * 2 * jit;
   const jy = (noise(Math.floor(time * 38) + r.seed + 9) - 0.5) * 2 * jit;
   ctx.save();
-  ctx.translate(jx, HEAD_Y + jy + r.kick.x * 0.06 + bow * 12);
+  ctx.translate(jx, HEAD_Y + jy + r.kick.x * 1.5 + bow * 12);
   ctx.rotate(bow * 0.3 * (r.kind === 'dad' ? 1 : -1));
   ink(ctx, 2.5);
+  // The blast from the truck blows the hair back, away from the window.
+  const blown = -6 * shock;
   if (r.kind === 'niece') {
     // The bob frames the cheeks with separate ends and an open neckline.
+    ctx.save();
+    ctx.translate(blown, -2 * shock);
     ctx.fillStyle = '#2a1a12';
     ctx.beginPath();
     ctx.moveTo(-44, -30);
@@ -325,6 +413,7 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
   }
   ctx.fillStyle = SKIN;
   for (const side of [-1, 1]) {
@@ -346,6 +435,8 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
       ctx.fill();
     }
   }
+  ctx.save();
+  ctx.translate(blown, -2 * shock);
   if (r.kind === 'dad') {
     // Short hair with a side part, the beard, round glasses.
     ctx.fillStyle = '#5a3a22';
@@ -358,6 +449,7 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
     ctx.fillStyle = '#6b4a2b';
     ctx.beginPath();
     ctx.moveTo(-38, 10);
@@ -390,46 +482,61 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
     ctx.lineTo(-42, -10);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
   }
-  // Brows: his climb and strain, hers go flat with one lifted.
+  // Brows: his climb and strain, hers go flat with one lifted; both jump on a take.
+  const browUp = 6 * jolt + 8 * shock;
   ink(ctx, r.kind === 'dad' ? 5 : 4);
   const closed = bow > 0.5;
+  const blinking = r.blink > 0 && shock < 0.5;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     if (r.kind === 'dad') {
-      ctx.moveTo(side * 30, -24 - 6 * heat);
-      ctx.quadraticCurveTo(side * 16, -34 - 10 * heat, side * 8, -26 - 8 * heat);
+      ctx.moveTo(side * 30, -24 - 6 * heat - browUp);
+      ctx.quadraticCurveTo(side * 16, -34 - 10 * heat - browUp, side * 8, -26 - 8 * heat - browUp);
     } else {
-      const lift = side > 0 ? 6 * heat : 0;
+      const lift = (side > 0 ? 6 * heat : 0) + browUp;
       ctx.moveTo(side * 30, -24 - lift);
       ctx.lineTo(side * 8, -26 - lift * 0.4);
     }
     ctx.stroke();
   }
-  // Eyes: his go wide; hers roll up until only the whites show.
+  // Eyes: his go wide; hers roll up until only the whites show, with an arc on each of Rick's lines.
+  const roll = r.kind === 'niece' ? smoothstep(0.05, 0.85, heat) * (1 - shock) : 0;
+  const u = clamp(r.takeAge / 0.6, 0, 1);
+  const arc = r.kind === 'niece' && !reduced && u < 1 ? Math.sin(Math.PI * u) : 0;
   for (const side of [-1, 1]) {
-    if (closed) {
+    if (closed || blinking) {
       ink(ctx, 2.5);
       ctx.beginPath();
       ctx.arc(side * 16, -8, 8, 0.2, Math.PI - 0.2);
       ctx.stroke();
       continue;
     }
-    const rx = r.kind === 'dad' ? 9 + 5 * heat : 10;
-    const ry = r.kind === 'dad' ? 7 + 6 * heat : 7 + 2 * heat;
+    const rx = (r.kind === 'dad' ? 9 + 5 * heat : 10) + 2 * shock;
+    const ry = (r.kind === 'dad' ? 7 + 6 * heat : 7 + 2 * heat) + 3 * shock;
     ctx.fillStyle = '#ffffff';
     ink(ctx, 2);
     ctx.beginPath();
     ctx.ellipse(side * 16, -8, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+    ctx.save();
+    ctx.clip();
     ctx.fillStyle = INK;
-    const roll = r.kind === 'niece' ? smoothstep(0.05, 0.85, heat) * 7.5 : 0;
+    const px = side * 16 + (r.kind === 'dad' ? 0 : 1) + r.look.x * (1 - roll) - 7 * arc * (1 - u);
+    const py = -6 + r.look.y * (1 - roll) - 14 * roll - 9 * arc * u;
     ctx.beginPath();
-    ctx.arc(side * 16 + (r.kind === 'dad' ? 0 : 1), -6 - roll, r.kind === 'dad' ? Math.max(1.5, 4 - 2 * heat) : 3.6, 0, Math.PI * 2);
+    ctx.arc(px, py, (r.kind === 'dad' ? Math.max(1.5, 4 - 2 * heat) : 3.6) * (1 - 0.3 * jolt), 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
   if (r.kind === 'dad') {
+    // The glasses go askew in the blast.
+    ctx.save();
+    ctx.translate(0, -8);
+    ctx.rotate(-0.17 * shock);
+    ctx.translate(blown * 0.5, 8);
     ctx.strokeStyle = '#2a2a30';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -443,6 +550,7 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
     ctx.moveTo(29, -9);
     ctx.lineTo(42, -4);
     ctx.stroke();
+    ctx.restore();
   } else {
     // Nose and the ring through it.
     ink(ctx, 2);
@@ -456,17 +564,24 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
     ctx.arc(4, 12, 4, 0.2, Math.PI);
     ctx.stroke();
   }
-  // The mouth: his smile widens and freezes with teeth; hers goes flat, then a smirk.
+  // The mouth: his smile widens and freezes with teeth, then snaps to an O for the truck; hers goes flat, then a
+  // smirk. Each flaps on their own lines.
   ink(ctx, 2.5);
   if (closed) {
     ctx.beginPath();
     ctx.moveTo(-8, 30);
     ctx.lineTo(8, 30);
     ctx.stroke();
+  } else if (r.kind === 'dad' && shock > 0.35) {
+    ctx.fillStyle = '#5a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(0, 32, 8, 5 + 9 * Math.min(1, shock) + 3 * r.mouth, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   } else if (r.kind === 'dad') {
     const w = 10 + 18 * heat;
     const tw = r.twitch * 3;
-    const open = 2 + 9 * heat;
+    const open = 2 + 9 * heat + 5 * r.mouth;
     ctx.fillStyle = '#5a1a1a';
     ctx.beginPath();
     ctx.moveTo(-w, 28);
@@ -495,6 +610,12 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
       }
       ctx.restore();
     }
+  } else if (r.mouth > 0.05) {
+    ctx.fillStyle = '#5a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(1, 30, 7, 1.5 + 4.5 * r.mouth, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   } else {
     const smirk = smoothstep(0.3, 0.8, heat) * 6;
     ctx.beginPath();
@@ -541,17 +662,24 @@ export interface Gran {
   /** 0 asleep in her chair, 1 on her feet with the cane up. */
   stand: Spring;
   awake: boolean;
+  /** Seconds since she woke, and the two little shakes of the cane once she is up. */
+  upAge: number;
+  shake: number;
   snores: { x: number; y: number; age: number }[];
   snoreClock: number;
 }
 
-export const createGran = (): Gran => ({ stand: spring(0), awake: false, snores: [], snoreClock: 0 });
+export const createGran = (): Gran => ({ stand: spring(0), awake: false, upAge: 0, shake: 0, snores: [], snoreClock: 0 });
 export function resetGran(g: Gran): void {
   Object.assign(g, createGran());
 }
 
-export function stepGran(g: Gran, awake: boolean, dt: number): void {
+export function stepGran(g: Gran, awake: boolean, dt: number, reduced = false): void {
   g.awake = awake;
+  g.upAge = awake ? g.upAge + dt : 0;
+  // Two 4° shakes of the cane once it is up.
+  const s = g.upAge - 0.35;
+  g.shake = !reduced && s > 0 && s < 0.7 ? 0.07 * Math.sin((s / 0.35) * Math.PI * 2) : 0;
   stepSpring(g.stand, awake ? 1 : 0, 7, 0.6, dt);
   if (!awake) {
     g.snoreClock += dt;
@@ -570,12 +698,14 @@ export function stepGran(g: Gran, awake: boolean, dt: number): void {
 
 export function settleGran(g: Gran, awake: boolean): void {
   g.awake = awake;
+  g.upAge = awake ? 9 : 0;
   settleSpring(g.stand, awake ? 1 : 0);
 }
 
-export function caneGrip(up: number): { x: number; y: number; angle: number } {
+/** Her hand on the cane's crook; the shaft hangs from it, leaning on the chair, then raised up and forward. */
+export function caneGrip(up: number, shake = 0): { x: number; y: number; angle: number } {
   up = clamp(up, 0, 1);
-  return { x: mix(-26, -45, up), y: mix(-70, -98, up), angle: mix(0, 1.05, up) };
+  return { x: mix(-26, -45, up), y: mix(-70, -98, up), angle: mix(0, -2.4, up) + shake };
 }
 
 /** Grandma in profile at the end of the table, facing the family: asleep in her cardigan, or up with the cane. */
@@ -630,7 +760,7 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
   ctx.stroke();
   // The cane: leaning on the chair, then raised in her hand.
   ctx.save();
-  const grip = caneGrip(up);
+  const grip = caneGrip(up, g.shake);
   ctx.translate(grip.x, grip.y);
   ctx.rotate(grip.angle);
   ctx.strokeStyle = '#6b4a2b';
@@ -783,6 +913,9 @@ export function stepRick(r: Rick, drive: RickDrive, dt: number): void {
   r.snores = r.snores.filter((s) => s.age < 1.8);
 }
 
+/** Rick's arm segments: short enough that his elbows sit just outside his shoulders at rest. */
+const RICK_ARM = [40, 38] as const;
+
 /** A ladder-back chair between us and Rick: drawn after him, so he sits on its seat behind its slats. */
 export function drawRickChair(ctx: CanvasRenderingContext2D): void {
   ctx.save();
@@ -858,8 +991,9 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
     ctx.fill();
     ctx.stroke();
   }
-  // Turn above the planted hips; the head leads the slower shoulders.
-  ctx.rotate(-.07 * clamp(r.turn.x, 0, 1));
+  // Turn above the planted hips toward the truck on the right; the head leads the slower shoulders.
+  const turn = clamp(r.turn.x, 0, 1);
+  ctx.rotate(0.07 * turn);
   // The flannel shoulders and the vest over them.
   ink(ctx, 2.5);
   ctx.fillStyle = '#8a3b2b';
@@ -900,25 +1034,32 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   // Arms: the beer hand on the right, the pointing hand on the left.
   const asleep = r.mode === 'asleep';
   const sleep = clamp(tilt, 0, 1), bow = clamp(-tilt / .6, 0, 1);
-  const bx = mix(74 + 10 * beer, 86, sleep);
-  const by = mix(-84 - 70 * beer, -56, sleep);
-  arm(ctx, '#8a3b2b', 22, 70, -56, asleep ? 96 : 96, asleep ? -40 : -60 - 20 * beer, bx, by, SKIN);
-  if (!asleep) drawCan(ctx, bx - 2, by - 8, -0.3 + 0.2 * beer);
+  // Elbows out to the sides, never folded into his neck; asleep, the hands drop to his lap beside the chair, and
+  // the beer he is still holding tips over.
+  const [upper, lower] = RICK_ARM;
+  const right = { x: 70, y: -56 }, left = { x: -70, y: -56 };
+  const lap = (s: Joint, side: number) => solveArm(s.x, s.y, side * 100, -24, side * 84, -6, upper, lower);
+  const held = swing(right, solveArm(70, -56, 96, -60 - 20 * beer, 78 + 8 * beer, -90 - 64 * beer, upper, lower), lap(right, 1), sleep, upper, lower);
+  const beerHand = arm(ctx, '#8a3b2b', 22, 70, -56, held.joint.x, held.joint.y, held.end.x, held.end.y, SKIN, upper, lower);
+  drawCan(ctx, beerHand.x - 2, beerHand.y - 8, -0.3 + 0.2 * beer + 1.1 * sleep);
   const wave = Math.sin(time * 7) * g;
-  const px = mix(-72 - 10 * g + wave * 10, -40, bow);
-  const py = mix(mix(-84 - 50 * g + Math.sin(time * 9) * 10 * g, -50, sleep), -70, bow);
-  arm(ctx, '#8a3b2b', 22, -70, -56, -96, asleep ? -40 : -56 - 24 * g, px, py, SKIN);
+  const px = mix(-76 - 10 * g + wave * 10, -40, bow);
+  const py = mix(-90 - 46 * g + Math.sin(time * 9) * 10 * g, -70, bow);
+  const aim = swing(left, solveArm(-70, -56, -96, -56 - 24 * g, px, py, upper, lower), lap(left, -1), sleep, upper, lower);
+  const point = arm(ctx, '#8a3b2b', 22, -70, -56, aim.joint.x, aim.joint.y, aim.end.x, aim.end.y, SKIN, upper, lower);
   if (g > 0.2 && !asleep) {
     ink(ctx, 2.5);
     ctx.beginPath();
-    ctx.moveTo(px - 4, py - 8);
-    ctx.lineTo(px - 10, py - 24 - 6 * g);
+    ctx.moveTo(point.x - 4, point.y - 8);
+    ctx.lineTo(point.x - 10, point.y - 24 - 6 * g);
     ctx.stroke();
   }
   // The head: a sunburnt neck, an ear and a stubbled cheek on the left, hair under the cap, the cap and its strap.
   ctx.save();
   ctx.translate(-4, -118);
-  ctx.rotate(tilt * 0.35 - .25 * clamp(r.turn.x, 0, 1));
+  ctx.rotate(tilt * 0.35 + 0.25 * turn);
+  // Facing the table his left cheek shows; turned to the truck, his right, in profile.
+  const side = turn > 0.5 ? 1 : -1;
   if (r.talk > 0 && !reduced) ctx.translate(0, Math.sin(time * 5) * 1.5);
   ctx.fillStyle = '#e0a080';
   ink(ctx, 2.5);
@@ -932,36 +1073,13 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();
-  ctx.ellipse(-36, 2, 8, 11, 0, 0, Math.PI * 2);
+  ctx.ellipse(side * 36, 2, 8, 11, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = INK;
   for (let i = 0; i < 12; i += 1) {
     ctx.beginPath();
-    ctx.arc(-30 + noise(i) * 14, 8 + noise(i + 30) * 24, 1, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  if (r.mode === 'turned') {
-    // Turned toward the wall: a profile with the mouth open.
-    ctx.fillStyle = SKIN;
-    ink(ctx, 2.5);
-    ctx.beginPath();
-    ctx.moveTo(-36, -8);
-    ctx.quadraticCurveTo(-48, 0, -38, 8);
-    ctx.stroke();
-    ctx.fillStyle = '#5a1a1a';
-    ctx.beginPath();
-    ctx.ellipse(-32, 18, 5, 8, 0.3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(-30, -8, 5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = INK;
-    ctx.beginPath();
-    ctx.arc(-32, -8, 2, 0, Math.PI * 2);
+    ctx.arc(side * (30 - noise(i) * 14), 8 + noise(i + 30) * 24, 1, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.fillStyle = '#5a3a22';
@@ -1008,6 +1126,36 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   ctx.lineTo(-4, -2);
   ctx.closePath();
   ctx.fill();
+  if (side > 0) {
+    // "DALE, NO": the visor, his eye wide under it, the nose and the open mouth past the line of his head.
+    ink(ctx, 2.5);
+    ctx.fillStyle = '#4a5a30';
+    ctx.beginPath();
+    ctx.ellipse(44, -6, 16, 5, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = SKIN;
+    ctx.beginPath();
+    ctx.moveTo(30, 0);
+    ctx.quadraticCurveTo(46, 2, 40, 10);
+    ctx.quadraticCurveTo(38, 22, 30, 30);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(33, 2, 4, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(35, 2, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(37, 19, 4, 6, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
   // Snores once he is out.
   ctx.font = '900 18px Impact, "Arial Black", sans-serif';

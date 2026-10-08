@@ -5,7 +5,7 @@
  * wall with their heckles and their hearts, and the phone overlay with the
  * live viewer count. Nothing here changes the outcome.
  */
-import { type Spring, clamp, mix, noise, settleSpring, spring, stepSpring } from './motion';
+import { type Spring, clamp, footAt, mix, noise, settleSpring, spring, stepSpring } from './motion';
 
 export const INK = '#1c1f26';
 export const SKIN = '#f3dccb';
@@ -36,6 +36,8 @@ export interface Gym {
   time: number;
   fans: Fan[];
   cheer: number;
+  /** The crowd's bounce, integrated so its rate can follow the cheer without the phase jumping. */
+  bobPhase: number;
   hype: Spring;
   sulk: Spring;
   shock: number;
@@ -45,7 +47,11 @@ export interface Gym {
   hearts: Heart[];
   puffs: Puff[];
   swoonUntil: number;
+  /** The last tenth of a second that hearts were thrown on: they come on that tick, not every frame. */
+  heartTick: number;
   leaving: boolean;
+  /** Seconds since the girls started walking out: their pace ramps in over the first few tenths. */
+  leaveAge: number;
   finished: boolean;
   viewers: number;
 }
@@ -55,7 +61,7 @@ const LINEUP: { kind: FanKind; x: number }[] = [
 ];
 
 export function createGym(): Gym {
-  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, leaving: false, finished: false, viewers: 69 };
+  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, bobPhase: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, heartTick: -1, leaving: false, leaveAge: 0, finished: false, viewers: 69 };
 }
 
 export function resetGym(g: Gym): void {
@@ -70,6 +76,7 @@ export function resetGym(g: Gym): void {
   g.puffs = [];
   g.swoonUntil = 0;
   g.leaving = false;
+  g.leaveAge = 0;
   g.finished = false;
 }
 
@@ -85,13 +92,20 @@ export function swoon(g: Gym): void {
   g.swoonUntil = g.time + 2.2;
 }
 
+/** The walk-out pace, reached after the first 0.3 s. */
+const WALK_SPEED = 150;
+const WALK_RAMP = 0.3;
+/** A girl's stride on the floor, in pixels. */
+const WALK_STRIDE = 26;
+
 /** The girls walk out. For a crash met `age` seconds late, each starts where the walk has taken her by now. */
 export function walkOut(g: Gym, age = 0): void {
   g.leaving = true;
+  g.leaveAge = Math.max(0, age);
   if (age <= 0) return;
   for (const f of g.fans) {
     if (f.kind !== 'girl' || f.gone) continue;
-    f.x = f.homeX + 150 * age;
+    f.x = f.homeX + WALK_SPEED * Math.max(0, age - WALK_RAMP / 2);
     if (f.x > 1010) f.gone = true;
   }
 }
@@ -130,12 +144,29 @@ export function finishGym(g: Gym, cheerful: boolean, quiet: boolean): void {
 
 export interface GymDrive { running: boolean; tension: number; multiplier: number; growth: number; elapsed: number; cracks: number }
 
+const cheerFor = (g: Gym, running: boolean, tension: number): number => (running ? 0.2 + 0.8 * tension : g.finished ? 0.1 : 0.12);
+/**
+ * How high fan `i` holds the phone: up one by one from about 1.3× to 1.7×, and until then (and between rounds) a few
+ * film the warm-up at half mast; after the burst only a hyped crowd keeps filming.
+ */
+const filming = (g: Gym, running: boolean, tension: number, i: number): number => (running && tension > 0.22 + 0.035 * ((i * 5) % 6) ? 1 : g.finished ? (g.hype.x > 0.5 ? 1 : 0) : i % 3 ? 0.4 : 0);
+
+/** A round met late: the crowd is already as loud as the number and the phones already up. */
+export function settleCrowd(g: Gym, running: boolean, tension: number): void {
+  g.cheer = cheerFor(g, running, tension);
+  for (const [i, f] of g.fans.entries()) settleSpring(f.phone, filming(g, running, tension, i));
+}
+
 export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
   g.time += dt;
-  g.cheer += ((drive.running ? 0.2 + 0.8 * drive.tension : g.finished ? 0.1 : 0.05) - g.cheer) * (1 - Math.exp(-dt / 0.8));
+  g.cheer += (cheerFor(g, drive.running, drive.tension) - g.cheer) * (1 - Math.exp(-dt / 0.8));
+  g.bobPhase += dt * (4 + 6 * g.cheer);
+  if (g.leaving) g.leaveAge += dt;
+  const pace = WALK_SPEED * Math.min(1, g.leaveAge / WALK_RAMP);
   g.shock = Math.max(0, g.shock - dt);
   g.cracks = drive.running ? Math.max(g.cracks, drive.cracks) : g.finished ? g.cracks : 0;
-  g.viewers = Math.round(69 + 420 * (Math.pow(drive.multiplier, 1.4) - 1));
+  // The live count tops out at everyone on Earth.
+  g.viewers = Math.round(Math.min(8.1e9, 69 + 420 * (Math.pow(drive.multiplier, 1.4) - 1)));
   if (drive.running) {
     const at = Math.floor(drive.elapsed / 100);
     if (at !== g.trailAt) {
@@ -145,25 +176,33 @@ export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
       g.trail.push(trailPoint(drive.elapsed, drive.growth));
     }
   }
-  for (const f of g.fans) {
-    stepSpring(f.phone, (drive.running && drive.tension > 0.3) || (g.finished && g.hype.x > 0.5) ? 1 : 0, 6, 0.7, dt);
+  for (const [i, f] of g.fans.entries()) {
+    stepSpring(f.phone, filming(g, drive.running, drive.tension, i), 6, 0.7, dt);
     if (f.bubble) {
       f.bubble.age += dt;
       stepSpring(f.bubble.pop, f.bubble.age < 1.6 ? 1 : 0, 14, 0.5, dt);
       if (f.bubble.age > 2) f.bubble = null;
     }
     if (g.leaving && f.kind === 'girl' && !f.gone) {
-      f.x += 150 * dt;
+      f.x += pace * dt;
       if (f.x > 1010) f.gone = true;
     }
   }
-  if (g.time < g.swoonUntil) {
-    for (const f of g.fans) {
-      if (f.kind !== 'girl' || f.gone) continue;
-      if (noise(Math.floor(g.time * 10) + f.seed) > 0.55 && g.hearts.length < 60) g.hearts.push({ x: f.x + (noise(g.time * 3 + f.seed) - 0.5) * 30, y: FLOOR_Y - 120, vx: (noise(g.time * 5 + f.seed) - 0.5) * 30, age: 0, life: 1.6, size: 6 + noise(g.time + f.seed) * 6, screen: false });
+  // Hearts are thrown on a ten-a-second tick, so how many fly doesn't depend on the frame rate.
+  const tick = Math.floor(g.time * 10);
+  if (tick !== g.heartTick) {
+    g.heartTick = tick;
+    if (g.time < g.swoonUntil) {
+      for (const f of g.fans) {
+        if (f.kind !== 'girl' || f.gone) continue;
+        for (let j = 0; j < 3; j += 1) {
+          const n = tick + f.seed + j * 0.37;
+          if (noise(n) > 0.55 && g.hearts.length < 60) g.hearts.push({ x: f.x + (noise(n * 3) - 0.5) * 30, y: FLOOR_Y - 120, vx: (noise(n * 5) - 0.5) * 30, age: 0, life: 1.6, size: 6 + noise(n * 7) * 6, screen: false });
+        }
+      }
     }
+    if (g.cheer > 0.6 && !g.finished && noise(tick * 0.6) > 0.5 && g.hearts.filter((h) => h.screen).length < 8) g.hearts.push({ x: 880 + noise(tick * 9) * 40, y: 196, vx: (noise(tick * 4) - 0.5) * 10, age: 0, life: 1.4, size: 4 + noise(tick * 2) * 3, screen: true });
   }
-  if (g.cheer > 0.6 && !g.finished && noise(Math.floor(g.time * 6)) > 0.7 && g.hearts.filter((h) => h.screen).length < 8) g.hearts.push({ x: 880 + noise(g.time * 9) * 40, y: 196, vx: (noise(g.time * 4) - 0.5) * 10, age: 0, life: 1.4, size: 4 + noise(g.time * 2) * 3, screen: true });
   for (const h of g.hearts) { h.age += dt; h.x += h.vx * dt; h.y -= (h.screen ? 40 : 60) * dt; }
   g.hearts = g.hearts.filter((h) => h.age < h.life);
   for (const p of g.puffs) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += 16 * dt; p.vy += 10 * dt; }
@@ -285,7 +324,7 @@ export function drawGymBack(ctx: CanvasRenderingContext2D, g: Gym, dead: boolean
 }
 
 /** One gym-goer along the back wall, feet at (x, FLOOR_Y). */
-function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob: number): void {
+function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob: number, sway: number): void {
   const s = 0.72;
   ctx.save();
   ctx.translate(f.x, FLOOR_Y - bob);
@@ -293,16 +332,22 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const tone = noise(f.seed * 3.3);
   const skin = tone > 0.66 ? SKIN : tone > 0.33 ? '#e0bda7' : '#c68e6a';
-  const stride = g.leaving && f.kind === 'girl' ? Math.abs(Math.sin(g.time * 12)) * 8 : 0;
+  // Walking out, the steps follow the distance she has covered, so the planted foot holds its spot on the floor;
+  // standing, both feet sit under her, one planted and one about to lift as her pace ramps in.
+  const walk = g.leaving && f.kind === 'girl' ? Math.min(1, g.leaveAge / WALK_RAMP) : 0;
   const legs = f.kind === 'girl' ? '#2b2b30' : f.kind === 'old' ? '#8d99ae' : '#3d5f8f';
   for (const side of [-1, 1]) {
-    const lift = stride > 0 ? Math.max(0, Math.sin(g.time * 12 + (side > 0 ? Math.PI : 0))) * 8 : 0;
+    const foot = footAt((f.x - f.homeX) / (2 * WALK_STRIDE) + (side > 0 ? 0.75 : 0.25), WALK_STRIDE / s, 8);
+    const fx = side * 11 + foot.dx;
+    const lift = foot.lift * walk;
     ctx.strokeStyle = INK; ctx.lineWidth = 18;
-    ctx.beginPath(); ctx.moveTo(side * 9, -74); ctx.lineTo(side * 11, -lift); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(side * 9, -74 + sway); ctx.lineTo(fx, -lift); ctx.stroke();
     ctx.strokeStyle = legs; ctx.lineWidth = 13; ctx.stroke();
     ctx.fillStyle = '#f6f6f6'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(side * 11 - 11, -lift - 5, 22, 9, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(fx - 11, -lift - 5, 22, 9, 4); ctx.fill(); ctx.stroke();
   }
+  // The weight shift sinks the body a touch; the feet stay put.
+  ctx.translate(0, sway);
   const shirt = f.kind === 'girl' ? '#ff5d9e' : f.kind === 'old' ? '#f2f2f2' : f.kind === 'big' ? '#111' : ['#e63946', '#3b82f6', '#2e8b57', '#7c3aed'][Math.floor(noise(f.seed * 7.1) * 4)]!;
   const w = f.kind === 'big' ? 46 : 30;
   ctx.fillStyle = shirt; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
@@ -361,11 +406,14 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
       ctx.save();
       ctx.translate(0, hy - 46);
       ctx.scale(k, k);
+      ctx.font = '900 14px Impact, "Arial Black", sans-serif';
+      // The bubble widens for a longer shout instead of squeezing it.
+      const w = clamp(ctx.measureText(f.bubble.text).width + 16, 92, 150);
       ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.roundRect(-46, -30, 92, 30, 8); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.roundRect(-w / 2, -30, w, 30, 8); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(0, 10); ctx.lineTo(8, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = INK; ctx.font = '900 14px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(f.bubble.text, 0, -10, 84);
+      ctx.fillStyle = INK; ctx.textAlign = 'center';
+      ctx.fillText(f.bubble.text, 0, -10, w - 8);
       ctx.restore();
     }
   }
@@ -376,12 +424,12 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
 export function drawGymCrowd(ctx: CanvasRenderingContext2D, g: Gym, cheerful: boolean): void {
   for (const [i, f] of g.fans.entries()) {
     if (f.gone) continue;
-    const phase = g.time * (4 + 6 * g.cheer) + i * 0.7;
-    let bob = Math.max(0, Math.sin(phase)) * 6 * g.cheer;
+    let bob = Math.max(0, Math.sin(g.bobPhase + i * 0.7)) * 6 * g.cheer;
     if (g.hype.x > 0.05) bob += Math.max(0, Math.sin(g.time * 10 + i)) * 14 * g.hype.x;
     const swooning = g.time < g.swoonUntil && f.kind === 'girl';
     const mood: Mood = g.finished ? (g.shock > 0 ? 'shock' : cheerful ? 'hype' : 'sulk') : swooning ? 'swoon' : g.cheer > 0.7 ? 'hype' : 'calm';
-    drawFan(ctx, f, g, mood, bob);
+    // A slow weight shift underneath, so nobody stands frozen between rounds.
+    drawFan(ctx, f, g, mood, bob, 2.2 * (0.5 + 0.5 * Math.sin(g.time * 1.3 + f.seed)));
   }
   for (const h of g.hearts) {
     if (h.screen) continue;

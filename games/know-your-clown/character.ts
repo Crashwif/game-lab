@@ -1,4 +1,4 @@
-import { directionAt } from './direction';
+import { CHECKS, directionAt, type Paint } from './direction';
 export interface ApplicantPose {
   time: number;
   tension: number;
@@ -11,6 +11,18 @@ export interface ApplicantPose {
   reduced: boolean;
   mode: 'idle' | 'scan' | 'dance' | 'escape' | 'boxed';
   progress: number;
+  /** Cycle within the appointment; reactions and stamps belong to its first cycle. */
+  cycle?: number;
+  /** Multiplier-keyed makeup; without it, makeup follows the appointment level. */
+  paint?: Paint;
+  /** Labels stamped so far, and seconds since the newest landed. */
+  stamps?: number;
+  stampAge?: number;
+  /** Integrated sweat-drop phase, so the drip never jumps when tension changes. */
+  sweat?: number;
+  /** Signed rig-space distance walked during the escape, and the stride that lands both feet home at its end. */
+  walk?: number;
+  stride?: number;
 }
 
 type Point = { x: number; y: number };
@@ -21,17 +33,21 @@ const SKIN_SHADE = '#d7a88c';
 const CORAL = '#f47b50';
 const TEAL = '#39c6b4';
 const LIME = '#d4ed71';
+const RED = '#c54636';
 const TAU = Math.PI * 2;
 const clamp = (n: number, a = 0, b = 1): number => Math.max(a, Math.min(b, n));
 const ease = (n: number): number => { const t = clamp(n); return t * t * (3 - 2 * t); };
 
-function openingReaction(pose: ApplicantPose): { active: boolean; grin: number; recoil: number; glance: number } {
-  if ((pose.mode !== 'scan' && pose.mode !== 'boxed') || pose.stage !== 0) return { active: false, grin: 0, recoil: 0, glance: 0 };
-  if (pose.reduced) return { active: true, grin: 0.55, recoil: 0, glance: 0 };
+/** First-cycle acting: the opening glance and forced grin, the dental smile, and a flinch as each stamp lands. */
+function stageReaction(pose: ApplicantPose): { active: boolean; grin: number; recoil: number; glance: number } {
+  if ((pose.mode !== 'scan' && pose.mode !== 'boxed') || pose.stage > 2 || pose.level > 2) return { active: false, grin: 0, recoil: 0, glance: 0 };
+  if (pose.reduced) return { active: true, grin: pose.stage < 2 ? 0.55 : 0, recoil: 0, glance: 0 };
   const a = clamp(pose.action);
-  const grin = ease((a - 0.18) / 0.16) * (1 - ease((a - 0.64) / 0.14));
-  const recoil = ease((a - 0.64) / 0.05) * (1 - ease((a - 0.76) / 0.18));
-  const glance = ease(a / 0.09) * (1 - ease((a - 0.2) / 0.12));
+  // The crash freezes the round clock, so a reaction caught mid-beat relaxes as he is packed instead of holding.
+  const weight = (pose.cycle ?? 0) === 0 ? 1 - (pose.mode === 'boxed' ? clamp(pose.progress) : 0) : 0;
+  const grin = pose.stage < 2 ? weight * ease((a - 0.18) / 0.16) * (1 - ease((a - 0.64) / 0.14)) : 0;
+  const recoil = weight * ease((a - 0.64) / 0.05) * (1 - ease((a - 0.76) / 0.18));
+  const glance = pose.stage === 0 ? weight * ease(a / 0.09) * (1 - ease((a - 0.2) / 0.12)) : 0;
   return { active: true, grin, recoil, glance };
 }
 
@@ -64,14 +80,41 @@ function oval(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, r
   }
 }
 
-function joint(root: Point, end: Point, upper: number, lower: number, side: number): Point {
+/** Two-bone IK; a pole between -1 and 1 swings the joint through depth instead of flipping it. */
+function joint(root: Point, end: Point, upper: number, lower: number, pole: number): Point {
   const dx = end.x - root.x;
   const dy = end.y - root.y;
   const distance = Math.max(0.001, Math.hypot(dx, dy));
   const reach = clamp(distance, Math.abs(upper - lower) + 0.01, upper + lower - 0.01);
   const along = (upper * upper - lower * lower + reach * reach) / (2 * reach);
-  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * side;
+  const bend = Math.sqrt(Math.max(0, upper * upper - along * along)) * clamp(pole, -1, 1);
   return { x: root.x + (dx * along - dy * bend) / distance, y: root.y + (dy * along + dx * bend) / distance };
+}
+
+/** Pole that keeps elbows and knees pointing outward (and elbows down), whatever height the hand or foot reaches. */
+function outward(root: Point, end: Point, out: number, down: number): number {
+  const dx = end.x - root.x;
+  const dy = end.y - root.y;
+  return clamp(3 * (down * dx - dy * out) / Math.max(0.001, Math.hypot(dx, dy)), -1, 1);
+}
+
+/** Family Meeting's gait: during stance x cancels root travel exactly; swing returns with zero endpoint velocity. */
+function stepFoot(distance: number, stride: number, offset: number, lift: number): Point {
+  const phase = ((distance / stride + offset) % 1 + 1) % 1;
+  const half = stride * 0.58 / 2;
+  if (phase < 0.58) return { x: half - phase * stride, y: 0 };
+  const u = (phase - 0.58) / 0.42;
+  return { x: -half - u * stride * 0.42 + stride * u * u * (3 - 2 * u), y: -lift * Math.sin(Math.PI * u) ** 2 };
+}
+
+/**
+ * Rig-space distance walked while the root crosses `span` world px and shrinks from 1 to `end` scale over `progress`,
+ * with a stride that divides the whole walk, so both feet arrive back under the hips.
+ */
+export function walked(span: number, progress: number, end = 0.63): { walk: number; stride: number } {
+  const distance = (e: number): number => span / (1 - end) * -Math.log(1 - (1 - end) * clamp(e));
+  const total = Math.abs(distance(1));
+  return { walk: distance(progress), stride: total / Math.max(1, Math.round(total / 92)) };
 }
 
 function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, c: Point, width: number, colour: string): void {
@@ -116,7 +159,7 @@ function hand(ctx: CanvasRenderingContext2D, at: Point, angle: number, open: boo
 }
 
 function arm(ctx: CanvasRenderingContext2D, shoulder: Point, wrist: Point, side: number, open: boolean, darker: boolean): void {
-  const elbow = joint(shoulder, wrist, 29, 30, side);
+  const elbow = joint(shoulder, wrist, 29, 30, outward(shoulder, wrist, side, 0.6));
   const colour = darker ? '#d56445' : CORAL;
   limb(ctx, shoulder, elbow, wrist, 19, colour);
   line(ctx, `M${elbow.x - 4} ${elbow.y - 3} L${elbow.x + 5} ${elbow.y + 1}`, darker ? '#b44b37' : '#d06141', 2.5);
@@ -130,8 +173,29 @@ function arm(ctx: CanvasRenderingContext2D, shoulder: Point, wrist: Point, side:
   hand(ctx, { x: wrist.x + Math.sin(-angle) * 7, y: wrist.y + Math.cos(angle) * 7 }, angle, open, side);
 }
 
-function badge(ctx: CanvasRenderingContext2D, time: number, dancing: boolean, tension: number): void {
-  const sway = Math.sin(time * (dancing ? 6.3 : 2.1) - 0.8) * (dancing ? 0.23 : 0.045 + tension * 0.025);
+/** A stamped label; the newest lands with a squash and settles. */
+function sticker(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, turn: number, w: number, h: number, size: number, age: number): void {
+  const land = 1 + 0.22 * (1 - ease(age / 0.3));
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(turn);
+  ctx.scale(land, 2 - land);
+  ctx.beginPath();
+  ctx.roundRect(-w / 2, -h / 2, w, h, 2);
+  ctx.fillStyle = CREAM;
+  ctx.fill();
+  ctx.strokeStyle = RED;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.font = `800 ${size}px "Arial", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = RED;
+  ctx.fillText(text, 0, size * 0.35, w - 10);
+  ctx.restore();
+}
+
+function badge(ctx: CanvasRenderingContext2D, sway: number, flagged: number): void {
   ctx.save();
   ctx.translate(3, -140);
   ctx.rotate(sway);
@@ -146,19 +210,22 @@ function badge(ctx: CanvasRenderingContext2D, time: number, dancing: boolean, te
   shape(ctx, 'M-9 19 Q-9 14 -5 14 Q-2 14 -2 19Z', INK, 0);
   line(ctx, 'M3 10 L12 10 M3 14 L10 14 M3 18 L12 18 M-10 23 L12 23', '#80958d', 1.1);
   for (let i = 0; i < 5; i += 1) line(ctx, `M${-8 + i * 4} 23 L${-8 + i * 4} 25`, INK, i % 2 === 0 ? 1 : 2);
+  // The third stamp flags the ID itself.
+  if (flagged >= 0) sticker(ctx, CHECKS[2].stamp, 1.5, 3, -0.24, 52, 19, 14, flagged);
   ctx.restore();
 }
 
-function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, headAngle: number): void {
-  const fear = clamp(pose.tension);
+function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, rig: Rig): void {
+  const { fear, lid, relax, look } = rig;
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
-  const scanning = pose.mode === 'scan' || (pose.mode === 'boxed' && pose.stage !== 4);
-  const clown = pose.level >= 3;
-  const reaction = openingReaction(pose);
+  const paint = pose.paint ?? { nose: pose.level >= 3 ? 1 : 0, face: pose.level >= 5 ? 1 : 0, mouth: pose.level >= 7 ? 1 : 0 };
+  const reaction = stageReaction(pose);
+  const alpha = ctx.globalAlpha;
   ctx.save();
-  ctx.rotate(headAngle);
-  ctx.scale(1 + reaction.grin * 0.055 + reaction.recoil * 0.105, 1 - reaction.grin * 0.025 - reaction.recoil * 0.1);
+  ctx.rotate(rig.headAngle);
+  // Forced blinks squash the whole face a little.
+  ctx.scale(1 + reaction.grin * 0.055 + reaction.recoil * 0.105 + lid * 0.025, 1 - reaction.grin * 0.025 - reaction.recoil * 0.1 - lid * 0.045);
   oval(ctx, -31, 2, 7, 11, SKIN_SHADE, 2.4);
   oval(ctx, 31, 3, 6, 10, SKIN, 2.4);
   line(ctx, 'M-33 -1 Q-27 -4 -28 5 M32 0 L30 6', '#b98670', 1.8);
@@ -169,47 +236,56 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
   shape(ctx, 'M-29 -18 Q-31 -34 -7 -38 Q20 -39 29 -23 L31 12 Q29 31 12 36 Q-9 40 -23 26 Q-33 15 -29 -18Z', skin, 3.2);
   shape(ctx, 'M-28 4 Q-22 16 -23 22 Q-20 32 -5 36 Q-23 34 -28 23Z', SKIN_SHADE, 0);
 
-  if (pose.level >= 5) {
+  if (paint.face > 0) {
+    ctx.globalAlpha = alpha * paint.face;
     shape(ctx, 'M-20 -19 Q-15 -25 -7 -17 Q-4 -3 -8 11 L-18 12 Q-25 -3 -20 -19Z', CREAM, 0);
     shape(ctx, 'M8 -20 Q17 -25 25 -14 L26 7 L13 12 Q6 -1 8 -20Z', CREAM, 0);
     shape(ctx, 'M-21 12 L-12 25 L-8 12Z', TEAL, 0);
     shape(ctx, 'M13 12 L21 26 L26 10Z', TEAL, 0);
+    ctx.globalAlpha = alpha;
   }
   oval(ctx, -17, 11, 7, 3, '#e8baaa');
   oval(ctx, 24, 11, 6, 3, '#e8baaa');
 
-  const blinkClock = time % 5.6;
-  const blinking = !pose.reduced && blinkClock > 4.8 && blinkClock < 4.95 && !scanning;
-  const eyeH = blinking ? 1.1 : escaping ? 8.6 : boxed ? 12 : 10.8 + fear * 2 + reaction.grin * 2.1 + reaction.recoil * 1.4;
-  const look = escaping ? 4 : boxed ? -1 : reaction.active ? reaction.glance * 5 - reaction.recoil * 2 : scanning ? Math.sin(time * 0.6) * 1.3 : Math.sin(time * 0.9) * 2.5;
+  const open = escaping ? 8.6 : boxed ? 12 : 10.8 + fear * 2 + reaction.grin * 2.1 + reaction.recoil * 1.4;
+  const eyeH = open + (1.1 - open) * lid;
+  const pupilY = 1 - 2 * ease((fear - 0.74) / 0.12);
   for (const [x, width] of [[-13, 10.5], [17, 11.5]]) {
     oval(ctx, x, -1, width, eyeH, '#fffef5', 2.2);
-    if (!blinking) {
-      oval(ctx, x + look + 1, fear > 0.8 ? -1 : 1, 3.8, Math.min(5, eyeH * 0.68), INK);
+    if (lid < 0.6) {
+      oval(ctx, x + look + 1, pupilY, 3.8, Math.min(5, eyeH * 0.68), INK);
       oval(ctx, x + look + 2, -1, 1.1, 1.4, '#ffffff');
     }
-    if (!scanning && !boxed && !blinking && fear < 0.35) {
-      shape(ctx, `M${x - width} -4 Q${x} ${-12 - fear * 4} ${x + width} -4 Z`, SKIN, 1.2);
+    if (relax > 0 && lid < 0.5) {
+      const edge = -eyeH - 1 + (eyeH - 3) * relax;
+      shape(ctx, `M${x - width} ${edge} Q${x} ${-12 - fear * 4} ${x + width} ${edge} Z`, SKIN, 1.2);
     }
     line(ctx, `M${x - width + 3} ${eyeH + 3} Q${x + 1} ${eyeH + 6} ${x + width - 1} ${eyeH + 2}`, '#b98980', 1.4);
   }
-  const brow = escaping ? -1 : 2 + fear * 5 + reaction.grin * 5 + reaction.recoil * 4;
+  const brow = escaping ? -1 : 2 + fear * 5 + reaction.grin * 5 + reaction.recoil * 4 - lid * 3;
   line(ctx, `M-25 ${-17 - brow * 0.2} Q-16 ${-20 - brow} -5 ${-16 - brow}`, INK, 3.4);
   line(ctx, `M8 ${-17 - brow} Q19 ${-23 - brow} 27 ${-17 - brow * 0.3}`, INK, 3.4);
 
-  if (clown) {
+  if (paint.nose < 0.95) shape(ctx, 'M3 2 L0 11 Q5 15 11 11', '#efc19b', 1.6, '#bd8c72');
+  if (paint.nose > 0) {
+    // The clown nose pops on at 1.5× with a small overshoot.
+    ctx.save();
+    ctx.translate(7, 12);
+    ctx.scale(paint.nose, paint.nose);
+    ctx.translate(-7, -12);
     const nose = ctx.createRadialGradient(5, 9, 1, 7, 12, 11);
     nose.addColorStop(0, '#efffa9');
     nose.addColorStop(0.52, LIME);
     nose.addColorStop(1, '#86aa48');
     shape(ctx, 'M-3 11 Q-3 1 7 1 Q19 2 18 12 Q17 22 7 22 Q-3 21 -3 11Z', nose, 2.4);
     oval(ctx, 4, 6, 3, 1.7, '#ffffff');
-  } else {
-    shape(ctx, 'M3 2 L0 11 Q5 15 11 11', '#efc19b', 1.6, '#bd8c72');
+    ctx.restore();
   }
 
-  if (pose.level >= 7) {
+  if (paint.mouth > 0) {
+    ctx.globalAlpha = alpha * paint.mouth;
     shape(ctx, 'M-10 23 Q4 18 21 23 Q19 36 6 36 Q-6 36 -10 23Z', CREAM, 0);
+    ctx.globalAlpha = alpha;
   }
   if (boxed) {
     shape(ctx, 'M-1 24 Q6 21 13 24 L12 31 L0 31Z', INK, 1.4);
@@ -245,15 +321,18 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, time: number, 
     line(ctx, `M${x} 31 L${x + 0.3} 32.7`, '#a78473', 0.9);
   }
 
-  const hairSway = pose.reduced ? 0 : Math.sin(time * 3.1 - 0.5) * (pose.mode === 'dance' ? 3 : 0.8);
-  shape(ctx, `M-29 4 Q-36 -6 -31 -23 L-38 -26 L-29 -31 Q-31 -42 -19 -44 L-20 -50 Q-7 -47 1 -52 Q19 -60 37 ${-41 + hairSway} L28 -41 Q39 -32 26 -24 Q7 -18 -12 -30 Q-18 -12 -24 -12 L-24 2Z`, INK, 2.6);
+  shape(ctx, `M-29 4 Q-36 -6 -31 -23 L-38 -26 L-29 -31 Q-31 -42 -19 -44 L-20 -50 Q-7 -47 1 -52 Q19 -60 37 ${-41 + rig.hair} L28 -41 Q39 -32 26 -24 Q7 -18 -12 -30 Q-18 -12 -24 -12 L-24 2Z`, INK, 2.6);
   shape(ctx, 'M-20 -37 Q-1 -40 9 -44 Q18 -47 28 -40 Q7 -37 -1 -33Z', '#36545a', 0);
   line(ctx, 'M-25 -28 Q-18 -37 -10 -37 M-15 -28 Q1 -24 14 -28', '#547177', 1.4);
 
-  if (fear > 0.3 && !escaping) {
-    const drop = pose.reduced ? 0.45 : (time * (0.7 + fear * 0.4)) % 1;
+  if (fear > 0.28 && !escaping) {
+    // The drip phase is integrated by the scene; it grows in rather than appearing at a threshold.
+    const drop = pose.reduced ? 0.45 : (pose.sweat ?? rig.t * 0.9) % 1;
+    const grow = ease((fear - 0.28) / 0.08);
     ctx.save();
+    ctx.globalAlpha = alpha * (pose.reduced ? 1 : clamp(Math.min(drop, 1 - drop) * 7));
     ctx.translate(-36, -10 + drop * 27);
+    ctx.scale(grow, grow);
     shape(ctx, 'M0 -7 Q-6 1 -4 4 Q0 8 4 4 Q6 1 0 -7Z', '#79d7d2', 1.3);
     line(ctx, 'M-1 0 L-2 3', CREAM, 1.2);
     ctx.restore();
@@ -285,23 +364,49 @@ function rigFor(pose: ApplicantPose) {
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
   const scanning = pose.mode === 'scan' || (pose.mode === 'boxed' && pose.stage !== 4);
-  const reaction = openingReaction(pose);
+  const reaction = stageReaction(pose);
   const cycle = pose.reduced ? 0 : clamp(pose.action) * TAU;
-  const groove = Math.sin(escaping ? clamp(pose.progress) * 368 / 74 * TAU : t * (dancing ? 6.3 : 2.1));
-  const sway = dancing ? groove * 11 : escaping ? 7 : Math.sin(t * 1.2) * 2.5;
-  const bounce = dancing ? Math.abs(groove) * -6 : escaping ? -Math.abs(groove) * 5 : Math.sin(t * 2.1) * 1.6;
-  const hip = { x: sway * 0.4, y: -67 + bounce };
-  const chest = { x: sway, y: -132 + bounce };
+  const packed = boxed ? clamp(pose.progress) : 0;
+  // The escape follows distance along the floor. Both feet start under the hips (one mid-stance, one mid-swing),
+  // so only the lift ramps in and out; the planted foot never slides.
+  const travel = escaping && !pose.reduced ? Math.abs(pose.walk ?? 0) : 0;
+  const heading = Math.sign(pose.walk ?? 0) || -1;
+  const stride = pose.stride ?? 92;
+  const gait = escaping ? Math.min(ease(travel / 10), ease((1 - clamp(pose.progress)) / 0.12)) : 0;
+  const steps = [0.29, 0.79].map((offset) => stepFoot(travel, stride, offset, 15));
+  const swing = Math.sin(travel / stride * TAU) * gait;
+  const groove = Math.sin(t * (dancing ? 6.3 : 2.1));
+  const idleSway = Math.sin(t * 1.2) * 2.5;
+  const idleBounce = Math.sin(t * 2.1) * 1.6;
+  // He centres himself in the crate as he crouches, so nothing stamped on him overhangs its walls.
+  const sway = (dancing ? groove * 11 : escaping ? heading * 6 * gait + idleSway * (1 - gait) : idleSway) * (1 - packed);
+  // The dance bounces down into soft knees; rising would pull the planted foot's leg past its length.
+  const bounce = dancing ? Math.abs(groove) * 4 : escaping ? (steps[0]!.y + steps[1]!.y) * 0.3 * gait + idleBounce * (1 - gait) : idleBounce;
+  const feet = [-1, 1].map((side, i) => {
+    if (escaping) return { x: side * 19 + heading * steps[i]!.x, y: -11 + steps[i]!.y * gait };
+    const step = dancing ? Math.sin(t * 6.3 + side * Math.PI / 2) : 0;
+    return { x: side * (dancing ? 29 : 19) + step * 5, y: -11 - Math.max(0, step) * (dancing ? 12 : 0) };
+  });
+  // A crate crouch: the hips drop while the feet stay planted, so nothing pokes through the crate floor.
+  const sink = packed * 52;
+  // The hips settle wherever a leg would overreach its foot, as at a stride's double support (pelvis 6 px above the hip).
+  const settle = Math.max(0, ...feet.map((foot, i) => {
+    const reach = Math.sqrt(Math.max(0, 66 ** 2 - (foot.x - sway * 0.4 - (i ? 13 : -13)) ** 2));
+    return foot.y + 73 - bounce - sink - reach;
+  }));
+  const drop = bounce + sink + settle;
+  const hip = { x: sway * 0.4, y: -67 + drop };
+  const chest = { x: sway, y: -132 + drop };
   const headX = chest.x + (scanning && pose.stage % 3 === 1 ? 7 : 3) + reaction.glance * 3 - reaction.recoil * 2;
-  const headY = -184 + bounce + (boxed ? clamp(pose.progress) * 9 : 0) - reaction.grin * 3 + reaction.recoil * 7;
-  let headAngle = escaping ? 0.05 : dancing ? -groove * 0.105 : reaction.active ? reaction.glance * 0.085 - reaction.recoil * 0.07 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
+  const headY = -184 + drop + packed * 9 - reaction.grin * 3 + reaction.recoil * 7;
+  let headAngle = escaping ? 0.05 * gait + Math.sin(t * 1.2 - 0.7) * 0.03 * (1 - gait) : dancing ? -groove * 0.105 : reaction.active ? reaction.glance * 0.085 - reaction.recoil * 0.07 : scanning ? Math.sin(cycle) * 0.06 : Math.sin(t * 1.2 - 0.7) * 0.03;
 
-  if (boxed) headAngle += (-.045 - headAngle) * clamp(pose.progress);
+  if (boxed) headAngle += (-.045 - headAngle) * packed;
 
   const leftShoulder = { x: chest.x - 28, y: chest.y + 5 };
   const rightShoulder = { x: chest.x + 26, y: chest.y + 6 };
-  let left = { x: chest.x - 44, y: -83 + bounce + Math.sin(t * 2.1 - 0.6) * 3 };
-  let right = { x: chest.x + 44, y: -88 + bounce - Math.sin(t * 2.1 - 0.6) * 3 };
+  let left = { x: chest.x - 44, y: chest.y + 49 + Math.sin(t * 2.1 - 0.6) * 3 };
+  let right = { x: chest.x + 44, y: chest.y + 44 - Math.sin(t * 2.1 - 0.6) * 3 };
   let open = scanning || dancing;
   if (dancing) {
     const disco = Math.sin(t * 3.15);
@@ -320,40 +425,65 @@ function rigFor(pose: ApplicantPose) {
       right = { x: chest.x + 55, y: chest.y - 5 - Math.sin(cycle) * 7 };
     }
   } else if (escaping) {
-    left = { x: chest.x - 43 + groove * 7, y: chest.y + 19 + groove * 14 };
-    right = { x: chest.x + 46 - groove * 7, y: chest.y + 12 - groove * 14 };
+    // Fists clutch the poncho and pump against the stride.
+    left = { x: chest.x - 42 + swing * 7, y: chest.y + 20 + swing * 8 };
+    right = { x: chest.x + 44 - swing * 7, y: chest.y + 14 - swing * 8 };
     open = false;
   }
+  if (boxed) {
+    // Hands find the crate rim as he sinks, so he peers out holding on.
+    const grip = ease((packed - 0.35) / 0.55);
+    left = { x: left.x + (-46 - left.x) * grip, y: left.y + (-103 - left.y) * grip };
+    right = { x: right.x + (45 - right.x) * grip, y: right.y + (-102 - right.y) * grip };
+  }
 
-  const feet = [-1, 1].map((side) => {
-    const step = dancing ? Math.sin(t * 6.3 + side * Math.PI / 2) : escaping ? Math.sin(clamp(pose.progress) * 368 / 74 * TAU + (side < 0 ? Math.PI : 0)) * Math.sin(Math.PI * clamp(pose.progress)) : 0;
-    const lift = Math.max(0, step) * (dancing ? 12 : escaping ? 20 : 0);
-    const foot = { x: side * (dancing ? 29 : 19) + step * (escaping ? 19 : 5), y: -11 - lift };
-    return foot;
-  });
-  return { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, bounce, leftShoulder, rightShoulder, left, right, open, feet };
+  // Secondary motion lives in the rig, so appointment and phase blends cover it too.
+  const blink = (t % 5.6 - 4.8) / 0.16;
+  let lid = pose.reduced || boxed || blink <= 0 || blink >= 1 ? 0 : clamp((1 - Math.abs(blink * 2 - 1)) * 1.6);
+  // "Blink like you mean it": a forced triple blink in the opening scan.
+  const forced = (pose.action - 0.4) / 0.15;
+  if (!pose.reduced && pose.mode === 'scan' && pose.level === 0 && (pose.cycle ?? 0) === 0 && forced > 0 && forced < 1) {
+    lid = clamp((1 - Math.abs(forced * 3 % 1 * 2 - 1)) * 1.8);
+  }
+  const relax = scanning || boxed ? 0 : 1 - ease((fear - 0.25) / 0.14);
+  const look = escaping ? 4 : boxed ? -1 : reaction.active ? reaction.glance * 5 - reaction.recoil * 2 : scanning ? Math.sin(t * 0.6) * 1.3 : Math.sin(t * 0.9) * 2.5;
+  const hair = pose.reduced ? 0 : Math.sin(t * 3.1 - 0.5) * (dancing ? 3 : 0.8);
+  const badge = Math.sin(t * (dancing ? 6.3 : 2.1) - 0.8) * (dancing ? 0.23 : 0.045 + fear * 0.025);
+  return { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, leftShoulder, rightShoulder, left, right, open, feet, lid, relax, look, hair, badge };
+}
+
+export type Rig = ReturnType<typeof rigFor>;
+const JOINTS = ['hip', 'chest', 'leftShoulder', 'rightShoulder', 'left', 'right'] as const;
+const VALUES = ['headX', 'headY', 'headAngle', 'lid', 'relax', 'look', 'hair', 'badge'] as const;
+
+/** Blends every joint and secondary value; flags and the clock come from the target. */
+export function blendRig(from: Rig, to: Rig, k: number): Rig {
+  if (k >= 1) return to;
+  const blend = (a: Point, b: Point): Point => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  const out = { ...to };
+  for (const key of JOINTS) out[key] = blend(from[key], to[key]);
+  for (const key of VALUES) out[key] = from[key] + (to[key] - from[key]) * k;
+  out.feet = to.feet.map((foot, i) => blend(from.feet[i]!, foot));
+  return out;
 }
 
 /** Appointment-age blending is seek deterministic, including repeated late audits. */
-export function applicantRig(pose: ApplicantPose) {
+export function applicantRig(pose: ApplicantPose): Rig {
   const current = rigFor(pose);
   if (pose.reduced || pose.mode === 'idle' || pose.mode === 'escape') return current;
   const d = directionAt(pose.time * 1000);
   if (d.serial === 0 || d.age >= .35) return current;
   const prior = directionAt((d.seconds - d.age) * 1000 - .0001);
-  const previous = rigFor({ ...pose, time: prior.seconds, stage: prior.stage, action: prior.action,
-    mode: prior.stage === 4 ? 'dance' : 'scan' });
-  const k = ease(d.age / .35);
-  const blend = (a: Point, b: Point): Point => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
-  for (const key of ['hip', 'chest', 'leftShoulder', 'rightShoulder', 'left', 'right'] as const) current[key] = blend(previous[key], current[key]);
-  for (const key of ['headX', 'headY', 'headAngle', 'bounce'] as const) current[key] = previous[key] + (current[key] - previous[key]) * k;
-  current.feet = current.feet.map((foot, i) => blend(previous.feet[i]!, foot));
-  return current;
+  const previous = rigFor({ ...pose, time: prior.seconds, stage: prior.stage, level: prior.level, action: prior.action, cycle: prior.cycle,
+    mode: pose.mode === 'boxed' ? 'boxed' : prior.stage === 4 ? 'dance' : 'scan' });
+  return blendRig(previous, current, ease(d.age / .35));
 }
 
-/** Articulated applicant; presentation follows the supplied room pose. */
-export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose): void {
-  const { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, bounce, leftShoulder, rightShoulder, left, right, open, feet } = applicantRig(pose);
+/** Articulated applicant; presentation follows the supplied room pose, or a rig the scene has blended. */
+export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose, rig: Rig = applicantRig(pose)): void {
+  const { t, escaping, hip, chest, headX, headY, leftShoulder, rightShoulder, left, right, open, feet } = rig;
+  const stamps = pose.stamps ?? 0;
+  const newest = (index: number): number => index === stamps - 1 ? pose.stampAge ?? 9 : 9;
 
   ctx.save();
   ctx.translate(pose.x, pose.y);
@@ -361,12 +491,12 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // The foreground crate occludes the full rig as it rises.
   for (const side of [-1, 1]) {
     const foot = feet[side < 0 ? 0 : 1]!;
     const lift = -11 - foot.y;
-    const pelvis = { x: hip.x + side * 13, y: hip.y };
-    const knee = joint(pelvis, foot, 33, 34, side);
+    // The pelvis sits inside the hoodie, so standing legs stay nearly straight and knees always point outward.
+    const pelvis = { x: hip.x + side * 13, y: hip.y - 6 };
+    const knee = joint(pelvis, foot, 33, 34, outward(pelvis, foot, side, -0.3));
     limb(ctx, pelvis, knee, foot, side < 0 ? 17 : 18, side < 0 ? '#20393f' : '#2a444c');
     line(ctx, `M${knee.x - 4} ${knee.y + 1} L${knee.x + 4} ${knee.y + 3}`, '#567077', 1.5);
     shoe(ctx, foot, side, lift);
@@ -374,7 +504,7 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
 
   arm(ctx, leftShoulder, left, -1, open, true);
   ctx.save();
-  ctx.translate(chest.x, bounce);
+  ctx.translate(chest.x, chest.y + 132);
   shape(ctx, 'M-17 -145 Q-32 -147 -37 -129 Q-41 -108 -34 -82 L-30 -66 Q2 -56 33 -68 L35 -103 Q35 -126 25 -139 L14 -146Z', CORAL, 3);
   shape(ctx, 'M-34 -123 Q-27 -110 -23 -80 L-13 -64 L-30 -67 L-35 -84Z', '#d96545', 0);
   shape(ctx, 'M-16 -145 Q-27 -150 -28 -160 Q-4 -167 20 -158 Q26 -151 17 -142 L5 -136Z', '#cc5a40', 2.8);
@@ -387,10 +517,19 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
   line(ctx, 'M-11 -121 L-11 -116 M19 -121 L20 -116', INK, 2.8);
   shape(ctx, 'M-29 -120 L-20 -123 L-18 -115 L-28 -112Z', CREAM, 1.2);
   line(ctx, 'M-25 -119 L-23 -114 M-28 -116 L-21 -117', INK, 1.3);
-  badge(ctx, t, dancing, fear);
+  badge(ctx, rig.badge, stamps > 2 ? newest(2) : -1);
+  // Stamped labels ride on the hoodie through the dance, the escape and the crate.
+  if (stamps > 0) sticker(ctx, CHECKS[0].stamp, 1, -66, -0.09, 138, 33, 16, newest(0));
   if (escaping) foil(ctx, t, pose.reduced);
   ctx.restore();
   arm(ctx, rightShoulder, right, 1, open, false);
+  if (stamps > 1) {
+    // Slapped across the right shoulder seam, over the sleeve.
+    ctx.save();
+    ctx.translate(chest.x, chest.y + 132);
+    sticker(ctx, CHECKS[1].stamp, 20, -119, -0.24, 54, 22, 15, newest(1));
+    ctx.restore();
+  }
 
   ctx.save();
   ctx.translate(headX, headY);
@@ -399,7 +538,7 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
     shape(ctx, 'M-39 -18 L-10 -58 L-18 -14 L-30 20Z', '#f3f6df', 0);
     line(ctx, 'M14 -63 L11 -42 L32 -25 M-10 -58 L-5 -44 M35 -8 L40 17 L27 30', '#6f9395', 1.4);
   }
-  face(ctx, pose, t, headAngle);
+  face(ctx, pose, rig);
   ctx.restore();
   ctx.restore();
 }
@@ -428,6 +567,7 @@ export function drawDog(ctx: CanvasRenderingContext2D, x: number, y: number, tim
   shape(ctx, 'M-7 -16 L8 -16 L6 -11 L-5 -11Z', TEAL, 1.5);
   shape(ctx, 'M0 -13 L5 -12 L6 -2 L2 2 L-2 -2Z', INK, 1.3);
   line(ctx, 'M1 -8 L3 -6', TEAL, 1.2);
-  if (tension > 0.6) line(ctx, 'M-9 -43 Q-4 -45 0 -42', INK, 1.8);
+  const frown = clamp((tension - 0.56) / 0.08);
+  if (frown > 0) line(ctx, 'M-9 -43 Q-4 -45 0 -42', INK, 1.8 * frown);
   ctx.restore();
 }

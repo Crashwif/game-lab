@@ -39,8 +39,8 @@ export interface Cabin {
   drips: Drip[];
   light: number;
   haze: number;
-  /** The canary: how woozy (0 perky .. 1 reeling), whether it has dropped, how far it has fallen (0 perch .. 1 floor), and the cage's swing. */
-  canary: { woozy: Spring; dropped: boolean; fall: Spring; swing: Spring };
+  /** The canary: how woozy (0 perky .. 1 reeling), its sway's running phase, whether it has dropped, how far it has fallen (0 perch .. 1 floor), and the cage's swing. */
+  canary: { woozy: Spring; phase: number; dropped: boolean; fall: Spring; swing: Spring };
   /** The load plaque's flip to its true reading, 0 .. 1. */
   flip: Spring;
   /** The methane readout as displayed, smoothed toward the number's. */
@@ -50,11 +50,11 @@ export interface Cabin {
   events: { canaryDrop: boolean };
 }
 
-/** Methane at the number: sniffable from 3×, a hazard by 8×, off the scale at the release. */
-export const ppmFor = (multiplier: number): number => 400 + 260 * Math.pow(Math.max(0, multiplier - 1), 1.35);
+/** Methane at the number: 400 × the multiplier squared, so the alarms go at 1.58×, 2.5×, 3.54× and 4.74×, amber from 2.24× and red from 3.54×; it keeps counting in thousands after that. */
+export const ppmFor = (multiplier: number): number => 400 * Math.max(1, multiplier) ** 2;
 
 export function createCabin(motion = 1): Cabin {
-  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0, canary: { woozy: spring(0), dropped: false, fall: spring(0), swing: spring(0) }, flip: spring(0), ppm: 400, motion, events: { canaryDrop: false } };
+  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0, canary: { woozy: spring(0), phase: 0, dropped: false, fall: spring(0), swing: spring(0) }, flip: spring(0), ppm: 400, motion, events: { canaryDrop: false } };
 }
 
 export function resetCabin(c: Cabin): void {
@@ -76,35 +76,41 @@ export function resetCabin(c: Cabin): void {
   c.ppm = 400;
 }
 
-/** How fast the floors go past once the doors are shut. */
-const cruise = (tension: number): number => 70 + 200 * tension;
+/** How fast the floors go past once the doors are shut; `surge` (the slow, logarithmic driver of a long round) keeps it climbing past 10×. */
+const cruise = (tension: number, surge: number): number => 70 + 200 * tension + 160 * surge;
+/** The haze at the ankles: from 2.5×, thick by 10×. */
+const hazeFor = (tension: number): number => clamp((tension - 0.6) / 0.3, 0, 1);
 
-/** Jumps to a cabin already on its way, for a first frame mid-round: doors shut and, while running, at speed, the canary and the readout at the number. */
-export function settleCabin(c: Cabin, running: boolean, tension: number, multiplier: number): void {
+/** Jumps to a cabin already on its way, for a first frame mid-round: doors shut and, while running, at speed, the canary, the haze and the readout at the number. */
+export function settleCabin(c: Cabin, running: boolean, tension: number, multiplier: number, surge: number): void {
   settleSpring(c.doors, 0);
-  settleSpring(c.speed, running ? cruise(tension) : 0);
+  settleSpring(c.speed, running ? cruise(tension, surge) : 0);
   settleSpring(c.canary.woozy, running ? tension : 0);
+  c.haze = running ? hazeFor(tension) : 0;
   c.ppm = ppmFor(multiplier);
 }
 
-export interface CabinDrive { running: boolean; tension: number; multiplier: number; doorsOpen: boolean; arrived: boolean; reduced: boolean }
+export interface CabinDrive { running: boolean; tension: number; multiplier: number; doorsOpen: boolean; arrived: boolean; reduced: boolean; surge: number }
 
 export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
   c.time += dt;
   c.events.canaryDrop = false;
   stepSpring(c.doors, drive.doorsOpen ? 1 : 0, 9, 0.85, dt);
   const open = c.doors.x > 0.05;
-  stepSpring(c.speed, drive.running && !open && !c.gassed ? cruise(drive.tension) : 0, 3, 0.9, dt);
+  stepSpring(c.speed, drive.running && !open && !c.gassed ? cruise(drive.tension, drive.surge) : 0, 3, 0.9, dt);
   c.scroll += c.speed.x * dt;
   if (drive.arrived) { c.bounce.v += 26; c.ding.v += 12; c.canary.swing.v += 2.2; }
   stepSpring(c.bounce, 0, c.gassed ? 7 : 12, 0.35, dt);
   stepSpring(c.ding, 0, 8, 0.6, dt);
-  c.haze = drive.running && !c.gassed ? clamp((drive.tension - 0.66) / 0.34, 0, 1) : c.gassed ? 1 : Math.max(0, c.haze - dt);
-  // The canary reels harder as the air goes, and the cage swings with every jolt of the cabin.
+  // Eased, so the haze never jumps with the number or at the release.
+  c.haze += ((c.gassed ? 1 : drive.running ? hazeFor(drive.tension) : 0) - c.haze) * (1 - Math.exp(-dt / 0.4));
+  // The canary reels harder as the air goes, and the cage swings with every jolt of the cabin. Its sway keeps a running phase, so a
+  // faster sway never jumps or drifts however long the page has been open.
   const k = c.canary;
   stepSpring(k.woozy, drive.running && !c.gassed ? drive.tension : c.gassed ? 1 : 0, 3, 0.7, dt);
   stepSpring(k.swing, 0, 5, 0.15, dt);
-  const ppmTarget = c.gassed ? 9999 : drive.running ? ppmFor(drive.multiplier) : 400;
+  k.phase = (k.phase + dt * (2 + 5 * clamp(k.woozy.x, 0, 1))) % (Math.PI * 2);
+  const ppmTarget = c.gassed ? Math.max(9999, c.ppm) : drive.running ? ppmFor(drive.multiplier) : 400;
   c.ppm += (ppmTarget - c.ppm) * (1 - Math.exp(-dt * (c.gassed ? 6 : 3)));
   if (c.gassed) {
     c.gasAge += dt;
@@ -124,7 +130,8 @@ export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
     for (const d of c.drips) { if (c.gasAge > d.delay) d.y += d.speed * dt; }
     if (!k.dropped && c.gasAge > 0.42) { k.dropped = true; c.events.canaryDrop = true; k.swing.v += 1.5; }
   } else {
-    const flicker = drive.running && drive.tension > 0.8 && !drive.reduced && noise(Math.floor(c.time * 24)) > 0.82 ? 0.45 : 1;
+    // From 5× the light starts to go, more often the longer the round runs.
+    const flicker = drive.running && drive.tension > 0.8 && !drive.reduced && noise(Math.floor(c.time * 24)) > 0.82 - 0.14 * drive.surge ? 0.45 : 1;
     c.light += (flicker - c.light) * (1 - Math.exp(-dt * 40));
   }
   stepSpring(k.fall, k.dropped ? 1 : 0, 16, 0.3, dt);
@@ -145,7 +152,7 @@ export function gasCabin(c: Cabin, seed: number, origin: Point, quiet: boolean):
     settleSpring(c.canary.fall, 1);
     settleSpring(c.canary.woozy, 1);
     settleSpring(c.flip, 1);
-    c.ppm = 9999;
+    c.ppm = Math.max(9999, c.ppm);
     return;
   }
   const rng = mulberry32(seed);
@@ -214,7 +221,7 @@ function drawCage(ctx: CanvasRenderingContext2D, c: Cabin): void {
   // The bird: on the perch, swaying more the woozier it gets, or on its back on the tray.
   const woozy = clamp(k.woozy.x, 0, 1);
   const fall = clamp(k.fall.x, 0, 1.15);
-  const sway = k.dropped ? 0 : Math.sin(c.time * (2 + 5 * woozy)) * 0.45 * woozy;
+  const sway = k.dropped ? 0 : Math.sin(k.phase) * 0.45 * woozy;
   ctx.save();
   ctx.translate(0, mix(36, h - 8, Math.min(fall, 1)));
   ctx.rotate(sway + Math.PI * Math.min(fall, 1));
@@ -262,10 +269,19 @@ function drawCage(ctx: CanvasRenderingContext2D, c: Cabin): void {
   ctx.restore();
 }
 
+/** A reading in four characters or so: 9999, then 12.5K, 125K, 1.3M and on up to quadrillions, then simply MAX. */
+function ppmText(ppm: number): string {
+  if (ppm < 10_000) return String(Math.round(ppm));
+  if (ppm >= 1e18) return 'MAX';
+  const e = Math.floor(Math.log10(ppm) / 3);
+  const v = ppm / 1000 ** e;
+  return `${v.toFixed(v < 100 ? 1 : 0)}${'KMBTQ'[e - 1]}`;
+}
+
 /** The methane readout on the back wall: green, amber, red, then off the scale. */
 function drawPPM(ctx: CanvasRenderingContext2D, c: Cabin): void {
   const { x, y, w, h } = PPM_PANEL;
-  const ppm = Math.min(9999, Math.round(c.ppm));
+  const ppm = Math.round(c.ppm);
   const level = ppm >= 5000 ? 2 : ppm >= 2000 ? 1 : 0;
   const colour = ['#7cf67c', '#ffb703', '#ff4d6d'][level]!;
   const flash = c.gassed && c.motion > 0 && Math.floor(c.time * 4) % 2 === 0;
@@ -280,7 +296,7 @@ function drawPPM(ctx: CanvasRenderingContext2D, c: Cabin): void {
   ctx.fillStyle = colour;
   ctx.font = '900 20px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(c.gassed ? '9999+' : String(ppm), x + w - 30, y + 36);
+  ctx.fillText(c.gassed ? `${ppmText(Math.max(9999, ppm))}+` : ppmText(ppm), x + w - 30, y + 36, w - 38);
   ctx.font = '900 9px Impact, "Arial Black", sans-serif';
   ctx.fillText('PPM', x + w - 6, y + 36);
   if (!c.gassed) {
@@ -362,7 +378,7 @@ export function drawDoors(ctx: CanvasRenderingContext2D, c: Cabin, indicator: st
   ctx.beginPath(); ctx.roundRect(DOOR_FRAME.x + 40, 84, DOOR_FRAME.w - 80, 26, 4); ctx.fill(); ctx.stroke();
   ctx.fillStyle = dumped ? '#ff4d6d' : secured ? '#7cf67c' : ding > 0.1 ? '#ffffff' : '#7cf67c';
   ctx.font = '900 16px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(indicator, DOOR_FRAME.x + DOOR_FRAME.w / 2, 103);
+  ctx.fillText(indicator, DOOR_FRAME.x + DOOR_FRAME.w / 2, 103, DOOR_FRAME.w - 92);
   // Load plaque, red once the cabin is over capacity; after the release it flips over to its true reading.
   const flip = clamp(c.flip.x, 0, 1);
   const flipped = flip > 0.5;

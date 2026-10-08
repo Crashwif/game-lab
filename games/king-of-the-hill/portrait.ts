@@ -12,8 +12,11 @@ export function portrait(draw: (c: Context, v: SceneView, now: number, close?: b
     c.fillStyle = '#142431'; c.fillRect(0, 0, 540, 752);
     c.fillStyle = v.cashoutX100 !== null ? '#b8f078' : v.phase === 'crashed' ? '#ff8190' : '#f5eedc';
     c.textAlign = 'left'; c.font = '900 30px Arial'; c.fillText(title, 22, 41, 496);
+    // The live multiplier (the crash point once crashed) stays on; an exit shows beside it.
+    if (v.cashoutX100 !== null) { c.font = '900 22px Arial'; c.fillText(`OUT ${(v.cashoutX100 / 100).toFixed(2)}×`, 22, 84, 200); }
+    c.fillStyle = v.phase === 'crashed' ? '#ff8190' : v.cashoutX100 !== null ? '#b8f078' : '#f5eedc';
     c.textAlign = 'right'; c.font = '900 43px Arial';
-    c.fillText(`${((v.cashoutX100 ?? v.currentX100) / 100).toFixed(2)}×`, 518, 88, 460);
+    c.fillText(`${(v.currentX100 / 100).toFixed(2)}×`, 518, 88, v.cashoutX100 !== null ? 270 : 460);
     c.textAlign = 'center'; c.font = '900 24px Arial'; c.fillText(caption(v), 270, 132, 508);
     const b = crop(), scale = Math.min(540 / b.w, 454 / b.h), w = b.w * scale, h = b.h * scale;
     c.drawImage(surface, b.x, b.y, b.w, b.h, (540 - w) / 2, 154 + (454 - h) / 2, w, h);

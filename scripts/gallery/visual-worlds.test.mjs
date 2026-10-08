@@ -113,7 +113,7 @@ test('Tower running camera retains the swaying tower and crane after 180 continu
   }
   for(const x of [c.CRANE_X,c.JIB_TIP])assert.ok(480+(x-camera.x)*zoom.x>30&&480+(x-camera.x)*zoom.x<930);
  }
- assert.ok(maxTravel>900,'exercise the accumulated drift that previously escaped the camera');
+ assert.ok(maxTravel>40&&maxTravel<160,'the stack visibly sways but no longer accumulates noodle drift');
 });
 
 test('Moon hero front points toward the chase camera instead of behind the hull',async()=>{
@@ -128,14 +128,16 @@ test('Moon hero front points toward the chase camera instead of behind the hull'
 
 test('Moon accepted-cashout camera retains hero and open canopy through departure',async()=>{
  const r=await game('moon-boys/rocket'),m=await game('moon-boys/math3d');
- for(const multiplier of [1.5,100000]){
+ // The chase camera of scene.ts: pushed in with the tension, and further in at the close-up only a long round (45 s on) gets.
+ for(const [multiplier,closeup] of [[1.5,0],[100000,0],[100000,1]]){
   const state=r.createRocket();r.settleRocket(state,multiplier,150);r.bailYou(state);
+  const tension=1-1/multiplier,dist=(17-5*tension)*(1-.35*closeup);
   for(let age=0;age<=6.5;age+=1/30){
    state.you.age=age;
    const centre=r.cameraCentre(state),at=r.bailPosition(state),az=.55*Math.sin((150+age)*.23+.6),pitch=-.12;
-   const eye=[centre[0]+Math.sin(az)*Math.cos(pitch)*19.5,centre[1]+Math.sin(pitch)*19.5,centre[2]+Math.cos(az)*Math.cos(pitch)*19.5];
+   const eye=[centre[0]+Math.sin(az)*Math.cos(pitch)*dist,centre[1]+Math.sin(pitch)*dist,centre[2]+Math.cos(az)*Math.cos(pitch)*dist];
    const target=m.add(centre,[0,2.4,0]),view=m.mat4(),projection=m.mat4(),vp=m.mat4();
-   m.lookAt(view,eye,target,[0,1,0]);m.perspective(projection,71*Math.PI/180,960/540,.1,1400);m.multiply(vp,projection,view);
+   m.lookAt(view,eye,target,[0,1,0]);m.perspective(projection,(66-4*tension)*Math.PI/180,960/540,.1,1400);m.multiply(vp,projection,view);
    for(const y of [-.3,0,2.4,3.8])for(const x of [-1.7,1.7]){
     const p=m.projectToScreen(vp,m.add(at,[x,y,0]),960,540);
     assert.ok(p&&p.x>25&&p.x<935&&p.y>100&&p.y<510,'hero and full canopy remain inside payoff safe area');
