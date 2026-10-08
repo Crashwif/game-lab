@@ -4,4 +4,4 @@ export const GAMES = ['seed-round', 'blanket-champ', 'balloon-pump', 'andys-loud
  * The games whose source pack fits the platform's browser Studio, so a remix of them starts in the browser
  * rather than handing off to Game Studio desktop. scripts/gallery/check.mjs holds them to that budget.
  */
-export const BROWSER_REMIX = ['hello-world', 'wen-moon', 'bull-run', 'pyramid-scheme', 'rage-quit', 'beyond-the-colony', 'mumu-bull-run'];
+export const BROWSER_REMIX = ['hello-world', 'wen-moon', 'bull-run', 'pyramid-scheme'];
