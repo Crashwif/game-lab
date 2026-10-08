@@ -37,12 +37,14 @@ export interface TunnelParams {
   bulge: number;
   flash: number;
   heat: number;
+  /** How far the whole bore clenches in, as a fraction of its radius. */
+  squeeze: number;
 }
 
 export type Blend = 'opaque' | 'alpha' | 'additive';
 
 const LIT_UNIFORMS = ['uViewProj', 'uTime', 'uCamera', 'uFogColor', 'uFogGlow', 'uFogDensity', 'uLightPos', 'uGlowPos', 'uGlowColor', 'uAmbientTop', 'uAmbientBottom', 'uAtlas'] as const;
-const TUNNEL_UNIFORMS = ['uViewProj', 'uS0', 'uSpacing', 'uPulse', 'uBeat', 'uBulgeS', 'uBulge', 'uCamera', 'uFogColor', 'uFogGlow', 'uFogDensity', 'uGlowPos', 'uGlowColor', 'uFlash', 'uHeat'] as const;
+const TUNNEL_UNIFORMS = ['uViewProj', 'uS0', 'uSpacing', 'uPulse', 'uBeat', 'uBulgeS', 'uBulge', 'uSqueeze', 'uCamera', 'uFogColor', 'uFogGlow', 'uFogDensity', 'uGlowPos', 'uGlowColor', 'uFlash', 'uHeat'] as const;
 const SPRITE_UNIFORMS = ['uView', 'uProj', 'uFogDensity'] as const;
 const BACKDROP_UNIFORMS = ['uTop', 'uBottom', 'uLamp', 'uLampPos', 'uAspect'] as const;
 
@@ -220,6 +222,7 @@ export class Renderer {
     gl.uniform1f(u.uBeat, params.beat);
     gl.uniform1f(u.uBulgeS, params.bulgeS);
     gl.uniform1f(u.uBulge, params.bulge);
+    gl.uniform1f(u.uSqueeze, params.squeeze);
     gl.uniform3fv(u.uCamera, this.camera);
     gl.uniform3fv(u.uFogColor, env.fogColor);
     gl.uniform3fv(u.uFogGlow, env.fogGlow);

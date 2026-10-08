@@ -1,7 +1,8 @@
 /**
  * A pump.fun-style live trade feed in the top-right corner: buys in green,
  * sells in red, faster as the multiplier climbs, with the story's beats
- * (snipers dumping, jeet waves, the whale, the SEC, your exit, the dev)
+ * (snipers dumping, jeet waves, the whale, the SEC, your exit as
+ * paperhands69, the dev)
  * posted as they happen, and the rumours that come out at each rung of the
  * multiplier (1 WALLET 69%, INFLUENCER SOLD HIS MOM'S BAG, DEV WENT DARK).
  * Seeded, so a replay prints the same feed.
@@ -9,7 +10,7 @@
 import { memeText, W } from './hud';
 import { mulberry32 } from './motion';
 
-const HANDLES = ['7xKp…q2F', 'jeetmaxxer', 'exitliq.sol', '4Rfz…9aB', 'paperhands69', 'devmom.sol', 'gm_ser', 'Hq3v…Lm1', 'rugdoctor', 'ngmi.sol', 'wifhat_whale', 'Cx8e…T7d', 'loadmaxxer', 'bagholder.sol', 'swimteam.sol'];
+const HANDLES = ['7xKp…q2F', 'jeetmaxxer', 'exitliq.sol', '4Rfz…9aB', 'diamondtails.sol', 'devmom.sol', 'gm_ser', 'Hq3v…Lm1', 'rugdoctor', 'ngmi.sol', 'wifhat_whale', 'Cx8e…T7d', 'loadmaxxer', 'bagholder.sol', 'swimteam.sol'];
 const ROWS = 5;
 /** The rumours, in the order the multiplier lets them out. A scene joining late skips the ones already out. */
 const RUMOURS: [number, string][] = [

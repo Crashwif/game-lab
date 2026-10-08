@@ -20,9 +20,9 @@ import type { Environment, Renderer } from './render';
 export const IMPACT = 0.3;
 export const PULL = 1.3;
 export const OUTSIDE = 1.9;
-/** The condom has landed on the rug; now the rug goes. */
-export const RUG_PULL = OUTSIDE + 2.3;
-const SETTLED = OUTSIDE + 3.6;
+/** The condom has landed on the rug; now the rug goes (early enough to read before the next round's lobby). */
+export const RUG_PULL = OUTSIDE + 1.6;
+const SETTLED = OUTSIDE + 3;
 
 export interface Crash {
   active: boolean;
