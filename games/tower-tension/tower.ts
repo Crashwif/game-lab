@@ -18,9 +18,12 @@ export const FLOOR_W = 120;
 export const FLOOR_H = 30;
 /** The hoist rail runs this far right of the tower axis. */
 export const RAIL_DX = 72;
-/** Storey stiffness, inter-storey damping and air damping, per unit floor mass. */
-const STIFFNESS = 700;
-const DAMPING = 8;
+/**
+ * Storey stiffness, inter-storey damping and air damping, per unit floor mass. Soft, so a stack that gains
+ * only three floors a doubling still leans hard as the multiplier climbs.
+ */
+const STIFFNESS = 350;
+const DAMPING = 5.7;
 const AIR = 1.0;
 const GRAVITY = 900;
 const INK = '#1c1f26';
@@ -67,7 +70,7 @@ export interface Floor {
 /** Window centres across a block, and the number of units sold on the nth floor: the higher, the more suckers. */
 const WINDOWS = [-32, 0, 32];
 const MAX_FALLERS = 26;
-const residentCount = (n: number): number => (n < 2 ? 0 : n < 5 ? 1 : n < 10 ? 2 : 3);
+const residentCount = (n: number): number => (n < 1 ? 0 : n < 3 ? 1 : n < 5 ? 2 : 3);
 
 export interface Debris {
   x: number;

@@ -68,7 +68,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Blanket Champ](games/blanket-champ) | A duvet on the beat, room props on springs, a live odds board, a news ticker, a cheering crowd | Playable |
 | [Balloon Pump](games/balloon-pump) | Two-bone joints, spring-lagged secondary motion, a buoyant balloon on a tether, a slingshot that winds up with the multiplier, a seeded burst with hit-stop and slow motion, meme captions | Playable |
 | [Andy’s Loud Garden](games/andys-loud-garden) | Andy character sprites, layered cannabis growth, a watering loop, a harvest walk-off, a police arrival and garden closure tied to the crash | Playable |
-| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook and counterweight, residents in the windows, a sales office queue, camera tracking, a seeded collapse with hit-stop | Playable |
+| [Tower Tension](games/tower-tension) | An inter-storey spring chain, a pendulum crane hook and counterweight, semis that deliver each floor on a flatbed, residents in the windows, a sales office queue, camera tracking, a seeded collapse with hit-stop | Playable |
 | [Boiler Room](games/boiler-room) | A slider-crank linkage, belt and governor, layered particles, a game's own sounds on the shared audio bus | Playable |
 | [Thin Ice](games/thin-ice) | A stride rig, a spreading crack network, bagholders thawing under the ice, a liquidation drone that closes in, a reflection, a seeded shatter into floes | Playable |
 | [King of the Hill](games/king-of-the-hill) | A bonding-curve hill, a coin that rolls back, a dev on a cloud throne with a SELL lever, an airdrop plane, a Lambo pick-up | Playable |
