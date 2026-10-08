@@ -1,0 +1,15 @@
+{
+  "name": "MUMU Bull Run",
+  "hook": "Big horns. One ridiculous bear blockade.",
+  "tagline": "Charge up emerald ramps with a fearless white bull. Take the grandstand exit on confirmed cash-out before the bear drops the blockade and folds the course.",
+  "tags": [
+    "MUMU community",
+    "Uphill charge",
+    "Original cartoon"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
