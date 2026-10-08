@@ -1,8 +1,8 @@
 /**
  * Boiler Room's own sounds, on top of the page's shared audio (audio.ts): a
- * looped noise bed that hisses with the pressure, a whistle that joins in the
- * red, a chuff on each piston reversal, a rivet ping when a seam gives, and
- * the swept blast. The shared engine owns the context, the bus, the Sound
+ * looped noise bed that hisses with the pressure, a whistle that comes in
+ * from 1.4× and climbs with it, shrieking as the valve goes, a chuff on each
+ * piston reversal, a rivet ping when a seam gives, and the swept blast. The shared engine owns the context, the bus, the Sound
  * button and the hidden-page suspend, so one button governs the music, the
  * effects and these. No audio files: the bundle stays self-contained.
  */
@@ -10,7 +10,8 @@ import type { Audio } from './audio';
 
 export interface Sound {
   readonly enabled: boolean;
-  update(pressure: number, running: boolean): void;
+  /** `shriek` (0..1) is the fuse before the blow-out: the whistle screams over everything. */
+  update(pressure: number, running: boolean, shriek?: number): void;
   chuff(strength: number): void;
   ping(): void;
   blast(): void;
@@ -95,14 +96,15 @@ export function createSound(audio: Audio): Sound {
     get enabled() {
       return audio.enabled;
     },
-    update(pressure, running) {
+    update(pressure, running, shriek = 0) {
       const ctx = ensure();
       if (!ctx || !hiss || !whistle) return;
       const t = ctx.currentTime;
       hiss.gain.setTargetAtTime(running ? 0.01 + 0.16 * pressure * pressure : 0.004, t, 0.15);
-      const red = pressure > 0.7 ? (pressure - 0.7) / 0.3 : 0;
-      whistle.gain.gain.setTargetAtTime(0.05 * red, t, 0.1);
-      whistle.osc.frequency.setTargetAtTime(900 + 700 * pressure, t, 0.2);
+      // The pressure follows 1 − 1/x, so the whistle comes in around 1.4× and is plainly there by 2×.
+      const whistling = Math.min(1, Math.max(0, (pressure - 0.3) / 0.7));
+      whistle.gain.gain.setTargetAtTime(Math.max(0.055 * whistling, 0.16 * shriek), t, shriek > 0 ? 0.02 : 0.1);
+      whistle.osc.frequency.setTargetAtTime(900 + 700 * pressure + 1300 * shriek, t, shriek > 0 ? 0.03 : 0.2);
     },
     chuff(strength) {
       burst(420 + 300 * strength, 0.9, 0.2 * strength, 0.14, 'bandpass');

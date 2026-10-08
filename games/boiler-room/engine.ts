@@ -2,12 +2,13 @@
  * The boiler and the engine it drives. The crank turns at a speed set by the
  * multiplier; an exact slider-crank moves the crosshead and piston, the
  * flywheel runs a belt to a fan, and a flyball governor lifts its weights as
- * the speed rises. Pressure moves the gauge, feeds the fire, pops rivets into
- * leaks at milestones, lifts the safety valve, and at the crash blows the
- * valve clean off.
+ * the speed rises. Pressure moves the gauge, feeds the fire, flutters the
+ * safety valve, pops rivets into leaks at milestones, groans in fake-outs,
+ * prints a banknote or more on every chuff, and at the crash blows the valve
+ * clean off.
  */
 import { type Spring, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
-import { type Particles, emit, puff, sparks } from './particles';
+import { type Particles, TAGS, emit, puff, sparks } from './particles';
 
 export const FLOOR_Y = 470;
 const INK = '#1c1f26';
@@ -20,8 +21,10 @@ const PLATE_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 /** The maker's plate: on the first barrel panel, clear of the seams, the gauge and the leak spots. */
 const PLATE = { x: 346, y: 188, w: 66, h: 40 };
 
-/** Multipliers at which another seam gives way. */
-export const LEAK_AT = [1.6, 2.4, 3.5, 5, 7.5, 11, 16];
+/** Multipliers at which another seam gives way; past the last, one more every ×1.6, re-bursting the old seams. */
+export const LEAK_AT = [1.5, 1.9, 2.4, 3.1, 4.2, 6, 9];
+/** Multipliers at which the boiler groans, spikes the needle and settles again: fake-outs keyed to the multiplier only. */
+export const SCARE_AT = [1.8, 2.7, 3.9, 5.8, 8.8];
 const LEAK_SPOTS = [
   { x: 340, y: 176, dx: 0.2, dy: -1 }, { x: 420, y: 324, dx: -0.3, dy: 1 }, { x: 500, y: 176, dx: -0.2, dy: -1 },
   { x: 580, y: 324, dx: 0.4, dy: 1 }, { x: 268, y: 250, dx: -1, dy: -0.2 }, { x: 642, y: 250, dx: 1, dy: -0.3 }, { x: 460, y: 176, dx: 0, dy: -1 },
@@ -33,6 +36,11 @@ const CRANK = { x: 885, y: 395 };
 const CRANK_R = 38;
 const ROD = 150;
 const GUIDE_Y = 310;
+const TAU = Math.PI * 2;
+/** Crank angles of the dead centres. The guide line runs 85 px above the crank, so they fall at 49° and 207°, not 0° and 180°. */
+const DEAD = [0.862, 3.611];
+/** The exhaust stack's mouth, where the chuffs and the printed money come out. */
+const STACK = { x: 612, y: 258 };
 const FAN = { x: 860, y: 120, r: 20 };
 const GOVERNOR = { x: 660, y: 218 };
 
@@ -42,6 +50,8 @@ export interface EngineDrive {
   /** 0..1 boiler pressure the multiplier calls for. */
   pressure: number;
   multiplier: number;
+  /** The crash has been called and the valve is about to go: needle slammed, valve chattering. */
+  fuse: boolean;
 }
 
 export interface EngineState {
@@ -59,11 +69,44 @@ export interface EngineState {
   smokeClock: number;
   leakClock: number;
   emberClock: number;
-  events: { reversal: boolean; leak: number };
+  /** Whether a round is on (running, or crashing until the valve goes), and its multiplier: the patches and the gauge's cracks follow them. */
+  live: boolean;
+  multiplier: number;
+  /** The valve's flutter phase, integrated so its rate can follow the pressure. */
+  chatter: number;
+  ventClock: number;
+  /** Banknotes owed to the next chuff. */
+  notes: number;
+  scares: number;
+  /** The latest scare, decaying from 1. */
+  scare: number;
+  /** The new valve cap dropping into its seat after a blow-out, from 1 to 0. */
+  capDrop: number;
+  /** Belt dash offset, integrated at a speed capped below what the frame rate can show. */
+  belt: number;
+  /** A smoothed frame time, for blurring what turns too fast to show. */
+  frame: number;
+  events: { reversal: boolean; leak: number; scare: boolean };
 }
 
 export function createEngine(): EngineState {
-  return { time: 0, theta: 0, omega: 0, pressure: 0, needle: spring(0), flame: 0.15, leaks: 0, valve: spring(0), lamp: spring(0), blown: false, blowAge: 0, smokeClock: 0, leakClock: 0, emberClock: 0, events: { reversal: false, leak: -1 } };
+  return {
+    time: 0, theta: 0, omega: 0, pressure: 0, needle: spring(0), flame: 0.15, leaks: 0, valve: spring(0), lamp: spring(0), blown: false, blowAge: 0, smokeClock: 0, leakClock: 0, emberClock: 0,
+    live: false, multiplier: 1, chatter: 0, ventClock: 0, notes: 0, scares: 0, scare: 0, capDrop: 0, belt: 0, frame: 1 / 60, events: { reversal: false, leak: -1, scare: false },
+  };
+}
+
+/** How many seams have given at a multiplier: the listed ones, then one more every ×1.6 so long rounds keep popping. */
+export function leakCount(multiplier: number): number {
+  const n = LEAK_AT.filter((m) => multiplier >= m).length;
+  return n < LEAK_AT.length ? n : n + Math.floor(Math.log(multiplier / LEAK_AT[n - 1]!) / Math.log(1.6));
+}
+
+/** Dead centres passed by a crank angle: each one is a piston reversal and a chuff. */
+function strokes(theta: number): number {
+  const turn = Math.floor(theta / TAU);
+  const a = theta - turn * TAU;
+  return turn * 2 + (a >= DEAD[0]! ? 1 : 0) + (a >= DEAD[1]! ? 1 : 0);
 }
 
 export function resetEngine(e: EngineState): void {
@@ -71,7 +114,12 @@ export function resetEngine(e: EngineState): void {
   settleSpring(e.needle, 0);
   e.flame = 0.15;
   e.leaks = 0;
+  e.scares = 0;
+  e.scare = 0;
+  e.notes = 0;
   settleSpring(e.valve, 0);
+  // A blown valve gets a new cap, dropped into its seat rather than popping back.
+  if (e.blown) e.capDrop = 1;
   e.blown = false;
   e.blowAge = 0;
 }
@@ -81,9 +129,12 @@ export function settleEngine(e: EngineState, drive: EngineDrive): void {
   e.pressure = drive.pressure;
   settleSpring(e.needle, drive.pressure);
   e.omega = targetOmega(drive);
-  e.leaks = drive.running ? LEAK_AT.filter((m) => drive.multiplier >= m).length : 0;
+  e.live = drive.running || drive.crashed;
+  e.multiplier = drive.multiplier;
+  e.leaks = drive.running ? leakCount(drive.multiplier) : 0;
+  e.scares = drive.running ? SCARE_AT.filter((m) => drive.multiplier >= m).length : 0;
   e.flame = drive.running ? 0.35 + 0.65 * drive.pressure : 0.15;
-  settleSpring(e.valve, clamp((drive.pressure - 0.7) / 0.3, 0, 1));
+  settleSpring(e.valve, smoothstep(0.25, 0.75, drive.pressure));
 }
 
 function targetOmega(drive: EngineDrive): number {
@@ -95,52 +146,95 @@ function targetOmega(drive: EngineDrive): number {
 
 export function stepEngine(e: EngineState, drive: EngineDrive, ps: Particles, dt: number): void {
   e.time += dt;
+  e.live = drive.running || drive.crashed;
+  e.multiplier = drive.multiplier;
+  if (dt > 0) e.frame += (dt - e.frame) * (1 - Math.exp(-dt / 0.25));
   e.events.reversal = false;
   e.events.leak = -1;
+  e.events.scare = false;
   const tau = drive.crashed ? 2.4 : 1.2;
   e.omega += (targetOmega(drive) - e.omega) * (1 - Math.exp(-dt / tau));
-  const before = e.theta;
+  const before = strokes(e.theta);
   e.theta += e.omega * dt;
-  if (Math.floor(e.theta / Math.PI) > Math.floor(before / Math.PI)) {
+  // The belt's dashes run at surface speed until a frame could carry them half a gap, then hold there.
+  e.belt = (e.belt + Math.min(e.omega * 68, 12 / Math.max(1 / 240, e.frame)) * dt) % 28;
+  const after = strokes(e.theta);
+  if (after > before) {
     e.events.reversal = true;
-    // Exhaust: a chuff of steam out of the cylinder's stack.
+    // Exhaust: a chuff of steam out of the cylinder's stack at each dead centre.
     const strength = drive.running ? 0.5 + e.pressure : 0.3;
-    puff(ps, 612, 272, -0.25, -1, 90 * strength, 3 + Math.round(3 * strength), 7 + 6 * strength, 0.9, 1, e.theta * 10);
-    e.lamp.v += (Math.floor(e.theta / Math.PI) % 2 ? 1 : -1) * 0.12 * e.pressure * e.pressure;
+    puff(ps, STACK.x, 272, -0.25, -1, 90 * strength, 3 + Math.round(3 * strength), 7 + 6 * strength, 0.9, 1, e.theta * 10);
+    e.lamp.v += (after % 2 ? 1 : -1) * 0.12 * e.pressure * e.pressure;
+    // The money printer prints: a banknote a chuff at the start, more as the multiplier doubles.
+    if (drive.running && !e.blown) {
+      e.notes += Math.min(8, 1 + 1.2 * Math.log2(Math.max(1, drive.multiplier)));
+      for (let i = 0; e.notes >= 1; i += 1) {
+        e.notes -= 1;
+        const n = e.theta * 7.3 + i * 3.1;
+        emit(ps, { kind: 'note', layer: 1, x: STACK.x + (noise(n) - 0.5) * 10, y: STACK.y, vx: -30 + (noise(n + 1) - 0.5) * 170, vy: -230 - noise(n + 2) * 150, r: 1, life: 1.7 + noise(n + 3) * 0.6, angle: (noise(n + 4) - 0.5) * 1.6, spin: (noise(n + 5) - 0.5) * 7, tone: noise(n + 6) });
+      }
+    }
   }
   const relief = e.time > 45 && drive.running ? Math.pow(Math.max(0, Math.sin((e.time - 45) * Math.PI / 18)), 4) : 0;
   const pressureTarget = e.blown ? 0 : drive.pressure * (1 - relief * 0.24);
   e.pressure += (pressureTarget - e.pressure) * (1 - Math.exp(-dt / (e.blown ? 0.45 : 0.6)));
-  stepSpring(e.needle, e.pressure, e.blown ? 3 : 6, e.blown ? 0.3 : 0.8, dt);
+  e.scare *= Math.exp(-dt / 0.35);
+  // The fuse slams the needle past the stop; otherwise it follows the pressure, kicked up by a scare.
+  if (drive.fuse && !e.blown) stepSpring(e.needle, 1.12, 34, 0.45, dt);
+  else stepSpring(e.needle, e.pressure + 0.2 * e.scare, e.blown ? 3 : 6, e.blown ? 0.3 : 0.8, dt);
   e.flame += ((drive.running ? 0.35 + 0.65 * e.pressure : e.blown ? 0.05 : 0.15) - e.flame) * (1 - Math.exp(-dt / 0.8));
-  stepSpring(e.valve, e.blown ? 0 : clamp((e.pressure - 0.7) / 0.3, 0, 1), 8, 0.7, dt);
+  // The safety valve starts to flutter from about 1.33× and lifts fully by 4×, chattering faster as the pressure climbs.
+  e.chatter += dt * (14 + 36 * e.pressure + (drive.fuse ? 50 : 0));
+  stepSpring(e.valve, e.blown ? 0 : drive.fuse ? 1.4 : smoothstep(0.25, 0.75, e.pressure) + 0.7 * e.scare, 8, 0.7, dt);
   stepSpring(e.lamp, 0, 4, 0.08, dt);
+  e.capDrop = Math.max(0, e.capDrop - dt / 0.35);
 
   if (drive.running && !e.blown) {
-    const count = LEAK_AT.filter((m) => drive.multiplier >= m).length;
+    const count = leakCount(drive.multiplier);
     if (count > e.leaks) {
       e.events.leak = e.leaks;
-      const spot = LEAK_SPOTS[e.leaks]!;
+      const spot = LEAK_SPOTS[e.leaks % LEAK_SPOTS.length]!;
       emit(ps, { kind: 'rivet', layer: 1, x: spot.x, y: spot.y, vx: spot.dx * 260 + (noise(e.leaks) - 0.5) * 120, vy: spot.dy * 260 - 120, r: 3.5, life: 3, angle: 0, spin: 12, tone: 0 });
       sparks(ps, spot.x, spot.y, 8, 220, e.leaks * 9);
       puff(ps, spot.x, spot.y, spot.dx, spot.dy, 220, 10, 9, 0.8, 1, e.leaks * 31);
+      // The seam hisses a word as it goes.
+      emit(ps, { kind: 'tag', layer: 1, x: clamp(spot.x + spot.dx * 34, 300, 640), y: spot.y + (spot.dy < 0 ? -22 : 22), vx: spot.dx * 30, vy: -35, r: 22, life: 1.4, angle: (noise(e.leaks * 3) - 0.5) * 0.3, spin: 0, tone: e.leaks % TAGS.length });
       e.leaks = count;
     }
+    const scares = SCARE_AT.filter((m) => drive.multiplier >= m).length;
+    if (scares > e.scares) {
+      // A groan: the needle jumps, the valve spits, the lamp swings, and then it all settles. Probably nothing.
+      e.scares = scares;
+      e.scare = 1;
+      e.events.scare = true;
+      e.needle.v += 1.6;
+      e.lamp.v += 0.25;
+      puff(ps, VALVE.x, VALVE.y - 14, 0, -1, 420, 8, 12, 0.9, 1, scares * 17);
+    }
   }
-  // Leaks hiss steadily; the valve vents when the needle is in the red.
+  // Leaks hiss steadily, harder at a seam that has burst again.
   e.leakClock += dt;
   while (e.leakClock > 0.05) {
     e.leakClock -= 0.05;
-    for (let i = 0; i < e.leaks && !e.blown; i += 1) {
+    for (let i = 0; i < Math.min(e.leaks, LEAK_SPOTS.length) && !e.blown; i += 1) {
       if (e.time > 45 && i === Math.floor((e.time - 45) / 18) % LEAK_SPOTS.length && relief > 0.2) continue;
       const spot = LEAK_SPOTS[i]!;
-      puff(ps, spot.x, spot.y, spot.dx, spot.dy, 150 + 120 * e.pressure, 1, 4 + 4 * e.pressure, 0.55, 1, e.time * 97 + i * 13);
+      const hard = 1 + 0.35 * Math.min(3, Math.floor((e.leaks - 1 - i) / LEAK_SPOTS.length));
+      puff(ps, spot.x, spot.y, spot.dx, spot.dy, (150 + 120 * e.pressure) * hard, 1, (4 + 4 * e.pressure) * hard, 0.55, 1, e.time * 97 + i * 13);
     }
-    if (e.valve.x > 0.05 && !e.blown) puff(ps, VALVE.x, VALVE.y - 12, 0, -1, 200 + 200 * e.valve.x, 1 + Math.round(e.valve.x), 6 + 8 * e.valve.x, 0.8, 1, e.time * 53);
     if (e.blown && e.blowAge < 3.2) {
       const k = 1 - e.blowAge / 3.2;
       puff(ps, DOME.x, DOME.y - 20, (noise(e.time * 71) - 0.5) * 0.6, -1, 420 * k + 80, 2, 22 + 30 * k, 2.2, e.blowAge < 1.2 ? 1 : 0, e.time * 89);
       puff(ps, 640, 150, 1, -0.3, 300 * k + 60, 1, 14, 1.6, 1, e.time * 41);
+    }
+  }
+  // The valve vents in puffs as often as it is open.
+  if (!e.blown && e.valve.x > 0.04) {
+    e.ventClock += dt * (3 + 26 * Math.min(1.4, e.valve.x));
+    for (let i = 0; e.ventClock >= 1; i += 1) {
+      e.ventClock -= 1;
+      const v = Math.min(1.4, e.valve.x);
+      puff(ps, VALVE.x, VALVE.y - 12 - valveLift(e), 0, -1, 200 + 200 * v, 1, 5 + 9 * v, 0.8, 1, e.time * 53 + i * 5);
     }
   }
   // Chimney smoke thickens with the fire; embers drift from the door.
@@ -164,6 +258,7 @@ export function blowEngine(e: EngineState, ps: Particles, seed: number, quiet: b
   e.blown = true;
   e.blowAge = quiet ? 10 : 0;
   e.leaks = 0;
+  e.scare = 0;
   e.needle.v -= 8;
   if (quiet) { e.pressure = 0; settleSpring(e.needle, 0); return; }
   const n = seed * 0.001;
@@ -193,7 +288,14 @@ export function linkage(e: EngineState): Linkage {
   const pin = { x: CRANK.x + Math.cos(e.theta) * CRANK_R, y: CRANK.y + Math.sin(e.theta) * CRANK_R };
   const dy = pin.y - GUIDE_Y;
   const crosshead = pin.x - Math.sqrt(Math.max(0, ROD * ROD - dy * dy));
-  return { pin, crosshead, piston: crosshead - 90 };
+  // The piston sits 109 behind the crosshead, so its 95 px stroke stays inside the 108 px bore.
+  return { pin, crosshead, piston: crosshead - 109 };
+}
+
+/** How far the safety valve's cap stands off its seat: the lift, with the chatter riding on it. */
+function valveLift(e: EngineState): number {
+  const v = Math.max(0, e.valve.x);
+  return v * (5 + 2.4 * Math.sin(e.chatter) * Math.min(1, v * 1.5));
 }
 
 function rivets(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, step: number): void {
@@ -216,8 +318,11 @@ function drawGauge(ctx: CanvasRenderingContext2D, e: EngineState): void {
   ctx.beginPath(); ctx.arc(cx, cy, 37, 0, Math.PI * 2);
   ctx.fillStyle = e.blown ? '#e8e2d2' : '#f6f1e2'; ctx.fill();
   ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, 30, -2.35 + 3.4 * 0.72, 1.05);
-  ctx.strokeStyle = '#e63946'; ctx.lineWidth = 7; ctx.stroke();
+  // Amber from 1.8×, red from 3×: the needle reads 1 − 1/x, so the zones arrive while most rounds are still alive.
+  ctx.beginPath(); ctx.arc(cx, cy, 30, -2.35 + 3.4 * 0.45, -2.35 + 3.4 * 0.67);
+  ctx.strokeStyle = '#f2a33a'; ctx.lineWidth = 7; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 30, -2.35 + 3.4 * 0.67, 1.05);
+  ctx.strokeStyle = '#e63946'; ctx.stroke();
   ctx.strokeStyle = INK;
   for (let i = 0; i <= 10; i += 1) {
     const a = -2.35 + 0.34 * i;
@@ -228,20 +333,26 @@ function drawGauge(ctx: CanvasRenderingContext2D, e: EngineState): void {
   ctx.fillStyle = INK;
   ctx.font = '700 9px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('PSI', cx, cy + 20);
+  ctx.fillText('APY', cx, cy + 20);
   const jitter = e.blown ? 0 : Math.sin(e.time * 41) * 0.05 * e.pressure * e.pressure + (noise(Math.floor(e.time * 17)) - 0.5) * 0.06 * e.pressure;
   const a = -2.35 + 3.4 * clamp(e.needle.x, -0.05, 1.05) + jitter;
   ctx.strokeStyle = '#d62839'; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(cx - Math.cos(a) * 6, cy - Math.sin(a) * 6); ctx.lineTo(cx + Math.cos(a) * 31, cy + Math.sin(a) * 31); ctx.stroke();
   ctx.fillStyle = INK;
   ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
-  if (e.blown) {
+  // The glass cracks a little more with each half decade a long round climbs past 30×, and all the way at the blow-out.
+  const cracks = e.blown ? CRACKS.length : e.live ? clamp(Math.floor(Math.log10(Math.max(1, e.multiplier)) * 2) - 2, 0, CRACKS.length) : 0;
+  if (cracks > 0) {
     ctx.strokeStyle = 'rgba(28, 31, 38, 0.7)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(cx - 20, cy - 30); ctx.lineTo(cx - 8, cy - 12); ctx.lineTo(cx - 16, cy + 4); ctx.lineTo(cx + 2, cy + 18); ctx.moveTo(cx + 12, cy - 28); ctx.lineTo(cx + 6, cy - 14); ctx.lineTo(cx + 22, cy - 2); ctx.stroke();
+    ctx.beginPath();
+    for (const [x0, y0, x1, y1] of CRACKS.slice(0, cracks)) { ctx.moveTo(cx + x0, cy + y0); ctx.lineTo(cx + x1, cy + y1); }
+    ctx.stroke();
   }
   ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
   ctx.beginPath(); ctx.ellipse(cx - 12, cy - 16, 14, 8, -0.6, 0, Math.PI * 2); ctx.fill();
 }
+
+const CRACKS = [[-20, -30, -8, -12], [-8, -12, -16, 4], [12, -28, 6, -14], [-16, 4, 2, 18], [6, -14, 22, -2], [2, 18, 12, 30]] as const;
 
 /** The riveted brass maker's plate: what this boiler really is. */
 function drawNameplate(ctx: CanvasRenderingContext2D): void {
@@ -350,13 +461,18 @@ export function drawBoiler(ctx: CanvasRenderingContext2D, e: EngineState): void 
   ctx.fillStyle = BRASS_DARK;
   ctx.fillRect(VALVE.x - 11, VALVE.y + 30, 22, 5);
   if (!e.blown) {
-    const lift = e.valve.x * 6;
+    const lift = valveLift(e) + 60 * e.capDrop * e.capDrop;
+    ctx.save();
+    ctx.globalAlpha = 1 - e.capDrop;
     ctx.fillStyle = BRASS;
     ctx.beginPath(); ctx.roundRect(VALVE.x - 12, VALVE.y - 9 - lift, 24, 10, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5a1420'; ctx.font = `8px ${PLATE_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('RUG', VALVE.x, VALVE.y - 3.5 - lift);
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(VALVE.x, VALVE.y - 4 - lift); ctx.lineTo(VALVE.x + 40, VALVE.y - 14 - lift); ctx.stroke();
     ctx.fillStyle = IRON_DARK;
     ctx.beginPath(); ctx.arc(VALVE.x + 40, VALVE.y - 14 - lift, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
   } else {
     ctx.fillStyle = '#1b1b1f';
     ctx.beginPath(); ctx.ellipse(VALVE.x, VALVE.y - 2, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
@@ -383,7 +499,9 @@ export function drawMachine(ctx: CanvasRenderingContext2D, e: EngineState): void
   const ux = (FAN.x - CRANK.x) / D;
   const uy = (FAN.y - CRANK.y) / D;
   const beta = Math.asin((68 - FAN.r) / D);
-  const dash = (e.theta * 68) % 28;
+  const dash = e.belt;
+  // Past about 8 px a frame the dashes fade toward a plain belt, so they never strobe backwards.
+  const fast = smoothstep(8, 12, Math.abs(e.omega) * 68 * e.frame);
   for (const s of [-1, 1]) {
     const a = Math.atan2(uy, ux) + s * (Math.PI / 2 - beta);
     const mx = Math.cos(a);
@@ -394,34 +512,45 @@ export function drawMachine(ctx: CanvasRenderingContext2D, e: EngineState): void
     const y1 = FAN.y + FAN.r * my;
     ctx.strokeStyle = INK; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    ctx.strokeStyle = '#8a6a4a'; ctx.lineWidth = 3;
+    ctx.strokeStyle = '#6f5a46'; ctx.lineWidth = 3;
+    ctx.globalAlpha = fast;
+    ctx.stroke();
+    ctx.globalAlpha = 1 - 0.6 * fast;
+    ctx.strokeStyle = '#8a6a4a';
     ctx.setLineDash([12, 16]);
     ctx.lineDashOffset = s * dash * -1;
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
   // Fan pulley, guard and blades.
   ctx.fillStyle = IRON; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(FAN.x, FAN.y, FAN.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(FAN.x, FAN.y, 30, 0, Math.PI * 2); ctx.strokeStyle = IRON_LIGHT; ctx.lineWidth = 3; ctx.stroke();
   const fanAngle = e.theta * (68 / FAN.r);
+  // Four blades repeat every 90°, so past 20° a frame they cross-fade into a blurred disc before they can seem to turn backwards.
+  const fanBlur = smoothstep(0.35, 0.52, Math.abs(e.omega) * (68 / FAN.r) * e.frame);
   ctx.fillStyle = '#9aa3ad';
-  for (let i = 0; i < 4; i += 1) {
+  ctx.globalAlpha = 1 - fanBlur;
+  for (let i = 0; i < 4 && fanBlur < 1; i += 1) {
     const a = fanAngle + (i * Math.PI) / 2;
     ctx.save(); ctx.translate(FAN.x, FAN.y); ctx.rotate(a);
     ctx.beginPath(); ctx.ellipse(14, 0, 13, 5, 0.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
+  ctx.globalAlpha = 0.55 * fanBlur;
+  ctx.beginPath(); ctx.arc(FAN.x, FAN.y, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.fillStyle = INK;
   ctx.beginPath(); ctx.arc(FAN.x, FAN.y, 5, 0, Math.PI * 2); ctx.fill();
   // Cylinder with a cutaway showing the piston, and the crosshead guide.
   ctx.fillStyle = IRON; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.roundRect(596, 280, 120, 60, 8); ctx.fill(); ctx.stroke();
   ctx.fillStyle = IRON_DARK;
-  ctx.beginPath(); ctx.roundRect(606, 292, 100, 36, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(602, 292, 108, 36, 4); ctx.fill();
   ctx.fillStyle = '#b8bec8';
-  ctx.beginPath(); ctx.roundRect(link.piston - 7, 294, 14, 32, 2); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(link.piston - 5, 294, 10, 32, 2); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.strokeStyle = INK; ctx.lineWidth = 8;
-  ctx.beginPath(); ctx.moveTo(link.piston + 6, GUIDE_Y); ctx.lineTo(link.crosshead, GUIDE_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(link.piston + 4, GUIDE_Y); ctx.lineTo(link.crosshead, GUIDE_Y); ctx.stroke();
   ctx.strokeStyle = '#d0d5dc'; ctx.lineWidth = 4; ctx.stroke();
   ctx.fillStyle = IRON_LIGHT; ctx.strokeStyle = INK; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.rect(596, 268, 26, 12); ctx.fill(); ctx.stroke();
@@ -434,16 +563,23 @@ export function drawMachine(ctx: CanvasRenderingContext2D, e: EngineState): void
   ctx.strokeStyle = INK; ctx.lineWidth = 18;
   ctx.beginPath(); ctx.arc(CRANK.x, CRANK.y, 68, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = IRON; ctx.lineWidth = 12; ctx.stroke();
+  // Six spokes repeat every 60°: at low frame rates and high speed they blur the same way the fan does.
+  const spokeBlur = smoothstep(0.3, 0.46, Math.abs(e.omega) * e.frame);
+  ctx.globalAlpha = 1 - spokeBlur;
   ctx.strokeStyle = INK; ctx.lineWidth = 7;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 6 && spokeBlur < 1; i += 1) {
     const a = e.theta + (i * Math.PI) / 3;
     ctx.beginPath(); ctx.moveTo(CRANK.x + Math.cos(a) * 12, CRANK.y + Math.sin(a) * 12); ctx.lineTo(CRANK.x + Math.cos(a) * 60, CRANK.y + Math.sin(a) * 60); ctx.stroke();
   }
   ctx.strokeStyle = IRON_LIGHT; ctx.lineWidth = 3;
-  for (let i = 0; i < 6; i += 1) {
+  for (let i = 0; i < 6 && spokeBlur < 1; i += 1) {
     const a = e.theta + (i * Math.PI) / 3;
     ctx.beginPath(); ctx.moveTo(CRANK.x + Math.cos(a) * 12, CRANK.y + Math.sin(a) * 12); ctx.lineTo(CRANK.x + Math.cos(a) * 60, CRANK.y + Math.sin(a) * 60); ctx.stroke();
   }
+  ctx.globalAlpha = 0.45 * spokeBlur;
+  ctx.fillStyle = IRON_LIGHT;
+  ctx.beginPath(); ctx.arc(CRANK.x, CRANK.y, 60, 0, Math.PI * 2); ctx.arc(CRANK.x, CRANK.y, 12, 0, Math.PI * 2, true); ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.fillStyle = IRON_DARK; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(CRANK.x, CRANK.y, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   // Crank web, connecting rod and crosshead.
@@ -479,15 +615,16 @@ export function drawMachine(ctx: CanvasRenderingContext2D, e: EngineState): void
   ctx.beginPath(); ctx.arc(GOVERNOR.x, GOVERNOR.y - 14, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 
-/** Mechanical patches take turns sealing one seam, then slipping under load. */
+/** Mechanical patches take turns sealing one seam, then slipping under load. Only while a round runs. */
 export function drawMaintenance(ctx: CanvasRenderingContext2D, e: EngineState): void {
-  if (e.time < 45 || e.blown) return;
+  if (!e.live || e.time < 45 || e.blown) return;
   const cycle = (e.time - 45) / 18;
   const site = LEAK_SPOTS[Math.floor(cycle) % LEAK_SPOTS.length]!;
   const close = Math.pow(Math.max(0, Math.sin(cycle * Math.PI)), 4);
   ctx.save(); ctx.translate(site.x, site.y); ctx.rotate((1 - close) * 0.55);
   ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.fillStyle = '#af7949';
   ctx.fillRect(-18, -12 - (1 - close) * 14, 36, 24); ctx.strokeRect(-18, -12 - (1 - close) * 14, 36, 24);
-  ctx.strokeStyle = '#f4cd67'; ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, -4); ctx.stroke();
+  ctx.fillStyle = '#2b1d10'; ctx.font = `11px ${PLATE_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('SAFU', 0, 1 - (1 - close) * 14, 30);
   ctx.restore();
 }
