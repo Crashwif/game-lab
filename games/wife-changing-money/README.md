@@ -10,7 +10,7 @@ A kitchen at 3:07 am. A degen in a dressing gown hunches over a laptop lit only 
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-She is dressed, the joke is the chart, and nothing in the presentation changes the committed outcome. A scene that opens mid-round or on a crashed round settles into the aftermath (the photo already on the counter, NGMI already spelled) without replaying it or playing its cues. `prefers-reduced-motion` turns off the screen shake, the hit-stop, the punch-in and the shivering of the cursor and the loose magnets.
+She is dressed, the joke is the chart, and nothing in the presentation changes the committed outcome. A scene that opens mid-round or on a crashed round settles into the aftermath (the photo already on the counter, NGMI already spelled) without replaying it or playing its cues. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Wife Changing Money URL it prints. Join with 50 local credits, then cash out during a running round to close the lid. `npm run build` produces the three publishable files in `dist/wife-changing-money/`.
 
@@ -18,4 +18,4 @@ Run `npm run dev` from the repository root and open the Wife Changing Money URL 
 
 The scene now introduces physical presentation acts at 32, 52, 75, 100, 125 and 145 seconds, followed by bounded recurring acts for unusually long rounds. New props accompany changes in character effort, with a short easing of tension before renewed activity. `acts.ts` reads elapsed time only; it cannot choose an outcome or promise that a round will last this long.
 
-On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts. Reduced motion removes the new prop oscillation.
+On narrow screens, `portrait.ts` presents an enlarged character/detail view, a small overview that preserves the location, and a readable current line from the actual dialogue/chat/monitor state. The canonical shell still owns controls, round state and accepted cashouts.

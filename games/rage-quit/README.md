@@ -23,7 +23,7 @@ Desktop uses a full 960 × 540 scene with a compact HUD. On phones, a tall close
 
 `main.ts`, `audio.ts` and the CSS through `/* game */` are canonical shell copies. The scene consumes verified `SceneView` values; round-curve interpolation, intents and replay remain in the shared SDK shell. The recorded seed, hash and result are preserved from the template with this game's ID.
 
-`acting.ts` reconstructs each act and rig pose from the authoritative elapsed time. A late entry shows the current act and crash age without playing missed sounds. Reduced motion uses still characteristic poses, omits impacts, shaking and flying paper, and displays the settled ending. `portrait.ts` rearranges a single evaluated scene for phone screens.
+`acting.ts` reconstructs each act and rig pose from the authoritative elapsed time. A late entry shows the current act and crash age without playing missed sounds. The published game uses full animation regardless of browser motion preferences. `portrait.ts` rearranges a single evaluated scene for phone screens.
 
 Build and upload `dist/rage-quit/index.html`, `game.generated.js` and `style.css` through Studio's **Your own renderer** flow. Publishing and room linking remain separate actions. The game does not claim an official partnership or configure a token transaction.
 

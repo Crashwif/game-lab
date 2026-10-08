@@ -33,7 +33,7 @@ Pines and rugs cause temporary stumbles, and jumps let the skier clear low obsta
 
 The game's scene and controller own skiing, collision feedback and presentation. The compact yeti uses two-bone inverse kinematics in `yeti-rig.ts`: it emerges facing up the slope, closes its hands on the skier's jacket, turns through a side view to face the camera, then raises the full-size skier high above its mouth. After a brief hold it lowers the skier into its mouth; teeth and the lower jaw hide the swallowed parts. The arm bones keep their lengths and both hands stay attached throughout the turn and lift.
 
-The ending lasts 5.25 seconds. If the host opens betting sooner, the canvas labels the animation **Previous round** and finishes it while the shared shell already offers the new round's controls. A new running round or a replay restart interrupts the old ending immediately. Crash age reconstructs late-entry poses. Reduced Motion presents the same pop, grab, turn, lift and feeding sequence as held poses rather than skipping straight to the aftermath.
+The ending lasts 5.25 seconds. If the host opens betting sooner, the canvas labels the animation **Previous round** and finishes it while the shared shell already offers the new round's controls. A new running round or a replay restart interrupts the old ending immediately. Crash age reconstructs late-entry poses. The published game uses full animation regardless of browser motion preferences.
 
 `main.ts` and `audio.ts` are unmodified copies of `scripts/shell/`; the canonical CSS block is preserved above `/* game */`. The shared SDK owns round state and intents. `replay.json` keeps Hello World's verified 9.07× fixture unchanged except for `gameId`. It is a preview recording, not a live outcome generator.
 
@@ -47,6 +47,6 @@ npm test
 node --test games/rug-piste/*.test.mjs
 ```
 
-Exercise waiting, betting, skiing, instant crash, the full yeti sequence, confirmed cash-out, replay/restart, a disconnected host, reduced motion and small screens. Build output is `dist/rug-piste/index.html`, `game.generated.js`, and `style.css`. Those three files are the Studio bundle; see the [integration guide](../../docs/integration.md) for publishing. A published frame uses only local assets and the shared platform bridge.
+Exercise waiting, betting, skiing, instant crash, the full yeti sequence, confirmed cash-out, replay/restart, a disconnected host, both browser motion preferences and small screens. Build output is `dist/rug-piste/index.html`, `game.generated.js`, and `style.css`. Those three files are the Studio bundle; see the [integration guide](../../docs/integration.md) for publishing. A published frame uses only local assets and the shared platform bridge.
 
 All visual artwork is original Canvas 2D pixel-style drawing. This is an independent homage to the classic downhill-skiing idea: no SkiFree code, graphics, music or other assets are included. Sound is generated locally by the repository's shared procedural audio helper; `clips.json` is empty. No external fonts, scripts, recordings or API keys are required. The game is an open remix origin.

@@ -10,6 +10,6 @@ Lightweight on purpose: a scene, one part file, the motion toolkit and the page,
 - `audio.ts`: the shared page audio (a copy of the shell's, never edited here). Phonk with the cowbell; the crash is a thud. Cues: the gate, a stomp at every landing, a milestone at each rung, the register and a whoosh on a cash-out, a scream for the throw, the clown's laugh.
 - `main.ts`: the shared page shell. `replay.json`: a verified 5.49× round for the gallery.
 
-The bucking follows the displayed multiplier; nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place. `prefers-reduced-motion` removes the shake, the crowd's bobbing and the throw's hit-stop.
+The bucking follows the displayed multiplier; nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Bull Run URL it prints. Join with 50 local credits, then cash out during a running round to dismount. `npm run build` produces the three publishable files in `dist/bull-run/`.

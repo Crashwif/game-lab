@@ -14,7 +14,7 @@ An accepted cashout takes the offshore exit and decelerates to the valet: paper 
 
 Join with **Full send**, then **Cash out** before the server's crash. Space triggers the currently available action. Sound cycles off, on, and effects only. The embedded host owns joining and credits; only the exit is offered inside the frame. Steering is automatic presentation, not a way to change the committed result. Credits have no monetary value.
 
-Reduced motion removes camera shake, speed streaks, rotor flicker and the crash roll, and softens the single impact flash. Late joins and missed crashes settle directly into the current state. Cashout protection persists through the crash.
+The published game uses full animation regardless of browser motion preferences. Late joins and missed crashes settle directly into the current state. Cashout protection persists through the crash.
 
 All visuals are procedural Canvas drawings with no external image, font or network dependencies. Pepe the Frog is a character created by Matt Furie; Lamborghini is a third-party vehicle brand. This is an unofficial satirical depiction.
 

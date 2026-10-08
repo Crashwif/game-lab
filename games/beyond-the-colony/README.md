@@ -40,7 +40,7 @@ Only backend-confirmed cash-out launches a smug escape to a floating cloud loung
 - `landscape.ts` draws the sky, shelves, snow, avalanche, cubicle and cloud lounge.
 - `portrait.ts` composes narrow screens as a large acting close-up, readable captions and multiplier, plus a wide inset retaining secondary actors and surrounding danger.
 
-The mobile stage selects portrait composition by viewport width, including short embedded frames. The desktop scene uses 960 × 540 coordinates; portrait uses 540 × 752. Late entry, replay restart and instant crashes reconstruct from supplied state. Reduced motion removes camera shake, parallax, particles, fast travel, spinning and continuously animated joints, while retaining the current confrontation, expression and settled outcome.
+The mobile stage selects portrait composition by viewport width, including short embedded frames. The desktop scene uses 960 × 540 coordinates; portrait uses 540 × 752. Late entry, replay restart and instant crashes reconstruct from supplied state. The published game uses full animation regardless of browser motion preferences.
 
 `main.ts`, `audio.ts` and the CSS before `/* game */` remain canonical shell copies. `clips.json` is empty: an opt-in drum-and-bass score and timed slips, impacts, drone cues, stamps and transformation stingers use the shared audio helper. Replay preserves the template's verified seed, hash and result with this game's ID.
 

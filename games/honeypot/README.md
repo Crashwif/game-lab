@@ -10,6 +10,6 @@ A picnic by a beehive, with a sign on a stake promising FREE HONEY, NO RUG, TRUS
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-The level, the tax and the lid follow the displayed multiplier. Nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place (the auditor where the multiplier has him, his mark already on the glass, the texts already read) without replaying it or playing its cues. `prefers-reduced-motion` slows the ambient motion (the swarm and the drips too), holds the lid still at a tilt that follows the tension instead of turning it, and turns off the shake, the hit-stop and the punch-in.
+The level, the tax and the lid follow the displayed multiplier. Nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place (the auditor where the multiplier has him, his mark already on the glass, the texts already read) without replaying it or playing its cues. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Honeypot URL it prints. Join with 50 local credits, then cash out during a running round to pull the paw. `npm run build` produces the three publishable files in `dist/honeypot/`.

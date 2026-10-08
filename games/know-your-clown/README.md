@@ -30,7 +30,7 @@ A crash immediately stops the round and displays the final multiplier and reject
 
 Portrait screens recompose the shared canvas with a large applicant, current demand, multiplier, allocation strip and punchline. The portrait stage oversamples the canonical 16:9 backing store before scaling into its frame, keeping text and linework sharp. The canvas, round timing and controls retain the shared shell contract. A polite live transcript announces inspection and outcome changes without announcing each multiplier tick.
 
-Reduced motion removes scanning travel, large escape motion and the rejection stamp's camera-scale effect. Information remains available through the caseboard, stage-specific apparatus and captions. The shell exposes the actual room status and controls outside the illustration, supports keyboard focus and Space, and turns audio off until enabled by the player.
+The published game uses full animation regardless of browser motion preferences. Information remains available through the caseboard, stage-specific apparatus and captions. The shell exposes the actual room status and controls outside the illustration, supports keyboard focus and Space, and turns audio off until enabled by the player.
 
 ## Audio
 
@@ -55,6 +55,6 @@ Prompts live in `scripts/audio/prompts.json`; raw MP3s and request fingerprints 
 
 Use the repository's pinned Node 24 and npm 11, then `npm ci` and `npm run preview -- know-your-clown`. The printed replay URL plays a verified example lasting approximately 179 seconds before the crash. This is a selected demonstration fixture; live rounds use their own committed outcomes. The gallery poster is taken at 76 seconds, before the ancestry appointment ends.
 
-After `npm run build`, run `npm run typecheck`, `npm run check` and `npm test`. The focused pacing and replay checks are `node --test scripts/gallery/know-your-clown*.test.mjs`. Browser validation covers short and extended rounds, fresh mid-round loads, accepted escapes, crash aftermath, replay restart, narrow layouts, reduced motion and embedded audio decoding.
+After `npm run build`, run `npm run typecheck`, `npm run check` and `npm test`. The focused pacing and replay checks are `node --test scripts/gallery/know-your-clown*.test.mjs`. Browser validation covers short and extended rounds, fresh mid-round loads, accepted escapes, crash aftermath, replay restart, narrow layouts, both browser motion preferences and embedded audio decoding.
 
 `main.ts`, `audio.ts` and the CSS above `/* game */` are the canonical shared shell. `scene.ts` coordinates the room state; `portrait.ts` composes the narrow-screen scene; `ministry.ts` draws the architecture and procedures; `character.ts` draws the applicant and witness; `ink.ts` supplies the drawing primitives. Each source import stays inside this flat game directory or uses the shared SDK and crash-math packages.

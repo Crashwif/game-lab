@@ -10,6 +10,6 @@ A launch seen from a trench. Frog soldiers in helmets crouch in the mud under a 
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-March cadence, ridge steepness, the whistles, the rats and the scope glint all follow the displayed multiplier; nothing in the presentation changes the committed outcome. Comedy only: no insignia, no gore. `prefers-reduced-motion` turns off the shake, the shockwave flash, the shell flicker, the hit-stop, the punch-in and the landing's mud.
+March cadence, ridge steepness, the whistles, the rats and the scope glint all follow the displayed multiplier; nothing in the presentation changes the committed outcome. Comedy only: no insignia, no gore. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Trenches URL it prints. Join with 50 local credits, then cash out during a running round to dive back into the trench. `npm run build` produces the three publishable files in `dist/the-trenches/`.

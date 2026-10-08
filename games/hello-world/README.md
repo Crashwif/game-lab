@@ -45,7 +45,7 @@ To add a separate game in this repository:
 
 `SceneView` documents the data you receive each frame. Render `waiting`, `betting`, `running` and `crashed` from `view.phase`. Use `view.currentX100` for the multiplier (150 means 1.50×), `view.elapsed` for running animation and `view.crashAge` for an ending animation. `view.cashoutX100` is present only after backend confirmation; do not treat a click as a successful cash-out. The shell owns SDK connections, intents, interpolation, replay, resizing and the frame loop.
 
-The circle respects reduced motion. The scene draws any phase directly, including a late entry or instant crash, and keeps its animation bounded in long rounds. If you add listeners or other resources, return a `dispose()` that cleans them up when the shell replaces the scene. The page audio helper manages its own lifecycle.
+The published game uses full animation regardless of browser motion preferences. The scene draws any phase directly, including a late entry or instant crash, and keeps its animation bounded in long rounds. If you add listeners or other resources, return a `dispose()` that cleans them up when the shell replaces the scene. The page audio helper manages its own lifecycle.
 
 ## Build and publish
 

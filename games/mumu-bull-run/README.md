@@ -14,7 +14,7 @@ Only the backend's `crashed` phase drops the giant bear stamp and opens the trac
 
 Confirmed `cashoutX100` summons a victory float carried by bears. The bull leaps onto it, puts on shades and showboats amid confetti. The accepted multiplier remains visible through the crash. A button click alone never starts the parade.
 
-Desktop uses the full arena with a small stable HUD. Screens up to 600 CSS pixels wide use a tall acting composition with a large bull view, current opponent close-up, readable multiplier and gag. Reduced motion removes travel, particles, camera kicks and rig oscillation while preserving meaningful expressions, prop states and settled outcomes.
+Desktop uses the full arena with a small stable HUD. Screens up to 600 CSS pixels wide use a tall acting composition with a large bull view, current opponent close-up, readable multiplier and gag. The published game uses full animation regardless of browser motion preferences.
 
 **Sound** cycles off, on and effects only. The canonical procedural helper supplies phonk, hoofbeats, impacts, crowd responses, a crash slam and the support phone. `clips.json` is empty. The complete game uses local code and needs no external assets, network calls or additional libraries.
 

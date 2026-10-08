@@ -10,6 +10,6 @@ A queue outside a nightclub called THE EXCHANGE. A coin in a hoodie waits in a v
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-The queue's advance, the marquee meter and its letters, the bass, the bouncer, the fee, the scalper's price and the suits all follow the displayed multiplier; nothing in the presentation changes the committed outcome. The club is fictional. `prefers-reduced-motion` turns off the bass shake, the marquee flicker, the strobe, the green flash, the confetti, and the crash's freeze, slow motion and punch-in.
+The queue's advance, the marquee meter and its letters, the bass, the bouncer, the fee, the scalper's price and the suits all follow the displayed multiplier; nothing in the presentation changes the committed outcome. The club is fictional. The published game uses full animation regardless of browser motion preferences.
 
 Run `npm run dev` from the repository root and open the Wen Binance URL it prints. Join with 50 local credits, then cash out during a running round to leave the queue. `npm run build` produces the three publishable files in `dist/wen-binance/`.

@@ -20,7 +20,7 @@ The coins are a skill score and nothing else. A bag is only banked by a cash-out
 
 Join with **Ape in**, steer, then **Cash out** before the rails go. Space triggers the currently available shell action; the arrows never do. The embedded host owns joining and credits; only the cash-out is offered inside the frame. Steering, the bag and the bot change nothing about the committed result. Credits have no monetary value.
 
-Reduced motion removes the shake, the flash, the hit-stop, the knockdown spin, the fall spin, the light flicker and most of the coin spray. A round met mid-way (a hidden tab, a late join) settles straight into its phase; a tab hidden a moment mid-round gets its course and bag back.
+The published game uses full animation regardless of browser motion preferences. A round met mid-way (a hidden tab, a late join) settles straight into its phase; a tab hidden a moment mid-round gets its course and bag back.
 
 All visuals are procedural Canvas drawings with no external image, font or network dependencies. The runner is an original cartoon frog.
 

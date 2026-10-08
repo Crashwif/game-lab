@@ -11,6 +11,8 @@ Every game's `main.ts` is the same page shell (canonical copy: `scripts/shell/ma
 
 `scripts/shell/main.ts` is the integration reference. [Hello World](../games/hello-world) is the smallest starting point: its commented `scene.ts` draws a greeting, a multiplier and a circle using the same shell. Balloon Pump's `scene.ts` and `pumper.ts` are richer Canvas 2D examples; another game can use WebGL (Seed Round renders WebGL2 offscreen and copies each frame in), a 3D engine, or DOM elements with the same shell.
 
+The shell calls `createScene()` with full character and environment animation in live, embedded and replay modes. Browser and operating-system motion preferences do not select an alternate scene.
+
 ## Drop-in SDK
 
 The packages are included as npm workspaces; no registry access or platform repository access is needed beyond installing their public dependencies. To use the SDK in another project:
@@ -87,7 +89,7 @@ The room publishes its pace as `room.curve`. Use that curve for interpolation, d
 
 The current platform default grows tenfold every 30 seconds. There is no hard round-duration limit. Keep scene events and bounded animation loops active after 150 seconds; a full music score repeats only after its complete 150 seconds. Long-running controller regressions live in `scripts/gallery/long-round-*.test.mjs`.
 
-For browser presentation review, run `node scripts/qa/scene-review.mjs` after building. Open `http://127.0.0.1:4511/<slug>/index.html?seconds=150&late=1` for a settled late-entry fixture; add `&crash=1`, `&cashout=1`, or `&reduced=1` for those presentation states. Omitting `late` steps the scene sequentially at 30 fps (software WebGL can be slow). The fixture is local test tooling and is excluded from game bundles.
+For browser presentation review, run `node scripts/qa/scene-review.mjs` after building. Open `http://127.0.0.1:4511/<slug>/index.html?seconds=150&late=1` for a settled late-entry fixture; add `&crash=1` or `&cashout=1` for those presentation states. Omitting `late` steps the scene sequentially at 30 fps (software WebGL can be slow). The fixture is local test tooling and is excluded from game bundles. Its `&reduced=1` flag explicitly passes `reducedMotion: true` to the scene for developer review; it is independent of browser preferences and is not a published game setting.
 
 For continuous animation review without one long blocking browser command, open `?seconds=0`, then call `window.sceneReview.advance(15)`, `.advance(30)`, and so on. Each call preserves the previous pose and steps at 30 fps. Use `.tick(0.125)` for an exact subsecond pose step, `.tick(0.1, 'crashed')` to begin a crash, and `.cashout()` to show an accepted cashout. `.seek(150)` creates a fresh late-entry scene; it is deliberately a different check from continuous playback. The fixture updates its labels and redraws on viewport changes.
 

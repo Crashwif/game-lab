@@ -11,6 +11,6 @@ A complete Canvas 2D reference with meme energy: a pale, increasingly worried de
 - `main.ts`: SDK connection, round lifecycle, the player's bet and cashout, input controls and the animation loop.
 - `replay.json`: a verifiable settled example round used by the gallery.
 
-The pump cadence, the gauge, the sweat, the lasers and both faces follow the displayed multiplier; nothing in the presentation changes the committed outcome. All motion is stepped with the real frame time, so a slow tab and a fast one draw the same trajectories. `prefers-reduced-motion` turns off the screen shake, flicker and twinkle, the hit-stop and the punch-in. Sound stays off until the player turns it on with the Sound button.
+The pump cadence, the gauge, the sweat, the lasers and both faces follow the displayed multiplier; nothing in the presentation changes the committed outcome. All motion is stepped with the real frame time, so a slow tab and a fast one draw the same trajectories. The published game uses full animation regardless of browser motion preferences. Sound stays off until the player turns it on with the Sound button.
 
 Run `npm run dev` from the repository root. Join with 50 local credits, then cash out during a running round. The backend decides whether the exit arrives before the crash. `npm run build` produces the three publishable files in `dist/balloon-pump/`.
