@@ -22,16 +22,43 @@ function shape(ctx: Context, colour: string, points: readonly Point[]): void {
   ctx.fill();
 }
 
+/** 3×5 pixel glyphs, one bit per pixel, for the tiny stamped labels. */
+const GLYPHS: Record<string, number> = { R: 0o65655, U: 0o55557, G: 0o74557 };
+function stamp(ctx: Context, colour: string, label: string, x: number, y: number, px: number): void {
+  [...label].forEach((letter, i) => {
+    for (let n = 0; n < 15; n++) if (GLYPHS[letter] >> (14 - n) & 1) rect(ctx, colour, x + (i * 4 + n % 3) * px, y + Math.floor(n / 3) * px, px, px);
+  });
+}
+
+/** Bold type for the yeti's lettering: at its small scale 3×5 glyphs blur, and a V reads as a U. */
+function letters(ctx: Context, colour: string, label: string, x: number, y: number, size: number): void {
+  ctx.fillStyle = colour;
+  ctx.font = `bold ${size}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, y);
+}
+
 function shadow(ctx: Context, width: number, height = 8): void {
   shape(ctx, PALETTE.shadow, [[-width / 2, -height / 2], [-width / 2 + 8, -height], [width / 2 - 8, -height], [width / 2, -height / 2], [width / 2, height / 2], [width / 2 - 8, height], [-width / 2 + 8, height], [-width / 2, height / 2]]);
 }
 
-/** Feet at (x, y); jump is elevation in pixels, lean -1..1, stumble 0..1. */
+/**
+ * Feet at (x, y); jump is elevation in pixels, lean -1..1, stumble 0..1. `stride` is the pole and scarf phase
+ * (radians; distance-driven while skiing). Seated, the shins and skis hang from the knees and swing by `dangle`.
+ */
 export function drawSkier(ctx: Context, x: number, y: number, options: {
   lean: number; jump: number; time: number; stumble: number; scale?: number; shadow?: boolean; seated?: number;
+  stride?: number; dangle?: number; degen?: boolean;
 }): void {
   const { lean, jump, time, stumble } = options;
   const seat = options.seated ?? 0;
+  const swing = (options.dangle ?? 0) * seat;
+  const hang = Math.sin(swing) * 18;
+  // The still-in degen wears the pink puffer and a gold lid.
+  const coat = options.degen ? PALETTE.pink : PALETTE.purple;
+  const lid = options.degen ? PALETTE.gold : PALETTE.green;
+  const scarf = options.degen ? PALETTE.purple : PALETTE.pink;
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   ctx.scale(options.scale ?? 1, options.scale ?? 1);
@@ -46,8 +73,8 @@ export function drawSkier(ctx: Context, x: number, y: number, options: {
   // Wide twin tips, contrasting edges, bindings and boot soles.
   for (const side of [-1, 1]) {
     ctx.save();
-    ctx.translate(side * 9, -1);
-    ctx.rotate(lean * .14 + side * .025 + stumble * side * .4);
+    ctx.translate(side * 9 + hang, -1 + seat * 13);
+    ctx.rotate(lean * .14 + side * .025 + stumble * side * .4 + swing);
     shape(ctx, PALETTE.ink, [[-4, -17], [2, -19], [5, -16], [5, 10], [2, 15], [-3, 15], [-5, 11], [-5, -12]]);
     rect(ctx, PALETTE.green, -2, -15, 4, 25);
     rect(ctx, PALETTE.pink, -2, 7, 4, 4);
@@ -57,16 +84,17 @@ export function drawSkier(ctx: Context, x: number, y: number, options: {
     ctx.restore();
   }
 
-  // Knees follow the carve while the boot endpoints stay on their bindings.
+  // Knees follow the carve while the boot endpoints stay on their bindings. Seated, the foreshortened thighs rest
+  // at seat height and the shins hang over the bench edge.
   const knee = lean * 3;
   for (const side of [-1, 1]) {
-    const x = side * 8;
-    shape(ctx, PALETTE.ink, [[x - 4, -24 + seat * 4], [x + 4, -24 + seat * 4], [x + 5 + knee, -15 + seat * 4], [x + 4, -7], [x - 4, -7], [x - 4 + knee, -15 + seat * 4]]);
-    shape(ctx, PALETTE.deep, [[x - 2, -22 + seat * 4], [x + 2, -22 + seat * 4], [x + 2 + knee, -14 + seat * 3], [x + 2, -8], [x - 2, -8], [x - 2 + knee, -14 + seat * 3]]);
+    const x = side * 8, b = x + hang;
+    shape(ctx, PALETTE.ink, [[x - 4, -24 + seat * 6], [x + 4, -24 + seat * 6], [x + 5 + knee, -15 + seat * 5], [b + 4, -7 + seat * 15], [b - 4, -7 + seat * 15], [x - 4 + knee, -15 + seat * 5]]);
+    shape(ctx, PALETTE.deep, [[x - 2, -22 + seat * 6], [x + 2, -22 + seat * 6], [x + 2 + knee, -14 + seat * 5], [b + 2, -8 + seat * 15], [b - 2, -8 + seat * 15], [x - 2 + knee, -14 + seat * 5]]);
   }
-  ctx.translate(lean * 2, Math.abs(lean) * 1.5 + seat * 3);
+  ctx.translate(lean * 2, Math.abs(lean) * 1.5 + seat * 6);
   // Pole lines are intentionally square, like the sprite itself.
-  const sway = Math.round(Math.sin(time / 180) * 2);
+  const sway = Math.round(Math.sin(options.stride ?? time / 180) * 2);
   shape(ctx, PALETTE.ink, [[-19, -30], [-16, -30], [-25, 3 + sway], [-28, 3 + sway]]);
   shape(ctx, PALETTE.ink, [[17, -30], [20, -30], [28, 1 - sway], [25, 1 - sway]]);
   rect(ctx, PALETTE.pink, -30, sway, 10, 3);
@@ -74,18 +102,18 @@ export function drawSkier(ctx: Context, x: number, y: number, options: {
 
   // Snow pants, purple puffer and neon cuffs.
   shape(ctx, PALETTE.ink, [[-8, -43], [9, -43], [16, -37], [22, -29], [21, -24], [15, -23], [12, -29], [12, -20], [-12, -20], [-12, -29], [-15, -24], [-22, -25], [-22, -31], [-15, -39]]);
-  shape(ctx, PALETTE.purple, [[-7, -40], [7, -40], [13, -35], [17, -28], [14, -28], [10, -33], [9, -23], [-9, -23], [-10, -33], [-15, -27], [-18, -28], [-12, -36]]);
+  shape(ctx, coat, [[-7, -40], [7, -40], [13, -35], [17, -28], [14, -28], [10, -33], [9, -23], [-9, -23], [-10, -33], [-15, -27], [-18, -28], [-12, -36]]);
   rect(ctx, PALETTE.lilac, -9, -35, 4, 10);
   rect(ctx, PALETTE.green, -22, -30, 6, 5);
   rect(ctx, PALETTE.green, 17, -30, 6, 5);
 
   // Scarf flaps independently of the skier's joints.
   shape(ctx, PALETTE.ink, [[4, -41], [17, -42], [25, -38 + sway], [25, -32 + sway], [18, -34 + sway], [7, -35]]);
-  shape(ctx, PALETTE.pink, [[7, -40], [16, -40], [23, -37 + sway], [23, -35 + sway], [17, -37 + sway], [7, -37]]);
+  shape(ctx, scarf, [[7, -40], [16, -40], [23, -37 + sway], [23, -35 + sway], [17, -37 + sway], [7, -37]]);
 
   // Helmet, visor and the bagholder's little token backpack.
   shape(ctx, PALETTE.ink, [[-7, -59], [6, -59], [10, -55], [12, -45], [8, -39], [-8, -39], [-12, -44], [-11, -54]]);
-  shape(ctx, PALETTE.green, [[-5, -56], [5, -56], [8, -53], [9, -46], [6, -42], [-7, -42], [-9, -46], [-8, -53]]);
+  shape(ctx, lid, [[-5, -56], [5, -56], [8, -53], [9, -46], [6, -42], [-7, -42], [-9, -46], [-8, -53]]);
   rect(ctx, PALETTE.white, -5, -55, 6, 3);
   rect(ctx, PALETTE.ink, -10, -49, 21, 6);
   rect(ctx, PALETTE.lilac, -6 + Math.round(lean * 2), -48, 7, 3);
@@ -254,6 +282,8 @@ export function drawYeti(ctx: Context, x: number, y: number, options: {
     shape(ctx, PALETTE.shadow, [[-4, -97], [3, -90], [-2, -81], [5, -74], [0, -64], [6, -56], [1, -47], [5, -38], [0, -22], [-5, -30], [-2, -41], [-7, -51], [-3, -61], [-8, -71], [-3, -82], [-8, -90]]);
     shape(ctx, PALETTE.ice, [[-27, -92], [-18, -86], [-21, -74], [-12, -69], [-18, -63], [-27, -74], [-23, -82]]);
     shape(ctx, PALETTE.ice, [[25, -91], [17, -84], [20, -73], [11, -66], [18, -61], [28, -75], [24, -83]]);
+    // Jersey lettering: the dev wallet has entered the chat.
+    letters(ctx, PALETTE.purple, 'DEV', 0, -79, 18);
     ctx.restore();
   }
   // No face is drawn on the back. It rotates into view only after the profile pose.
@@ -278,15 +308,14 @@ export function drawYeti(ctx: Context, x: number, y: number, options: {
   shape(ctx, PALETTE.pink, [[-15, -79 + jaw], [-9, -86 + jaw], [12, -86 + jaw], [20, -80 + jaw], [16, -75 + jaw], [-15, -75 + jaw]]);
   rect(ctx, '#cc638e', -2, -85 + jaw, 3, 7);
   drawYetiTeeth(ctx, 0, 0, { mouth, chew: options.chew, time: options.time });
-  // Shaggy cheek pixels and a token medallion at the chest.
+  // Shaggy cheek pixels and the dev's medallion at the chest.
   rect(ctx, PALETTE.shadow, -37, -83, 5, 9);
   rect(ctx, PALETTE.shadow, 33, -82, 4, 8);
   if (mouth < .5) {
     shape(ctx, PALETTE.gold, [[-17, -57], [-15, -60], [0, -49], [17, -59], [19, -56], [0, -42]]);
-    rect(ctx, PALETTE.ink, -8, -47, 16, 17);
-    rect(ctx, PALETTE.gold, -5, -45, 10, 12);
-    rect(ctx, PALETTE.deep, -1, -44, 3, 10);
-    rect(ctx, PALETTE.deep, -3, -40, 7, 3);
+    rect(ctx, PALETTE.ink, -16, -49, 32, 17);
+    rect(ctx, PALETTE.gold, -14, -47, 28, 13);
+    letters(ctx, PALETTE.deep, 'DEV', 0, -40, 12);
   }
   ctx.restore();
   ctx.restore();
@@ -381,7 +410,7 @@ export function drawRug(ctx: Context, x: number, y: number): void {
   shape(ctx, PALETTE.ink, [[-28, -25], [24, -25], [35, -6], [30, 1], [-29, 1], [-36, -6]]);
   shape(ctx, PALETTE.pink, [[-25, -22], [21, -22], [30, -7], [26, -3], [-26, -3], [-31, -7]]);
   shape(ctx, PALETTE.purple, [[-19, -18], [17, -18], [23, -8], [-23, -8]]);
-  shape(ctx, PALETTE.gold, [[0, -17], [9, -13], [1, -9], [-9, -13]]);
+  stamp(ctx, PALETTE.gold, 'RUG', -11, -18, 2);
   for (let i = -24; i <= 24; i += 8) rect(ctx, PALETTE.ink, i, 0, 3, 5);
   rect(ctx, PALETTE.lilac, -22, -21, 43, 2);
   ctx.restore();
@@ -400,32 +429,69 @@ export function drawRamp(ctx: Context, x: number, y: number): void {
   ctx.restore();
 }
 
-export function drawSign(ctx: Context, x: number, y: number, label: string): void {
+/** Resort sign; a second line makes the board taller, and `warn` paints it as a hazard notice. */
+export function drawSign(ctx: Context, x: number, y: number, label: string, sub = '', warn = false): void {
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   shadow(ctx, 31, 4);
   rect(ctx, PALETTE.ink, -4, -44, 8, 45);
   rect(ctx, '#b18ba3', -1, -40, 3, 40);
   ctx.font = 'bold 10px monospace';
-  const width = Math.max(50, Math.min(108, Math.ceil(ctx.measureText(label).width) + 16));
-  rect(ctx, PALETTE.ink, -width / 2 - 3, -61, width + 6, 27);
-  rect(ctx, PALETTE.green, -width / 2, -58, width, 21);
-  rect(ctx, PALETTE.snow, -width / 2, -61, width - 8, 3);
+  const width = Math.max(50, Math.min(108, Math.ceil(Math.max(ctx.measureText(label).width, ctx.measureText(sub).width)) + 16));
+  const tall = sub ? 12 : 0;
+  rect(ctx, PALETTE.ink, -width / 2 - 3, -61 - tall, width + 6, 27 + tall);
+  rect(ctx, warn ? PALETTE.gold : PALETTE.green, -width / 2, -58 - tall, width, 21 + tall);
+  rect(ctx, PALETTE.snow, -width / 2, -61 - tall, width - 8, 3);
+  if (warn) for (const side of [-1, 1]) rect(ctx, PALETTE.pink, side < 0 ? -width / 2 : width / 2 - 4, -55 - tall, 4, 15 + tall);
   ctx.fillStyle = PALETTE.ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, 0, -47, width - 10);
-  rect(ctx, PALETTE.ink, -width / 2 + 3, -49, 2, 2);
-  rect(ctx, PALETTE.ink, width / 2 - 5, -49, 2, 2);
+  ctx.fillText(label, 0, -47 - tall, width - 12);
+  if (sub) ctx.fillText(sub, 0, -46, width - 12);
+  if (!warn) {
+    rect(ctx, PALETTE.ink, -width / 2 + 3, -49 - tall / 2, 2, 2);
+    rect(ctx, PALETTE.ink, width / 2 - 5, -49 - tall / 2, 2, 2);
+  }
   ctx.restore();
 }
 
-/** Ground-anchored rescue chairlift, approximately 106 × 140 px. */
-export function drawLift(ctx: Context, x: number, y: number, time: number): void {
+/** A yeti footprint pressed into the snow, toes pointing along `dir`. */
+export function drawPrint(ctx: Context, x: number, y: number, dir: number): void {
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.scale(dir, 1);
+  shape(ctx, '#cfd2e4', [[-14, -6], [4, -9], [11, -5], [12, 3], [5, 8], [-14, 6], [-17, 0]]);
+  shape(ctx, '#e1e3ef', [[-11, -3], [4, -5], [8, -2], [8, 2], [4, 4], [-11, 3]]);
+  for (const toe of [-6, 0, 6]) rect(ctx, '#cfd2e4', 14, toe - 2, 5, 4);
+  ctx.restore();
+}
+
+/** The chair's sideways sway, shared with whoever rides it. */
+export const liftSway = (time: number) => Math.sin(time / 440) * 2;
+
+/** A seated KOL in chair space, legs over the bench, phone out. */
+function drawKol(ctx: Context): void {
+  rect(ctx, PALETTE.ink, 24, -27, 6, 22);
+  rect(ctx, PALETTE.ink, 32, -27, 6, 22);
+  rect(ctx, PALETTE.ink, 22, -50, 18, 25);
+  rect(ctx, PALETTE.gold, 24, -48, 14, 21);
+  rect(ctx, PALETTE.ink, 23, -64, 16, 15);
+  rect(ctx, PALETTE.orange, 25, -62, 12, 12);
+  rect(ctx, PALETTE.ink, 22, -67, 18, 5);
+  rect(ctx, PALETTE.pink, 24, -66, 14, 3);
+  rect(ctx, PALETTE.ink, 25, -58, 12, 4);
+  rect(ctx, PALETTE.green, 26, -57, 4, 2);
+  rect(ctx, PALETTE.green, 32, -57, 4, 2);
+  rect(ctx, PALETTE.ink, 17, -45, 9, 12);
+  rect(ctx, PALETTE.white, 19, -43, 5, 8);
+}
+
+/** Ground-anchored rescue chairlift, approximately 106 × 140 px. A KOL rides along; `bubble` picks his speech side. */
+export function drawLift(ctx: Context, x: number, y: number, time: number, bubble: -1 | 1 = 1): void {
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   shadow(ctx, 76, 6);
-  ctx.translate(Math.sin(time / 440) * 2, -5);
+  ctx.translate(liftSway(time), -5);
   rect(ctx, PALETTE.ink, -3, -133, 6, 57);
   rect(ctx, PALETTE.lilac, -1, -129, 2, 47);
   shape(ctx, PALETTE.ink, [[-3, -79], [4, -82], [40, -58], [44, -54], [44, -10], [37, -10], [37, -53]]);
@@ -445,5 +511,19 @@ export function drawLift(ctx: Context, x: number, y: number, time: number): void
   ctx.fillText('EXIT LIFT', -1, -43);
   rect(ctx, PALETTE.green, -13, -139, 26, 8);
   rect(ctx, PALETTE.ink, -16, -142, 32, 3);
+  drawKol(ctx);
+  // He is still shilling as the jeet sits down.
+  const left = bubble > 0 ? 12 : -110;
+  rect(ctx, PALETTE.ink, left, -122, 98, 31);
+  rect(ctx, PALETTE.white, left + 2, -120, 94, 27);
+  const tail = bubble > 0 ? left + 18 : left + 80;
+  shape(ctx, PALETTE.ink, [[tail - 7, -92], [tail + 7, -92], [29, -66]]);
+  shape(ctx, PALETTE.white, [[tail - 4, -94], [tail + 4, -94], [29, -71]]);
+  ctx.fillStyle = PALETTE.ink;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText('WHY SELL?', left + 49, -113, 90);
+  ctx.fillText('100× SOON, SER', left + 49, -101, 90);
   ctx.restore();
 }

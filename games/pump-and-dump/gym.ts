@@ -50,6 +50,8 @@ export interface Gym {
   viewers: number;
   /** The crowd is coughing in the chalk until then. */
   coughUntil: number;
+  /** The crowd's bounce, integrated so a change of pace never jumps the phase. */
+  bob: number;
 }
 
 const LINEUP: { kind: FanKind; x: number }[] = [
@@ -58,7 +60,7 @@ const LINEUP: { kind: FanKind; x: number }[] = [
 const COUGHS = ['*COUGH*', 'CANT SEE', '*HACK*', 'MY LUNGS'];
 
 export function createGym(): Gym {
-  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, leaving: false, finished: false, viewers: 69, coughUntil: 0 };
+  return { time: 0, fans: LINEUP.map((f, i) => ({ kind: f.kind, x: f.x, homeX: f.x, seed: i * 3.7 + 1, phone: spring(0), bubble: null, gone: false })), cheer: 0, hype: spring(0), sulk: spring(0), shock: 0, cracks: 0, trail: [], trailAt: -1, hearts: [], puffs: [], swoonUntil: 0, leaving: false, finished: false, viewers: 69, coughUntil: 0, bob: 0 };
 }
 
 export function resetGym(g: Gym): void {
@@ -147,6 +149,7 @@ export interface GymDrive { running: boolean; tension: number; multiplier: numbe
 
 export function stepGym(g: Gym, drive: GymDrive, dt: number): void {
   g.time += dt;
+  g.bob = (g.bob + dt * (4 + 6 * g.cheer)) % (Math.PI * 2);
   g.cheer += ((drive.running ? 0.2 + 0.8 * drive.tension : g.finished ? 0.1 : 0.05) - g.cheer) * (1 - Math.exp(-dt / 0.8));
   g.shock = Math.max(0, g.shock - dt);
   g.cracks = drive.running ? Math.max(g.cracks, drive.cracks) : g.finished ? g.cracks : 0;
@@ -395,7 +398,7 @@ function drawFan(ctx: CanvasRenderingContext2D, f: Fan, g: Gym, mood: Mood, bob:
 export function drawGymCrowd(ctx: CanvasRenderingContext2D, g: Gym, cheerful: boolean): void {
   for (const [i, f] of g.fans.entries()) {
     if (f.gone) continue;
-    const phase = g.time * (4 + 6 * g.cheer) + i * 0.7;
+    const phase = g.bob + i * 0.7;
     let bob = Math.max(0, Math.sin(phase)) * 6 * g.cheer;
     if (g.hype.x > 0.05) bob += Math.max(0, Math.sin(g.time * 10 + i)) * 14 * g.hype.x;
     const swooning = g.time < g.swoonUntil && f.kind === 'girl';

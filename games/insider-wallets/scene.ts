@@ -6,8 +6,8 @@
  */
 import { pageAudio } from './audio';
 import { cannonCount, createRally, drawRally, dumpRally, leaveSeat, resetRally, settleRally, stepRally, type Rally, type RallyDrive } from './rally';
-import { clamp, spring, stepSpring } from './motion';
-import { drawTracker, totalBalance } from './tracker';
+import { clamp, mix, spring, stepSpring } from './motion';
+import { drawTracker, money, pendingCount, totalBalance } from './tracker';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -27,11 +27,14 @@ type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
 
 /** The caption ladder's rungs, for the milestone stingers. */
-const RUNGS = [1.35, 1.9, 2.8, 4.2, 6.5, 10, 16];
+const RUNGS = [1.35, 1.9, 2.8, 4.2, 6.5, 10, 16, 40, 150];
 /** The hit-stop on the crash frame, then the slow motion the yank starts in. */
-const FREEZE_S = 0.07;
+const FREEZE_S = 0.15;
 const SLOW_S = 0.4;
 const SLOW_RATE = 0.3;
+/** The camera's punch-in on the crash: 10%, held through the hit-stop and a beat after, in real seconds. */
+const PUNCH = 0.1;
+const PUNCH_HOLD = 0.45;
 /** Where the camera punches in: the podium. */
 const IMPACT = { x: 430, y: 300 };
 
@@ -47,18 +50,20 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
-function money(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  return `$${value}`;
-}
-
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome === 'rekt') return 'INSIDERS SOLD';
-  if (outcome === 'called') return 'LEFT EARLY';
+  if (outcome === 'called') return 'LEFT BEFORE THE DUMP';
   if (outcome === 'spectator') return 'RUGGED';
   if (view.phase !== 'running') return 'GM PATRIOTS';
-  if (secured) return 'LEFT EARLY';
+  if (secured) {
+    // The jeet's regret ladder, keyed to how far the number ran after you left. The profit is still yours.
+    const ran = multiplier / (secured.x100 / 100);
+    if (ran < 1.25) return 'LEFT EARLY';
+    if (ran < 1.6) return 'JEETED, RESPECTFULLY';
+    if (ran < 2.5) return 'PAPER HANDS, REAL PROFITS';
+    if (ran < 5) return 'HE IS STILL PUMPING IT';
+    return 'DO NOT CHECK THE CHART';
+  }
   if (multiplier < 1.35) return 'MAKE BAGS GREAT AGAIN';
   if (multiplier < 1.9) return 'FOR THE UNBANKED';
   if (multiplier < 2.8) return "THE PEOPLE'S COIN";
@@ -66,7 +71,9 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   if (multiplier < 6.5) return 'NOT INSIDER TRADING';
   if (multiplier < 10) return 'INSIDERS PENDING';
   if (multiplier < 16) return 'IS THAT A HELICOPTER';
-  return 'THE HELICOPTER IS RUNNING';
+  if (multiplier < 40) return 'THE HELICOPTER IS RUNNING';
+  if (multiplier < 150) return 'STILL NOT A SECURITY';
+  return 'THE PILOT IS AN INSIDER';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -82,6 +89,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   /** The green wash of your cash-out. */
   const flash = spring(0);
   let last: number | null = null;
+  /** A decorative clock that only ever counts up, so nothing it drives jumps when a round starts. */
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
@@ -90,9 +98,16 @@ export function createScene(options: SceneOptions = {}): Scene {
   let caption = '';
   let freeze = 0;
   let slow = 0;
+  let hold = 0;
+  /** The cut to a fresh rally when betting opens, so the reset never pops. */
+  let cut = 0;
+  /** The tension pulse: a tick that comes faster as the number climbs. */
+  let pulse = 0;
+  /** How many insiders were PENDING last frame; -1 until the scene has seen one, so a late join does not ping them all. */
+  let pending = -1;
 
   function beginCrash(view: SceneView, drive: RallyDrive, quiet: boolean): void {
-    outcome = view.stake === null ? 'spectator' : secured ? 'called' : 'rekt';
+    outcome = secured ? 'called' : view.stake === null ? 'spectator' : 'rekt';
     // A crash that already happened settles the rally to it rather than playing the milestones it missed.
     if (quiet) settleRally(rally, drive, secured !== null);
     dumpRally(rally, view.currentX100, quiet, reduced);
@@ -103,10 +118,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
+      // The SOLD frame holds, punched in on the podium, then the yank starts in slow motion.
       freeze = FREEZE_S;
       slow = SLOW_S;
+      hold = PUNCH_HOLD;
+      punch.x = 1;
+      punch.v = 0;
     }
     // Every insider's register rings in the frame the rows flash SOLD; the crowd turns.
     audio.crash('crowd');
@@ -126,10 +144,11 @@ export function createScene(options: SceneOptions = {}): Scene {
       dt = real * SLOW_RATE;
     }
     time += dt;
-    if (view.phase === 'running') time = view.elapsed / 1000;
+    // The rally's own clock is the round's while it runs, so the press pool's schedule replays the same.
     if (view.phase === 'running') rally.time = view.elapsed / 1000;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const tension = clamp(Math.log2(multiplier) / 3.3, 0, 1);
+    // 1 - 1/x: a third at 1.5×, half at 2×, two thirds at 3×, so the first fourteen seconds carry the build.
+    const tension = clamp(1 - 1 / multiplier, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -140,7 +159,9 @@ export function createScene(options: SceneOptions = {}): Scene {
         flash.v = 14;
       }
     }
-    const drive: RallyDrive = { running, multiplier, tension, reduced };
+    // A player who has cashed out still played this round; only a viewer with no bet is a spectator.
+    const player = view.stake !== null || secured !== null;
+    const drive: RallyDrive = { running, multiplier, tension, reduced, staked: player };
 
     if (previous === null) {
       // A fresh scene can open mid-round or on the crash (a page that joins late, or a tab that missed the
@@ -151,17 +172,31 @@ export function createScene(options: SceneOptions = {}): Scene {
     } else if (view.phase !== previous) {
       if (crashed && !rally.crashed) beginCrash(view, drive, view.crashAge > 1500);
       if (view.phase === 'betting') {
+        if (rally.crashed) cut = 1;
         resetRally(rally);
         outcome = null;
         secured = null;
         shake = 0;
-        freeze = slow = 0;
+        freeze = slow = hold = 0;
       }
+      if (running) pulse = 0.6;
       previous = view.phase;
     }
     // Not only while running: a cash-out first seen on the crash (the tab was hidden) still means you left.
     if (secured) leaveSeat(rally, reduced);
     audio.update(view.phase, tension);
+    // A tick every 1.4 s at 1×, under 0.9 s by 2×, until you cash out.
+    if (running && !secured) {
+      pulse -= dt;
+      if (pulse <= 0) {
+        audio.fx('tick', 0.15 + 0.2 * tension);
+        pulse += mix(1.4, 0.35, tension);
+      }
+    }
+    // Each insider that flips to PENDING pings the tracker.
+    const flipped = running ? pendingCount(multiplier) : 0;
+    if (pending >= 0 && flipped > pending) audio.fx('notify', 0.3);
+    pending = flipped;
 
     stepRally(rally, drive, dt);
     const events = rally.events;
@@ -171,6 +206,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (events.flash) audio.fx('camera', 0.3 + 0.4 * tension);
     if (events.heli) audio.fx('engine', 0.8);
+    if (events.latch) audio.fx('clang', 0.5);
     if (events.lift) {
       audio.fx('engine', 1);
       audio.fx('scream', 0.5);
@@ -180,8 +216,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (rally.cannons > 0 && rally.bits.length > 40 && !reduced) shake = Math.max(shake, 0.08);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
+    // The camera runs on real time: it holds the punch through the hit-stop, then eases out.
+    hold = Math.max(0, hold - real);
+    stepSpring(punch, hold > 0 ? 1 : 0, 7, 0.9, real);
     stepSpring(flash, 0, 6, 1, dt);
+    cut = Math.max(0, cut - real / 0.35);
     const next = captionFor(view, multiplier, outcome, secured);
     if (next !== caption) {
       caption = next;
@@ -194,7 +233,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
     if (!reduced && punch.x > 0.005) {
       // The camera punches in on the podium and eases back out.
-      const k = 1 + 0.06 * clamp(punch.x, 0, 1.2);
+      const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
@@ -202,31 +241,40 @@ export function createScene(options: SceneOptions = {}): Scene {
     const shown = reduced ? 0 : time;
     drawRally(ctx, rally, multiplier, tension, shown, reduced);
     if (outcome && pop.x > 0.02) {
+      // Narrow enough that its overshoot under the punch-in stays clear of the tracker.
       ctx.save();
-      ctx.translate(400, 340);
+      ctx.translate(380, 340);
       ctx.rotate(-0.06);
       const scale = clamp(pop.x, 0, 1.2);
       ctx.scale(scale, scale);
-      const word = outcome === 'called' ? 'LEFT EARLY' : outcome === 'rekt' ? 'INSIDERS SOLD' : 'RUGGED';
-      memeText(ctx, word, 0, 0, 64, outcome === 'called' ? '#7cf67c' : '#ff4d6d', 'center', 560);
+      const word = outcome === 'called' ? 'DODGED' : outcome === 'rekt' ? 'INSIDERS SOLD' : 'RUGGED';
+      memeText(ctx, word, 0, 0, 64, outcome === 'called' ? '#7cf67c' : '#ff4d6d', 'center', 440);
       ctx.restore();
     }
     ctx.restore();
     // The tracker shakes with the stage but sits outside the punch-in, so its edge never leaves the picture.
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
-    drawTracker(ctx, multiplier, tension, rally.crashed, rally.crashT, rally.leaving, shown);
+    drawTracker(ctx, multiplier, tension, rally.crashed, rally.crashT, !player ? null : rally.leaving ? 'left' : 'in', shown, view.elapsed / 1000);
     ctx.restore();
     if (flash.x > 0.01) {
       ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * clamp(flash.x, 0, 1)})`;
       ctx.fillRect(0, 0, 960, 540);
     }
+    if (cut > 0) {
+      ctx.fillStyle = `rgba(16, 10, 28, ${0.9 * cut})`;
+      ctx.fillRect(0, 0, 960, 540);
+    }
 
+    const readout = `${multiplier.toFixed(2)}×`;
     if (caption) {
+      // The caption gives way to a long multiplier rather than running into it.
+      ctx.font = `900 36px ${MEME_FONT}`;
+      const room = 2 * (400 - 36 - Math.min(250, ctx.measureText(readout).width));
       ctx.save();
       ctx.translate(400, 52);
       ctx.scale(1 + 0.07 * captionPop.x, 1 + 0.07 * captionPop.x);
-      memeText(ctx, caption, 0, 0, 32, '#ffffff', 'center', 520);
+      memeText(ctx, caption, 0, 0, 32, '#ffffff', 'center', Math.min(room, 520));
       ctx.restore();
     }
     if (secured && badge.x > 0.02) {
@@ -237,7 +285,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, text, 0, 0, 22, '#7cf67c', 'center');
       ctx.restore();
     }
-    memeText(ctx, `${multiplier.toFixed(2)}×`, 20, 52, 36, outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : '#ffffff', 'left');
+    memeText(ctx, readout, 20, 52, 36, outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : '#ffffff', 'left', 250);
     memeText(ctx, `CANNONS ${cannonCount(rally)}`, 20, 524, 20, '#f0c14a', 'left');
     memeText(ctx, rally.crashed ? 'RUGGED' : money(totalBalance(multiplier)), 660, 524, 18, rally.crashed ? '#ffb4c2' : '#f0c14a', 'right');
   }

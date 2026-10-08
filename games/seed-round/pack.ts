@@ -12,7 +12,7 @@
 import { CROWD_FACES, FACE } from './atlas';
 import { putInstance } from './gl';
 import { type Vec3, basisFrom, cross, length, lerp3, madd, normalize, rotateAbout, sub } from './math3d';
-import { mix, mulberry32, smoothstep } from './motion';
+import { gust, mix, mulberry32, smoothstep } from './motion';
 import { frameAt, tunnelRadius } from './path';
 import type { Renderer } from './render';
 
@@ -75,7 +75,8 @@ export interface Pack {
   nextBlob: number;
   motes: Mote[];
   you: { mode: 'race' | 'bank' | 'banked'; rel: number; x: number; y: number; phase: number; bank: number; from: [number, number, number]; forward: Vec3 | null };
-  portal: { active: boolean; s: number; theta: number; age: number };
+  /** The sperm bank's mouth on the wall, `rel` ahead of the anchor so it stays in frame while it takes you. */
+  portal: { active: boolean; rel: number; theta: number; age: number };
   events: string[];
   snipersDumped: boolean;
   wave: number;
@@ -89,7 +90,7 @@ export function createPack(): Pack {
     whale: { active: false, age: 0, rel: 0, x: 0, y: 0, phase: 0, jaw: 0, next: 3.3 },
     blobs: [], nextBlob: 0, motes: [],
     you: { mode: 'race', rel: 0, x: 0, y: -0.7, phase: 0, bank: 0, from: [0, 0, 0], forward: null },
-    portal: { active: false, s: 0, theta: 0.7, age: 0 },
+    portal: { active: false, rel: 9, theta: 0.7, age: 0 },
     events: [], snipersDumped: false, wave: 0, pileRel: null, labels: [],
   };
   resetPack(pack);
@@ -170,10 +171,15 @@ export function settlePack(pack: Pack, m: number, raceTime = 10): void {
     sw.rel = crowdTarget(sw, m, pack.raceTime);
   }
   pack.wave = WAVES.filter((w) => w <= m).length;
+  // The snipers' dump already happened if any of them is gone: the rest turn back unannounced.
+  pack.snipersDumped = pack.swimmers.some((sw) => sw.kind === 'sniper' && sw.state === 'gone');
   while (pack.whale.next <= m) pack.whale.next *= 2;
   // The SEC is already in the tunnel: its cells keep coming, without SEC IS HERE.
   if (m >= 2.4) pack.nextBlob = pack.raceTime;
 }
+
+/** On the right-hand wall, a little above your line: clear of the coin card, the badge and the feed. */
+const PORTAL_THETA = Math.PI - 0.25;
 
 /** Starts your swimmer's exit to the sperm bank. */
 export function bankYou(pack: Pack): void {
@@ -182,19 +188,35 @@ export function bankYou(pack: Pack): void {
   pack.you.mode = 'bank';
   pack.you.bank = 0;
   pack.you.from = [pack.you.rel, pack.you.x, pack.you.y];
-  pack.portal = { active: true, s: pack.anchor + 15, theta: 0.75, age: 0 };
+  pack.portal = { active: true, rel: 9, theta: PORTAL_THETA, age: 0 };
 }
 
-/** Freezes the race at the crash: everyone still swimming piles into what is ahead. */
+/** Where the sperm bank's mouth opens on the wall. */
+export function portalPoint(pack: Pack): Vec3 {
+  const s = pack.anchor + pack.portal.rel;
+  const f = frameAt(s);
+  const r = tunnelRadius(s) * 0.93;
+  return madd(madd(f.point, f.side, r * Math.cos(pack.portal.theta)), f.up, r * Math.sin(pack.portal.theta));
+}
+
+/** How far ahead of your place the crash looks for the leaders it puts the wall in front of. */
+const WALL_REACH = 16;
+
+/**
+ * Freezes the race at the crash: everyone still swimming piles into what is ahead. The wall goes up just past
+ * the leaders within WALL_REACH, close enough to read at any multiplier (the crowd is spread far ahead below 4×);
+ * a leader already past it stays where it is, stuck in the tip.
+ */
 export function pilePack(pack: Pack): number {
   let front = pack.you.mode === 'race' ? pack.you.rel : -Infinity;
-  for (const sw of pack.swimmers) if (sw.state === 'swim' && sw.rel < 40) front = Math.max(front, sw.rel);
+  for (const sw of pack.swimmers) if (sw.state === 'swim' && sw.rel < WALL_REACH) front = Math.max(front, sw.rel);
   pack.pileRel = (Number.isFinite(front) ? front : 6) + 4.5;
   pack.whale.active = false;
   return pack.pileRel;
 }
 
-export interface StepInput { racing: boolean; multiplier: number; tension: number; crashed: boolean }
+/** `stall` (0 to 1) holds the flow back for a moment: the dev flinching, a fake-out. */
+export interface StepInput { racing: boolean; multiplier: number; tension: number; crashed: boolean; stall?: number }
 
 /** World pose shared by the rendered swimmer and the bank-path steering. */
 export function playerPose(pack: Pack): { position: Vec3; forward: Vec3 } {
@@ -205,9 +227,18 @@ export function playerPose(pack: Pack): { position: Vec3; forward: Vec3 } {
   };
 }
 
-/** Effort fades separately as each swimmer reaches the pile, rather than speeding up at rest. */
+/** A jeet's heading through its U-turn, eased so it leaves and enters the turn without a snap. */
+const uTurn = (turn: number): number => smoothstep(0, 1, turn) * Math.PI;
+
+/** Where a swimmer comes to rest at the crash: just short of the wall, or where it is if it is already past it. */
+const pileStop = (pack: Pack, sw: Swimmer): number => pack.pileRel !== null && sw.rel > pack.pileRel ? sw.rel : (pack.pileRel ?? 0) - 0.4 - sw.seed * 1.6;
+
+/**
+ * Effort fades separately as each swimmer reaches the pile, rather than speeding up at rest. One stuck in the tip
+ * past the wall slows with the pack, still wriggling, instead of going limp on the impact frame.
+ */
 function swimEffort(pack: Pack, rel: number, stop: number): number {
-  return pack.pileRel === null ? Math.min(1, 0.25 + pack.speed / 25) : smoothstep(0.08, 4, Math.abs(stop - rel));
+  return pack.pileRel === null || rel > pack.pileRel ? Math.min(1, 0.25 + pack.speed / 25) : smoothstep(0.08, 4, Math.abs(stop - rel));
 }
 
 export function stepPack(pack: Pack, input: StepInput, dt: number): void {
@@ -217,7 +248,8 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   pack.events = [];
   const cruise = input.crashed ? 0 : input.racing ? 10 + 9 * input.tension : 0;
   pack.speed = mix(pack.speed, cruise, 1 - Math.exp(-dt * (input.crashed ? 9 : 2.2)));
-  pack.anchor += pack.speed * dt;
+  const advance = pack.speed * (1 - (input.stall ?? 0)) * dt;
+  pack.anchor += advance;
   if (input.racing) pack.raceTime += dt;
 
   if (input.racing && pack.wave < WAVES.length && m >= WAVES[pack.wave]!) {
@@ -228,7 +260,7 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   let labelled = 0;
   for (const sw of pack.swimmers) {
     if (sw.state === 'gone') continue;
-    const stop = (pack.pileRel ?? 0) - 0.4 - sw.seed * 1.6;
+    const stop = pileStop(pack, sw);
     sw.phase += dt * (3 + 16 * swimEffort(pack, sw.rel, stop)) * sw.freq;
     sw.label = Math.max(0, sw.label - dt);
     sw.pushX *= Math.exp(-dt * 1.4);
@@ -244,20 +276,22 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
       sw.rho *= Math.exp(-dt * 0.4);
       continue;
     }
-    if (sw.state === 'swim') {
-      if (input.racing && m >= sw.quit) {
+    if (sw.state === 'swim' || sw.state === 'turn') {
+      if (sw.state === 'swim' && input.racing && m >= sw.quit) {
         sw.state = 'turn';
         sw.face = FACE.crying;
         if (sw.kind === 'sniper' && !pack.snipersDumped) { pack.snipersDumped = true; pack.events.push('snipers'); }
         if (sw.rel > -4 && sw.rel < 34 && (sw.kind === 'sniper' || labelled < 2)) { sw.label = 1.8; labelled += 1; }
       }
+      // A jeet lets go of the crowd's pace through its U-turn while it swims where it faces, so its speed carries
+      // from the race into the swim back with no jolt at either end.
+      const turning = sw.state === 'turn' ? (sw.turn = Math.min(1, sw.turn + dt / 0.6)) : 0;
       const target = input.racing ? crowdTarget(sw, m, pack.raceTime) : sw.rel0 * 0.55;
       const wobble = Math.sin(pack.time * 0.6 + sw.seed * 20) * 0.8;
-      sw.rel = mix(sw.rel, target + wobble, 1 - Math.exp(-dt * (sw.kind === 'sniper' ? 2.4 : 1.1)));
-      if (sw.kind === 'sniper' && pack.raceTime < 3) sw.label = Math.max(sw.label, 0.2);
-    } else if (sw.state === 'turn') {
-      sw.turn = Math.min(1, sw.turn + dt / 0.6);
-      if (sw.turn >= 1) sw.state = 'back';
+      sw.rel = mix(sw.rel, target + wobble, (1 - Math.exp(-dt * (sw.kind === 'sniper' ? 2.4 : 1.1))) * (1 - smoothstep(0, 1, turning)));
+      sw.rel -= (pack.speed + 9) * 0.5 * (1 - Math.cos(uTurn(turning))) * dt;
+      if (sw.kind === 'sniper' && pack.raceTime < 3 && turning === 0) sw.label = Math.max(sw.label, 0.2);
+      if (turning >= 1) sw.state = 'back';
     } else if (sw.state === 'back') {
       sw.rel -= (pack.speed + 9) * dt;
       if (sw.rel < -24) sw.state = 'gone';
@@ -316,6 +350,16 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
 
   for (const mote of pack.motes) if (mote.s < pack.anchor - 12) { mote.s += 200; placeMote(mote); }
 
+  // The bank's mouth rides along ahead of you, closing in from 9 to 7 while it takes you (in frame, not behind
+  // the lens), then lets go and drifts back as it shuts. Once the pack piles up it stays where it is.
+  const portal = pack.portal;
+  if (portal.active) {
+    portal.age += dt;
+    if (pack.pileRel !== null) portal.rel -= advance;
+    else portal.rel = portal.age < 1.6 ? 9 - 2 * smoothstep(0, 1.6, portal.age) : portal.rel - 0.4 * pack.speed * smoothstep(1.6, 3.4, portal.age) * dt;
+    if (portal.age > 3.4) portal.active = false;
+  }
+
   // You: a weave near the middle of the bore, or the swerve into the sperm bank.
   const you = pack.you;
   const effort = you.mode === 'bank' ? 1 : swimEffort(pack, you.rel, (pack.pileRel ?? 0) - 0.6);
@@ -329,8 +373,8 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
   } else if (you.mode === 'bank') {
     you.bank += dt;
     const k = smoothstep(0, 1.3, you.bank);
-    const r = tunnelRadius(pack.portal.s) * 0.9;
-    you.rel = mix(you.from[0], pack.portal.s - pack.anchor, k);
+    const r = tunnelRadius(pack.anchor + portal.rel) * 0.9;
+    you.rel = mix(you.from[0], portal.rel, k);
     you.x = mix(you.from[1], r * Math.cos(pack.portal.theta), k);
     you.y = mix(you.from[2], r * Math.sin(pack.portal.theta), k);
     if (previousYou && dt > 0) {
@@ -338,10 +382,6 @@ export function stepPack(pack: Pack, input: StepInput, dt: number): void {
       if (length(travel) > 1e-6) you.forward = normalize(lerp3(you.forward!, normalize(travel), 1 - Math.exp(-dt * 18)));
     }
     if (you.bank >= 1.6) { you.mode = 'banked'; pack.events.push('banked'); }
-  }
-  if (pack.portal.active) {
-    pack.portal.age += dt;
-    if (pack.portal.age > 3.4) pack.portal.active = false;
   }
 }
 
@@ -356,18 +396,28 @@ export const EGG_FAR = 150;
 /** Where a white blood cell's nucleus lobes sit, as fractions of its radius. */
 const NUCLEUS: [number, number, number][] = [[0.26, 0.08, 0], [-0.22, -0.06, 0.14], [0.02, 0.26, -0.16]];
 
-/** Fills the instance buffers and sprites for the race and collects the labels the HUD will draw. */
-export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boolean): { you: Vec3 | null } {
+/**
+ * Fills the instance buffers and sprites for the race and collects the labels the HUD will draw. `hat` scales
+ * your beanie: 0 for a spectator, whose swimmer is just another anon.
+ */
+export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boolean, hat = 1): { you: Vec3 | null } {
   const swimmers = renderer.meshes.swimmer;
   const labels: Label[] = [];
   let n = 0;
+  // Each swimmer drifts round its lane on slow, seeded gusts, so the crowd jostles instead of sitting on rails.
+  const t = pack.time * 2.5;
   for (const sw of pack.swimmers) {
     if (sw.state === 'gone' || sw.rel < -14 || sw.rel > 150) continue;
     const s = pack.anchor + sw.rel;
     const f = frameAt(s);
     const r = tunnelRadius(s);
-    let x = sw.rho * r * Math.cos(sw.theta) + sw.pushX;
-    let y = sw.rho * r * Math.sin(sw.theta) + sw.pushY;
+    const rho = sw.rho * (1 + 0.1 * gust(t, sw.seed * 40));
+    const theta = sw.theta + 0.18 * gust(t * 0.8, sw.seed * 70 + 3);
+    // The U-turn swings out to the side it turns toward and back in, rather than spinning on the spot.
+    const way = sw.seed < 0.5 ? 1 : -1;
+    const turning = sw.state === 'turn' ? uTurn(sw.turn) : 0;
+    let x = rho * r * Math.cos(theta) + sw.pushX + way * 0.6 * Math.sin(turning);
+    let y = rho * r * Math.sin(theta) + sw.pushY;
     let shrink = 1;
     if (sw.state === 'eaten') {
       const k = smoothstep(0, 1, sw.eaten);
@@ -381,13 +431,13 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
     const p = madd(madd(f.point, f.side, x), f.up, y);
     // Nobody swims through the lens.
     if (Math.hypot(p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]) < 2.2) continue;
-    const heading = sw.state === 'turn' ? sw.turn * Math.PI : sw.state === 'back' ? Math.PI : 0;
+    const heading = sw.state === 'back' ? Math.PI : way * turning;
     const wiggle = Math.sin(pack.time * 1.7 + sw.seed * 40) * 0.12;
     const forward = rotateAbout(f.tangent, f.up, heading + wiggle);
     const [bx, by, bz] = basisFrom(forward, f.up, Math.sin(pack.time + sw.seed * 9) * 0.3);
     const tint = sw.state === 'swim' ? (sw.kind === 'sniper' ? [0.8, 0.9, 1, 1] : sw.kind === 'chad' ? [0.45, 0.85, 1, 1] : PEARL) : [1, 0.62 + 0.38 * (1 - sw.turn), 0.62 + 0.38 * (1 - sw.turn), 1];
     const k = sw.size * shrink * (sw.kind === 'chad' ? 1.12 : 1);
-    const amplitude = 0.05 + 0.17 * swimEffort(pack, sw.rel, (pack.pileRel ?? 0) - 0.4 - sw.seed * 1.6);
+    const amplitude = 0.05 + 0.17 * swimEffort(pack, sw.rel, pileStop(pack, sw));
     putInstance(swimmers, n, p, bx, by, bz, [k, k, k], tint, [sw.phase, amplitude, sw.face, 0]);
     n += 1;
     if (sw.label > 0) labels.push({ text: sw.kind === 'sniper' ? (sw.state === 'swim' ? 'SNIPER' : 'DUMPED') : 'JEET', at: madd(p, f.up, 0.5), colour: sw.kind === 'sniper' ? '#9fd8ff' : '#ff8fa3', size: 15 });
@@ -395,6 +445,7 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
 
   // You, with the propeller beanie.
   let youAt: Vec3 | null = null;
+  let cap = 0;
   const you = pack.you;
   if (you.mode !== 'banked') {
     const s = pack.anchor + you.rel;
@@ -403,23 +454,26 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
     const p = pose.position;
     const spin = you.mode === 'bank' ? smoothstep(1.1, 1.6, you.bank) : 0;
     const k = 1.25 * (1 - spin);
+    cap = k * Math.min(hat, 1.3);
     if (k > 0.01) {
       const forward = rotateAbout(pose.forward, f.up, spin * 9);
       const [bx, by, bz] = basisFrom(forward, f.up, spin * 6);
       const effort = you.mode === 'bank' ? 1 : swimEffort(pack, you.rel, (pack.pileRel ?? 0) - 0.6);
-      putInstance(swimmers, n, p, bx, by, bz, [k, k, k], [1, 0.97, 0.9, 1], [you.phase, 0.04 + 0.12 * effort, FACE.you, 0.08]);
+      putInstance(swimmers, n, p, bx, by, bz, [k, k, k], [1, 0.97, 0.9, 1], [you.phase, 0.04 + 0.12 * effort, hat > 0.5 ? FACE.you : FACE.doge, 0.08]);
       n += 1;
-      const hat = madd(p, by, 0.13 * k);
-      putInstance(renderer.meshes.beanie, 0, madd(hat, bz, 0.02 * k), bx, by, bz, [k, k, k], PEARL, [0, 0, -1, 0.05]);
-      const turn = pack.time * (reduced ? 6 : 18);
-      const px = rotateAbout(bx, by, turn);
-      const pz = cross(px, by);
-      putInstance(renderer.meshes.propeller, 0, madd(hat, by, 0.3 * k), px, by, pz, [k, k, k], PEARL, [0, 0, -1, 0.1]);
+      if (cap > 0.02) {
+        const top = madd(p, by, 0.13 * k);
+        putInstance(renderer.meshes.beanie, 0, madd(top, bz, 0.02 * k), bx, by, bz, [cap, cap, cap], PEARL, [0, 0, -1, 0.05]);
+        const turn = pack.time * (reduced ? 6 : 18);
+        const px = rotateAbout(bx, by, turn);
+        const pz = cross(px, by);
+        putInstance(renderer.meshes.propeller, 0, madd(top, by, 0.3 * cap), px, by, pz, [cap, cap, cap], PEARL, [0, 0, -1, 0.1]);
+      }
       youAt = madd(p, by, 0.5 * k);
     }
   }
   renderer.drawLit(swimmers, n);
-  if (youAt) {
+  if (youAt && cap > 0.02) {
     renderer.drawLit(renderer.meshes.beanie, 1);
     renderer.drawLit(renderer.meshes.propeller, 1, 'opaque', 'none');
   }
@@ -483,9 +537,8 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
 
   // The sperm bank's portal.
   if (pack.portal.active) {
-    const f = frameAt(pack.portal.s);
-    const r = tunnelRadius(pack.portal.s) * 0.93;
-    const p = madd(madd(f.point, f.side, r * Math.cos(pack.portal.theta)), f.up, r * Math.sin(pack.portal.theta));
+    const f = frameAt(pack.anchor + pack.portal.rel);
+    const p = portalPoint(pack);
     const open = smoothstep(0, 0.4, pack.portal.age) * (1 - smoothstep(2.6, 3.4, pack.portal.age));
     renderer.sprite(p, 2.6 * open, [0.45, 0.85, 1, 0.9], 2);
     renderer.sprite(p, 1.7 * open, [0.6, 0.95, 1, 1], 1);

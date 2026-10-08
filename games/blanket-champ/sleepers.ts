@@ -1,5 +1,5 @@
 /** Visible characters at either end of the duvet. Everything else stays covered. */
-import { noise } from './motion';
+import { clamp, mix, noise, smoothstep } from './motion';
 const INK = '#1c1f26';
 const SKIN = '#f3dccb';
 const PARTNER_SKIN = '#dba082';
@@ -12,14 +12,32 @@ export interface SleeperPose {
   lift: number;
   tension: number;
   active: boolean;
+  /** 0..1: how much the beat drives the feet (eased in and out; defaults to `active`). */
+  drive?: number;
   finished: boolean;
   rest: number;
   /** 0..1: how hard the champ shakes near the top (already 0 under reduced motion). */
   tremble: number;
+  multiplier: number;
+  /** The partner: her phone (0 down, 1 up), an eye-roll envelope and what it is about, and a yawn. */
+  phone: number;
+  roll: number;
+  rollWhy: 'cat' | 'glass';
+  yawn: number;
 }
 
 /** Heads and the quilt's shoulder tucks rise and settle together. */
 export const sleeperBob = (pose: SleeperPose, partner: boolean): number => -pose.lift * (partner ? 14 : 10);
+
+/** Moves the canvas into a head's frame: on its pillow, with the bob, the tilt, the slump and the champ's tremble. */
+function headFrame(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean): void {
+  // The champ trembles near the top: a small hash jitter, the wind-up the finish pays off.
+  const tremble = partner ? 0 : pose.tremble;
+  const jx = (noise(Math.floor(pose.time * 31)) - 0.5) * 4 * tremble;
+  const jy = (noise(Math.floor(pose.time * 29) + 7) - 0.5) * 3 * tremble;
+  ctx.translate((partner ? 334 : 271) + jx, (partner ? 295 : 324) + sleeperBob(pose, partner) + jy);
+  ctx.rotate((partner ? 0.13 : -0.13) + pose.lift * (partner ? -0.07 : 0.05) + pose.rest * (partner ? 0.1 : -0.16));
+}
 
 function pillow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number): void {
   ctx.save();
@@ -42,14 +60,8 @@ function sweat(ctx: CanvasRenderingContext2D, x: number, y: number, size: number
 }
 
 function head(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean): void {
-  const bob = sleeperBob(pose, partner);
-  // The champ trembles near the top: a small hash jitter, the wind-up the finish pays off.
-  const tremble = partner ? 0 : pose.tremble;
-  const jx = (noise(Math.floor(pose.time * 31)) - 0.5) * 4 * tremble;
-  const jy = (noise(Math.floor(pose.time * 29) + 7) - 0.5) * 3 * tremble;
   ctx.save();
-  ctx.translate((partner ? 334 : 271) + jx, (partner ? 295 : 324) + bob + jy);
-  ctx.rotate((partner ? 0.13 : -0.13) + pose.lift * (partner ? -0.07 : 0.05) + pose.rest * (partner ? 0.1 : -0.16));
+  headFrame(ctx, pose, partner);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 2.8; ctx.strokeStyle = INK;
   const skin = partner ? PARTNER_SKIN : SKIN;
   // A bun and a little hair silhouette distinguish the partner at small sizes.
@@ -87,28 +99,38 @@ function head(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean
     ctx.beginPath(); ctx.moveTo(-23, -20); ctx.quadraticCurveTo(0, -25, 22, -19); ctx.stroke();
     ctx.strokeStyle = INK;
   }
-  const exhausted = pose.finished;
-  const panic = pose.active && pose.tension > 0.65 && !partner;
+  // Still spent while the heads lift for the next round.
+  const exhausted = pose.finished || pose.rest > 0.5;
+  const active = pose.active && !exhausted;
+  // The champ: the brow comes down from 1.3× (grim determination, eyes narrowing), then panic takes over around 3×.
+  const grit = partner || !active ? 0 : smoothstep(0.2, 0.6, pose.tension);
+  const fear = partner || !active ? 0 : smoothstep(0.62, 0.7, pose.tension);
+  const panic = fear > 0.5;
+  // The partner: eyes down on her charts, up and over at the cat or the glass, shut for the yawn.
+  const roll = partner ? pose.roll : 0;
+  const yawn = partner ? pose.yawn : 0;
+  const look = partner ? clamp(pose.phone, 0, 1) * (1 - roll) : 0;
   const blink = !pose.active && !exhausted && (pose.time + (partner ? 1.4 : 0)) % 4.5 > 4.32;
   ctx.lineWidth = 2;
   for (const x of [-11, 12]) {
-    if (exhausted || blink) {
-      ctx.beginPath(); ctx.moveTo(x - 6, 0); ctx.quadraticCurveTo(x, exhausted ? 5 : 1, x + 5, 0); ctx.stroke();
+    if (exhausted || blink || yawn > 0.35) {
+      ctx.beginPath(); ctx.moveTo(x - 6, 0); ctx.quadraticCurveTo(x, exhausted ? 5 : yawn > 0.35 ? -3 : 1, x + 5, 0); ctx.stroke();
     } else {
       ctx.fillStyle = '#fffdf8';
-      ctx.beginPath(); ctx.ellipse(x, 0, 8, panic ? 10 : partner ? 5.5 : 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, 0, 8, partner ? 5.5 + 2 * roll : mix(7 - 2 * grit, 10, fear), 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = INK;
-      ctx.beginPath(); ctx.arc(x + (partner ? -3 : 2), 1, panic ? 2 : 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + (partner ? mix(-3, 2, look) + 3 * roll : 2), partner ? 1 + 2 * look - 5 * roll : 1, panic ? 2 : 2.6, 0, Math.PI * 2); ctx.fill();
       if (partner) {
-        ctx.beginPath(); ctx.moveTo(x - 8, -2); ctx.lineTo(x + 7, -2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - 8, -2 - 4 * roll); ctx.lineTo(x + 7, -2 - 4 * roll); ctx.stroke();
       }
     }
   }
-  // Raised eyebrow / increasing determination, then total battery failure.
+  // Raised eyebrow (higher for an eye-roll) / grim determination, then worry, then total battery failure.
+  const inner = partner ? -3 * roll : mix(7 * grit, -4, fear);
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(-19, -10 - (partner ? 3 : 0)); ctx.lineTo(-5, -9 + (!partner ? pose.tension * 4 : 0));
-  ctx.moveTo(5, -9 + (!partner ? pose.tension * 4 : 0)); ctx.lineTo(19, -10);
+  ctx.moveTo(-19, -10 - (partner ? 3 + 3 * roll : 0)); ctx.lineTo(-5, -9 + inner);
+  ctx.moveTo(5, -9 + inner); ctx.lineTo(19, -10 - (partner ? 3 * roll : 0));
   ctx.stroke();
   ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.moveTo(1, 2); ctx.lineTo(-2, 10); ctx.lineTo(4, 11); ctx.stroke();
@@ -121,6 +143,8 @@ function head(ctx: CanvasRenderingContext2D, pose: SleeperPose, partner: boolean
   } else if (panic) {
     ctx.fillStyle = '#fffdf8'; ctx.roundRect(-10, 18, 21, 8, 3); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, 19); ctx.lineTo(0, 25); ctx.stroke();
+  } else if (yawn > 0.05) {
+    ctx.fillStyle = '#6f3942'; ctx.ellipse(3, 21, 5 + 2 * yawn, 2 + 7 * yawn, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   } else {
     ctx.moveTo(-8, 20); ctx.quadraticCurveTo(3, partner ? 21 : 27, 13, partner ? 16 : 18); ctx.stroke();
   }
@@ -154,13 +178,15 @@ export interface SleeperFoot {
   tuck: { x: number; y: number };
 }
 
-export function sleeperFeet(pose: SleeperPose): SleeperFoot[] {
+export function sleeperFeet(pose: Pick<SleeperPose, 'beat' | 'lift' | 'tension' | 'active' | 'drive' | 'rest'>): SleeperFoot[] {
+  // The beat's hold on the feet eases in at the start and out at the finish, so neither snaps.
+  const drive = pose.drive ?? (pose.active ? 1 : 0);
   return ([[645, 326, true], [680, 338, true], [670, 359, false], [711, 371, false]] as const).map(([x, y, sock], index) => {
     const delay = [0, .48, 1.35, 1.9][index]!;
     const beat = Math.sin(pose.beat - delay);
-    const impulse = pose.active ? .35 + .65 * Math.max(0, beat) : 1;
+    const impulse = mix(1, .35 + .65 * Math.max(0, beat), drive);
     const kick = Math.max(0, pose.lift) * (5 + pose.tension * 5) * impulse;
-    const angle = -0.12 + (pose.active ? beat * (0.07 + pose.tension * 0.12) : 0) + pose.rest * 0.55;
+    const angle = -0.12 + drive * beat * (0.07 + pose.tension * 0.12) + pose.rest * 0.55;
     const footY = y - pose.lift * 6 - kick + pose.rest * 5;
     return {
       x, y: footY, angle, kick, sock,
@@ -212,9 +238,39 @@ export function drawFeet(ctx: CanvasRenderingContext2D, feet: SleeperFoot[]): vo
   for (const pose of feet) foot(ctx, pose);
 }
 
+/** The partner checking her charts: a hand and a phone come up in front of her chin, in her head's frame. */
+export function drawPhone(ctx: CanvasRenderingContext2D, pose: SleeperPose): void {
+  const up = clamp(pose.phone, 0, 1.2);
+  ctx.save();
+  headFrame(ctx, pose, true);
+  ctx.translate(13, 36 + (1 - up) * 36);
+  ctx.rotate(-0.22);
+  ctx.lineJoin = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 2.2;
+  ctx.fillStyle = '#272b35';
+  ctx.beginPath(); ctx.roundRect(-10, -32, 20, 32, 4); ctx.fill(); ctx.stroke();
+  // A green chart on the screen, for the viewer's benefit.
+  ctx.fillStyle = '#0f2a1c'; ctx.fillRect(-7, -29, 14, 24);
+  ctx.strokeStyle = '#7cf67c'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-6, -9); ctx.lineTo(-2, -14); ctx.lineTo(1, -12); ctx.lineTo(6, -25); ctx.stroke();
+  ctx.fillStyle = PARTNER_SKIN; ctx.strokeStyle = INK; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.ellipse(-1, -2, 12, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(10, -12, 3.5, 6, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+/** What the partner says: a ladder with the number, an aside at the cat or the glass, and the verdict. */
+function partnerLine(pose: SleeperPose): string {
+  if (pose.finished) return 'was that it?';
+  if (!pose.active) return 'u ready, champ?';
+  if (pose.roll > 0.2) return pose.rollWhy === 'cat' ? "even the cat's leaving" : 'that was MY water';
+  if (pose.yawn > 0.1) return '*yaaawn*';
+  const m = pose.multiplier;
+  return m < 1.15 ? 'socks stay ON.' : m < 1.5 ? 'is this the cardio?' : m < 2.2 ? 'cardio is cardio.' : m < 3 ? 'brb, checking charts' : m < 6 ? 'bro is buffering' : m < 12 ? 'is he... ok?' : "I'm calling his mum";
+}
+
 /** A small in-world punchline that leaves the faces unobscured. */
 export function drawReaction(ctx: CanvasRenderingContext2D, pose: SleeperPose): void {
-  const line = pose.finished ? 'was that it?' : !pose.active ? 'u ready, champ?' : pose.tension > 0.7 ? 'bro is buffering' : pose.tension > 0.3 ? 'cardio is cardio.' : 'socks stay ON.';
+  const line = partnerLine(pose);
   const width = 150;
   ctx.save();
   ctx.translate(382, 407);

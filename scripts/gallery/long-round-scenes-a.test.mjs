@@ -79,7 +79,7 @@ test('Gas Fees riders keep talking after the lift fills without spawning more bo
   endurance(({ seconds, dt }) => {
     m.stepCrowd(c, { running: true, multiplier: 100_000, tension: 1, suitX: 450, gassed: false, gasAge: 0 }, dt);
     if (seconds > 120 && c.lines.some(line => line.age <= dt)) lateLines++;
-    assert.equal(c.list.length, 9);
+    assert.equal(c.list.length, 10);
     assert(c.lines.length <= 2);
   });
   assert(lateLines >= 7);

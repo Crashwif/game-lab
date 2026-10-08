@@ -51,23 +51,60 @@ const PHOTO_REST = 398;
 const CURSOR_HOME = { x: 328, y: 286 } as const;
 export const SELL_BTN = { x: 404, y: LAPTOP.y - 22, w: 42, h: 18 } as const;
 const SELL_CENTRE = { x: SELL_BTN.x + SELL_BTN.w / 2, y: SELL_BTN.y + SELL_BTN.h / 2 } as const;
+/** Where she plants her feet, top to bottom: the landing, the seven treads, the kitchen floor. */
+const TREADS = [150, 180, 220, 260, 300, 340, 380, 420, 470] as const;
+const FLOOR = TREADS.length - 1;
+/** Her feet keep back from the stair edge (x=700+(470-y)/2); off the last tread she hops clear of the suitcase. */
+const treadX = (i: number): number => i === FLOOR ? 690 : 700 + (470 - TREADS[i]!) / 2 + 30;
+/** The threat ladder, keyed to the multiplier: one thump and a flicker, a creak, the light for good, the thumps, the mug, her peeks. */
+const FLICKER_AT = 1.6;
+const CREAK_AT = 2;
+const LIGHT_AT = 2.2;
+const THUMPS_AT = 2.5;
+const MUG_AT = 3.3;
+/** The mug leaves the counter as his elbow lands, a beat after the jab starts (the jab peaks 0.2 s in). */
+const MUG_LAG = 0.2;
+/** Knocked mugs come to rest on the floor above the HUD's meter line. */
+const MUG_FLOOR = 490;
+/** Her peeks from the top of the stairs: [from, to, how far she leans in]. The last one stays. */
+const PEEKS = [[4, 4.9, 0.55], [6, 7.3, 0.8], [8.5, Infinity, 1]] as const;
+const BULB = { x: 930, y: 112 } as const;
+const peekAt = (m: number): number => PEEKS.find(([from, to]) => m >= from && m < to)?.[2] ?? 0;
 
 export interface Kitchen {
   mugs: Mug[];
   knocked: boolean;
+  /** Seconds until the jabbing elbow reaches the mug. */
+  knockIn: number;
   catX: number;
   catY: number;
   catInCase: boolean;
   light: Spring;
   thump: number;
   thumpClock: number;
-  wifeY: Spring;
-  wifeMode: 'asleep' | 'down' | 'floor' | 'back';
+  /** The multiplier last frame, so each rung of the threat ladder fires once as it is crossed. */
+  lastM: number;
+  catAlert: number;
+  /**
+   * She comes down one tread per stomp: `wifeAt` is the tread she stands on (or is leaving), `wifeTo` the one she is
+   * stepping to, `wifeT` the time into that step. 'wait' is a harmless crash holding her upstairs until he is up.
+   */
+  wifeMode: 'asleep' | 'wait' | 'check' | 'down' | 'floor' | 'back';
+  wifeAt: number;
+  wifeTo: number;
+  wifeGoal: number;
+  wifeT: number;
+  wifeAlpha: number;
+  squash: number;
+  fling: number;
+  /** Her tilt into the step, eased so a landing or a turn on the stairs does not snap her upright. */
+  wifeLean: number;
   wifeAge: number;
   harmless: boolean;
   crashed: boolean;
   crashT: number;
   suitX: number;
+  suitV: number;
   suitLid: Spring;
   rolling: boolean;
   ring: Ring;
@@ -87,14 +124,15 @@ export interface Kitchen {
   letters: Letter[];
   shuffled: boolean;
   cursor: { x: Spring; y: Spring };
-  /** The SELL button: hovered over all round, clicked at the cash-out, greyed out after the crash. */
-  sell: 'idle' | 'clicked' | 'dead';
+  /** The hover's integrated phase, so its rate can follow the fear without jumping. */
+  hover: number;
+  /** The SELL button: hovered over all round, aimed at and clicked at the cash-out, greyed out after the crash. */
+  sell: 'idle' | 'aim' | 'clicked' | 'dead';
   sellFlash: number;
   clickPulse: number;
-  stepClock: number;
   ringHit: boolean;
   doorDone: boolean;
-  events: { thump: boolean; text: boolean; mug: boolean; mugHit: boolean; peek: boolean; ring: boolean; letter: boolean; photo: boolean; step: boolean; door: boolean };
+  events: { thump: boolean; flicker: boolean; creak: boolean; text: boolean; her: boolean; mug: boolean; mugHit: boolean; peek: boolean; ring: boolean; letter: boolean; photo: boolean; step: boolean; door: boolean };
 }
 
 const MUGS: { x: number; y: number; color: string }[] = [
@@ -118,26 +156,37 @@ function makeLetters(): Letter[] {
 }
 
 function noEvents(): Kitchen['events'] {
-  return { thump: false, text: false, mug: false, mugHit: false, peek: false, ring: false, letter: false, photo: false, step: false, door: false };
+  return { thump: false, flicker: false, creak: false, text: false, her: false, mug: false, mugHit: false, peek: false, ring: false, letter: false, photo: false, step: false, door: false };
 }
 
 function freshKitchen(): Kitchen {
   return {
     mugs: MUGS.map((m) => ({ ...m, vx: 0, vy: 0, rot: 0, vr: 0, fallen: false, hits: 0 })),
     knocked: false,
+    knockIn: 0,
     catX: 132,
     catY: 332,
     catInCase: false,
     light: spring(0),
     thump: 0,
     thumpClock: 0,
-    wifeY: spring(86),
+    lastM: 1,
+    catAlert: 0,
     wifeMode: 'asleep',
+    wifeAt: 1,
+    wifeTo: 1,
+    wifeGoal: 1,
+    wifeT: 0,
+    wifeAlpha: 0,
+    squash: 0,
+    fling: 0,
+    wifeLean: 0,
     wifeAge: 0,
     harmless: false,
     crashed: false,
     crashT: 0,
     suitX: 786,
+    suitV: 0,
     suitLid: spring(0.08),
     rolling: false,
     ring: { x: 470, y: 400, vx: 0, vy: 0, dropped: false, settled: false },
@@ -157,10 +206,10 @@ function freshKitchen(): Kitchen {
     letters: makeLetters(),
     shuffled: false,
     cursor: { x: spring(CURSOR_HOME.x), y: spring(CURSOR_HOME.y) },
+    hover: 0,
     sell: 'idle',
     sellFlash: 0,
     clickPulse: 0,
-    stepClock: 0,
     ringHit: false,
     doorDone: false,
     events: noEvents(),
@@ -185,8 +234,10 @@ export interface KitchenDrive {
   fear: number;
   time: number;
   traderGone: boolean;
-  /** The reduced fixture holds the loose magnets and cursor still. */
+  /** The reduced fixture holds the loose magnets and cursor still and keeps the stair light steady. */
   reduced: boolean;
+  /** He is upstairs (or never left): a harmless crash may bring her down to check. */
+  traderUp?: boolean;
 }
 
 function burst(k: Kitchen, x: number, y: number, count: number, color: string, power: number, rand: () => number): void {
@@ -204,30 +255,35 @@ export function crashKitchen(k: Kitchen, seed: number, quiet: boolean, harmless:
   k.harmless = harmless;
   k.chartDead = !harmless;
   k.holding = harmless;
+  const peek = k.peek;
   k.peek = 0;
   const rand = mulberry32(seed);
-  if (!harmless) {
-    k.sell = 'dead';
+  // The cursor lunges for SELL (too late) instead of jumping there; a crash met late finds it already there.
+  if (!harmless) k.sell = 'dead';
+  if (!harmless && quiet) {
     settleSpring(k.cursor.x, SELL_CENTRE.x + 6);
     settleSpring(k.cursor.y, SELL_CENTRE.y + 4);
   }
   if (quiet) {
     k.crashT = 4;
     k.light.x = harmless ? 0 : 1;
+    k.catAlert = k.lastM >= CREAK_AT ? 1 : 0;
     if (harmless) {
       k.wifeMode = 'back';
-      k.wifeY.x = 20;
+      k.wifeAt = k.wifeTo = k.wifeGoal = 0;
+      k.wifeAlpha = 0;
       k.suitLid.x = 0.08;
     } else {
       k.wifeMode = 'floor';
-      k.wifeY.x = 448;
+      k.wifeAt = k.wifeTo = k.wifeGoal = FLOOR;
+      k.wifeAlpha = 1;
       k.wifeAge = 3;
       k.rolling = true;
       k.suitX = 1040;
       k.doorDone = true;
       k.suitLid.x = 0.72;
       k.catInCase = true;
-      k.ring = { x: 430 + rand() * 40, y: 446, vx: 0, vy: 0, dropped: true, settled: true };
+      k.ring = { x: 590 + rand() * 40, y: 446, vx: 0, vy: 0, dropped: true, settled: true };
       k.ringHit = true;
       k.cardIn = true;
       k.cardX.x = 690;
@@ -244,18 +300,29 @@ export function crashKitchen(k: Kitchen, seed: number, quiet: boolean, harmless:
     }
     return;
   }
-  k.wifeMode = 'down';
+  // The light snaps on. Harmless, she waits until he is upstairs; caught, she is already there, two treads down
+  // where she peeks from (clear of the multiplier while the camera punches in).
+  k.light.x = 1;
+  k.light.v = 0;
   k.wifeAge = 0;
-  if (!harmless) burst(k, 800, 120, 10, '#d9d0c4', 80, rand);
+  k.wifeT = 0;
+  if (harmless) {
+    k.wifeMode = 'wait';
+    k.wifeAt = k.wifeTo = k.wifeGoal = 1;
+    return;
+  }
+  k.wifeMode = 'down';
+  k.wifeAt = k.wifeTo = 2;
+  k.wifeGoal = FLOOR;
+  k.wifeAlpha = 1;
+  k.wifeLean = -0.22 * peek;
+  burst(k, 800, 120, 10, '#d9d0c4', 80, rand);
 }
 
-/** The cash-out: the cursor finally clicks SELL and the screen flashes before the lid comes down. */
+/** The cash-out: the cursor darts to SELL and clicks it, and the screen flashes SOLD before the lid comes down. */
 export function clickSell(k: Kitchen): void {
   if (k.sell !== 'idle') return;
-  k.sell = 'clicked';
-  k.sellFlash = 1;
-  settleSpring(k.cursor.x, SELL_CENTRE.x + 8);
-  settleSpring(k.cursor.y, SELL_CENTRE.y + 6);
+  k.sell = 'aim';
 }
 
 /** A small shower of gold out of the suitcase when the lid is called: capped, so it stays a beat and not a storm. */
@@ -314,7 +381,7 @@ function restPhoto(p: Photo, x: number, rot: number): void {
   p.vx = p.vy = p.vr = 0;
 }
 
-/** At 4x his elbow sends the red mug off the counter. */
+/** At 3.3x his elbow sends the red mug off the counter. */
 function knockMug(k: Kitchen): void {
   k.knocked = true;
   const mug = k.mugs[1]!;
@@ -333,8 +400,8 @@ function dropMugs(k: Kitchen, dt: number): void {
     mug.x += mug.vx * dt;
     mug.y += mug.vy * dt;
     mug.rot += mug.vr * dt;
-    if (mug.y > 508) {
-      mug.y = 508;
+    if (mug.y > MUG_FLOOR) {
+      mug.y = MUG_FLOOR;
       mug.vy *= -0.28;
       mug.vx *= 0.7;
       mug.vr *= 0.5;
@@ -352,14 +419,18 @@ function dropMugs(k: Kitchen, dt: number): void {
 export function settleKitchen(k: Kitchen, multiplier: number, fear: number, heldX100: number | null): void {
   k.holding = heldX100 !== null;
   k.meter.x = meterTarget(heldX100 === null ? multiplier : heldX100 / 100);
-  k.light.x = fear > 0.38 ? 1 : 0;
+  k.light.x = multiplier >= LIGHT_AT ? 1 : 0;
+  k.lastM = multiplier;
+  k.thumpClock = 0.8;
+  k.catAlert = multiplier >= CREAK_AT && heldX100 === null ? 1 : 0;
+  k.peek = heldX100 === null ? peekAt(multiplier) : 0;
   while (k.nextLine < LINES.length && multiplier >= LINES[k.nextLine]!.at) {
     const line = LINES[k.nextLine]!;
     // As in stepKitchen: once he has cashed out and gone up, he sends no more replies and her last text is never sent.
     if (!(heldX100 !== null && line.at * 100 > heldX100 && (!line.her || line.at >= 10))) k.bubbles.push({ text: line.text, her: line.her, age: 1 });
     k.nextLine += 1;
   }
-  if (multiplier >= 4) {
+  if (multiplier >= MUG_AT) {
     knockMug(k);
     for (let i = 0; i < 240; i += 1) dropMugs(k, 1 / 60);
   }
@@ -380,31 +451,57 @@ function looseness(l: Letter, fear: number): number {
   return l.ch === 'W' ? smoothstep(0.3, 1, fear) : l.ch === 'A' ? smoothstep(0.55, 1, fear) : 0;
 }
 
+/** A thump from upstairs: the ceiling cracks, dust falls, and the photo and any loose magnets rattle. */
+function thumpCeiling(k: Kitchen, seed: number): void {
+  k.thump = 1;
+  k.events.thump = true;
+  burst(k, 520, 70, 6, '#cabb9a', 50, mulberry32(seed));
+  k.photo.tilt.v += 1.6;
+  for (const l of k.letters) if (l.loose > 0.2 && !l.fallen) l.sr.v += l.ch === 'W' ? -2.6 : 2.2;
+}
+
 export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
   k.events = noEvents();
   k.crashT += k.crashed ? dt : 0;
   k.thump = Math.max(0, k.thump - dt * 1.8);
-  const fill = meterTarget(drive.multiplier);
+  const m = drive.multiplier;
+  const fill = meterTarget(m);
   const target = k.crashed && !k.harmless ? 0 : k.holding ? k.meter.x : fill;
   stepSpring(k.meter, target, k.crashed && !k.harmless ? 4 : 6, 0.9, dt);
+  // The threat ladder only plays while he is still at the desk and the round runs.
+  const live = drive.running && !k.crashed && !drive.traderGone;
+  const crossed = (at: number): boolean => live && k.lastM < at && m >= at;
   const wasPeeking = k.peek > 0.25;
-  k.peek = drive.running && !drive.traderGone && !k.crashed ? clamp((drive.multiplier - 7) / 7, 0, 1) : 0;
+  k.peek += ((live ? peekAt(m) : 0) - k.peek) * (1 - Math.exp(-5 * dt));
   if (!wasPeeking && k.peek > 0.25) k.events.peek = true;
-  const lit = drive.fear > 0.38 || k.peek > 0.25 || k.wifeMode === 'down' || k.wifeMode === 'floor';
-  stepSpring(k.light, lit && !(k.harmless && k.wifeMode === 'back') ? 1 : 0, 7, 0.85, dt);
+  if (crossed(FLICKER_AT)) {
+    // The first fake-out: one thump and the stair light stutters on, then off again.
+    thumpCeiling(k, 11);
+    k.events.flicker = true;
+  }
+  if (crossed(CREAK_AT)) k.events.creak = true;
+  if (crossed(MUG_AT)) {
+    // His elbow goes out: the scene cues the jab.
+    k.events.mug = true;
+    k.knockIn = MUG_LAG;
+  }
+  k.catAlert += ((m >= CREAK_AT && (live || k.crashed) ? 1 : 0) - k.catAlert) * (1 - Math.exp(-6 * dt));
+  const flick = live && m >= FLICKER_AT && m < FLICKER_AT + 0.08 ? (m - FLICKER_AT) / 0.08 : -1;
+  const lit = (drive.running && !k.crashed && m >= LIGHT_AT) || k.peek > 0.25 || k.wifeMode === 'down' || k.wifeMode === 'floor' || k.wifeMode === 'wait' || (k.wifeMode === 'check' && k.wifeGoal > 0);
+  if (flick >= 0) {
+    k.light.x = drive.reduced || flick < 0.18 || (flick > 0.34 && flick < 0.8) ? 0.85 : 0.06;
+    k.light.v = 0;
+  } else stepSpring(k.light, lit ? 1 : 0, 7, 0.85, dt);
 
-  if (drive.running && !k.crashed && drive.fear > 0.5) {
-    k.thumpClock += dt;
-    if (k.thumpClock > 1.55) {
-      k.thumpClock = 0;
-      k.thump = 1;
-      k.events.thump = true;
-      burst(k, 520, 70, 6, '#cabb9a', 50, mulberry32(Math.floor(drive.time * 10) + 3));
-      // Every thump from upstairs rattles the photo and whatever magnets have worked loose.
-      k.photo.tilt.v += 1.6;
-      for (const l of k.letters) if (l.loose > 0.2 && !l.fallen) l.sr.v += l.ch === 'W' ? -2.6 : 2.2;
+  if (live && m >= THUMPS_AT) {
+    // From 2.5x the ceiling thumps, closer together as the multiplier climbs.
+    k.thumpClock -= dt;
+    if (k.thumpClock <= 0) {
+      k.thumpClock = 1.9 - 0.8 * smoothstep(THUMPS_AT, 10, m);
+      thumpCeiling(k, Math.floor(m * 100));
     }
-  } else k.thumpClock = 0;
+  } else if (!live) k.thumpClock = 0;
+  k.lastM = m;
   stepFridge(k, drive, dt);
   stepCursor(k, drive, dt);
 
@@ -413,52 +510,35 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
     if (!(k.holding && (!line.her || line.at >= 10))) k.bubbles.push({ text: line.text, her: line.her, age: 0 });
     k.nextLine += 1;
     k.events.text = true;
+    if (line.her) k.events.her = true;
   }
   if (drive.running && !k.crashed && !drive.traderGone && k.nextLine === LINES.length) {
     k.textClock += dt;
     if (k.textClock >= 8) {
       k.textClock %= 8;
-      k.bubbles.push({ text: OVERTIME_TEXTS[k.overtimeLine % OVERTIME_TEXTS.length]!, her: k.overtimeLine % 2 === 0, age: 0 });
+      const her = k.overtimeLine % 2 === 0;
+      k.bubbles.push({ text: OVERTIME_TEXTS[k.overtimeLine % OVERTIME_TEXTS.length]!, her, age: 0 });
       k.overtimeLine += 1;
       k.events.text = true;
+      k.events.her = her;
     }
   }
   // Only the latest messages are drawn; old texts must not accumulate over long rounds.
   if (k.bubbles.length > 6) k.bubbles = k.bubbles.slice(-6);
   for (const b of k.bubbles) b.age += dt;
 
-  if (drive.running && !k.knocked && drive.multiplier >= 4) {
-    knockMug(k);
-    k.events.mug = true;
-  }
+  // The mug goes once his elbow lands; with him gone from the desk it slides off on its own.
+  k.knockIn = Math.max(0, k.knockIn - dt);
+  if (drive.running && !k.knocked && m >= MUG_AT && k.knockIn === 0) knockMug(k);
   dropMugs(k, dt);
 
   // Wife, suitcase, ring, card, cat, dog.
-  const wifeTarget = k.wifeMode === 'down' || k.wifeMode === 'floor' ? 448 : k.wifeMode === 'back' ? 16 : 86;
-  stepSpring(k.wifeY, wifeTarget, k.wifeMode === 'down' ? 4.5 : 3.2, 0.9, dt);
-  if (k.wifeMode !== 'asleep') k.wifeAge += dt;
-  if (k.wifeMode === 'down') {
-    // Her steps on the stairs, one every fifth of a second on the way down.
-    k.stepClock += dt;
-    if (k.stepClock > 0.2) {
-      k.stepClock = 0;
-      k.events.step = true;
-    }
-  }
-  if (k.wifeMode === 'down' && k.wifeY.x > 430) k.wifeMode = 'floor';
-  if (k.wifeMode === 'floor' && k.harmless && k.wifeAge > 1.35) k.wifeMode = 'back';
-  if (k.wifeMode === 'floor' && !k.harmless && !k.rolling && k.wifeAge > 0.35) {
-    k.rolling = true;
-    if (!k.ring.dropped) {
-      k.ring.dropped = true;
-      k.ring.x = 790;
-      k.ring.y = k.wifeY.x - 78;
-      k.ring.vx = -160;
-      k.ring.vy = -220;
-    }
-  }
+  stepWife(k, drive, dt);
+  if (k.wifeMode === 'floor' && !k.harmless && !k.rolling && k.wifeAge > 0.1) k.rolling = true;
   stepSpring(k.suitLid, k.rolling ? 0.72 : 0.08, 8, 0.7, dt);
-  if (k.rolling) k.suitX += 210 * dt;
+  // The suitcase gets going over a third of a second instead of leaving at full speed.
+  k.suitV = k.rolling ? k.suitV + (210 - k.suitV) * (1 - Math.exp(-6 * dt)) : 0;
+  k.suitX += k.suitV * dt;
   if (k.rolling && !k.doorDone && k.suitX > 940) {
     k.doorDone = true;
     k.events.door = true;
@@ -482,10 +562,11 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
   stepSpring(k.cardX, k.cardIn ? 688 : 980, 7, 0.85, dt);
 
   const catTarget = k.catInCase || (k.rolling && !k.harmless) ? { x: k.suitX + 30, y: 400 } : { x: 132, y: 332 };
-  k.catX += (catTarget.x - k.catX) * clamp(dt * 4, 0, 1);
-  k.catY += (catTarget.y - k.catY) * clamp(dt * 4, 0, 1);
+  const follow = 1 - Math.exp(-4 * dt);
+  k.catX += (catTarget.x - k.catX) * follow;
+  k.catY += (catTarget.y - k.catY) * follow;
   if (k.rolling && Math.hypot(k.catX - (k.suitX + 30), k.catY - 400) < 24) k.catInCase = true;
-  if (k.rolling) k.dogX += (k.suitX - 70 - k.dogX) * clamp(dt * 3, 0, 1);
+  if (k.rolling) k.dogX += (k.suitX - 70 - k.dogX) * (1 - Math.exp(-3 * dt));
 
   for (const bit of k.bits) {
     bit.age += dt;
@@ -494,6 +575,70 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
     bit.y += bit.vy * dt;
   }
   k.bits = k.bits.filter((bit) => bit.age < bit.life);
+}
+
+/** Seconds per tread: she storms down, checks more softly, and climbs back slower still. */
+const stepTime = (k: Kitchen): number => k.wifeMode === 'down' ? 0.17 : k.wifeMode === 'back' ? 0.24 : 0.2;
+
+/**
+ * Her stairs: each step plants for a moment, then drops onto the next tread, which is the stomp. Caught, she storms
+ * to the floor and flings the ring on the way; harmless, she waits for him to get upstairs, comes down three treads
+ * to look, and goes back up into the dark.
+ */
+function stepWife(k: Kitchen, drive: KitchenDrive, dt: number): void {
+  k.squash = Math.max(0, k.squash - dt / 0.07);
+  k.fling = Math.max(0, k.fling - dt / 0.35);
+  if (k.wifeMode === 'asleep') return;
+  k.wifeAge += dt;
+  if (k.wifeMode === 'wait') {
+    if (drive.traderUp !== true) return;
+    k.wifeMode = 'check';
+    k.wifeAge = 0;
+    k.wifeAt = k.wifeTo = 1;
+    k.wifeGoal = 3;
+  }
+  if (k.wifeMode === 'check' && k.wifeAt === 3 && k.wifeAge > 1.05) {
+    k.wifeMode = 'back';
+    k.wifeGoal = 0;
+  }
+  k.wifeAlpha += ((k.wifeMode === 'back' && k.wifeAt === 0 ? 0 : 1) - k.wifeAlpha) * (1 - Math.exp(-(k.wifeMode === 'down' ? 60 : 9) * dt));
+  k.wifeT += dt;
+  for (;;) {
+    if (k.wifeTo === k.wifeAt) {
+      if (k.wifeAt === k.wifeGoal) {
+        k.wifeT = 0;
+        break;
+      }
+      k.wifeTo = k.wifeAt + Math.sign(k.wifeGoal - k.wifeAt);
+    }
+    const pace = stepTime(k);
+    if (k.wifeT < pace) break;
+    k.wifeT -= pace;
+    k.wifeAt = k.wifeTo;
+    k.squash = 1;
+    k.events.step = true;
+    if (k.wifeMode === 'down' && k.wifeAt === 4 && !k.ring.dropped) {
+      // Halfway down she pulls the ring off and flings it at the table.
+      const hand = wifeFeet(k);
+      k.fling = 1;
+      k.ring = { x: hand.x - 14, y: hand.y - 62, vx: -230, vy: -260, dropped: true, settled: false };
+    }
+    if (k.wifeMode === 'down' && k.wifeAt === FLOOR) {
+      k.wifeMode = 'floor';
+      k.wifeAge = 0;
+    }
+  }
+  const lean = k.wifeTo === k.wifeAt ? 0 : -0.08 * Math.sign(k.wifeTo - k.wifeAt);
+  k.wifeLean += (lean - k.wifeLean) * (1 - Math.exp(-14 * dt));
+}
+
+/** Where her feet are: planted on a tread, or partway through the drop to the next (a fall on the way down, a push up on the way back). */
+function wifeFeet(k: Kitchen): { x: number; y: number } {
+  const a = TREADS[k.wifeAt]!;
+  const b = TREADS[k.wifeTo]!;
+  const u = clamp((k.wifeT / stepTime(k) - 0.45) / 0.55, 0, 1);
+  const e = b > a ? u * u : 1 - (1 - u) * (1 - u);
+  return { x: mix(treadX(k.wifeAt), treadX(k.wifeTo), u), y: mix(a, b, e) };
 }
 
 /** The photo and the magnets: they tilt and shiver with the fear, and the crash drops them one by one and spells NGMI. */
@@ -578,7 +723,8 @@ function stepCursor(k: Kitchen, drive: KitchenDrive, dt: number): void {
   k.sellFlash = Math.max(0, k.sellFlash - dt * 2.4);
   if (k.sell === 'idle') {
     const approach = drive.running ? smoothstep(0.08, 0.95, drive.fear) : 0;
-    const hover = approach * (0.8 + 0.2 * Math.sin(drive.time * (1.1 + approach * 1.6)));
+    k.hover += dt * (1.1 + approach * 1.6);
+    const hover = approach * (0.8 + 0.2 * Math.sin(k.hover));
     let tx = mix(CURSOR_HOME.x, SELL_CENTRE.x, hover);
     let ty = mix(CURSOR_HOME.y, SELL_CENTRE.y, hover);
     if (approach > 0.5 && !drive.reduced) {
@@ -587,6 +733,14 @@ function stepCursor(k: Kitchen, drive: KitchenDrive, dt: number): void {
     }
     stepSpring(k.cursor.x, tx, 3.5, 0.75, dt);
     stepSpring(k.cursor.y, ty, 3.5, 0.75, dt);
+  } else if (k.sell === 'aim' || k.sell === 'clicked') {
+    // The cash-out: it darts the last stretch to SELL, the screen flashes SOLD when it lands, and it settles there.
+    stepSpring(k.cursor.x, SELL_CENTRE.x + 8, 18, 0.8, dt);
+    stepSpring(k.cursor.y, SELL_CENTRE.y + 6, 18, 0.8, dt);
+    if (k.sell === 'aim' && Math.hypot(k.cursor.x.x - SELL_CENTRE.x - 8, k.cursor.y.x - SELL_CENTRE.y - 6) < 5) {
+      k.sell = 'clicked';
+      k.sellFlash = 1;
+    }
   } else if (k.sell === 'dead' && k.crashT < 3) {
     const jx = drive.reduced ? 0 : (noise(Math.floor(drive.time * 30)) - 0.5) * 5;
     const jy = drive.reduced ? 0 : (noise(Math.floor(drive.time * 26) + 3) - 0.5) * 4;
@@ -680,7 +834,20 @@ export function drawRoom(ctx: CanvasRenderingContext2D, k: Kitchen, time: number
     ctx.lineTo(960, y);
     ctx.stroke();
   }
-  const prints = Math.floor(k.peek * 6 + (k.wifeMode === 'asleep' ? 0 : 6));
+  // The landing light: a bare bulb at the top of the stairs (drawLight makes it glow).
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(BULB.x, BULB.y - 26);
+  ctx.lineTo(BULB.x, BULB.y - 6);
+  ctx.stroke();
+  ctx.fillStyle = '#4a4252';
+  ink(ctx, 2);
+  ctx.beginPath();
+  ctx.arc(BULB.x, BULB.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  const prints = Math.floor(k.peek * 6 + (k.wifeMode === 'asleep' || k.wifeMode === 'wait' ? 0 : 6));
   ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 2;
   for (let i = 0; i < prints; i += 1) {
@@ -712,10 +879,10 @@ export function drawRoom(ctx: CanvasRenderingContext2D, k: Kitchen, time: number
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  // Peek at the top of the stairs before she commits.
+  // Her peeks: two treads down in the stair light, leaning out to look at the laptop, before she commits.
   if (k.peek > 0.04 && k.wifeMode === 'asleep') {
-    ctx.globalAlpha = k.peek;
-    drawWife(ctx, 830, 168, 'peek', 0, false);
+    ctx.globalAlpha = clamp(k.peek * 1.4, 0, 1);
+    drawWife(ctx, treadX(2) + 18 * (1 - k.peek), TREADS[2], 'peek', true, 0, -0.22 * k.peek, 0);
     ctx.globalAlpha = 1;
   }
   // What the crash shook off the fridge lies on the floor in front of it.
@@ -823,9 +990,12 @@ function drawCursor(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   ctx.restore();
 }
 
-function drawWife(ctx: CanvasRenderingContext2D, x: number, y: number, mood: 'peek' | 'angry' | 'soft', bob: number, ringOn: boolean): void {
+/** Her, standing at her feet: `squash` is the landing of a stomp, `lean` tips her toward the kitchen, `fling` throws an arm out. */
+function drawWife(ctx: CanvasRenderingContext2D, x: number, y: number, mood: 'peek' | 'angry' | 'soft', ringOn: boolean, squash: number, lean: number, fling: number): void {
   ctx.save();
-  ctx.translate(x, y + bob);
+  ctx.translate(x, y);
+  ctx.rotate(lean);
+  ctx.scale(1 + 0.07 * squash, 1 - 0.1 * squash);
   ctx.fillStyle = '#f4eef8';
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.4;
@@ -867,14 +1037,17 @@ function drawWife(ctx: CanvasRenderingContext2D, x: number, y: number, mood: 'pe
     ctx.quadraticCurveTo(0, -72, 5, -76);
   }
   ctx.stroke();
-  // Arms crossed, ring still on until it drops.
+  // Arms crossed, ring still on until it drops; the fling throws one arm out toward the table.
   ctx.strokeStyle = SKIN_A;
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(-14, -70);
   ctx.lineTo(14, -58);
   ctx.moveTo(14, -70);
-  ctx.lineTo(-14, -58);
+  if (fling > 0) {
+    const f = Math.sin(Math.PI * Math.sqrt(1 - fling));
+    ctx.lineTo(mix(-14, -34, f), mix(-58, -80, f));
+  } else ctx.lineTo(-14, -58);
   ctx.stroke();
   if (ringOn) {
     ctx.fillStyle = '#e6c56a';
@@ -990,7 +1163,8 @@ function drawMug(ctx: CanvasRenderingContext2D, mug: Mug): void {
   ctx.restore();
 }
 
-function drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, time: number, lookAt: number): void {
+/** The cat: `alert` lifts the head toward the stairs, narrows the eyes and stiffens the tail. */
+function drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, time: number, lookAt: number, alert: number): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.fillStyle = '#6a6a72';
@@ -999,36 +1173,40 @@ function drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, time: numb
   ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  ctx.save();
+  ctx.translate(2 * alert, -5 * alert);
   ctx.beginPath();
   ctx.ellipse(18, -8, 10, 9, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  const ear = 3 * alert;
   ctx.beginPath();
   ctx.moveTo(12, -16);
-  ctx.lineTo(14, -24);
+  ctx.lineTo(14, -24 - ear);
   ctx.lineTo(18, -14);
   ctx.moveTo(20, -16);
-  ctx.lineTo(26, -24);
+  ctx.lineTo(26, -24 - ear);
   ctx.lineTo(24, -13);
   ctx.fill();
   ctx.stroke();
-  const pupil = clamp((lookAt - x) / 80, -1, 1);
+  const pupil = clamp((lookAt - x) / 80, -1, 1) + alert;
   ctx.fillStyle = '#d6f56a';
   ctx.beginPath();
-  ctx.ellipse(16 + pupil, -8, 2, 2.4, 0, 0, Math.PI * 2);
-  ctx.ellipse(22 + pupil, -8, 2, 2.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(16 + pupil, -8, 2, 2.4 - 0.8 * alert, 0, 0, Math.PI * 2);
+  ctx.ellipse(22 + pupil, -8, 2, 2.4 - 0.8 * alert, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
   ctx.strokeStyle = INK;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 + alert;
   ctx.beginPath();
   ctx.moveTo(-20, -2);
-  ctx.quadraticCurveTo(-34, -16 + Math.sin(time * 4) * 6, -26, 6);
+  ctx.quadraticCurveTo(mix(-34, -30, alert), mix(-16 + Math.sin(time * 4) * 6, -34, alert), mix(-26, -22, alert), mix(6, -30, alert));
   ctx.stroke();
   ctx.restore();
 }
 
 export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: number, time: number, dialogue = true): void {
-  if (!k.catInCase) drawCat(ctx, k.catX, k.catY, time, LAPTOP.x);
+  if (!k.catInCase) drawCat(ctx, k.catX, k.catY, time, LAPTOP.x, k.catAlert);
   const n = visibleMugs(multiplier);
   for (let i = 0; i < k.mugs.length; i += 1) {
     const mug = k.mugs[i]!;
@@ -1127,7 +1305,8 @@ function drawSuitcase(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   ctx.restore();
 }
 
-function drawDog(ctx: CanvasRenderingContext2D, x: number, time: number): void {
+/** The dog trots after the suitcase; its legs move with the ground it covers. */
+function drawDog(ctx: CanvasRenderingContext2D, x: number): void {
   ctx.save();
   ctx.translate(x, 456);
   ctx.fillStyle = '#c47a3a';
@@ -1144,20 +1323,22 @@ function drawDog(ctx: CanvasRenderingContext2D, x: number, time: number): void {
   for (const lx of [-10, -2, 6, 12]) {
     ctx.beginPath();
     ctx.moveTo(lx, -4);
-    ctx.lineTo(lx, 2 + Math.sin(time * 16 + lx) * 1.5);
+    ctx.lineTo(lx + Math.sin(x * 0.28 + lx) * 3, 2 - Math.max(0, Math.cos(x * 0.28 + lx)) * 2);
     ctx.stroke();
   }
   ctx.restore();
 }
 
-export function drawFront(ctx: CanvasRenderingContext2D, k: Kitchen, time: number): void {
-  drawSuitcase(ctx, k);
-  if (k.wifeMode !== 'asleep') {
-    const bob = k.wifeMode === 'down' ? Math.sin(k.wifeAge * 10) * 2 : 0;
-    const mood = k.harmless ? 'soft' : 'angry';
-    if (k.wifeY.x < 500 && !(k.wifeMode === 'back' && k.wifeY.x < 80)) drawWife(ctx, 812, k.wifeY.x, mood, bob, !k.ring.dropped);
+export function drawFront(ctx: CanvasRenderingContext2D, k: Kitchen): void {
+  if (k.wifeMode !== 'asleep' && k.wifeMode !== 'wait' && k.wifeAlpha > 0.02) {
+    // On the stairs, behind the suitcase at their foot. She leans into each drop and stands up straight on the floor.
+    const feet = wifeFeet(k);
+    ctx.globalAlpha = k.wifeAlpha;
+    drawWife(ctx, feet.x, feet.y, k.harmless ? 'soft' : 'angry', !k.ring.dropped, k.squash, k.wifeLean, k.fling);
+    ctx.globalAlpha = 1;
   }
-  if (k.rolling && k.dogX < 980) drawDog(ctx, k.dogX, time);
+  drawSuitcase(ctx, k);
+  if (k.rolling && k.dogX < 980) drawDog(ctx, k.dogX);
   if (k.ring.dropped) {
     ctx.save();
     ctx.translate(k.ring.x, k.ring.y);
@@ -1202,6 +1383,17 @@ export function drawFront(ctx: CanvasRenderingContext2D, k: Kitchen, time: numbe
 
 export function drawLight(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   if (k.light.x < 0.02) return;
+  const halo = ctx.createRadialGradient(BULB.x, BULB.y, 2, BULB.x, BULB.y, 70);
+  halo.addColorStop(0, `rgba(255, 226, 160, ${0.55 * k.light.x})`);
+  halo.addColorStop(1, 'rgba(255, 226, 160, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(BULB.x - 70, BULB.y - 70, 140, 140);
+  ctx.globalAlpha = k.light.x;
+  ctx.fillStyle = '#fff1c4';
+  ctx.beginPath();
+  ctx.arc(BULB.x, BULB.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
   const g = ctx.createLinearGradient(820, 80, 820, 480);
   g.addColorStop(0, `rgba(255, 206, 140, ${0.42 * k.light.x})`);
   g.addColorStop(1, 'rgba(255, 206, 140, 0)');

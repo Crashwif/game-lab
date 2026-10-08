@@ -1,7 +1,4 @@
-/**
- * Motion toolkit: exact damped springs, easing, deterministic noise and a seeded generator. Everything
- * is frame-rate independent: pass the real `dt` in seconds.
- */
+/** Motion toolkit: exact damped springs, easing, deterministic noise and a seeded generator. Pass the real `dt` in seconds. */
 
 export const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
 export const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -12,23 +9,16 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Hash noise in [0, 1): the same input always gives the same value. */
+/** Hash noise in [0, 1). */
 export const noise = (n: number): number => {
   const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
 };
 
-export interface Spring {
-  x: number;
-  v: number;
-}
-
+export interface Spring { x: number; v: number }
 export const spring = (x = 0): Spring => ({ x, v: 0 });
 
-/**
- * Moves a damped spring toward `target` by `dt` seconds with the closed-form solution of the oscillator, exact
- * for any step. `omega` is the angular frequency in rad/s; `zeta` the damping ratio (below 1 overshoots and rings).
- */
+/** Exact damped-spring step toward `target` for any `dt`: `omega` in rad/s, `zeta` the damping ratio (below 1 rings). */
 export function stepSpring(s: Spring, target: number, omega: number, zeta: number, dt: number): Spring {
   if (dt <= 0) return s;
   const x0 = s.x - target;
@@ -50,14 +40,14 @@ export function stepSpring(s: Spring, target: number, omega: number, zeta: numbe
   return s;
 }
 
-/** Jumps a spring to `target` at rest, for the first frame or a reset. */
+/** Jumps a spring to `target` at rest. */
 export function settleSpring(s: Spring, target: number): Spring {
   s.x = target;
   s.v = 0;
   return s;
 }
 
-/** A small deterministic generator (mulberry32), so a replayed crash falls the same way every time. */
+/** Seeded generator (mulberry32), so a replayed crash falls the same way. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {

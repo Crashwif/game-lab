@@ -21,10 +21,10 @@ import type { Environment, Renderer } from './render';
 /** Seconds from the crash: the wire snaps, the cut to the studio, the clapper, the moon tips, the rug, the flag. */
 export const SNAP = 0.25;
 export const CUT = 1.9;
-export const CLAP = CUT + 0.35;
-export const MOONED = CUT + 1.6;
-export const RUG = CUT + 2.8;
-export const CTO = CUT + 4.0;
+export const CLAP = CUT + 0.3;
+export const MOONED = CUT + 0.9;
+export const RUG = CUT + 1.8;
+export const CTO = CUT + 3.1;
 export const SETTLED = CUT + 5.2;
 
 export interface Crash {
@@ -82,7 +82,7 @@ export function stepCrash(crash: Crash, dt: number): void {
 }
 
 export const outside = (crash: Crash): boolean => crash.active && crash.age >= CUT;
-export const mooned = (crash: Crash): boolean => crash.active && crash.age >= MOONED + 0.45;
+export const mooned = (crash: Crash): boolean => crash.active && crash.age >= MOONED + 0.35;
 export const rugPulled = (crash: Crash): boolean => crash.active && crash.age >= RUG + 0.3;
 export const ctoUp = (crash: Crash): boolean => crash.active && crash.age >= CTO + 1.1;
 
@@ -128,8 +128,8 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
   const fallen = smoothstep(CUT + 0.5, CUT + 2.1, t) * 1.45;
   const cy: Vec3 = [0, Math.cos(fallen), -Math.sin(fallen)];
   const cz: Vec3 = [0, Math.sin(fallen), Math.cos(fallen)];
-  box(add([0, 0, -16], [cy[0] * 8, cy[1] * 8, cy[2] * 8]), [34, 16, 0.2], [0.03, 0.03, 0.09, 1], [[1, 0, 0], cy, cz]);
-  for (const star of crash.stars) r.sprite(add([star.x, 0, -15.85], [cy[0] * star.y, cy[1] * star.y, cy[2] * star.y]), star.size, [1, 1, 1, 0.9], 3);
+  box(madd([0, 0, -16], cy, 8), [34, 16, 0.2], [0.03, 0.03, 0.09, 1], [[1, 0, 0], cy, cz]);
+  for (const star of crash.stars) r.sprite(madd([star.x, 0, -15.85], cy, star.y), star.size, [1, 1, 1, 0.9], 3);
   // The earth: a floor cloth, dragged off by its corner once the rug goes.
   const drag = 40 * smoothstep(0, 2.2, t - RUG - 0.3);
   const rugAt: Vec3 = [1.2 + drag, 0.02, 2.2];
@@ -150,8 +150,7 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
       let boosters = 0;
       for (let k = 0; k < 4; k += 1) {
         const a = (k * Math.PI) / 2;
-        const off = add([wx[0] * Math.cos(a), wx[1] * Math.cos(a), wx[2] * Math.cos(a)], [wz[0] * Math.sin(a), wz[1] * Math.sin(a), wz[2] * Math.sin(a)]);
-        boosters = putInstance(m.booster, boosters, madd(wreckAt, off, 1.55 * ws), wx, wy, wz, [ws, ws, ws]);
+        boosters = putInstance(m.booster, boosters, madd(madd(wreckAt, wx, Math.cos(a) * 1.55 * ws), wz, Math.sin(a) * 1.55 * ws), wx, wy, wz, [ws, ws, ws]);
       }
       r.drawLit(m.booster, boosters);
     }
@@ -167,10 +166,9 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
   const wireTop: Vec3 = [nose[0], 30, nose[2]];
   const hang = (from: Vec3, to: Vec3, colour: [number, number, number, number]) => {
     const d = sub(to, from);
-    const len = Math.hypot(d[0], d[1], d[2]);
     const y = normalize(d);
     const x = normalize(cross(y, [0, 0, 1]));
-    box(madd(from, d, 0.5), [0.03, len, 0.03], colour, [x, y, cross(x, y)], [-1, 0.2, 0, 0]);
+    box(madd(from, d, 0.5), [0.03, Math.hypot(...d), 0.03], colour, [x, y, cross(x, y)], [-1, 0.2, 0, 0]);
   };
   hang(wireTop, madd(nose, [0.6, 0, 0.3], Math.sin(t) * 0.2), [0.92, 0.93, 0.98, 1]);
   const swing = Math.sin(t * 2.2) * 1.4 * Math.exp(-(t - CUT) * 0.25);
@@ -217,7 +215,7 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
     const ex = mx;
     const ey: Vec3 = [-mz[0], -mz[1], -mz[2]];
     const ez = my;
-    const onFace = (x: number, z: number, lift: number): Vec3 => add(add(moonAt, [mx[0] * x * 3.6, mx[1] * x * 3.6, mx[2] * x * 3.6]), add([mz[0] * z * 3.6, mz[1] * z * 3.6, mz[2] * z * 3.6], [my[0] * lift * 3.6, my[1] * lift * 3.6, my[2] * lift * 3.6]));
+    const onFace = (x: number, z: number, lift: number): Vec3 => madd(madd(madd(moonAt, mx, x * 3.6), mz, z * 3.6), my, lift * 3.6);
     for (const side of [-1, 1]) {
       discs = putInstance(m.disc, discs, onFace(side * 0.3, -0.16, 0.012), ex, ey, ez, [0.5, 0.58, 1], [1, 1, 1, 1], [-1, 0.1, 0, 0], [1, 0, 0, 0]);
       discs = putInstance(m.disc, discs, onFace(side * 0.3, -0.12, 0.014), ex, ey, ez, [0.22, 0.25, 1], [0.08, 0.06, 0.1, 1], [-1, 0, 0, 0], [1, 0, 0, 0]);
@@ -266,17 +264,17 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
     const from: Vec3 = [cartAt[0] - 2.2, 0.5, cartAt[2]];
     const to: Vec3 = [rugAt[0] + 4.6, 0.1, rugAt[2] + 1.2];
     const d = sub(to, from);
-    const len = Math.hypot(d[0], d[1], d[2]);
     const y = normalize(d);
     const x = normalize(cross(y, [0, 1, 0]));
-    box(madd(from, d, 0.5), [0.05, len, 0.05], [0.8, 0.7, 0.5, 1], [x, y, cross(x, y)]);
+    box(madd(from, d, 0.5), [0.05, Math.hypot(...d), 0.05], [0.8, 0.7, 0.5, 1], [x, y, cross(x, y)]);
   }
   const hop = clamp((t - (RUG - 0.55)) / 0.55, 0, 1);
-  const seat = add(chairAt, [cx[0] * 0 + czz[0] * 0.05, 1.05, czz[2] * 0.05]);
+  const seat = madd(add(chairAt, [0, 1.05, 0]), czz, 0.05);
   const ride: Vec3 = [cartAt[0] - 0.1, 1.0, cartAt[2]];
   const lizardAt = lerp3(seat, ride, hop);
   lizardAt[1] += Math.sin(hop * Math.PI) * 1.4;
-  const [lx, ly, lz] = hop < 0.5 ? [cx, cyy, czz] : [kx, ky, kz];
+  // Turns from the chair to the cart through the hop.
+  const [lx, ly, lz] = turned(-0.55 + (Math.PI / 2 + 0.55) * smoothstep(0, 1, hop));
   putInstance(m.lizard, 0, lizardAt, lx, ly, lz, [1.1, 1.1, 1.1], [1, 1, 1, 1], [FACE.lizard, 0, 0, 0]);
   r.drawLit(m.lizard, 1);
   if (cartTravel < 24) labels.push({ text: hop > 0.5 ? 'DEV (LEAVING)' : 'DEV', at: add(lizardAt, [0, 1.9, 0]), colour: '#c9f76b', size: 16 });
@@ -286,7 +284,7 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
   putInstance(m.clapper, 0, clapAt, bx, by, bz, [1.4, 1.4, 1.4]);
   r.drawLit(m.clapper, 1);
   const open = 0.55 * (1 - clamp(crash.clap.x, 0, 1.15));
-  const hinge = add(add(clapAt, [bx[0] * -0.91, bx[1] * -0.91, bx[2] * -0.91]), [by[0] * 0.7, by[1] * 0.7, by[2] * 0.7]);
+  const hinge = madd(madd(clapAt, bx, -0.91), by, 0.7);
   putInstance(m.stick, 0, madd(hinge, bz, 0.06), rotateAbout(bx, bz, open), rotateAbout(by, bz, open), bz, [1.4, 1.4, 1.4]);
   r.drawLit(m.stick, 1);
   box([clapAt[0], 1.3, clapAt[2]], [0.08, 2.6, 0.08], [0.2, 0.2, 0.22, 1]);

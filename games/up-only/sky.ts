@@ -20,8 +20,8 @@ export const BIRD_R = 22;
 export const CANDLE_W = 62;
 /** Where the shiba rests on the launchpad before the round. */
 export const PAD_Y = 396;
-/** How far past the right edge the chart is laid. */
-const AHEAD = 1400;
+/** How far past the right edge the chart is laid: just off screen, so a gap is cut for the multiplier it meets. */
+const AHEAD = 120;
 
 export interface Candle {
   /** The body's centre. */
@@ -65,6 +65,8 @@ export interface Bird {
   stun: number;
   /** After a hit nothing else counts for this long. */
   grace: number;
+  /** A flap pressed in the last moment of a spin, played as soon as it ends. */
+  queued: boolean;
   /** Seconds since the last flap, for the wing beat. */
   flapAge: number;
   wing: Spring;
@@ -117,36 +119,47 @@ export interface World {
   fud: number;
   /** The bot's next look at the chart, how late it reads it, and how long it is staring at its phone. */
   bot: { clock: number; late: number; blind: number };
+  /** The bot's own dice, so its polling never reshapes the course. */
+  botRand: () => number;
   events: WorldEvents;
 }
 
 export interface Drive {
   running: boolean;
+  /** The room's multiplier: the speed, and each new gap cut for the multiplier it will arrive at. */
   multiplier: number;
-  tension: number;
+  /** Seconds the round has run: with the multiplier, it gives the room's own pace, never a compiled-in curve. */
+  seconds?: number;
   /** The shiba is off the chart (on the jet, or fallen through the floor): no flaps, no pickups, no collisions. */
   off: boolean;
+  /** Off the chart but still in the air (the moments before the floor goes, or waiting for the jet): flaps and gravity only. */
+  glide?: boolean;
+  /** While gliding, the height he holds with flaps of his own, his wings damped, until the jet is under him. */
+  hover?: number;
 }
 
 const BASE_SPEED = 215;
 const SPEED_RISE = 0.5;
 export const MAX_SPEED = 520;
-const GRAVITY = 1650;
+export const GRAVITY = 1650;
 const FLAP_V = -470;
 const MAX_FALL = 720;
 const STUN_S = 0.45;
 const GRACE_S = 1;
 const HEAT_PER_HIT = 0.6;
 const HEAT_DECAY = 0.28;
+/** The collider: his head, where the eye goes, not the tips of the hat, the tail or the legs. */
+const HEAD = { x: 10, y: -6 };
+const HEAD_R = 18;
 
 const noEvents = (): WorldEvents => ({ coins: 0, value: 0, lambo: false, honey: false, magnet: false, rocket: false, flap: false, wick: false, floor: false, ceiling: false, fud: false, smash: false, streak: 0, spill: 0, expired: null });
 
-const makeBird = (): Bird => ({ y: PAD_Y, vy: 0, tilt: spring(0), stun: 0, grace: 0, flapAge: 9, wing: spring(0), wingLag: spring(0), feather: spring(0) });
+const makeBird = (): Bird => ({ y: PAD_Y, vy: 0, tilt: spring(0), stun: 0, grace: 0, queued: false, flapAge: 9, wing: spring(0), wingLag: spring(0), feather: spring(0) });
 
 export function createWorld(seed: number): World {
   const w: World = {
     time: 0, bird: makeBird(), candles: [], pickups: [], xNext: 0, lastGapY: 270, rand: mulberry32(seed), speed: spring(0), distance: 0,
-    bag: 0, streak: 0, heat: 0, magnet: 0, rocket: 0, fud: -1, bot: { clock: 0, late: 0, blind: 0 }, events: noEvents(),
+    bag: 0, streak: 0, heat: 0, magnet: 0, rocket: 0, fud: -1, bot: { clock: 0, late: 0, blind: 0 }, botRand: mulberry32(seed), events: noEvents(),
   };
   resetWorld(w, seed);
   return w;
@@ -155,6 +168,7 @@ export function createWorld(seed: number): World {
 /** A fresh chart for a new round: an open stretch off the launchpad, then the generator takes over. */
 export function resetWorld(w: World, seed: number): void {
   w.rand = mulberry32(seed);
+  w.botRand = mulberry32(seed ^ 0x5bd1e995);
   w.time = 0;
   w.bird = makeBird();
   w.candles = [];
@@ -178,13 +192,28 @@ export function resetWorld(w: World, seed: number): void {
 /** The speed the chart scrolls at for a multiplier: brisk at 1×, capped well before the number goes vertical. */
 export const speedFor = (multiplier: number): number => Math.min(MAX_SPEED, BASE_SPEED * (1 + SPEED_RISE * Math.log2(Math.max(1, multiplier))));
 
-/** Joins a round already running: the chart is up to speed and the shiba mid-flight. */
+/** Joins a round already running: the chart is up to speed, cut for this multiplier, and the shiba mid-flight. */
 export function settleRunning(w: World, multiplier: number, elapsedS: number): void {
   const v = speedFor(multiplier);
   settleSpring(w.speed, v);
   w.distance = elapsedS * v * 0.8;
   w.bird.y = 280;
+  w.candles = [];
+  w.pickups = [];
+  w.xNext = BIRD_X + 320;
+  while (w.xNext < W + AHEAD) lay(w, 1 - 1 / Math.max(1, multiplier));
 }
+
+/**
+ * How tight to cut a gap laid at `x`: the multiplier it will meet the shiba at if the round is still going, read
+ * off the room's public curve (its pace measured from the multiplier and the seconds run, x = 10^(pace·t)), never
+ * the crash point. 1.5× is 0.33, 2× 0.5, 3× 0.67. Before the pace can be measured it uses the multiplier now.
+ */
+const arrival = (w: World, drive: Drive, x: number): number => {
+  const eta = (x - BIRD_X) / Math.max(w.speed.x, speedFor(drive.multiplier) * 0.7, 1);
+  const pace = (drive.seconds ?? 0) > 0.5 && drive.multiplier > 1.001 ? Math.log10(drive.multiplier) / drive.seconds! : 0;
+  return 1 - 1 / (Math.max(1, drive.multiplier) * 10 ** (eta * pace));
+};
 
 // ---- The generator --------------------------------------------------------------------------------------
 
@@ -198,7 +227,7 @@ function pickup(w: World, kind: PickupKind, x: number, y: number): Pickup {
 function lay(w: World, tension: number): void {
   const r = w.rand;
   const x = w.xNext;
-  const gapH = mix(205, 140, tension) + (r() - 0.5) * 20;
+  const gapH = mix(205, 130, tension) + (r() - 0.5) * 20;
   const low = CEILING + 36 + gapH / 2;
   const high = FLOOR - 36 - gapH / 2;
   const gapY = clamp(w.lastGapY + (r() - 0.5) * 300, low, high);
@@ -302,7 +331,7 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
   w.candles = w.candles.filter((c) => c.x > -160);
   w.pickups = w.pickups.filter((p) => p.x > -60 && (!p.taken || p.age < 0.4));
   w.xNext -= move;
-  while (w.xNext < W + AHEAD) lay(w, drive.tension);
+  while (w.xNext < W + AHEAD) lay(w, drive.running ? arrival(w, drive, w.xNext) : 0);
 
   // Timers.
   b.stun = Math.max(0, b.stun - dt);
@@ -321,14 +350,30 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
   }
 
   const flying = drive.running && !drive.off;
-  if (flying) {
-    if (flaps > 0 && b.stun <= 0) {
+  const airborne = flying || drive.glide === true;
+  if (airborne) {
+    // A flap pressed in the last 0.12 s of a spin is kept and played the moment it ends.
+    if (flaps > 0 && b.stun > 0 && b.stun <= 0.12) b.queued = true;
+    if (!flying && drive.hover !== undefined && b.y > drive.hover && b.vy > -40) flaps = 1;
+    if ((flaps > 0 || b.queued) && b.stun <= 0) {
       b.vy = FLAP_V;
       b.flapAge = 0;
+      b.queued = false;
       e.flap = true;
     }
-    b.vy = Math.min(MAX_FALL, b.vy + GRAVITY * dt);
-    b.y += b.vy * dt;
+    if (!flying && drive.hover !== undefined) {
+      // Holding station for the jet: gravity against a damped beat (rate 8), stepped exactly.
+      const k = 8, terminal = GRAVITY / k, decay = Math.exp(-k * dt);
+      b.y += terminal * dt + ((b.vy - terminal) * (1 - decay)) / k;
+      b.vy = terminal + (b.vy - terminal) * decay;
+    } else {
+      // Exact for constant gravity, so a flap rises the same 67 px at any frame rate.
+      const v0 = b.vy;
+      b.vy = Math.min(MAX_FALL, v0 + GRAVITY * dt);
+      b.y += ((v0 + b.vy) / 2) * dt;
+    }
+  }
+  if (flying) {
     if (b.y + BIRD_R > FLOOR) {
       b.y = FLOOR - BIRD_R;
       if (b.vy > 0) b.vy = -380;
@@ -339,11 +384,12 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
       b.vy = Math.max(b.vy, 120);
       hit(w, 'ceiling');
     }
-    // A candle in the shiba's column, and the shiba outside its gap.
+    // A candle body touching his head: a circle of HEAD_R ahead of and above his centre, turning with the tilt.
+    const t = b.tilt.x, hx = BIRD_X + HEAD.x * Math.cos(t) - HEAD.y * Math.sin(t), hy = b.y + HEAD.x * Math.sin(t) + HEAD.y * Math.cos(t);
+    const touches = (top: number, bottom: number, cx: number) => Math.hypot(hx - clamp(hx, cx - CANDLE_W / 2, cx + CANDLE_W / 2), hy - clamp(hy, top, bottom)) < HEAD_R;
     for (const c of w.candles) {
-      if (c.hit || c.smashed || c.rugged >= 0 || Math.abs(c.x - BIRD_X) > CANDLE_W / 2 + BIRD_R * 0.8) continue;
-      const inside = b.y - BIRD_R * 0.75 > c.gapY - c.gapH / 2 && b.y + BIRD_R * 0.75 < c.gapY + c.gapH / 2;
-      if (inside) continue;
+      if (c.hit || c.smashed || c.rugged >= 0 || Math.abs(c.x - hx) > CANDLE_W / 2 + HEAD_R) continue;
+      if (!touches(CEILING, c.gapY - c.gapH / 2, c.x) && !touches(c.gapY + c.gapH / 2, FLOOR, c.x)) continue;
       if (w.rocket > 0) {
         c.smashed = true;
         c.hitAge = 0;
@@ -360,11 +406,21 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
       if (p.taken) continue;
       const coin = COIN_VALUE[p.kind] > 0;
       if (w.magnet > 0 && coin && p.x > BIRD_X - 20 && p.x < BIRD_X + 260) {
-        const k = Math.min(1, 8 * dt);
-        p.y += (b.y - p.y) * k;
-        p.x += (BIRD_X - p.x) * k * 0.5;
+        p.y += (b.y - p.y) * (1 - Math.exp(-8 * dt));
+        p.x += (BIRD_X - p.x) * (1 - Math.exp(-4 * dt));
       }
       if (Math.hypot(p.x - BIRD_X, p.y - b.y) < BIRD_R + 18) take(w, p);
+    }
+  } else if (drive.glide) {
+    // Nothing collides off the chart: the launchpad or the support holds him, the resistance caps him.
+    const ground = w.distance < 110 ? PAD_Y : FLOOR - BIRD_R;
+    if (b.y > ground) {
+      b.y = ground;
+      b.vy = Math.min(0, b.vy);
+    }
+    if (b.y < CEILING + BIRD_R) {
+      b.y = CEILING + BIRD_R;
+      b.vy = Math.max(0, b.vy);
     }
   } else if (!drive.running && !drive.off) {
     // On the launchpad: at rest, nose level.
@@ -378,27 +434,28 @@ export function stepWorld(w: World, flaps: number, drive: Drive, dt: number): vo
   stepSpring(b.wing, target, 38, .85, dt);
   stepSpring(b.wingLag, b.wing.x, 42, .9, dt);
   stepSpring(b.feather, b.wingLag.x, 36, .9, dt);
-  stepSpring(b.tilt, flying ? clamp(b.vy / 600, -0.5, 0.9) : 0, 9, 0.8, dt);
+  stepSpring(b.tilt, airborne ? clamp(b.vy / 600, -0.5, 0.9) : 0, 9, 0.8, dt);
 }
 
 // ---- The copy-trading bot --------------------------------------------------------------------------------
 
 /**
- * Flaps like a mid trader: it reads the next gap every twelfth of a second, aims for its middle a little
- * late, chases power-ups and coin arcs when the way is clear, hops over honeypots most of the time, and
- * every so often stares at its phone into a candle.
+ * Flaps like a mid trader: it reads the next gap fourteen times a second, aims the bottom of its hop a little
+ * under the middle and a little late, chases power-ups and coin arcs when the way is clear, hops over
+ * honeypots most of the time, and every so often stares at its phone into a candle. It rolls its own dice,
+ * so the course is the same whoever flaps and at any frame rate.
  */
 export function autopilot(w: World, dt: number): number {
   const b = w.bird;
   w.bot.clock -= dt;
   w.bot.blind = Math.max(0, w.bot.blind - dt);
   if (w.bot.clock > 0) return 0;
-  w.bot.clock = 0.085;
-  w.bot.late = w.rand() * 16;
+  w.bot.clock = 0.07;
+  w.bot.late = w.botRand() * 16;
   // Every so often it looks at its phone for a third of a second, which is how it meets a candle.
-  if (w.bot.blind <= 0 && w.rand() < 0.004) w.bot.blind = 0.35;
+  if (w.bot.blind <= 0 && w.botRand() < 0.004) w.bot.blind = 0.35;
   const next = w.candles.filter((c) => c.rugged < 0 && c.x + CANDLE_W / 2 > BIRD_X - 4).sort((a, c) => a.x - c.x)[0];
-  let target = next ? next.gapY : 260;
+  let target = next ? next.gapY + 16 : 260;
   const clear = !next || next.x - BIRD_X > 240;
   if (clear) {
     // Nothing to thread: take the richer of the coins and power-ups in reach.
@@ -406,7 +463,7 @@ export function autopilot(w: World, dt: number): number {
     if (near) target = near.y;
   }
   const honey = w.pickups.find((p) => !p.taken && p.kind === 'honey' && p.x > BIRD_X && p.x < BIRD_X + 170 && Math.abs(p.y - b.y) < 60);
-  if (honey && w.rand() < 0.8) target = Math.min(target, honey.y - 80);
+  if (honey && w.botRand() < 0.8) target = Math.min(target, honey.y - 80);
   target = clamp(target, CEILING + 60, FLOOR - 50);
   if (w.bot.blind > 0) return 0;
   return b.y > target + w.bot.late && b.vy > -90 ? 1 : 0;

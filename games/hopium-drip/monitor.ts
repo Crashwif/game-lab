@@ -5,7 +5,7 @@
  * Nothing here changes the outcome.
  */
 import { type Spring, clamp, mix, mulberry32, noise, settleSpring, spring, stepSpring } from './motion';
-import { INK } from './ward';
+import { INK, tensionAt } from './ward';
 
 export const PANEL = { x: 640, y: 0, w: 320, h: 540 } as const;
 const TRACE = { x: 656, y: 70, w: 288, h: 150 } as const;
@@ -61,8 +61,17 @@ export function resetMonitor(m: Monitor): void {
   m.charge = 0;
 }
 
-/** The heart rate the monitor heads for: resting, or racing with the tension while the round runs. */
-const targetBpm = (running: boolean, tension: number): number => (running ? 72 + 90 * tension + 40 * clamp(tension - 0.7, 0, 1) : 72);
+/** How long the crash scribbles before the long flat line. */
+const SCRIBBLE = 0.6;
+
+/**
+ * The heart rate the monitor heads for: resting, or racing while the round runs: fast through the early
+ * climb (about 102 at 1.5×, 117 at 2×, 133 at 3×), then on a slower log driver so long rounds keep climbing.
+ */
+const targetBpm = (running: boolean, multiplier: number): number => (running ? 72 + 80 * tensionAt(multiplier) + 50 * clamp(Math.log10(Math.max(1, multiplier)) / 3, 0, 1) : 72);
+
+/** A dose's multiplier short enough for a vial: 34, 1.8k, 12k, 1.8m, 126m, then powers of ten past a billion. */
+const short = (at: number): string => (at >= 1e9 ? `1e${Math.round(Math.log10(at))}` : at >= 1e6 ? `${(at / 1e6).toFixed(at < 1e7 ? 1 : 0)}m` : at >= 1000 ? `${(at / 1000).toFixed(at < 10000 ? 1 : 0)}k` : `${at}`);
 
 /** Takes every dose the multiplier has passed, the last one included; returns how many. */
 function takeDoses(m: Monitor, multiplier: number): number {
@@ -85,16 +94,16 @@ function doseProgress(m: Monitor, multiplier: number): number {
  * late: the screen opens on the beat rather than a flat line, and the milestones it missed are not replayed.
  */
 export function settleMonitor(m: Monitor, multiplier: number): void {
-  const tension = clamp(Math.log2(multiplier) / 3.3, 0, 1);
+  const tension = tensionAt(multiplier);
   takeDoses(m, multiplier);
   settleSpring(m.fill, doseProgress(m, multiplier));
-  settleSpring(m.bpm, targetBpm(true, tension));
+  settleSpring(m.bpm, targetBpm(true, multiplier));
   const speed = 90 + m.bpm.x * 0.6;
   const head = Math.floor(m.head);
   for (let i = 0; i < TRACE.w; i += 1) m.samples[(head + i) % TRACE.w] = traceSample(m, tension, speed);
 }
 
-/** The player was discharged: the monitor reads it and stops caring. */
+/** The player was discharged: the monitor reads it, the doses stop and the heart calms down. */
 export function dischargeMonitor(m: Monitor): void {
   m.discharged = true;
 }
@@ -130,7 +139,7 @@ function traceSample(m: Monitor, tension: number, speed: number): number {
     v = m.spike > 8 ? 1.25 : m.spike > 5 ? -0.55 : m.spike > 2 ? 0.2 : 0;
   } else if (m.flat) {
     const s = m.scribble;
-    v = m.flatAge < 0.9 && s.length ? s[Math.floor(noise(m.phase * 91) * s.length)]! * (1 - m.flatAge / 0.9) : 0;
+    v = m.flatAge < SCRIBBLE && s.length ? s[Math.floor(noise(m.phase * 91) * s.length)]! * (1 - m.flatAge / SCRIBBLE) : 0;
   } else {
     // P wave, QRS complex, T wave; taller and sharper with the tension.
     const amp = 0.5 + 0.5 * tension;
@@ -152,12 +161,12 @@ function traceSample(m: Monitor, tension: number, speed: number): number {
 export function stepMonitor(m: Monitor, drive: MonitorDrive, dt: number): boolean {
   m.time += dt;
   let reached = false;
-  stepSpring(m.bpm, m.flat ? 0 : targetBpm(drive.running, drive.tension), 3, 1, dt);
-  if (drive.running && !m.flat && takeDoses(m, drive.multiplier) > 0) {
+  stepSpring(m.bpm, m.flat ? 0 : targetBpm(drive.running && !m.discharged, drive.multiplier), 3, 1, dt);
+  if (drive.running && !m.flat && !m.discharged && takeDoses(m, drive.multiplier) > 0) {
     reached = true;
     m.pulse.v += 12;
   }
-  stepSpring(m.fill, m.flat ? 0 : doseProgress(m, drive.multiplier), 8, 0.9, dt);
+  stepSpring(m.fill, m.flat ? 0 : m.discharged ? m.fill.x : doseProgress(m, drive.multiplier), 8, 0.9, dt);
   stepSpring(m.pulse, 0, 10, 0.4, dt);
   if (m.flat) m.flatAge += dt;
   // Advance the trace: pixels per second scale with the beat so the shape stays readable.
@@ -172,11 +181,11 @@ export function stepMonitor(m: Monitor, drive: MonitorDrive, dt: number): boolea
   return reached;
 }
 
-function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'left', mono = false): void {
+function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, align: CanvasTextAlign = 'left', mono = false, maxWidth?: number): void {
   ctx.font = `700 ${size}px ${mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'system-ui, sans-serif'}`;
   ctx.textAlign = align; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = fill;
-  ctx.fillText(text, x, y);
+  ctx.fillText(text, x, y, maxWidth);
 }
 
 function readout(ctx: CanvasRenderingContext2D, x: number, y: number, title: string, value: string, unit: string, colour: string, blink: boolean): void {
@@ -190,21 +199,24 @@ function readout(ctx: CanvasRenderingContext2D, x: number, y: number, title: str
   label(ctx, unit, x + 14 + w, y + 50, 11, '#9aa7b5');
 }
 
-/** The monitor panel: the trace, the vitals, the dose ladder. */
-export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplier: number, tension: number, reduced: boolean): void {
+/** The monitor panel: the trace, the vitals, the dose ladder. `you` marks the bed as the player's. */
+export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplier: number, tension: number, reduced: boolean, you = false): void {
   ctx.save();
   ctx.fillStyle = '#0b1418';
   ctx.fillRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h);
   // Header.
   ctx.fillStyle = '#132027';
   ctx.fillRect(PANEL.x, PANEL.y, PANEL.w, 54);
-  const alarm = m.flat && !reduced ? Math.floor(m.time * 4) % 2 === 0 : false;
+  // Discharged before the rug: the leads are off and the flat line is nobody's.
+  const dodged = m.flat && m.discharged;
+  const alarm = m.flat && !dodged && !reduced ? Math.floor(m.time * 4) % 2 === 0 : false;
   const charging = m.flat && m.charge > 0.5;
-  ctx.fillStyle = charging ? '#e6a23c' : m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : tension > 0.7 ? '#e6a23c' : '#2e8b57';
+  const unstable = tension > 0.65;
+  ctx.fillStyle = charging ? '#e6a23c' : dodged ? '#2e8b57' : m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : unstable ? '#e6a23c' : '#2e8b57';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, 14, 92, 24, 5); ctx.fill();
-  label(ctx, charging ? 'CHARGING' : m.flat ? 'ASYSTOLE' : m.discharged ? 'DISCHARGED' : tension > 0.7 ? 'UNSTABLE' : 'MONITORING', PANEL.x + 60, 31, 11, '#ffffff', 'center');
-  label(ctx, 'bed 2 · $HOPE', PANEL.x + 14, 48, 10, '#c9d6dc');
-  label(ctx, `${multiplier.toFixed(2)}×`, PANEL.x + PANEL.w - 14, 32, 15, m.flat ? '#ff4d6d' : '#7cf67c', 'right', true);
+  label(ctx, charging ? 'CHARGING' : dodged ? 'DODGED' : m.flat ? 'ASYSTOLE' : m.discharged ? 'DISCHARGED' : unstable ? 'UNSTABLE' : 'MONITORING', PANEL.x + 60, 31, 11, '#ffffff', 'center');
+  label(ctx, you ? 'bed 2 · YOU' : 'bed 2 · $HOPE', PANEL.x + 14, 48, 10, you ? '#ffe27a' : '#c9d6dc');
+  label(ctx, `${multiplier.toFixed(2)}×`, PANEL.x + PANEL.w - 14, 32, 15, m.flat ? '#ff4d6d' : '#7cf67c', 'right', true, 190);
   // The trace screen.
   ctx.fillStyle = '#04100c';
   ctx.beginPath(); ctx.roundRect(TRACE.x, TRACE.y, TRACE.w, TRACE.h, 6); ctx.fill();
@@ -215,7 +227,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   for (let gy = 0; gy < TRACE.h; gy += 24) { ctx.beginPath(); ctx.moveTo(TRACE.x, TRACE.y + gy); ctx.lineTo(TRACE.x + TRACE.w, TRACE.y + gy); ctx.stroke(); }
   const mid = TRACE.y + TRACE.h * 0.62;
   const scale = TRACE.h * 0.42;
-  const colour = m.flat ? '#ff4d6d' : m.discharged ? '#8fd3ff' : '#7cf67c';
+  const colour = dodged || (m.discharged && !m.flat) ? '#8fd3ff' : m.flat ? '#ff4d6d' : '#7cf67c';
   ctx.strokeStyle = colour; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
   ctx.shadowColor = colour; ctx.shadowBlur = reduced ? 0 : 6;
   ctx.beginPath();
@@ -230,13 +242,14 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   // Sweep gap at the head.
   ctx.fillStyle = '#04100c';
   ctx.fillRect(TRACE.x + TRACE.w - 1, TRACE.y, 2, TRACE.h);
-  if (m.flat && m.flatAge > 0.9) {
-    ctx.fillStyle = alarm ? 'rgba(230, 57, 70, 0.18)' : 'rgba(230, 57, 70, 0.08)';
+  if (m.flat && m.flatAge > SCRIBBLE) {
+    ctx.fillStyle = dodged ? 'rgba(143, 211, 255, 0.08)' : alarm ? 'rgba(230, 57, 70, 0.18)' : 'rgba(230, 57, 70, 0.08)';
     ctx.fillRect(TRACE.x, TRACE.y, TRACE.w, TRACE.h);
+    const word = dodged ? 'LEADS OFF' : 'FLATLINE';
     ctx.font = '900 30px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
-    ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeText('FLATLINE', TRACE.x + TRACE.w / 2, TRACE.y + 44);
-    ctx.fillStyle = '#ff4d6d'; ctx.fillText('FLATLINE', TRACE.x + TRACE.w / 2, TRACE.y + 44);
-    label(ctx, 'beeeeep', TRACE.x + TRACE.w / 2, TRACE.y + TRACE.h - 16, 12, '#ff9db0', 'center', true);
+    ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeText(word, TRACE.x + TRACE.w / 2, TRACE.y + 44);
+    ctx.fillStyle = dodged ? '#8fd3ff' : '#ff4d6d'; ctx.fillText(word, TRACE.x + TRACE.w / 2, TRACE.y + 44);
+    label(ctx, dodged ? 'patient already discharged' : 'beeeeep', TRACE.x + TRACE.w / 2, TRACE.y + TRACE.h - 16, 12, dodged ? '#8fd3ff' : '#ff9db0', 'center', true);
   }
   // Scanline flicker.
   if (!reduced) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(TRACE.x, TRACE.y + ((m.time * 60) % TRACE.h), TRACE.w, 3); }
@@ -246,16 +259,16 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   // Vitals.
   const bpm = Math.round(m.bpm.x);
   const hopium = m.flat ? 0 : Math.round(clamp(1 - tension * 0.95, 0, 1) * 100);
-  const unstable = tension > 0.7 && !m.flat && !reduced ? Math.floor(m.time * 3) % 2 === 0 : false;
-  readout(ctx, PANEL.x + 14, 236, 'HEART', m.flat ? '0' : `${bpm}`, 'bpm', m.flat ? '#ff4d6d' : '#7cf67c', unstable || alarm);
-  readout(ctx, PANEL.x + 166, 236, 'HOPIUM', `${hopium}`, '%', hopium < 30 ? '#ffe27a' : '#8fd3ff', unstable && hopium < 30);
-  readout(ctx, PANEL.x + 14, 310, 'COPE', m.flat ? 'MAX' : `${Math.round(tension * 100)}`, m.flat ? '' : '%', '#ff9db0', false);
+  const blink = unstable && !m.flat && !m.discharged && !reduced ? Math.floor(m.time * 3) % 2 === 0 : false;
+  readout(ctx, PANEL.x + 14, 236, 'HEART', dodged ? '--' : m.flat ? '0' : `${bpm}`, 'bpm', m.flat && !dodged ? '#ff4d6d' : '#7cf67c', blink || alarm);
+  readout(ctx, PANEL.x + 166, 236, 'HOPIUM', `${hopium}`, '%', hopium < 30 ? '#ffe27a' : '#8fd3ff', blink && hopium < 30);
+  readout(ctx, PANEL.x + 14, 310, 'COPE', dodged ? '0' : m.flat ? 'MAX' : `${Math.round(tension * 100)}`, m.flat && !dodged ? '' : '%', '#ff9db0', false);
   readout(ctx, PANEL.x + 166, 310, 'DOSES', `${m.doseIndex}`, m.doseIndex >= DOSES.length ? 'refill' : `/ ${DOSES.length}`, '#c9a2ff', clamp(m.pulse.x, 0, 1) > 0.3);
   // Dose ladder.
   const fill = clamp(m.fill.x, 0, 1);
   ctx.fillStyle = '#132027';
   ctx.fillRect(PANEL.x, PANEL.h - 150, PANEL.w, 150);
-  label(ctx, m.flat ? 'DOSE DISCONTINUED' : m.discharged ? 'DISCHARGED · NO MORE DOSES' : Number.isFinite(m.goal) ? `NEXT DOSE AT ${m.goal.toFixed(1)}×` : 'MAX DOSE', PANEL.x + 14, PANEL.h - 122, 13, m.flat ? '#ff4d6d' : '#ffffff');
+  label(ctx, m.discharged ? 'DISCHARGED · NO MORE DOSES' : m.flat ? 'DOSE DISCONTINUED' : Number.isFinite(m.goal) ? `NEXT DOSE AT ${m.goal < 1e6 ? m.goal.toFixed(1) : short(m.goal)}×` : 'MAX DOSE', PANEL.x + 14, PANEL.h - 122, 13, m.flat && !dodged ? '#ff4d6d' : '#ffffff');
   label(ctx, `${Math.round(fill * 100)}%`, PANEL.x + PANEL.w - 14, PANEL.h - 122, 13, '#7cf67c', 'right', true);
   ctx.fillStyle = '#23343c';
   ctx.beginPath(); ctx.roundRect(PANEL.x + 14, PANEL.h - 108, PANEL.w - 28, 18, 9); ctx.fill();
@@ -272,15 +285,14 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
     const pulse = index === m.doseIndex - 1 ? clamp(m.pulse.x, 0, 1) : 0;
     ctx.save();
     ctx.translate(vx, PANEL.h - 52 - pulse * 6);
-    ctx.fillStyle = taken ? (m.flat ? '#7a1f28' : '#7cf67c') : '#23343c'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
+    ctx.fillStyle = taken ? (m.flat && !dodged ? '#7a1f28' : '#7cf67c') : '#23343c'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(-8, -18, 16, 30, 4); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#9aa7b5'; ctx.beginPath(); ctx.roundRect(-5, -24, 10, 7, 2); ctx.fill(); ctx.stroke();
     const at = doseAt(index);
-    const mark = at >= 1e6 ? `${(at / 1e6).toFixed(at < 1e7 ? 1 : 0)}m` : at >= 1000 ? `${(at / 1000).toFixed(at < 10000 ? 1 : 0)}k` : `${at}`;
-    label(ctx, `${mark}×`, 0, 28, 9, taken ? '#ffffff' : '#6b7a84', 'center', true);
+    label(ctx, `${short(at)}×`, 0, 28, 9, taken ? '#ffffff' : '#6b7a84', 'center', true);
     ctx.restore();
   }
-  label(ctx, m.flat ? 'nurse, the paperwork' : 'nurse, one more dose please', PANEL.x + 14, PANEL.h - 8, 10, '#6b7a84');
+  label(ctx, m.discharged ? 'nurse, he took profits' : m.flat ? 'nurse, the paperwork' : 'nurse, one more dose please', PANEL.x + 14, PANEL.h - 8, 10, '#6b7a84');
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.strokeRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h);
   ctx.restore();

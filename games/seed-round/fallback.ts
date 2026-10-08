@@ -28,7 +28,7 @@ function tadpole(ctx: CanvasRenderingContext2D, x: number, y: number, phase: num
   ctx.fill();
 }
 
-export function drawFallback(ctx: CanvasRenderingContext2D, multiplier: number, running: boolean, crashAge: number | null, time: number, banked: boolean): void {
+export function drawFallback(ctx: CanvasRenderingContext2D, multiplier: number, running: boolean, crashAge: number | null, time: number, banked: boolean, beanie: boolean): void {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#3a0716');
   g.addColorStop(0.5, '#8a1d3a');
@@ -51,13 +51,16 @@ export function drawFallback(ctx: CanvasRenderingContext2D, multiplier: number, 
   if (!banked) {
     const x = 380 + growth * 260 - (crashAge !== null ? smoothstep(0, 0.4, crashAge) * 30 : 0);
     tadpole(ctx, x, H / 2, time * 12, '#ffffff', 1.5);
-    ctx.fillStyle = '#d5fb6d';
-    ctx.beginPath();
-    ctx.arc(x, H / 2 - 8, 9, Math.PI, 0);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    // The beanie is yours only with a stake: a spectator follows a plain swimmer.
+    if (beanie) {
+      ctx.fillStyle = '#d5fb6d';
+      ctx.beginPath();
+      ctx.arc(x, H / 2 - 8, 9, Math.PI, 0);
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
   }
   if (crashAge !== null) {
     const k = smoothstep(0, 0.3, crashAge);

@@ -14,6 +14,9 @@ export function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Presentation tension from the displayed multiplier: 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×, 0.9 at 10×. */
+export const tensionAt = (multiplier: number): number => 1 - 1 / Math.max(1, multiplier);
+
 /** Hash noise in [0, 1): the same input always gives the same value. */
 export const noise = (n: number): number => fract(Math.sin(n * 12.9898 + 78.233) * 43758.5453);
 

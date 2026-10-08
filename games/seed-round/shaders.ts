@@ -27,6 +27,7 @@ uniform float uPulse;
 uniform float uBeat;
 uniform float uBulgeS;
 uniform float uBulge;
+uniform float uSqueeze;
 out vec3 vWorld;
 out vec3 vNormal;
 out float vS;
@@ -37,7 +38,8 @@ float wallRadius(float th, float s) {
   r *= 1.0 + 0.055 * sin(6.0 * th + 0.13 * s) + 0.035 * sin(11.0 * th - 0.21 * s + 1.7);
   r += 0.32 * sin(0.85 * s + 2.0 * th);
   float wave = pow(max(0.0, sin(uBeat - s * 0.045)), 6.0);
-  r *= 1.0 - uPulse * 0.07 * wave;
+  // The travelling contraction, and the whole bore clenching when the dev flinches.
+  r *= 1.0 - uPulse * 0.07 * wave - uSqueeze;
   r += uBulge * 7.0 * exp(-pow((s - uBulgeS) / 26.0, 2.0));
   return r;
 }
@@ -136,12 +138,11 @@ void main() {
   if (iParams.y > 0.0) {
     if (iMore.y < 0.5) {
       p.x += sin(w * 11.0 - iParams.x) * iParams.y * w;
-      if (w == 0.0) {
-        float yaw = sin(iParams.x) * iParams.y * 0.3;
-        mat2 r = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw));
-        p.xz = r * p.xz;
-        n.xz = r * n.xz;
-      }
+      // The head's yaw turns the whole body after the wave, so the neck stays joined to the tail root.
+      float yaw = sin(iParams.x) * iParams.y * 0.3;
+      mat2 r = mat2(cos(yaw), -sin(yaw), sin(yaw), cos(yaw));
+      p.xz = r * p.xz;
+      n.xz = r * n.xz;
     } else {
       p.y += sin(w * 3.2 - iParams.x) * iParams.y * w * w;
     }
@@ -156,7 +157,8 @@ void main() {
   vWorld = world.xyz;
   vNormal = normalize(mat3(m) * (n / s2));
   vColor = aColor;
-  vLocal = p;
+  // The undeformed position: the face and the print stay glued to the surface however it bends.
+  vLocal = aPosition;
   vPart = aExtra.y;
   vTint = iTint;
   vParams = iParams;

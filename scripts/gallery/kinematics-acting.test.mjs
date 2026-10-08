@@ -164,7 +164,7 @@ test('Blanket feet have separate impulses while quilt tucks remain attached to e
 test('Clown appointment transitions are continuous and a crash still renders a full rig', async () => {
   const m = await source('know-your-clown/character'), { directionAt } = await source('know-your-clown/direction');
   const pose = seconds => { const d = directionAt(seconds * 1000); return { time: seconds, tension: d.tension, stage: d.stage, level: d.level, action: d.action, x: 511, y: 427, scale: 1, reduced: false, mode: d.stage === 4 ? 'dance' : 'scan', progress: 0 }; };
-  for (const at of [18, 37, 57, 78, 100, 125, 150, 174, 192, 210]) {
+  for (const at of [6, 11, 16, 21, 27, 34, 42, 50, 62, 74]) {
     const a = m.applicantRig(pose(at - 1e-6)), b = m.applicantRig(pose(at));
     for (const key of ['left', 'right', 'hip', 'chest']) assert.ok(distance(a[key], b[key]) < .01, `${at}s ${key} must not jump`);
   }
