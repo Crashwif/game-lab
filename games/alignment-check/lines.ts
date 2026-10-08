@@ -27,7 +27,7 @@ export interface Line {
 
 /** rung = count of RUNGS at or under the displayed multiplier (0..12); the tables are indexed by rung. */
 export const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22, 30];
-export const CAPTIONS = ['ARE YOU ALIGNED', 'BOTH DAYS', 'LOYALTY IS A VESTING SCHEDULE', 'DIVERSIFIED', 'NINE MILITIAS', 'IS THAT MERCH', 'SOLD YOUR COIN AT THE TOP', 'RESPECTFULLY', 'CHAT SAYS NGMI', 'UNDER RISKS', 'LIQUIDATION PRICE: THIS ROOF', 'WHOEVER CATCHES ME', 'UP ONLY (ALLEGEDLY)'];
+export const CAPTIONS = ['ARE YOU ALIGNED', 'BOTH DAYS', 'LOYALTY IS VESTING', 'DIVERSIFIED', 'NINE MILITIAS', 'IS THAT MERCH', 'SOLD YOUR COIN AT THE TOP', 'RESPECTFULLY', 'CHAT SAYS NGMI', 'UNDER RISKS', 'LIQUIDATION PRICE: THIS ROOF', 'WHOEVER CATCHES ME', 'UP ONLY (ALLEGEDLY)'];
 export const ALIGNMENTS = ['LAWFUL GOOD', 'LAWFUL-ISH', 'TRUE NEUTRAL', 'CHAOTIC NEUTRAL', 'CHAOTIC LONG', 'LEVERAGED NEUTRAL', 'LAWFUL EVIL', 'CHAOTIC EVIL', 'CHAOTIC DEGEN', 'LONG BOTH SIDES', 'SHORT BOTH SIDES', 'ALIGNED WITH THE CHART', 'ALIGNED WITH GRAVITY'];
 /** LEDGE metres by rung (0 = on the coping, −0.3 = heels over). */
 export const LEDGES = [4, 3.7, 3.4, 3, 2.6, 2.2, 1.8, 1.4, 1, 0.6, 0.2, 0, -0.3];
@@ -63,6 +63,8 @@ export const LINES: Line[] = [
   { at: 30, who: 'suspect', text: 'gravity is just a bearish narrative. I’m up only.' },
   { at: 30, who: 'heavy', text: '…', delay: 0.9, tag: 'ellipsis' },
 ];
+/** The crash point under which the suspect never answers: the instant throw. */
+export const FIRST_ANSWER_X100 = Math.round(LINES[1]!.at * 100);
 /** Exchanges between the rungs. */
 export const EXTRAS: Line[] = [
   { at: 9.3, who: 'suspect', text: 'hold on, I’m up 4% on something', tag: 'phone' },
@@ -98,8 +100,8 @@ export const OVERTIME: Exchange[] = [
   { lines: [{ who: 'suspect', text: 'okay but what’s YOUR alignment?' }, { who: 'heavy', text: 'gravity.' }], caption: 'HIS ALIGNMENT: GRAVITY', alignment: 'GRAVITY (SOON)' },
   { lines: [{ who: 'lead', text: 'Same question. Are you aligned with us?' }, { who: 'suspect', text: 'aligned? bro, I’m basically a founding member' }], caption: 'FOUNDING MEMBER (AGAIN)', alignment: 'FOUNDING MEMBER' },
 ];
-/** −1 under 30x, then one exchange per ×1.85; reads the multiplier only. */
-export const overtimeIndex = (multiplier: number): number => (multiplier < 30 ? -1 : Math.floor(Math.log(multiplier / 30) / Math.log(1.85)));
+/** −1 under 55.5x (one ×1.85 past the 30x rung, so the ladder lands first), then one exchange per ×1.85; reads the multiplier only. */
+export const overtimeIndex = (multiplier: number): number => (multiplier < 55.5 ? -1 : Math.floor(Math.log(multiplier / 55.5) / Math.log(1.85)));
 
 /** Timed sets on a scene clock: `at` is seconds on it. */
 export type TimedLine = Line;
@@ -147,13 +149,11 @@ export interface Talk {
   aftermath: TimedLine[];
   /** No more ladder or overtime lines: escaped, or the crash has begun. */
   holding: boolean;
-  /** A suspect line has been said (false = an instant crash). */
-  spoke: boolean;
   last: Line | null;
   events: TalkEvents;
 }
 
-const blank = (): Talk => ({ bubbles: [], next: 0, pending: [], overtimeK: -1, escape: [], aftermath: [], holding: false, spoke: false, last: null, events: { said: [] } });
+const blank = (): Talk => ({ bubbles: [], next: 0, pending: [], overtimeK: -1, escape: [], aftermath: [], holding: false, last: null, events: { said: [] } });
 export const createDialogue = (): Talk => blank();
 export function resetDialogue(t: Talk): void {
   Object.assign(t, blank());
@@ -178,7 +178,6 @@ export function say(t: Talk, who: Who, text: string, life = LIFE[who], tag?: Lin
   const line: Line = { at: 0, who, text };
   if (tag) line.tag = tag;
   t.last = line;
-  if (who === 'suspect') t.spoke = true;
   return line;
 }
 /** The grab or a reset. */
@@ -254,7 +253,6 @@ export function stepDialogue(t: Talk, drive: TalkDrive, dt: number): void {
 export function settleDialogue(t: Talk, multiplier: number, escaped: boolean): void {
   while (t.next < SCRIPT.length && multiplier >= SCRIPT[t.next]!.at) t.next += 1;
   t.overtimeK = overtimeIndex(multiplier);
-  t.spoke = SCRIPT.slice(0, t.next).some((l) => l.who === 'suspect');
   t.holding = escaped;
   t.pending = [];
   if (escaped) return;

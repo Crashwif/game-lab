@@ -55,9 +55,6 @@ export interface City {
   headlights: { x: number; y: number; speed: number }[];
   canyonPigeon: { x: number; y: number; t: number } | null;
   pigeonClock: number;
-  /** Offscreen strips; null without a 2D context. */
-  facades: { ours: HTMLCanvasElement | null; across: HTMLCanvasElement | null };
-  cacheTried: boolean;
   vignettes: Vignette[];
   burst: { floor: number; fired: boolean; birds: Bird[] };
   litBoost: number;
@@ -104,7 +101,7 @@ export function createCity(): City {
   for (let i = 0; i < 48; i += 1) stars.push({ x: rand() * 960, y: rand() * 300, r: 1 + Math.round(rand()), seed: rand() });
   const far = towers(22, 24, 70, 200, 318, 11, -40);
   const mid: Tower[] = [{ x: -30, w: 120, top: 326, seed: 0 }, { x: 105, w: 200, top: 366, seed: 1 }, ...towers(7, 60, 140, 290, 420, 23, 318).map((t, i) => ({ ...t, seed: i + 2 }))];
-  return { stars, far, mid, farCells: cells(far, 6, 7, 3, 6, 31), midCells: cells(mid, 9, 10, 5, 12, 37), headlights: [{ x: 760, y: 508, speed: 1 }, { x: 830, y: 530, speed: -1 }, { x: 870, y: 514, speed: 1.3 }, { x: 790, y: 524, speed: -0.8 }, { x: 890, y: 534, speed: -1.1 }], facades: { ours: null, across: null }, cacheTried: false, mastPhase: 0, flicker: 0, ...volatile() };
+  return { stars, far, mid, farCells: cells(far, 6, 7, 3, 6, 31), midCells: cells(mid, 9, 10, 5, 12, 37), headlights: [{ x: 760, y: 508, speed: 1 }, { x: 830, y: 530, speed: -1 }, { x: 870, y: 514, speed: 1.3 }, { x: 790, y: 524, speed: -0.8 }, { x: 890, y: 534, speed: -1.1 }], mastPhase: 0, flicker: 0, ...volatile() };
 }
 /** The betting edge; geometry and caches stay. */
 export function resetCity(c: City): void {
@@ -470,10 +467,12 @@ function paintStrip(g: Ctx, s: Strip): void {
   }
   R(g, s === OURS ? '#15141a' : '#0b0e20', s === OURS ? s.w - 6 : 0, 0, 6, s.h);
 }
+/** The offscreen strips, shared by every scene; null without a 2D context. */
+let STRIPS: { ours: HTMLCanvasElement | null; across: HTMLCanvasElement | null } | null = null;
 /** Blits a strip at its world origin, building the caches on the first call. */
-function facade(ctx: Ctx, c: City, which: 'ours' | 'across'): void {
-  if (!c.cacheTried) {
-    c.cacheTried = true;
+function facade(ctx: Ctx, which: 'ours' | 'across'): void {
+  if (!STRIPS) {
+    STRIPS = { ours: null, across: null };
     try {
       for (const [key, strip] of [['ours', OURS], ['across', THEIRS]] as const) {
         const cv = document.createElement('canvas');
@@ -482,17 +481,17 @@ function facade(ctx: Ctx, c: City, which: 'ours' | 'across'): void {
         const g = cv.getContext('2d');
         if (g) {
           paintStrip(g, strip);
-          c.facades[key] = cv;
+          STRIPS[key] = cv;
         }
       }
     } catch {
-      c.facades.ours = c.facades.across = null;
+      STRIPS.ours = STRIPS.across = null;
     }
   }
   const strip = which === 'ours' ? OURS : THEIRS;
   const ox = which === 'ours' ? 0 : ACROSS.x;
   const oy = which === 'ours' ? 540 : ACROSS.top;
-  const img = c.facades[which];
+  const img = STRIPS[which];
   if (img) ctx.drawImage(img, ox, oy);
   else R(ctx, strip.wall, ox, oy, strip.w, strip.h);
 }
@@ -502,7 +501,7 @@ export function drawStreet(ctx: Ctx, c: City, cam: Camera, time: number): void {
   const A = ACROSS;
   ctx.save();
   layer(ctx, cam, LAYERS.across);
-  facade(ctx, c, 'across');
+  facade(ctx, 'across');
   R(ctx, '#181d3a', A.x, A.top, A.w, 12);
   R(ctx, '#262c52', A.x, A.top, A.w, 3);
   R(ctx, '#1e2446', A.x + 44, A.top - 14, 30, 16);
@@ -575,7 +574,7 @@ export function drawFacades(ctx: Ctx, c: City, cam: Camera, time: number): void 
   layer(ctx, cam, LAYERS.near);
   if (cam.y < 1) R(ctx, OURS.wall, 0, 540, OURS.w, 40);
   else {
-    facade(ctx, c, 'ours');
+    facade(ctx, 'ours');
     for (const v of c.vignettes) vignette(ctx, v, time);
     for (const b of c.burst.birds) bird(ctx, b.x, b.y, Math.sin(time * 60 + b.x), b.vx < 0 ? -1 : 1);
   }

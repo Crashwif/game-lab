@@ -39,7 +39,7 @@ export const BUILDS: Record<'lead' | 'heavy' | 'suspect', Build> = {
   suspect: { height: 180, shoulder: 32, neck: 9, headR: 23, limb: 12, upper: 34, lower: 32, thigh: 42, shin: 40, torso: 50, hip: 14 },
 };
 
-export type FlashlightMode = 'off' | 'hip' | 'face' | 'side' | 'lens' | 'dropped' | 'down';
+export type FlashlightMode = 'off' | 'hip' | 'face' | 'side' | 'dropped' | 'down';
 export type ClipboardMode = 'hand' | 'gravel' | 'over' | 'gone';
 export type Grip = 'folded' | 'gum' | 'knuckles' | 'fists' | 'gloves' | 'roll' | 'step' | 'shoulder' | 'threat' | 'hood' | 'both' | 'coil';
 export const GRIP_BY_RUNG: Grip[] = ['folded', 'gum', 'gum', 'knuckles', 'fists', 'gloves', 'roll', 'step', 'shoulder', 'threat', 'hood', 'both', 'coil'];
@@ -149,6 +149,7 @@ export interface Thrown {
   relic: 0 | 1;
   gone: { beanie: boolean; phone: boolean; shades: boolean; croc0: boolean; croc1: boolean };
     hx: number;
+  gx: number;
   fromY: number;
   head: Joint;
 }
@@ -409,7 +410,7 @@ export function stepCrew(c: Crew, drive: CrewDrive, dt: number): void {
     }
   }
   s.escapeT = drive.escapeT;
-  if (drive.escapeT >= 0 && s.mode !== 'gone' && !c.thrown) {
+  if (drive.escapeT >= 0 && !c.thrown) {
     const t = drive.escapeT;
     if (s.mode === 'roof') {
       s.mode = 'escape';
@@ -423,7 +424,7 @@ export function stepCrew(c: Crew, drive: CrewDrive, dt: number): void {
       lead.coinT = heavy.coinT = 0;
       ev.drops.push({ kind: 'flashlight', x: lead.x + 60, y: lead.feetY - 120, vx: -40, vy: 40, spin: 4, mode: 'skid' });
     }
-    if (t >= 0.25) {
+    if (t >= 0.25 && s.mode === 'escape') {
       if (s.run === 0) {
         ev.hop = true;
         ev.stomp = Math.max(ev.stomp, 0.4);
@@ -435,15 +436,14 @@ export function stepCrew(c: Crew, drive: CrewDrive, dt: number): void {
     }
     if (t >= 0.5 && !s.hood) s.hood = ev.hoodUp = true;
     if (t >= 0.6 && lead.coin === 'diving') lead.coin = 'caught';
-    if (t >= 1.45) {
+    if (t >= 1.45 && s.mode === 'escape') {
       s.mode = 'gone';
       ev.gone = true;
     }
     if (t >= 2.2 && lead.coin === 'caught') lead.coin = 'looking';
-    if (t >= 3.5 && lead.clipboard === 'gravel') {
-      lead.clipboard = 'hand';
+    if (t >= 3.5 && lead.coin === 'looking') {
       lead.coin = 'pocketed';
-      ev.pickup = true;
+      if (lead.clipboard === 'gravel') { lead.clipboard = 'hand'; ev.pickup = true; }
     }
     if (t >= 3.6 && heavy.coin !== 'pocketed') {
       heavy.coin = 'pocketed';
@@ -464,7 +464,6 @@ export function stepCrew(c: Crew, drive: CrewDrive, dt: number): void {
       ev.heave = true;
       ev.drops.push({ kind: 'clipboard', x: heavy.x + 60, y: heavy.feetY - 180, vx: 260, vy: -220, spin: 7, mode: 'over' });
     }
-    heavy.lean = clamp((t - 1.4) / 0.5, 0, 1) * 0.8;
     if (t >= 2.4 && heavy.shrug === 0) {
       heavy.shrug = 0.001;
       ev.shrug = true;
@@ -492,7 +491,7 @@ function stepThrown(c: Crew, drive: CrewDrive, dt: number): void {
   const was = th.phase;
   th.phase = t < T.load ? 'grab' : t < T.hitstop ? 'load' : t < T.release ? 'heave' : t < T.apex ? 'arc' : t < T.cut ? 'fall' : 'gone';
   if (was !== th.phase) {
-    if (th.phase === 'load') ev.load = true;
+    if (was === 'grab') ev.load = true;
     if (th.phase === 'heave') ev.hitstop = true;
     if (th.phase === 'arc') ev.release = true;
     if (th.phase === 'fall') ev.apex = true;
@@ -504,7 +503,7 @@ function stepThrown(c: Crew, drive: CrewDrive, dt: number): void {
   }
   if (th.phase === 'grab' || th.phase === 'load') {
     const u = clamp(t / T.hitstop, 0, 1);
-    th.x = mix(th.hx + 60, th.hx + 40, u);
+    th.x = mix(th.gx, th.hx + 40, u);
     th.y = mix(th.fromY - 88, 340, u);
     th.rot = -0.5 * smoothstep(T.load, T.hitstop, t);
     th.vx = th.vy = 0;
@@ -561,6 +560,7 @@ function stepThrown(c: Crew, drive: CrewDrive, dt: number): void {
   const lean = clamp((t - T.back) / 0.3, 0, 1);
   c.heavy.lean = after >= 5.5 ? lean * mix(1, 0.35, clamp((after - 5.5) / 0.4, 0, 1)) : lean;
   c.lead.lean = after >= 4.2 ? lean * (1 - clamp((after - 4.2) / 0.6, 0, 1)) : lean;
+  if (t >= T.back) c.lead.flashlight = 'down';
 }
 
 /** The seeded throw: spin, drift, flail, release times, the relic croc. Idempotent. */
@@ -572,11 +572,11 @@ export function beginThrow(c: Crew, seed: number, instant: boolean): void {
   s.mode = 'thrown';
   s.feetY = SUSPECT_REST.feetY;
   const sign = rand() > 0.5 ? 1 : -1;
-  c.thrown = { seed, instant, times: throwTimes(instant), x: s.x, y: fromY - 88, vx: 0, vy: 0, rot: 0, spin: sign * (2.5 + rand() * 3), drift: 20 + rand() * 30, flail: rand() * TAU, phase: 'grab', release: { beanie: 0.3 + rand() * 0.4, phone: 0.6 + rand() * 0.4, croc: 0.05 }, relic: rand() > 0.5 ? 1 : 0, gone: { beanie: false, phone: false, shades: false, croc0: false, croc1: false }, hx: c.heavy.x, fromY, head: { x: s.x, y: fromY - 158 } };
+  c.thrown = { seed, instant, times: throwTimes(instant), x: s.x, y: fromY - 88, vx: 0, vy: 0, rot: 0, spin: sign * (2.5 + rand() * 3), drift: 20 + rand() * 30, flail: rand() * TAU, phase: 'grab', release: { beanie: 0.3 + rand() * 0.4, phone: 0.6 + rand() * 0.4, croc: 0.05 }, relic: rand() > 0.5 ? 1 : 0, gone: { beanie: false, phone: false, shades: false, croc0: false, croc1: false }, hx: c.heavy.x, gx: s.sk.pelvis.x, fromY, head: { x: s.x, y: fromY - 158 } };
   c.lead.flashlight = 'side';
   setGrip(c.heavy, 'both');
 }
-/** The cash-out: live it runs on drive.escapeT; quiet settles it. */
+/** The cash-out; quiet settles it. */
 export function escapeCrew(c: Crew, seed: number, quiet: boolean): void {
   const s = c.suspect;
   if (!quiet) {
@@ -602,13 +602,13 @@ export function beginHeave(c: Crew): void {
 export interface CrewSettle { multiplier: number; rung: number; tension: number; running: boolean; escaped: boolean; overtime: number }
 /** A fresh scene mid-round: everything by rung, no events. */
 export function settleCrew(c: Crew, settle: CrewSettle): void {
-  c.events = noEvents();
   applyRung(c, settle.rung, false);
   c.events = noEvents();
   const { lead, heavy, suspect: s } = c;
   if (settle.running) lead.flashlight = settle.rung >= 5 ? 'face' : 'hip';
   settleSpring(lead.heat, settle.escaped ? settle.tension * 0.3 : settle.tension);
   settleSpring(heavy.heat, lead.heat.x);
+  if (lead.heat.x > 0.8) lead.steamClock = 0.01;
   settleSpring(s.confidence, settle.escaped ? 0 : settle.tension);
   settleSpring(s.ledge, LEDGES[clamp(settle.rung, 0, 12)]!);
   const onCap = s.stance === 'sit' || s.stance === 'cap' || s.stance === 'heels';
@@ -680,7 +680,6 @@ export function beamFor(c: Crew, time: number): Beam | null {
   const heat = clamp(c.lead.heat.x, 0, 1);
   const jitter = heat > 0.6 ? (noise(Math.floor(time * 30)) - 0.5) * 6 : 0;
   if (m === 'down') return { from: a.leadHand, to: { x: 780, y: 900 }, width: 60, alpha: 0.12 };
-  if (m === 'lens') return { from: a.leadHand, to: { x: 480, y: 700 }, width: 400, alpha: 0.2 };
   if (m === 'side') return { from: a.leadHand, to: { x: a.leadHand.x + 30, y: 470 }, width: 30, alpha: 0.08 };
   const target = a.suspectHead ?? { x: 700, y: 420 };
   const raise = raiseFor(c.lead);
@@ -921,7 +920,7 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
   p.head = clamp(m.kick.x, -3, 3) * 0.04 + (lead ? 0 : 0.17 * heat);
   if (lead) {
     const fl = m.flashlight;
-    const flHand = fl === 'dropped' ? hang : fl === 'side' ? J(8, 56) : fl === 'lens' ? J(hw + 16, -8) : fl === 'down' ? J(hw + 44, 24) : mixJ(J(hw + 6, 46), J(hw + 34, -2), raiseFor(m));
+    const flHand = fl === 'dropped' ? hang : fl === 'side' ? J(8, 56) : fl === 'down' ? J(hw + 44, 24) : mixJ(J(hw + 6, 46), J(hw + 34, -2), raiseFor(m));
     const board = m.clipboard === 'hand';
     p = H(p, board ? J(hw * 0.7, 26) : hang, flHand, false, false, board ? 0 : 0.5, fl === 'dropped' ? 0.5 : 0);
     const jab = clamp(m.jab.x / 0.3, 0, 1);
@@ -960,15 +959,15 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
       p = mixP(p, { ...H(p, J(hw + 8 + press * 4, 38), J(hw - 10, 40), false, false, 0, 1), head: p.head - 0.25 * press }, smoothstep(0, 0.12, m.crackT) * smoothstep(0.6, 0.48, m.crackT));
     }
     if (m.coin === 'diving') {
-      const kneel = m.coinT < 2.2 ? smoothstep(0, 0.3, m.coinT) * (1 - Math.abs(Math.sin((m.coinT / 1.7) * TAU)) * 0.3) : 0;
+      const kneel = smoothstep(0, 0.3, m.coinT) * (1 - smoothstep(1.8, 2.2, m.coinT)) * (1 - Math.abs(Math.sin((m.coinT / 1.7) * TAU)) * 0.3);
       p = mixP(p, { ...H(p, J(hw + 20, 96), J(hw + 34, 100), false, false, 1, 1), pelvisY: p.pelvisY * 0.45, spine: 0.9, head: 0.3, feet: [J(-34, 0), J(10, 0)] }, kneel);
     } else if (m.coin === 'pocketed' && m.coinT < 0.6) p = H(p, p.hands[0], J(2, 52), false, false, 0, 0);
     if (c.harmless && m.clipboard === 'hand') {
       const wind = clamp((drive.harmlessT - 0.7) / 0.4, 0, 1);
       p = mixP(H(p, p.hands[0], J(hw + 10, 30), false, false, 0, 0), { ...H(p, p.hands[0], J(-hw - 10, -30), false, false, 0, 0), spine: -0.3 }, wind);
-    } else if (c.harmless && drive.harmlessT >= 1.1 && drive.harmlessT < 1.5) {
-      const u = (drive.harmlessT - 1.1) / 0.4;
-      p = { ...H(p, p.hands[0], J(hw + 60, -40 + 60 * u), false, false, 0, 0), spine: 0.5 * u, pelvisX: 12 * u };
+    } else if (c.harmless && drive.harmlessT >= 1.1 && drive.harmlessT < 1.9) {
+      const u = clamp((drive.harmlessT - 1.1) / 0.4, 0, 1);
+      p = mixP(p, { ...H(p, p.hands[0], J(hw + 60, -40 + 60 * u), false, false, 0, 0), spine: 0.5 * u, pelvisX: 12 * u }, smoothstep(1.9, 1.5, drive.harmlessT));
     }
     if (m.shrug > 0) {
       const a = m.shrug < 0.28 ? m.shrug / 0.28 : m.shrug < 0.68 ? 1 : 1 - (m.shrug - 0.68) / 0.32;

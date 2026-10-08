@@ -6,7 +6,7 @@
 import { actAt, drawAct } from './acts';
 import { type Effect, pageAudio } from './audio';
 import { cameraFor, type City, crashCity, createCity, drawFacades, drawInsert, drawSearchlight, drawSky, drawSkyline, drawStreet, floorAt, resetCity, settleCity, stepCity } from './city';
-import { ALIGNMENTS, CAPTIONS, OVERTIME, RUNGS, THROW_LINES, type Talk, type Who, beginAftermath, beginEscapeLines, clearBubbles, createDialogue, drawBubbles, floorText, ledgeText, memeText, resetDialogue, say, settleAftermathLines, settleDialogue, stepDialogue } from './lines';
+import { ALIGNMENTS, CAPTIONS, FIRST_ANSWER_X100, OVERTIME, RUNGS, THROW_LINES, type Talk, type Who, beginAftermath, beginEscapeLines, clearBubbles, createDialogue, drawBubbles, floorText, ledgeText, memeText, resetDialogue, say, settleAftermathLines, settleDialogue, stepDialogue } from './lines';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { createPortrait, isPortrait } from './portrait';
 import { type Roof, crashRoof, createRoof, drawAir, drawBeam, drawFlash, drawRoofBack, drawRoofFront, escapeRoof, resetRoof, settleAftermath, settleRoof, spawnLoose, stepRoof } from './roof';
@@ -162,11 +162,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const seed = view.currentX100;
     const harmless = secured !== null;
     outcome = view.stake === null ? 'spectator' : harmless ? 'called' : 'rekt';
-    instant = !harmless && !talk.spoke;
+    instant = !harmless && view.currentX100 < FIRST_ANSWER_X100;
     crashT = 0;
     crashCity(city, seed);
     crashRoof(roof, seed, harmless);
-    clearBubbles(talk);
     if (harmless) {
       if (quiet) {
         harmlessT = 10;
@@ -177,13 +176,14 @@ export function createScene(options: SceneOptions = {}): Scene {
         stamp = true;
         muted = true;
         cues.length = 0;
-        audio.crash('thud', true);
+        audio.crash('scratch', true);
         return;
       }
       shake = reduced ? 0 : 0.15;
-      audio.crash('thud');
+      audio.crash();
       return;
     }
+    clearBubbles(talk);
     const age = view.crashAge / 1000;
     if (quiet) {
       crashT = 99;
@@ -270,9 +270,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       else settleEscape();
     }
     if (fresh) {
-      // A fresh scene settles into the round as it stands: ladder spent, springs at rest, a crash the quiet aftermath.
+      // A fresh scene settles into the round as it stands.
       previous = view.phase;
       actStage = act.stage;
+      if (act.stage === 6) crew.lead.actClock = act.age;
       if (running || crashed) {
         const escaped = secured !== null;
         settleDialogue(talk, multiplier, escaped);
@@ -307,7 +308,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (ev.pickup) roof.loose = roof.loose.filter((l) => l.kind !== 'clipboard');
     roof.strokes = crew.lead.strokes;
     roof.chair = running && !secured && act.stage === 5 ? 'out' : 'bulkhead';
-    roof.pizzaBox = running && !secured && (act.stage > 3 || (act.stage === 3 && act.age >= 4));
+    roof.pizzaBox = running && !secured && view.elapsed >= 79000;
     const cam = cameraFor(crew.thrown, crashT);
     stepRoof(roof, { running, tension, time, reduced, wind, rung, overtime: talk.overtimeK, escaped: secured !== null, escapeT, crashT, aftermathT, camY: cam.y, aftermath: crew.thrown !== null && crashT >= crew.thrown.times.back }, dt);
     const rev = roof.events;
@@ -428,7 +429,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         actCue = true;
         fx('door', 0.6);
       }
-      audio.milestone(rung);
+      if (canCue) audio.milestone(rung);
     } else sirenClock = heartClock = 0;
     if (outcome && outcome !== 'called' && !sirenAfter && view.crashAge >= 4000) {
       sirenAfter = true;

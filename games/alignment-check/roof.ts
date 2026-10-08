@@ -28,7 +28,7 @@ const FLIGHT = 0.9;
 const STREAK_LIFE = 0.45;
 
 export type LooseKind = 'clipboard' | 'flashlight' | 'croc' | 'beanie' | 'phone' | 'shades' | 'gum' | 'coin' | 'bag';
-/** skid lands on the gravel, fall is ballistics beside the thrown suspect, over tumbles down the canyon, stick flies to the grille, drift is the bag. */
+/** skid lands on the gravel, fall is beside the thrown suspect, over tumbles down the canyon, stick flies to the grille, drift is the bag. */
 export type LooseMode = 'skid' | 'fall' | 'over' | 'stick' | 'drift';
 /** A prop leaving a hand (crew.events.drops, then spawnLoose). */
 export interface Drop { kind: LooseKind; x: number; y: number; vx: number; vy: number; spin: number; mode: LooseMode; drag?: number; lit?: boolean }
@@ -128,7 +128,7 @@ export function spawnLoose(r: Roof, drop: Drop): void {
   const floor = FLOOR_Y + 30 + ((Math.abs(drop.vx) * 7 + Math.abs(drop.vy) * 3) % 90);
   r.loose.push({ ...drop, rot: 0, age: 0, rest: false, scale: 1, drag: drop.drag ?? 0, lit: drop.lit ?? false, floor, ox: drop.x, oy: drop.y, sliding: false, restAge: 0 });
 }
-/** A prop at rest on the gravel (settle). */
+/** A prop at rest (settle). */
 function placeLoose(r: Roof, kind: LooseKind, x: number, y: number, rot: number): void {
   spawnLoose(r, { kind, x, y, vx: 0, vy: 0, spin: 0, mode: 'skid' });
   Object.assign(r.loose[r.loose.length - 1]!, { rest: true, rot, age: 9 });
@@ -287,12 +287,12 @@ export function settleRoof(r: Roof, settle: { rung: number; tension: number; esc
   if (settle.rung >= 4) r.gumOnGrille = true;
   if (settle.rung >= 5 && !settle.escaped) for (const p of r.pigeons) p.state = 'away';
   r.strokes = settle.rung >= 6 ? 3 : settle.rung >= 5 ? 2 : settle.rung >= 2 ? 1 : 0;
-  if (settle.rung >= 7) placeLoose(r, 'clipboard', CLIPBOARD_REST.x, CLIPBOARD_REST.y, 0.22);
+  if (settle.rung >= 7 && !settle.escaped) placeLoose(r, 'clipboard', CLIPBOARD_REST.x, CLIPBOARD_REST.y, 0.22);
   if (settle.escaped) escapeRoof(r, 0, { x: 0, y: 0 }, true);
 }
-/** A crash met late: the croc on the coping and the clipboard off the gravel (thrown), or the door shut (harmless). */
+/** A crash met late: the relic croc, the clipboard gone once picked up (4.2 s), or the door shut (harmless). */
 export function settleAftermath(r: Roof, settle: { harmless: boolean; crashT: number }): void {
-  r.loose = r.loose.filter((l) => l.kind !== 'clipboard');
+  if (settle.harmless || settle.crashT >= 4.2) r.loose = r.loose.filter((l) => l.kind !== 'clipboard');
   if (settle.harmless) {
     settleSpring(r.door, 0);
     r.doorTarget = 0;
