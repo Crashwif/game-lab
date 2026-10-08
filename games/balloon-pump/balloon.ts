@@ -36,6 +36,8 @@ export interface BalloonDrive {
   stretch: number;
   /** A gulp of air arrived from the hose this step. */
   inflow: boolean;
+  /** 0..1 a fine shiver of the overstretched rubber in very long rounds (0 for reduced motion). */
+  shiver?: number;
 }
 
 export interface BalloonState {
@@ -45,6 +47,7 @@ export interface BalloonState {
   burstAt: Point;
   burstRadius: number;
   stretch: number;
+  shiver: number;
   radius: Spring;
   /** Short-lived extra radius from a gulp of air. */
   puff: Spring;
@@ -65,20 +68,22 @@ export interface BalloonState {
 
 export function createBalloon(): BalloonState {
   return {
-    time: 0, alive: true, burstAge: 0, burstAt: { ...TETHER }, burstRadius: 40, stretch: 0,
+    time: 0, alive: true, burstAge: 0, burstAt: { ...TETHER }, burstRadius: 40, stretch: 0, shiver: 0,
     radius: spring(36), puff: spring(0), jiggle: spring(0), sway: spring(LIE_ANGLE), rise: spring(0),
     eyeOpen: spring(1), mouthOpen: spring(0), brow: spring(0), shreds: [], puffs: [], flap: spring(0),
   };
 }
 
-/** A fresh balloon, limp on the ground by the hose. */
+/** A fresh balloon, limp on the ground by the hose: it starts as a scrap on the knot and fills out to its resting size. */
 export function resetBalloon(b: BalloonState): void {
   b.alive = true;
   b.burstAge = 0;
-  b.shreds = [];
+  // The last burst's shreds fade out over half a second rather than vanishing under the new balloon.
+  for (const s of b.shreds) s.life = Math.min(s.life, s.age + 0.5);
   b.puffs = [];
   b.stretch = 0;
-  settleSpring(b.radius, 36);
+  b.shiver = 0;
+  settleSpring(b.radius, 12);
   settleSpring(b.puff, 0);
   settleSpring(b.jiggle, 0);
   settleSpring(b.sway, LIE_ANGLE);
@@ -103,12 +108,27 @@ export function settleBalloon(b: BalloonState, drive: BalloonDrive): void {
   settleSpring(b.mouthOpen, Math.pow(drive.fear, 1.5));
   settleSpring(b.brow, drive.fear);
   b.stretch = drive.stretch;
+  b.shiver = drive.shiver ?? 0;
 }
 
 export function stepBalloon(b: BalloonState, drive: BalloonDrive, dt: number): void {
   b.time += dt;
+  const drag = Math.exp(-1.8 * dt);
+  for (const s of b.shreds) {
+    s.age += dt;
+    s.vy += 1000 * dt;
+    s.vx *= drag;
+    s.vy *= drag;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.angle += s.spin * dt;
+    s.spin *= Math.exp(-1.2 * dt);
+    if (s.y > GROUND - 2 && s.vy > 0) { s.y = GROUND - 2; s.vy *= -0.3; s.vx *= 0.7; s.spin *= 0.5; }
+  }
+  b.shreds = b.shreds.filter((s) => s.age < s.life);
   if (b.alive) {
     b.stretch = drive.stretch;
+    b.shiver = drive.shiver ?? 0;
     stepSpring(b.radius, drive.radius, 7, 0.95, dt);
     const radius = Math.max(8, b.radius.x);
     if (drive.inflow) {
@@ -130,19 +150,6 @@ export function stepBalloon(b: BalloonState, drive: BalloonDrive, dt: number): v
   }
   b.burstAge += dt;
   stepSpring(b.flap, 0, 6, 0.12, dt);
-  const drag = Math.exp(-1.8 * dt);
-  for (const s of b.shreds) {
-    s.age += dt;
-    s.vy += 1000 * dt;
-    s.vx *= drag;
-    s.vy *= drag;
-    s.x += s.vx * dt;
-    s.y += s.vy * dt;
-    s.angle += s.spin * dt;
-    s.spin *= Math.exp(-1.2 * dt);
-    if (s.y > GROUND - 2 && s.vy > 0) { s.y = GROUND - 2; s.vy *= -0.3; s.vx *= 0.7; s.spin *= 0.5; }
-  }
-  b.shreds = b.shreds.filter((s) => s.age < s.life);
   const puffDrag = Math.exp(-3 * dt);
   for (const p of b.puffs) {
     p.age += dt;
@@ -167,16 +174,24 @@ export interface BalloonGeometry {
   rise: number;
 }
 
+/** The largest half extent that keeps the silhouette below the headline, and where the resting size starts to ease off. */
+const HEADROOM = (TETHER.y - 110 - NECK) / 2;
+const KNEE = 116;
+const CAP = 140;
+/** The resting radius, eased past KNEE toward CAP so a long round keeps creeping and there is headroom left for every gulp. */
+const fitRadius = (r: number): number => (r <= KNEE ? r : KNEE + (CAP - KNEE) * (1 - Math.exp(-(r - KNEE) / (CAP - KNEE))));
+
 /** The balloon's current shape in world space: centre, semi-axes, tether angle. */
 export function balloonGeometry(b: BalloonState): BalloonGeometry {
   const rise = clamp(b.rise.x, 0, 1);
-  let radius = Math.max(8, b.radius.x + b.puff.x);
+  // The gulp goes on after the fit, so the balloon visibly swells with every stroke even at its biggest.
+  let radius = Math.max(8, fitRadius(b.radius.x) + b.puff.x);
   const j = clamp(b.jiggle.x, -0.35, 0.45);
   let rx = radius * (0.9 + 0.5 * j) * mix(1.12, 1, rise);
   let ry = radius * (1.06 - 0.45 * j) * mix(0.72, 1, rise);
-  // Keep the full silhouette below the headline even on the biggest round and an extra pump pulse.
+  // A last guard keeps the full silhouette below the headline when a gulp and a stretch coincide.
   // Fitting both axes also contains a rotated balloon; its face and tether use this same geometry.
-  const fit = Math.min(1, (TETHER.y - 110 - NECK) / (2 * Math.max(rx, ry)));
+  const fit = Math.min(1, HEADROOM / Math.max(rx, ry));
   radius *= fit;
   rx *= fit;
   ry *= fit;
@@ -256,8 +271,12 @@ export function drawBalloon(ctx: CanvasRenderingContext2D, b: BalloonState): voi
     drawRemains(ctx, b);
     return;
   }
+  drawShreds(ctx, b);
   const g = balloonGeometry(b);
-  const { rx, ry } = g;
+  // Overstretched rubber in a very long round shivers, a pixel or two, faster than any sway.
+  const quiver = 1.6 * b.shiver * Math.sin(b.time * 53);
+  const rx = g.rx + quiver;
+  const ry = g.ry - 0.6 * quiver;
   const cy = -g.length;
   const base = mixColour(BASE, THIN, b.stretch * 0.55);
   const deep = mixColour(DEEP, THIN_DEEP, b.stretch * 0.55);
@@ -362,6 +381,21 @@ function drawFace(ctx: CanvasRenderingContext2D, b: BalloonState, rx: number, ry
   ctx.globalAlpha = 1;
 }
 
+/** The burst's rubber shreds, each fading over the last half second of its life. */
+function drawShreds(ctx: CanvasRenderingContext2D, b: BalloonState): void {
+  for (const s of b.shreds) {
+    ctx.save();
+    ctx.globalAlpha = clamp((s.life - s.age) / 0.5, 0, 1);
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.angle);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = INK; ctx.lineWidth = s.width + 3;
+    ctx.beginPath(); ctx.moveTo(-s.length / 2, 0); ctx.quadraticCurveTo(0, s.bend, s.length / 2, 0); ctx.stroke();
+    ctx.strokeStyle = mixColour(DEEP, BASE, s.tone); ctx.lineWidth = s.width; ctx.stroke();
+    ctx.restore();
+  }
+}
+
 /** After the burst: escaping air, the shockwave and flash, flying shreds, and what is left on the tether. */
 function drawRemains(ctx: CanvasRenderingContext2D, b: BalloonState): void {
   const age = b.burstAge;
@@ -382,18 +416,7 @@ function drawRemains(ctx: CanvasRenderingContext2D, b: BalloonState): void {
     ctx.fillStyle = `rgba(255, 255, 255, ${1 - age / 0.09})`;
     ctx.beginPath(); ctx.arc(at.x, at.y, b.burstRadius * 1.5 * (1 + age * 6), 0, Math.PI * 2); ctx.fill();
   }
-  ctx.lineCap = 'round';
-  for (const s of b.shreds) {
-    ctx.globalAlpha = clamp((s.life - s.age) / 0.5, 0, 1);
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(s.angle);
-    ctx.strokeStyle = INK; ctx.lineWidth = s.width + 3;
-    ctx.beginPath(); ctx.moveTo(-s.length / 2, 0); ctx.quadraticCurveTo(0, s.bend, s.length / 2, 0); ctx.stroke();
-    ctx.strokeStyle = mixColour(DEEP, BASE, s.tone); ctx.lineWidth = s.width; ctx.stroke();
-    ctx.restore();
-  }
-  ctx.globalAlpha = 1;
+  drawShreds(ctx, b);
   ctx.save();
   ctx.translate(TETHER.x, TETHER.y);
   ctx.rotate(0.9 + b.flap.x * 0.5);

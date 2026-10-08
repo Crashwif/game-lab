@@ -7,7 +7,7 @@
 import { endurance } from './endurance';
 import { pageAudio } from './audio';
 import { TETHER, type BalloonDrive, balloonGeometry, burstBalloon, createBalloon, drawBalloon, drawBalloonShadow, resetBalloon, settleBalloon, stepBalloon } from './balloon';
-import { airPacket, clamp, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { airPacket, clamp, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { PUMP, type Point, type PumperDrive, createPumper, drawPumper, settlePumper, stepPumper } from './pumper';
 import { FLIGHT_S, createSniper, drawBushBack, drawSniper, drawStone, fire, resetSniper, settleSniper, stepSniper } from './sniper';
 
@@ -48,10 +48,13 @@ const CAPTION_X = 430;
 const TRAIL_POINTS = 900;
 /** The multipliers a milestone stinger plays at. */
 const RUNGS = [1.5, 2, 3, 5, 10, 25];
-/** The burst's hit-stop and slow motion: a short freeze, then the shreds fly at a third speed for a moment. */
-const FREEZE_S = 0.07;
+/** The burst's hit-stop and slow motion: a freeze you can feel, then the shreds fly at a third speed for a moment. */
+const FREEZE_S = 0.15;
 const SLOW_S = 0.4;
 const SLOW_RATE = 0.3;
+/** The camera cuts in on the burst by this much, holds, then eases back out. */
+const PUNCH_ZOOM = 0.1;
+const PUNCH_HOLD_S = 0.3;
 const HOSE: [Point, Point, Point, Point] = [{ x: PUMP.x - 4, y: 436 }, { x: 420, y: 512 }, { x: 560, y: 502 }, TETHER];
 type Outcome = 'rekt' | 'called' | 'pop';
 type Star = { x: number; y: number; r: number; k: number };
@@ -81,20 +84,23 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 
 /** The opening ladder gives way to an ongoing broadcast in unusually long rounds. */
 const OVERTIME_CAPTIONS = ["THE PUMP HAS OVERTIME", "STILL FULL OF HOT AIR", "LUNG DAY NEVER ENDS", "THE STRING HAS TRUST ISSUES", "INFLATION: EXTENDED EDITION", "THE SNIPER MISSED LUNCH", "ONE MORE BREATH", "AIR SUPPLY: QUESTIONABLE"];
+/**
+ * A new line every two or three seconds through the first fifteen, each landing with the beat it names: the intern
+ * peeks out and ducks (1.2×), stands up (1.45×), clicks his second notch (2×). Each line holds below its multiplier.
+ */
+const LADDER: [number, string][] = [[1.2, 'PUMP IT'], [1.45, 'PROBABLY NOTHING'], [1.75, 'UNREGISTERED SECURITY DETECTED'], [2, 'UP ONLY'], [2.5, 'SIR, THIS IS A SECURITY'], [3, 'BACKED BY HOT AIR'], [5, 'INFLATION IS TRANSITORY'], [10, 'NO JEETS ALLOWED'], [25, 'MY LUNGS ARE LEVERAGED'], [Infinity, 'SEND IT TO VALHALLA']];
+/** After an accepted exit the round goes on without the player: the jeet's ladder, keyed to how far it has run past the exit. */
+const JEET: [number, string][] = [[1.1, 'DEAL WITH IT'], [1.35, 'JEETED THE TOP (SMART)'], [2, 'PROFIT IS PROFIT'], [4, "DON'T LOOK AT THE CHART"], [Infinity, 'STILL A WIN. STILL A WIN.']];
+const rung = (ladder: [number, string][], x: number): string => ladder.find(([top]) => x < top)![1];
 
-function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome) return outcome === 'rekt' ? 'BLEW UP IN MY FACE' : outcome === 'called' ? 'HAVE FUN STAYING POOR' : 'IT WAS ALL HOT AIR';
+function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null, waited: number): string {
+  if (outcome) return view.currentX100 <= 100 ? 'RUGGED BEFORE THE FIRST PUMP' : outcome === 'rekt' ? 'BLEW UP IN MY FACE' : outcome === 'called' ? 'HAVE FUN STAYING POOR' : 'IT WAS ALL HOT AIR';
   if (view.phase === 'crashed') return 'HOLD YOUR BREATH';
+  if (view.phase === 'betting') return waited < 1.6 ? 'WEN PUMP?' : waited < 3.3 ? 'PRIMING THE PUMP' : 'DEV IS READY';
   if (view.phase !== 'running') return 'WEN PUMP?';
-  if (secured) return 'DEAL WITH IT';
+  if (secured) return rung(JEET, (100 * multiplier) / secured.x100);
   if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
-  if (multiplier < 1.5) return 'PUMP IT';
-  if (multiplier < 2) return 'UP ONLY';
-  if (multiplier < 3) return 'BACKED BY HOT AIR';
-  if (multiplier < 5) return 'INFLATION IS TRANSITORY';
-  if (multiplier < 10) return 'NO JEETS ALLOWED';
-  if (multiplier < 25) return 'MY LUNGS ARE LEVERAGED';
-  return 'SEND IT TO VALHALLA';
+  return rung(LADDER, multiplier);
 }
 
 function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], reduced: boolean): void {
@@ -129,13 +135,46 @@ function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], red
   }
 }
 
-/** The round's multiplier over time as a rising line, red and pointing down once it crashed. */
-function drawTrail(ctx: CanvasRenderingContext2D, samples: Point[], dead: boolean): void {
-  if (samples.length < 2) return;
+/** The chart's mapping of a sample to the screen: time eases along, log2(multiplier) climbs, and both widen in long rounds. */
+function chartScale(samples: Point[]): (p: Point) => Point {
   const end = samples[samples.length - 1]!;
   const timeScale = Math.max(32_000, end.x / 3);
   const growthScale = Math.max(4.2, end.y * 1.12);
-  const trail = samples.map(p => ({ x: 80 + 800 * (1 - Math.exp(-p.x / timeScale)), y: 440 - 352.8 * p.y / growthScale }));
+  return (p) => ({ x: 80 + 800 * (1 - Math.exp(-p.x / timeScale)), y: 440 - 352.8 * p.y / growthScale });
+}
+
+/** Where the chart line crosses `exit` (log2), the player's accepted cash-out; exact on a late join's straight line too. */
+function exitPoint(samples: Point[], exit: number): Point | null {
+  const after = samples.findIndex((p) => p.y >= exit);
+  if (samples.length < 2 || after < 0) return null;
+  const a = samples[Math.max(0, after - 1)]!;
+  const b = samples[after]!;
+  const k = b.y > a.y ? clamp((exit - a.y) / (b.y - a.y), 0, 1) : 1;
+  return chartScale(samples)({ x: mix(a.x, b.x, k), y: mix(a.y, b.y, k) });
+}
+
+/** The green tick pinned to the chart where the player took profits, drawn over the rig so an early exit still shows. */
+function drawTick(ctx: CanvasRenderingContext2D, at: Point, scale: number): void {
+  ctx.save();
+  ctx.translate(at.x, at.y);
+  ctx.scale(scale, scale);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#3ddc84';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.moveTo(-5.5, 0); ctx.lineTo(-1.5, 4.5); ctx.lineTo(6, -5); ctx.stroke();
+  memeText(ctx, 'SOLD', 16, -8, 16, '#7cf67c', 'left');
+  ctx.restore();
+}
+
+/** The round's multiplier over time as a rising line, red and pointing down once it crashed. */
+function drawTrail(ctx: CanvasRenderingContext2D, samples: Point[], dead: boolean): void {
+  if (samples.length < 2) return;
+  const trail = samples.map(chartScale(samples));
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -233,12 +272,16 @@ function drawLasers(ctx: CanvasRenderingContext2D, eyes: Point[], target: Point,
   ctx.restore();
 }
 
-function drawPop(ctx: CanvasRenderingContext2D, at: Point, text: string, scale: number): void {
+/** The burst's word: REKT for a player caught holding, DODGED for one already out, POP! for a spectator. */
+const POP_WORDS: Record<Outcome, [string, string]> = { rekt: ['REKT', '#ff4d6d'], called: ['DODGED', '#7cf67c'], pop: ['POP!', '#ffe27a'] };
+
+function drawPop(ctx: CanvasRenderingContext2D, at: Point, outcome: Outcome, scale: number): void {
+  const [text, fill] = POP_WORDS[outcome];
   ctx.save();
   ctx.translate(at.x, Math.min(at.y + 30, 400));
   ctx.rotate(-0.12);
   ctx.scale(scale, scale);
-  memeText(ctx, text, 0, 0, 96, text === 'REKT' ? '#ff4d6d' : '#ffe27a', 'center');
+  memeText(ctx, text, 0, 0, 96, fill, 'center', 420);
   ctx.restore();
 }
 
@@ -282,7 +325,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const audio = pageAudio({ style: 'chiptune', crash: 'pop' });
   const pumper = createPumper();
   const balloon = createBalloon();
-  const sniper = createSniper();
+  const sniper = createSniper(reduced);
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
@@ -294,17 +337,30 @@ export function createScene(options: SceneOptions = {}): Scene {
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
+  /** The shake and the punch run on real time, so the camera still rattles through the hit-stop. */
+  let shakeClock = 0;
+  let punchHold = 0;
   let outcome: Outcome | null = null;
   let secured: Secured | null = null;
   let caption = '';
   let trail: Point[] = [];
   let trailAt = -1;
+  /** Last round's chart, fading out as the next one opens instead of vanishing. */
+  let ghost: { trail: Point[]; exit: number | null; alpha: number } | null = null;
   /** Seconds until the stone lands and the balloon bursts; -1 with no shot in the air. */
   let fuse = -1;
   let freeze = 0;
   let slow = 0;
   let laserOn = false;
   let burstEnding: Outcome = 'pop';
+  /** The endurance act's effort, eased, and the act its props belong to, so both fade out rather than pop. */
+  let effort = 0;
+  let propAct = 0;
+  /** Seconds into betting, for the wind-up captions; seconds to the dev's next heartbeat. */
+  let waited = 0;
+  let pulse = 0.6;
+  /** Milestone rungs already passed this round, so a round met late doesn't replay their stingers. */
+  let rungs = 0;
 
   /** The burst itself: the shreds, the outcome, the shake, the punch-in, the hit-stop and the sound. */
   function burst(view: SceneView, quiet: boolean): void {
@@ -317,10 +373,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    punch.v = 8;
     if (!reduced) {
       freeze = FREEZE_S;
       slow = SLOW_S;
+      settleSpring(punch, 1);
+      punchHold = PUNCH_HOLD_S;
     }
     audio.crash('pop');
   }
@@ -337,25 +394,29 @@ export function createScene(options: SceneOptions = {}): Scene {
       slow -= real;
       dt = real * SLOW_RATE;
     }
-    time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const growth = Math.log2(multiplier);
-    const fear = clamp((growth - 0.35) / 2.8, 0, 1);
-    const tension = 1 - Math.exp(-growth / 2.2);
+    // Presentation tension, 1 - 1/x: a third at 1.5×, half at 2×, two thirds at 3×, where most rounds end.
+    const tension = 1 - 1 / multiplier;
+    const fear = clamp((tension - 0.2) / 0.65, 0, 1);
+    // The slow driver for long rounds, 10× to 1000×: the rubber thins, the gauge pins, the intern shakes.
+    const strain = smoothstep(3.3, 10, growth);
     const running = view.phase === 'running';
     const act = endurance(view.elapsed / 1000);
-    const effort = running && !reduced ? act.effort : 0;
+    if (act.act) propAct = act.act;
     const crashed = view.phase === 'crashed';
-    if (view.cashoutX100 !== null && !secured) {
+    if (view.cashoutX100 !== null && !secured && (running || crashed)) {
       secured = { x100: view.cashoutX100, payout: view.payout };
-      if (running) audio.cashout();
+      // A round met late keeps quiet about an exit it never saw.
+      if (running && previous !== null) audio.cashout();
     }
     const balloonDrive: BalloonDrive = {
       radius: running || crashed ? 40 + 150 * (1 - Math.exp(-growth / 2.3)) : 36,
-      tug: act.act === 1 ? effort * .18 : act.act === 4 ? -effort * .12 : 0,
+      tug: propAct === 1 ? effort * .18 : propAct === 4 ? -effort * .12 : 0,
       fear,
-      stretch: smoothstep(0.8, 4.2, growth),
+      stretch: 0.8 * smoothstep(0.3, 3.3, growth) + 0.2 * strain,
       inflow: false,
+      shiver: reduced ? 0 : strain,
     };
 
     const ending: Outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
@@ -367,8 +428,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (previous === null) {
       previous = view.phase;
       settle = true;
+      effort = running && !reduced ? act.effort : 0;
       settleBalloon(balloon, balloonDrive);
-      settleSniper(sniper, { growth, running, target: balloonGeometry(balloon).centre });
+      settleSniper(sniper, { growth, running, strain, target: balloonGeometry(balloon).centre });
       burstEnding = ending;
       if (crashed) burst(view, true);
     } else if (view.phase !== previous) {
@@ -388,6 +450,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (view.phase === 'betting') {
         resetBalloon(balloon);
         resetSniper(sniper);
+        if (trail.length > 1) ghost = { trail, exit: secured ? Math.log2(secured.x100 / 100) : null, alpha: 1 };
         outcome = null;
         secured = null;
         trail = [];
@@ -399,8 +462,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (fuse >= 0) {
       fuse -= real;
-      if (fuse < 0 && balloon.alive) burst(view, false);
+      if (fuse < 0 && balloon.alive) {
+        burst(view, false);
+        // The burst's own frame is the first frame of the hit-stop.
+        if (freeze > 0) dt = 0;
+      }
     }
+    time += dt;
     audio.update(view.phase, tension);
     if (settle && (running || crashed)) {
       // The chart uses the elapsed time supplied by the round, including its final crash frame.
@@ -408,25 +476,39 @@ export function createScene(options: SceneOptions = {}): Scene {
       trail = settleTrail(elapsed, growth);
       trailAt = Math.floor(elapsed / 100);
     }
+    effort += ((running && !reduced ? act.effort : 0) - effort) * (1 - Math.exp(-3 * dt));
+    waited = view.phase === 'betting' ? waited + dt : 0;
+    // The dev's heartbeat quickens with the tension, until the player has cashed out.
+    if (running && !secured && balloon.alive) {
+      pulse -= dt;
+      if (pulse <= 0) {
+        audio.fx('heartbeat', 0.2 + 0.4 * tension);
+        pulse = Math.max(0.1, pulse + mix(1.4, 0.35, tension));
+      }
+    } else pulse = 0.6;
 
     // Step the rig, then the balloon it feeds, then the meme layer's springs.
     const pumperDrive: PumperDrive = {
       pumping: running,
-      rate: Math.min(2.1, 0.85 + 1.2 * (1 - Math.exp(-growth / 2.2))) * (1 - .48 * effort * (act.act === 2 ? 1 : .3)),
-      regrip: act.act === 2 ? effort : 0,
+      // Strokes per second follow the tension; the second act's regrip is a burst of extra pace, never a slowdown.
+      rate: 0.85 + 1.25 * tension + (propAct === 2 ? 0.25 * effort : 0),
+      regrip: propAct === 2 ? effort : 0,
+      ready: view.phase === 'betting',
       fear,
       fallen: crashed && !balloon.alive,
       crying: outcome === 'rekt',
       smug: secured !== null,
       laser: 0,
-      gauge: 1 - Math.exp(-growth / 2.4),
+      gauge: 0.88 * tension + 0.12 * strain,
       gaze: TETHER,
     };
-    const lasers = running && balloon.alive ? smoothstep(1, 2.6, growth) : 0;
+    // The laser eyes come on from 1.37×, flash on with a zap near 2×, and burn full from 3×.
+    const lasers = running && balloon.alive ? smoothstep(0.45, 1.6, growth) : 0;
     if (settle) {
       settlePumper(pumper, pumperDrive, view.crashAge / 1000);
       settleSpring(badge, secured ? 1 : 0);
       settleSpring(laser, lasers);
+      laserOn = lasers > 0.5;
     }
     stepPumper(pumper, pumperDrive, dt);
     if (running && pumper.events.push) audio.fx('chuff', 0.4 + 0.5 * tension);
@@ -435,26 +517,34 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepBalloon(balloon, balloonDrive, dt);
     const geometry = balloonGeometry(balloon);
     pumperDrive.gaze = balloon.alive ? geometry.centre : { x: TETHER.x, y: TETHER.y - 80 };
-    stepSniper(sniper, { growth, running, target: balloon.alive ? { x: geometry.centre.x, y: geometry.centre.y - (act.act === 4 ? effort * 70 : 0) } : null }, dt);
+    stepSniper(sniper, { growth, running, ready: view.phase === 'betting', strain, target: balloon.alive ? { x: geometry.centre.x, y: geometry.centre.y - (propAct === 4 ? effort * 70 : 0) } : null }, dt);
     if (sniper.events.up) audio.fx('creak', 0.7);
     if (sniper.events.notch) audio.fx('ratchet', 0.6);
-    if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
+    const reached = running ? RUNGS.filter((r) => multiplier >= r).length : 0;
+    if (reached > rungs && !settle) audio.milestone(reached);
+    rungs = reached;
     stepSpring(laser, lasers, 8, 1, dt);
-    pumperDrive.laser = clamp(laser.x, 0, 1) * (act.act ? .2 + .55 * (1 - effort) : 1);
+    pumperDrive.laser = clamp(laser.x, 0, 1);
     if (pumperDrive.laser > 0.5 && !laserOn) {
       laserOn = true;
       audio.fx('zap', 0.8);
     } else if (pumperDrive.laser < 0.2) laserOn = false;
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
-    stepSpring(punch, 0, 9, 0.5, dt);
-    const nextCaption = captionFor(view, multiplier, outcome, secured);
+    punchHold -= real;
+    stepSpring(punch, punchHold > 0 ? 1 : 0, 7, 1, real);
+    const nextCaption = captionFor(view, multiplier, outcome, secured, waited);
     if (nextCaption !== caption) {
       caption = nextCaption;
       captionPop.v = 6;
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
-    if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
+    shakeClock += real;
+    if (shake > 0) shake = Math.max(0, shake - real / 0.7);
+    if (ghost) {
+      ghost.alpha -= real / 0.4;
+      if (ghost.alpha <= 0) ghost = null;
+    }
     if (running) {
       const at = Math.floor(view.elapsed / 100);
       if (at !== trailAt) {
@@ -465,31 +555,45 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (!reduced && shake > 0) ctx.translate(Math.sin(shakeClock * 140) * 9 * shake * shake, Math.cos(shakeClock * 117) * 6 * shake * shake);
     if (!reduced && punch.x > 0.005) {
-      // The camera punches in on the burst and eases back out.
-      const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
+      // The camera cuts in on the burst, holds, and eases back out.
+      const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(balloon.burstAt.x, balloon.burstAt.y);
       ctx.scale(k, k);
       ctx.translate(-balloon.burstAt.x, -balloon.burstAt.y);
     }
     drawSky(ctx, time, stars, reduced);
+    if (ghost) {
+      ctx.globalAlpha = ghost.alpha;
+      drawTrail(ctx, ghost.trail, true);
+      ctx.globalAlpha = 1;
+    }
     drawTrail(ctx, trail, outcome !== null);
     drawGround(ctx);
-    drawBushBack(ctx);
+    drawBushBack(ctx, sniper);
     drawSniper(ctx, sniper);
     drawHose(ctx, running ? airPacket(pumper.phase) : null);
     drawBalloonShadow(ctx, balloon);
     const pumperView = drawPumper(ctx, pumper, pumperDrive);
     drawBalloon(ctx, balloon);
-    if (running && act.act === 3) {
+    if (propAct === 3 && effort > 0.01) {
       ctx.save(); ctx.globalAlpha = .65 * effort; ctx.strokeStyle = "#e7faff"; ctx.lineWidth = 4;
       for (let i = 0; i < 4; i++) { const u = reduced ? i / 4 : (time * .7 + i / 4) % 1; ctx.beginPath(); ctx.arc(365 + u * 34, 365 - u * 50, 4 + u * 9, -.8, 1.8); ctx.stroke(); }
       ctx.restore();
     }
+    const exit = secured ? exitPoint(trail, Math.log2(secured.x100 / 100)) : null;
+    if (exit && badge.x > 0.02) drawTick(ctx, exit, clamp(badge.x, 0, 1.3));
+    const ghostExit = ghost?.exit != null ? exitPoint(ghost.trail, ghost.exit) : null;
+    if (ghost && ghostExit) {
+      ctx.globalAlpha = ghost.alpha;
+      drawTick(ctx, ghostExit, 1);
+      ctx.globalAlpha = 1;
+    }
     drawStone(ctx, sniper);
     if (pumperDrive.laser > 0.02 && balloon.alive) drawLasers(ctx, pumperView.eyes, geometry.centre, pumperDrive.laser, time, reduced);
-    if (outcome && pop.x > 0.02) drawPop(ctx, balloon.burstAt, outcome === 'rekt' ? 'REKT' : 'POP!', clamp(pop.x, 0, 1.3));
+    // The word outlives the crash by the few frames its spring takes to shrink it away.
+    if (pop.x > 0.02) drawPop(ctx, balloon.burstAt, burstEnding, clamp(pop.x, 0, 1.3));
     if (secured && badge.x > 0.02) drawBadge(ctx, secured, clamp(badge.x, 0, 1.3), time);
     ctx.restore();
     // The readout grows leftward with every digit, so the caption gets the width left between them, 24 units clear.
