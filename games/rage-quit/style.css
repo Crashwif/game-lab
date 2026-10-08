@@ -45,6 +45,6 @@ button.secondary{box-shadow:none;border:2px solid #242220}
 
 /* The tall stage keeps the full body and a live CRT cutaway readable on phones. */
 @media(max-width:600px){
-  .stage{position:relative;aspect-ratio:540/780;overflow:hidden}
-  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/780;margin:0;transform:scale(.4);transform-origin:0 0}
+  .stage{position:relative;aspect-ratio:540/836;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/836;margin:0;transform:scale(.4);transform-origin:0 0}
 }
