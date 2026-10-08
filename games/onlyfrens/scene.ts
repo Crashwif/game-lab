@@ -7,9 +7,9 @@ import { createPortrait } from './portrait';
  * changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type Chat, GOALS, TIP_MENU, createChat, drawChat, drawSimps, floodChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
-import { clamp, settleSpring, spring, stepSpring } from './motion';
-import { INK, type Stream, VIDEO, cashFlash, celebrate, createStream, drawStream, endStream, resetStream, stepStream } from './stream';
+import { type Chat, GOALS, TIP_MENU, createChat, drawChat, drawSimps, floodChat, goLiveChat, resetChat, settleChat, stepChat, unsubscribe } from './chat';
+import { clamp, mix, settleSpring, smoothstep, spring, stepSpring } from './motion';
+import { INK, RAPS, type Stream, VIDEO, cashFlash, celebrate, createStream, drawStream, endStream, goLive, resetStream, revealZoom, settleStream, stepStream } from './stream';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -61,17 +61,22 @@ const OVERTIME_CAPTIONS = ["THE GOALPOSTS ARE MOVING", "BONUS STREAM JUST DROPPE
 function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null, secured: Secured | null): string {
   if (outcome) return outcome === 'rekt' ? 'SIMPED TO ZERO' : outcome === 'called' ? 'TOUCHED GRASS' : 'BOYFRIEND REVEAL';
   if (view.phase !== 'running') return 'GM QUEEN';
-  if (secured) return 'TOUCH GRASS';
-  if (view.elapsed >= 45_000) return OVERTIME_CAPTIONS[Math.floor((view.elapsed - 45_000) / 12_000) % OVERTIME_CAPTIONS.length]!;
-  if (multiplier < 1.4) return 'SIMP HARDER';
-  if (multiplier < 1.9) return 'TIP TO UNLOCK';
-  if (multiplier < 2.6) return 'WEN REVEAL';
-  if (multiplier < 3.6) return 'SENT MY RENT';
-  if (multiplier < 5) return 'SHE SAID GM TO ME';
-  if (multiplier < 7.5) return 'MODS ASLEEP';
-  if (multiplier < 12) return 'ONE MORE MILESTONE';
-  if (multiplier < 20) return 'IS THAT A DOOR';
-  return 'WHOSE SHOES ARE THOSE';
+  // Out with paper hands: chat turns on the jeet the longer the number keeps going, and the grass stays green.
+  if (secured) { const regret = view.currentX100 / secured.x100; return regret < 1.25 ? 'TOUCH GRASS' : regret < 2 ? 'CHAT CALLS U A JEET' : 'STILL TOUCHING GRASS'; }
+  const seconds = view.elapsed / 1000;
+  if (seconds >= 45) return OVERTIME_CAPTIONS[Math.floor((seconds - 45) / 12) % OVERTIME_CAPTIONS.length]!;
+  // The two door beats every round gets, keyed to elapsed time and never to the outcome: the knock, then the handle.
+  if (seconds >= 6 && seconds < 7.8) return 'WAS THAT A KNOCK?';
+  if (seconds >= 12 && seconds < 13.8) return 'WHO MOVED THE HANDLE?';
+  if (multiplier < 1.25) return 'SIMP HARDER';
+  if (multiplier < 1.6) return 'TIP TO UNLOCK';
+  if (multiplier < 2.25) return 'WEN REVEAL';
+  if (multiplier < 2.6) return 'SENT MY RENT';
+  if (multiplier < 3.6) return 'SHE SAID GM TO ME';
+  if (multiplier < 5) return 'MODS ASLEEP';
+  if (multiplier < 7.5) return 'ONE MORE MILESTONE';
+  if (multiplier < 12) return 'IS THAT A DOOR';
+  return 'WHOSE SHADOW IS THAT';
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
@@ -96,13 +101,21 @@ export function createScene(options: SceneOptions = {}): Scene {
   let creakAt = 0;
   let creaked = false;
   let simpMode = chat.simp.mode;
+  /** The knock's age last frame, so each rap sounds once as it lands; and the heartbeat's countdown. */
+  let lastKnock = -1;
+  let heartIn = 0;
+  /** The act props fade out over the crash instead of cutting. */
+  let actFade = 0;
+  /** The running time last frame: it only goes back when a new round has begun. */
+  let lastElapsed = 0;
 
   /**
    * Puts in place what a stretch the scene did not see left behind: the goal ladder and the bags at
-   * `multiplier`, and your simp already gone, badge up, if you are out.
+   * `multiplier`, whoever is behind the door, and your simp already gone, badge up, if you are out.
    */
-  function settle(multiplier: number): void {
-    settleChat(chat, multiplier);
+  function settle(multiplier: number, tension: number, deep: number): void {
+    settleChat(chat, multiplier, tension);
+    settleStream(stream, tension, deep);
     stream.bags = Math.min(9, chat.goalIndex);
     if (secured) { unsubscribe(chat, true); settleSpring(badge, 1); }
   }
@@ -130,8 +143,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const act = actAt(view.elapsed, reduced);
-    const growth = Math.log2(multiplier);
-    const tension = clamp(growth / 3.3, 0, 1) * (view.phase === 'running' && view.cashoutX100 === null ? act.effort : 1);
+    // Tension sweeps the 1×–3× window where most rounds end (0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×); `deep` keeps long
+    // rounds changing after that. The act director never lowers either.
+    const tension = 1 - 1 / multiplier;
+    const deep = clamp(Math.log10(multiplier) / 3, 0, 1);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     if (view.cashoutX100 !== null && !secured) {
@@ -140,25 +155,34 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     const ending: Outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
 
+    const first = previous === null;
+    // A round already running that this scene never saw open: a tab that slept through the crash, the betting, or both.
+    const missed = running && !first && (stream.ended || view.elapsed + 1000 < lastElapsed);
+    lastElapsed = view.elapsed;
     // The first frame may land mid-round or after the crash (a page that joins late, or a fresh scene for a
     // round whose betting it missed), so it settles into place instead of playing out what it missed.
     if (previous === null) {
       previous = view.phase;
       resetStream(stream);
       resetChat(chat);
-      if (running || crashed) settle(multiplier);
+      actFade = running ? 1 : 0;
+      if (running || crashed) settle(multiplier, tension, deep);
       if (crashed) {
         outcome = ending;
         reveal(view, true);
       }
-    } else if (view.phase !== previous) {
+    } else if (view.phase !== previous || missed) {
       if (crashed && !stream.ended) {
         const quiet = view.crashAge > 1500;
         outcome = ending;
-        if (quiet || gap) settle(multiplier);
+        if (quiet || gap) settle(multiplier, tension, deep);
         reveal(view, quiet);
       }
-      if (view.phase === 'betting') {
+      // The round goes live: she waves and posts first.
+      if (running && (previous === 'betting' || previous === 'waiting') && !gap) { goLive(stream); goLiveChat(chat); }
+      if (view.phase === 'betting' || missed) {
+        // Back from the end card, the room fades up rather than cutting in.
+        if (stream.ended) stream.boot = 1;
         resetStream(stream);
         resetChat(chat);
         outcome = null;
@@ -169,7 +193,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
     }
     // Back from a hidden tab mid-round: the ladder jumps to the multiplier rather than celebrating every goal it passed.
-    if (gap && running) settle(multiplier);
+    if (running && (gap || missed)) settle(multiplier, tension, deep);
     // An exit that landed with the crash, before a running frame saw it, still closes the tab.
     if (secured) unsubscribe(chat);
     audio.update(view.phase, tension);
@@ -179,7 +203,19 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (running) audio.milestone(GOALS.filter((g) => multiplier >= g).length);
     // Tips register, never more than a couple a second however fast the chat runs.
     if (running && chat.events.tip && time > tipSoundAt) { tipSoundAt = time + 0.45; audio.fx('notify', 0.45 + 0.3 * tension); }
-    stepStream(stream, { running, tension, multiplier, reduced, attention: act.stage > 0 ? act.effort < .65 ? 1 : 0 : undefined }, dt);
+    // Someone knocks at 6 s, and again as the knocking acts begin (the ones with knock marks by the door).
+    const knockAge = act.stage === 1 || act.stage === 4 || act.stage === 6 ? act.age : view.elapsed / 1000 - 6;
+    // Between acts she watches the door: `effort` drives her glance, never the tension.
+    stepStream(stream, { running, tension, multiplier, reduced, elapsed: view.elapsed / 1000, knockAge, deep, attention: act.stage > 0 ? smoothstep(0.75, 0.55, act.effort) : 0 }, dt);
+    // Two raps, each heard once as it lands (never on a late or resumed frame); a thud's strength is its pitch, so 1.4 is knuckles on wood.
+    if (running && !gap && !first) for (const at of RAPS) if (knockAge >= at && knockAge < at + 0.25 && (lastKnock < at || lastKnock > knockAge)) audio.fx('thud', 1.4);
+    lastKnock = knockAge;
+    // A heartbeat under the stream from about 1.15×, quickening with tension, until you are out.
+    if (running && !secured && multiplier >= 1.15) {
+      heartIn -= dt;
+      if (heartIn <= 0) { heartIn = mix(1.4, 0.35, tension); audio.fx('heartbeat', 0.25 + 0.35 * tension); }
+    } else heartIn = 0.5;
+    actFade += ((running ? 1 : 0) - actFade) * (1 - Math.exp(-8 * dt));
     // The handle creaks each time it works round, at most one every couple of seconds.
     if (running && !stream.ended) {
       if (stream.handle.x > 0.45 && !creaked && time > creakAt) { creaked = true; creakAt = time + 1.8; audio.fx('creak', 0.6 + 0.3 * tension); }
@@ -205,8 +241,14 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
     drawStream(ctx, stream, tension, reduced, multiplier);
-    if (view.phase === 'running' && view.cashoutX100 === null) drawAct(ctx, act);
-    drawSimps(ctx, chat, tension, outcome !== null, outcome === 'called');
+    if (actFade > 0.01) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
+      revealZoom(ctx, stream, reduced);
+      drawAct(ctx, act, actFade);
+      ctx.restore();
+    }
+    drawSimps(ctx, chat, outcome !== null, outcome === 'called', view.stake !== null);
     if (outcome && pop.x > 0.02 && stream.endAge > 0.5) {
       ctx.save();
       // Right of centre, clear of the monitor where her short just closed.
@@ -214,7 +256,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.rotate(-0.1);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
-      const text = outcome === 'rekt' ? 'RUGGED' : outcome === 'called' ? 'CALLED IT' : 'REVEAL';
+      const text = outcome === 'rekt' ? 'RUGGED' : outcome === 'called' ? 'DODGED IT' : 'REVEAL';
       memeText(ctx, text, 0, 0, 80, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center');
       ctx.restore();
     }
@@ -243,9 +285,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';
     ctx.save();
     if (!running && !outcome) ctx.globalAlpha = 0.85;
-    memeText(ctx, `${multiplier.toFixed(2)}×`, VIDEO.w - 18, VIDEO.h - 18, 52, colour, 'right');
+    memeText(ctx, `${multiplier.toFixed(2)}×`, VIDEO.w - 18, VIDEO.h - 18, 52, colour, 'right', 400);
     ctx.restore();
-    memeText(ctx, `${stream.bags} BAGS`, 18, VIDEO.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
+    memeText(ctx, `${stream.bags} BAG${stream.bags === 1 ? '' : 'S'}`, 18, VIDEO.h - 18, 24, outcome ? '#ff9db0' : '#e7f4f0', 'left');
     present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, stream.ended ? 'STREAM OFFLINE' : `NEXT GOAL ${chat.goal.toFixed(1)}×`, stream.ended ? 'The reveal was the boyfriend.' : `${TIP_MENU[chat.menuIndex]!.join(' · ')}. ${chat.messages.at(-1)?.text ?? 'Chat is waiting for the reveal.'}`);
 
   }
