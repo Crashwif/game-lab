@@ -58,7 +58,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     const performance = perform(seconds, active, now / 1000, reduced);
     const act = performance.act;
     let p = { ...performance.pose };
-    const reset = view.elapsed < previousElapsed || (!active && previousPhase !== view.phase);
+    // The final server duration can precede the last interpolated running frame.
+    const finalising = crashed && previousPhase === 'running';
+    const reset = (view.elapsed < previousElapsed && !finalising) || (!active && previousPhase !== view.phase);
     const fresh = previousPhase === null || reset;
     if (reset) secureEntry = null;
     const tension = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 10);
