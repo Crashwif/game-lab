@@ -10,10 +10,10 @@ export interface PenguinPose {
 }
 
 /** Grounded stance is linear against the belt speed; the returning foot clears the ice on a high arc. */
-function footAt(phase: number, walk: boolean, airborne: boolean): Point {
+function footAt(phase: number, walk: boolean, airborne: boolean, side: number): Point {
   const p = fract(phase);
-  if (airborne) return { x: p < .5 ? -34 : 36, y: -18 - Math.sin(p * TAU) * 12 };
-  if (!walk) return { x: p < .5 ? -24 : 25, y: 0 };
+  if (airborne) return { x: side * 34, y: -18 - Math.sin(p * TAU) * 12 };
+  if (!walk) return { x: side * 25, y: 0 };
   if (p < .62) return { x: 31 - p / .62 * 62, y: 0 };
   const u = (p - .62) / .38;
   return { x: -31 + 62 * (1 - Math.cos(u * Math.PI)) / 2, y: -Math.sin(u * Math.PI) * 25 };
@@ -44,8 +44,8 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   c.save(); c.translate(p.x, p.y);
   if (!p.airborne && Math.abs(p.angle) < .4) ellipse(c, 0, 5, 61 * p.scale, 9, 'rgba(0,21,35,.27)');
   c.translate(0, -81 * p.scale); c.rotate(p.angle + waddle); c.scale(p.scale * squash, p.scale / squash * (1 + p.stretch * .16)); c.translate(0, 81);
-  const footL = footAt(gait + .5, p.walk, p.airborne);
-  const footR = footAt(gait, p.walk, p.airborne);
+  const footL = footAt(gait + .5, p.walk, p.airborne, -1);
+  const footR = footAt(gait, p.walk, p.airborne, 1);
   leg(c, { x: -22, y: -41 + p.crouch * 12 }, footL, -1, true);
   const bodyY = bob + breath + p.crouch * 15;
   c.save(); c.translate(0, bodyY);
