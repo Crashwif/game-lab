@@ -7,14 +7,17 @@ export function actAt(elapsed: number, reduced = false) {
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
   const age = seconds >= 170 ? (seconds - 170) % 24 : seconds - STARTS[stage]!;
   if (seconds >= 170) stage = 1 + cycle % 6;
-  const ramp = Math.min(1, age / 5), release = Math.max(0, 1 - Math.abs(age - 5) / 5);
+  const ramp = Math.min(1, age / 5), dip = Math.max(0, 1 - Math.abs(age - 5) / 5), release = stage ? dip * dip * (3 - 2 * dip) : 0;
+  // `effort` is the act's own breath, a dip mid-act before renewed activity. The scene only eases the quilt's tempo
+  // a little with `release`; tension and fear never follow it down.
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - release) * .52);
-  return { stage, age, effort, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, release, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
-export function drawAct(c: CanvasRenderingContext2D, a: Act): void {
-  if (!a.stage) return;
-  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+/** `alpha` fades the props in at a new act and out at the finish or a cash-out instead of cutting them. */
+export function drawAct(c: CanvasRenderingContext2D, a: Act, alpha = 1): void {
+  if (!a.stage || alpha <= 0) return;
+  c.save(); c.globalAlpha = Math.min(1, alpha); c.lineCap = 'round'; c.lineJoin = 'round';
   const box = (x: number, y: number, w: number, h: number, color: string) => { c.fillStyle = color; c.strokeStyle = '#202432'; c.lineWidth = 3; c.beginPath(); c.roundRect(x, y, w, h, 5); c.fill(); c.stroke(); };
   const line = (x: number, y: number, x2: number, y2: number, color = '#e5c485', width = 5) => { c.strokeStyle = color; c.lineWidth = width; c.beginPath(); c.moveTo(x, y); c.lineTo(x2, y2); c.stroke(); };
   const oval = (x: number, y: number, rx: number, ry: number, color: string) => { c.fillStyle = color; c.strokeStyle = '#202432'; c.lineWidth = 2; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); c.fill(); c.stroke(); };
