@@ -1,5 +1,10 @@
 import { pageAudio } from './audio';
-import { bear, box, bull, CREAM, GOLD, GREEN, INK, oval, shape, star, text } from './art';
+import { actCaption, actTitle, drawAct, idleBear } from './acts';
+import { arena, crashStamp, dust, impact, parade, supportDesk, track } from './arena';
+import { box, bubble, clamp, CREAM, ease, GOLD, GREEN, INK, mix, RED, text } from './art';
+import { BEAT_SECONDS, CONTACT, floorAt, idlePose, routineAt, runningPose, type BullPose, type Routine } from './motion';
+import { bull } from './rig';
+import { isPortrait, presentPortrait, type Framing } from './portrait';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -11,242 +16,149 @@ export interface SceneView {
   payout: number | null;
 }
 export interface SceneOptions { reducedMotion?: boolean }
-export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
+export interface Scene { draw(c: CanvasRenderingContext2D, view: SceneView, now: number): void }
+const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 
-const TAU = Math.PI * 2;
-const clamp = (value: number, low = 0, high = 1) => Math.max(low, Math.min(high, value));
-const ease = (value: number) => { const t = clamp(value); return t * t * (3 - 2 * t); };
-const floorAt = (x: number) => 430 - x * 0.17;
-const formatX = (value: number) => `${(value / 100).toFixed(2)}×`;
-const CHAPTERS = ['STADIUM START', 'ROOFTOP RALLY', 'GOLDEN MILE', 'CLOUD CLUB', 'VICTORY LAP', 'EXTRA INNINGS'];
-const BANNERS = ['MAKE SOME NOISE', 'HORNS UP', 'FULL SEND', 'STILL CHARGING', 'THE CROWD IS WITH YOU', 'ONE MORE RAMP'];
-
-function background(c: CanvasRenderingContext2D, seconds: number, motion: number, chapter: number): void {
-  const sky = c.createLinearGradient(0, 150, 0, 450);
-  sky.addColorStop(0, CREAM); sky.addColorStop(1, '#c9e7b8');
-  c.fillStyle = sky; c.fillRect(0, 0, 960, 540);
-  oval(c, 595, 247, 103, 103, '#f4d76d', 0);
-  for (let i = 0; i < 8; i += 1) {
-    const x = ((i * 162 - motion * 13) % 1300 + 1300) % 1300 - 170;
-    const y = 180 + (i % 3) * 31;
-    oval(c, x, y, 34, 8, '#fffdf0', 0);
-    oval(c, x + 25, y - 5, 25, 11, '#fffdf0', 0);
+function hud(c: CanvasRenderingContext2D, view: SceneView, r: Routine, caption: string): void {
+  box(c, 18, 17, 224, 60, INK, 7, 0);
+  text(c, 'MUMU BULL RUN', 31, 37, 27, GREEN, 'left', 200);
+  text(c, view.phase === 'running' ? `SHITSHOW ${r.index + 1} · ${actTitle(r)}` : view.phase === 'crashed' ? 'TERMS HAVE BEEN UPDATED' : 'HORNS UP. EGO OUT.', 31, 62, 12, CREAM, 'left', 201);
+  box(c, 695, 16, 247, 78, '#102219', 9, 3);
+  text(c, view.phase === 'crashed' ? 'ROUND CRASHED' : 'ROUND MULTIPLIER', 927, 32, 12, '#b2c5a1', 'right');
+  text(c, formatX(view.currentX100), 928, 67, 45, view.phase === 'crashed' ? RED : CREAM, 'right', 218);
+  if (view.cashoutX100 !== null) {
+    box(c, 626, 101, 315, 34, GREEN, 4, 3);
+    text(c, `CASHED OUT ${formatX(view.cashoutX100)}`, 786, 120, 23, INK, 'center', 301);
   }
-  c.fillStyle = '#a9c99c';
-  for (let i = 0; i < 16; i += 1) {
-    const x = ((i * 90 - motion * 8) % 1450 + 1450) % 1450 - 150;
-    const h = 30 + ((i * 37 + chapter * 11) % 80);
-    c.fillRect(x, 345 - h, 63, h);
-    c.fillRect(x + 10, 335 - h, 43, 12);
-    c.fillStyle = '#d5e7ba';
-    for (let row = 0; row < 3; row += 1) {
-      c.fillRect(x + 12, 355 - h + row * 15, 8, 7);
-      c.fillRect(x + 40, 355 - h + row * 15, 8, 7);
-    }
-    c.fillStyle = '#a9c99c';
-  }
-  c.fillStyle = '#699673';
-  c.beginPath(); c.moveTo(0, 373); c.lineTo(960, 273); c.lineTo(960, 484); c.lineTo(0, 484); c.closePath(); c.fill();
-  for (let row = 0; row < 2; row += 1) {
-    for (let i = 0; i < 25; i += 1) {
-      const x = i * 43 + row * 18;
-      const y = 388 - x * 0.112 + row * 19 + Math.sin(seconds * 2.6 + i) * 2;
-      oval(c, x, y, 7, 8, i % 3 === 0 ? GOLD : i % 3 === 1 ? CREAM : '#254d35', 0);
-    }
-  }
-  c.strokeStyle = '#e2ecd0'; c.lineWidth = 5;
-  c.beginPath(); c.moveTo(0, 410); c.lineTo(960, 304); c.stroke();
-}
-
-function track(c: CanvasRenderingContext2D, travel: number, crashAge: number, reduced: boolean): void {
-  const tile = 150;
-  const scroll = ((travel % tile) + tile) % tile;
-  const collapse = reduced ? (crashAge > 0 ? 1 : 0) : ease((crashAge - 0.18) / 0.9);
-  for (let i = -1; i < 8; i += 1) {
-    const x = i * tile - scroll;
-    const y = floorAt(x);
-    c.save(); c.translate(x, y);
-    if (collapse > 0) {
-      c.translate(0, collapse * (50 + ((i + 9) % 3) * 25));
-      c.rotate(collapse * (i % 2 === 0 ? 0.17 : -0.24));
-    }
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(tile, -tile * 0.17); c.lineTo(tile, 85); c.lineTo(0, 105); c.closePath(); shape(c, '#0c7954', 4);
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(tile, -tile * 0.17); c.lineTo(tile, -tile * 0.17 + 16); c.lineTo(0, 16); c.closePath(); shape(c, GREEN, 4);
-    c.strokeStyle = '#85ec94'; c.lineWidth = 3;
-    c.beginPath(); c.moveTo(5, 3); c.lineTo(tile - 7, -tile * 0.17 + 3); c.stroke();
-    c.save(); c.translate(65, 48); c.rotate(-0.168);
-    c.strokeStyle = '#1c9564'; c.lineWidth = 8;
-    c.beginPath(); c.moveTo(-17, -11); c.lineTo(0, 0); c.lineTo(-17, 11); c.moveTo(7, -11); c.lineTo(24, 0); c.lineTo(7, 11); c.stroke(); c.restore();
-    for (const bx of [10, 137]) oval(c, bx, 28 - bx * 0.17, 3, 3, GOLD, 1);
-    c.restore();
-  }
-}
-
-function gantry(c: CanvasRenderingContext2D, crashAge: number, reduced: boolean): void {
-  box(c, 900, 175, 14, 151, INK, 4, 0);
-  box(c, 706, 174, 209, 10, INK, 4, 0);
-  const drop = reduced ? (crashAge > 0 ? 1 : 0) : ease(crashAge / 0.28);
-  const y = 193 + drop * 92;
-  c.strokeStyle = INK; c.lineWidth = 3;
-  for (const x of [734, 877]) {
-    c.beginPath(); c.moveTo(x, 182); c.lineTo(x, y); c.stroke();
-  }
-  box(c, 712, y, 187, 30, GOLD, 5, 4);
-  c.save(); c.beginPath(); c.roundRect(714, y + 2, 183, 26, 4); c.clip();
-  c.fillStyle = INK;
-  for (let i = 0; i < 8; i += 1) {
-    const x = 703 + i * 28;
-    c.beginPath(); c.moveTo(x, y); c.lineTo(x + 13, y); c.lineTo(x + 33, y + 32); c.lineTo(x + 20, y + 32); c.closePath(); c.fill();
-  }
-  c.restore();
-  box(c, 756, y + 2, 102, 25, GOLD, 3, 2);
-  text(c, 'BEAR-ICADE', 807, y + 15, 12, INK, 'center');
-  if (drop > 0.95) {
-    star(c, 726, y + 34, 15, GOLD);
-    star(c, 889, y + 30, 12, CREAM);
-  }
-}
-
-function grandstand(c: CanvasRenderingContext2D, secured: boolean): void {
-  box(c, 621, 423, 234, 63, '#f7e3a4', 10, 4);
-  box(c, 611, 417, 254, 14, GOLD, 6, 4);
-  text(c, secured ? 'SAFE IN THE STANDS' : 'CASH OUT →', 738, 455, secured ? 17 : 22, INK, 'center', 220);
-  for (const x of [629, 847]) {
-    c.strokeStyle = INK; c.lineWidth = 4;
-    c.beginPath(); c.moveTo(x, 416); c.lineTo(x, 383); c.stroke();
-    c.beginPath(); c.moveTo(x, 381); c.lineTo(x + 22, 388); c.lineTo(x, 396); c.closePath(); shape(c, secured ? GREEN : GOLD, 2);
-  }
-}
-
-function cushion(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
-  const compression = reduced ? 0 : Math.sin(clamp((age - 0.7) / 0.55) * Math.PI) * 8;
-  box(c, 340, 445 + compression, 218, 43 - compression, '#f2c349', 17, 4);
-  c.strokeStyle = '#be871e'; c.lineWidth = 2;
-  c.beginPath(); c.moveTo(358, 465 + compression / 2); c.lineTo(541, 465 + compression / 2); c.stroke();
-  text(c, 'SOFT LANDING', 449, 475, 13, INK, 'center');
+  c.fillStyle = '#0c1b16ed'; c.fillRect(0, 503, 960, 37);
+  text(c, caption, 480, 523, 27, view.cashoutX100 !== null ? GREEN : CREAM, 'center', 922);
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
   const reduced = options.reducedMotion === true;
-  const audio = pageAudio({ style: 'phonk', bpm: 124, tempoRise: 0.15, crash: 'thud', music: 0.65 });
+  const audio = pageAudio({ style: 'phonk', bpm: 145, tempoRise: 0.12, crash: 'slam', music: 0.74 });
   let previousPhase: SceneView['phase'] | null = null;
-  let previousCashout: number | null = null;
   let previousElapsed = 0;
-  let cashoutAt: number | null = null;
-  let lastStomp = -1;
-  let lastChapter = -1;
+  let previousAge = 0;
+  let previousCashout: number | null = null;
+  let idleStarted: number | null = null;
+  let exitAt: number | null = null;
+  let exitFrom: BullPose | null = null;
+  let lastStep = -1;
+  let lastIdle = 0;
+  let surface: HTMLCanvasElement | null = null;
 
-  return {
-    draw(c, view, now) {
-      const running = view.phase === 'running';
-      const crashed = view.phase === 'crashed';
-      const seconds = Math.max(0, view.elapsed / 1000);
-      const age = crashed ? Math.max(0, view.crashAge / 1000) : 0;
-      const confirmed = view.cashoutX100 !== null;
-      const restarted = view.elapsed < previousElapsed || ((view.phase === 'waiting' || view.phase === 'betting') && previousPhase !== view.phase);
-      if (restarted) {
-        previousCashout = null; cashoutAt = null; lastStomp = -1; lastChapter = -1;
+  function draw(c: CanvasRenderingContext2D, view: SceneView, now: number): void {
+    const running = view.phase === 'running', crashed = view.phase === 'crashed';
+    const idle = !running && !crashed;
+    const seconds = Math.max(0, view.elapsed / 1000);
+    const age = crashed ? Math.max(0, view.crashAge / 1000) : 0;
+    const secured = view.cashoutX100 !== null;
+    const reset = seconds < previousElapsed || idle && view.phase !== previousPhase;
+    const fresh = previousPhase === null || reset;
+    if (idleStarted === null || reset) idleStarted = now;
+    const idleTime = Math.max(0, (now - idleStarted) / 1000);
+    if (reset) { exitAt = null; exitFrom = null; lastStep = -1; previousCashout = null; }
+    const r = routineAt(seconds, reduced);
+    const basePose = idle ? idlePose(idleTime, reduced) : runningPose(seconds, reduced, r);
+    if (secured && previousCashout === null) {
+      exitAt = fresh || crashed ? seconds - 2 : seconds;
+      exitFrom = { ...basePose };
+      if (!fresh && running) { audio.cashout(); audio.fx('airhorn', 0.35); }
+    }
+    if (!secured) { exitAt = null; exitFrom = null; }
+    const tension = clamp(Math.log2(Math.max(1, view.currentX100 / 100)) / 10);
+    audio.update(view.phase, tension);
+    if (crashed && previousPhase !== 'crashed') {
+      const quiet = fresh || age > 1.5;
+      audio.crash('slam', quiet);
+      if (!quiet) { audio.fx('clang', 0.7); audio.fx('gasp', 0.4); }
+    }
+    if (running && !fresh && !secured) {
+      const contactAt = r.index * BEAT_SECONDS + CONTACT;
+      if (seconds >= contactAt && previousElapsed < contactAt) {
+        audio.fx(r.kind === 2 || r.kind === 5 ? 'whoosh' : 'punch', 0.6);
+        audio.fx(r.kind === 1 ? 'squeak' : r.kind === 4 ? 'splash' : 'clang', 0.36);
+        audio.fx('crowd', 0.29);
       }
-      const fresh = previousPhase === null || restarted;
-      if (confirmed && previousCashout === null) {
-        cashoutAt = fresh || crashed ? seconds - 2 : seconds;
-        if (!fresh && running) { audio.cashout(); audio.fx('whoosh', 0.4); }
-      }
-      if (!confirmed) cashoutAt = null;
-      const tension = clamp(Math.log2(Math.max(1, view.currentX100 / 100)) / 10);
-      audio.update(view.phase, tension);
-      if (crashed && previousPhase !== 'crashed') {
-        const quiet = fresh || age > 1.5;
-        audio.crash('thud', quiet);
-        if (!quiet) audio.fx('clang', 0.65);
-      }
-      const chapter = Math.floor(seconds / 25) % CHAPTERS.length;
-      const stride = seconds * 2.25;
-      const step = Math.floor(stride * 2);
-      if (running && !fresh && !confirmed && step !== lastStomp) audio.fx('stomp', 0.12 + tension * 0.1);
-      if (running && !fresh && chapter !== lastChapter) audio.fx('crowd', 0.2);
-      lastStomp = step; lastChapter = chapter;
-      previousPhase = view.phase; previousCashout = view.cashoutX100; previousElapsed = view.elapsed;
+      const step = Math.floor(basePose.stride * 2);
+      if (step !== lastStep && basePose.gait !== 'air') audio.fx('stomp', 0.13 + tension * 0.08);
+      lastStep = step;
+    }
+    if (crashed && !fresh && !secured && previousAge < 1.22 && age >= 1.22) audio.fx('phone', 0.5);
+    const idleStomp = Math.floor((idleTime + 3.65) / 7.2);
+    if (idle && !fresh && idleStomp !== lastIdle) audio.fx('stomp', 0.25);
+    lastIdle = idleStomp;
 
-      const motion = reduced ? 0 : seconds;
-      const ambient = reduced ? 0 : (running || crashed ? seconds : now / 1000);
-      const travel = motion * 185;
-      const escape = confirmed ? (reduced ? 1 : ease((seconds - (cashoutAt ?? seconds - 2) + age) / 1.15)) : 0;
-      c.save();
-      background(c, reduced ? 0 : ambient, motion, chapter);
-      track(c, travel, crashed ? Math.max(age, 0.001) : 0, reduced);
-      gantry(c, crashed ? Math.max(age, 0.001) : 0, reduced);
-      bear(c, 832, floorAt(832) - 3, ambient, crashed);
-      grandstand(c, confirmed);
-      if (crashed && !confirmed) cushion(c, age, reduced);
+    const clock = idle ? idleTime : seconds + (crashed ? age : 0);
+    const motion = reduced ? 0 : clock;
+    const exit = secured ? reduced ? 1 : ease((seconds - (exitAt ?? seconds - 2) + age) / 1.1) : 0;
+    let pose = basePose;
+    if (secured) {
+      const from = exitFrom ?? basePose;
+      pose = {
+        ...from, x: mix(from.x, 737, exit), y: mix(from.y, 409, exit) - (reduced ? 0 : Math.sin(exit * Math.PI) * 81),
+        scale: mix(from.scale, 0.79, exit), body: -4, pitch: -0.04 + (reduced ? 0 : Math.sin(motion * 5) * 0.035),
+        head: reduced ? -0.13 : -0.14 + Math.sin(motion * 4) * 0.11,
+        stride: 0, gait: exit < 1 ? 'air' : 'idle', tuck: 0.7, face: 'victory', snort: 0,
+        rear: exit === 1 ? reduced ? 0.6 : 0.45 + Math.sin(motion * 4) * 0.3 : 0,
+        time: motion,
+      };
+    } else if (crashed) {
+      const launch = reduced ? 1 : ease((age - 0.23) / 1.03);
+      const flight = reduced ? 0 : Math.sin(launch * Math.PI);
+      pose = {
+        ...basePose, x: mix(basePose.x, 655, launch), y: mix(basePose.y, 453, launch) - flight * 63,
+        scale: mix(basePose.scale, 0.81, launch), body: -5,
+        pitch: flight * -0.6, head: launch >= 1 ? 0.08 + (reduced ? 0 : Math.sin(age * 4) * 0.075) : -0.2,
+        stride: 0, gait: launch >= 1 ? 'sit' : 'air', tuck: 0.8, face: launch >= 1 ? 'support' : 'panic', snort: 0, rear: 0,
+        time: motion,
+      };
+    }
+    const caption = secured ? crashed ? 'YOU LEFT. THEY OPENED A TICKET.' : 'LEFT THE CHAT. LET THEM COPE.' : crashed ? age < 1.25 ? 'THE TERMS WERE IN THE FINE PRINT.' : 'HAVE YOU TRIED NOT BEING REKT?' : idle ? 'BEARS HAVE A PODCAST. MUMU HAS HORNS.' : actCaption(r);
+    const encounter = secured ? 'VICTORY PARADE' : crashed ? 'UNPAID SUPPORT INTERNSHIP' : idle ? 'THE HERD IS GETTING LOUD' : actTitle(r);
+    const framing: Framing = { x: pose.x + (secured ? 4 : crashed ? 32 : 19), y: pose.y, opponentX: secured ? 768 : crashed ? 697 : idle ? 782 : r.propX, opponentY: secured ? 432 : crashed ? 435 : idle ? 405 : floorAt(r.propX), caption, encounter };
 
-      if (running && !confirmed && !reduced) {
-        for (let i = 0; i < 7; i += 1) {
-          const progress = ((seconds * 2.1 + i / 7) % 1);
-          const x = 263 - progress * 170;
-          const y = floorAt(x) - 9 - progress * 24;
-          c.globalAlpha = (1 - progress) * 0.7;
-          oval(c, x, y, 6 + progress * 17, 4 + progress * 9, CREAM, 0);
-        }
-        c.globalAlpha = 1;
-        c.strokeStyle = '#f8fff0'; c.lineWidth = 3;
-        for (let i = 0; i < 5; i += 1) {
-          const x = 250 - ((seconds * 95 + i * 48) % 230);
-          const y = 262 + i * 17;
-          c.beginPath(); c.moveTo(x, y); c.lineTo(x + 23, y - 4); c.stroke();
-        }
+    const drawWorld = (ctx: CanvasRenderingContext2D, close = false): void => {
+      ctx.save();
+      const contactAge = r.age - CONTACT;
+      const kick = reduced || secured ? 0 : crashed ? Math.exp(-age * 7) : running && contactAge >= 0 && contactAge < 0.35 ? Math.exp(-contactAge * 12) * 0.45 : 0;
+      if (kick > 0.005) {
+        ctx.translate(430, 300); ctx.scale(1 + kick * 0.025, 1 + kick * 0.025); ctx.translate(-430, -300);
+        ctx.translate(Math.sin(clock * 83) * kick * 6, Math.cos(clock * 67) * kick * 3);
       }
+      arena(ctx, motion, r.lap, reduced);
+      track(ctx, reduced ? 0 : idle ? idleTime * 0.04 : seconds, crashed, age, reduced);
+      if (idle) idleBear(ctx, idleTime, reduced);
+      else if (!crashed) drawAct(ctx, r, reduced ? 0 : seconds, reduced);
+      if (crashed) {
+        crashStamp(ctx, age, reduced);
+        if (!secured) supportDesk(ctx, age, reduced, false);
+      }
+      if (secured) parade(ctx, motion, exit, reduced, false);
+      if (!reduced && !secured && !crashed) dust(ctx, motion, pose.x, floorAt(pose.x), idle ? 0.35 : 0.85);
+      bull(ctx, pose);
+      if (secured) parade(ctx, motion, exit, reduced, true);
+      if (crashed && !secured) {
+        supportDesk(ctx, age, reduced, true);
+        impact(ctx, 417, 437, age - 0.23, reduced, 'AGREED!');
+        if (age >= 1.27) bubble(ctx, 670, 186, 'PLEASE HOLD. FOREVER.', 306, CREAM);
+      }
+      if (running && !secured) impact(ctx, 534, floorAt(534) - 14, contactAge, reduced, r.kind === 2 ? 'MISS!' : r.kind === 5 ? 'NOPE!' : r.kind === 1 ? 'RATIO!' : 'BONK!');
+      if (idle && !reduced) impact(ctx, pose.x + 83, floorAt(pose.x + 83), idleTime % 7.2 - 3.55, false, 'STILL HERE!');
+      ctx.restore();
+      if (!close) hud(ctx, view, r, caption);
+    };
 
-      const startX = 377;
-      const startY = floorAt(startX) - 3;
-      if (confirmed) {
-        const x = startX + (733 - startX) * escape;
-        const y = startY + (416 - startY) * escape - Math.sin(escape * Math.PI) * 50;
-        bull(c, x, y, 0.9 - escape * 0.3, reduced ? 0 : stride, !reduced && escape < 1, escape === 1, ambient, -0.168 * (1 - escape));
-        if (escape === 1) {
-          star(c, 650, 336, 12, GOLD);
-          star(c, 826, 348, 9, GREEN);
-        }
-      } else if (crashed) {
-        const drop = reduced ? 1 : ease((age - 0.22) / 0.68);
-        const recoil = reduced ? 0 : Math.sin(clamp(age / 0.6) * Math.PI) * 25;
-        bull(c, startX + drop * 59 - recoil, startY + (444 - startY) * drop, 0.9 - drop * 0.15, 0, false, drop === 1, reduced ? 0 : age * 0.5, -0.168 * (1 - drop));
-      } else {
-        bull(c, startX, startY, 0.9, reduced ? 0 : stride, running && !reduced, false, ambient);
-        if (view.phase === 'betting' && !reduced) {
-          const snort = (now / 1000) % 3;
-          if (snort < 0.65) {
-            c.globalAlpha = 1 - snort / 0.65;
-            oval(c, 548 + snort * 35, 269 - snort * 8, 5 + snort * 12, 4 + snort * 7, '#fffdf0', 0);
-            c.globalAlpha = 1;
-          }
-        }
-      }
-
-      // The header and footer stay still while the course moves underneath them.
-      c.fillStyle = CREAM; c.fillRect(0, 0, 960, 156);
-      c.strokeStyle = INK; c.lineWidth = 3; c.beginPath(); c.moveTo(28, 157); c.lineTo(931, 157); c.stroke();
-      box(c, 30, 23, 164, 24, INK, 4, 0);
-      text(c, 'COMMUNITY ARCADE', 112, 36, 11, CREAM, 'center');
-      text(c, 'MUMU', 26, 91, 70, INK);
-      text(c, 'BULL RUN', 280, 92, 35, GREEN);
-      text(c, 'Horns up. Ramp up. Know your exit.', 33, 134, 16, '#45644c');
-      box(c, 625, 22, 305, 118, INK, 14, 0);
-      text(c, crashed ? 'ROUND COMPLETE' : 'ROUND MULTIPLIER', 648, 44, 13, '#b6d7ac');
-      text(c, formatX(view.currentX100), 776, 92, 58, crashed ? GOLD : CREAM, 'center', 271);
-      box(c, 31, 174, 221, 28, GOLD, 5, 2);
-      const label = crashed ? 'BEAR-ICADE DOWN' : view.phase === 'betting' ? 'ON YOUR MARKS' : view.phase === 'waiting' ? 'THE HERD IS GATHERING' : CHAPTERS[chapter]!;
-      text(c, label, 141, 189, 14, INK, 'center', 201);
-      if (running) text(c, `LAP ${Math.floor(seconds / 150) + 1}`, 268, 189, 13, INK);
-      c.fillStyle = INK; c.fillRect(0, 488, 960, 52);
-      const caption = confirmed ? 'EXIT TAKEN. HORNS STILL UP.' : crashed ? 'THE BEAR HAD ONE JOB.' : running ? BANNERS[chapter]! : view.phase === 'betting' ? 'THE NEXT CHARGE STARTS HERE.' : 'BIG HORNS. BIG PERSONALITY.';
-      text(c, caption, 26, 514, 20, CREAM, 'left', confirmed ? 475 : 510);
-      if (confirmed) {
-        text(c, `CASHED OUT ${formatX(view.cashoutX100!)}`, 932, 515, 20, '#88ed9f', 'right', 410);
-      } else {
-        text(c, crashed ? 'ROUND CRASHED' : running ? 'CASH OUT TO TAKE THE EXIT' : 'PLAY WITH VALUELESS CREDITS', 932, 515, 13, '#b6d7ac', 'right', 367);
-      }
-      c.restore();
-    },
-  };
+    if (isPortrait(c.canvas) && typeof document !== 'undefined') {
+      surface ??= Object.assign(document.createElement('canvas'), { width: 960, height: 540 });
+      const stage = surface.getContext('2d');
+      if (stage) {
+        stage.setTransform(1, 0, 0, 1, 0, 0); drawWorld(stage, true);
+        presentPortrait(c, surface, view, framing);
+      } else drawWorld(c);
+    } else drawWorld(c);
+    previousPhase = view.phase; previousCashout = view.cashoutX100; previousElapsed = seconds; previousAge = age;
+  }
+  return { draw };
 }

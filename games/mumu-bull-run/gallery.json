@@ -1,15 +1,15 @@
 {
   "name": "MUMU Bull Run",
-  "hook": "Big horns. One ridiculous bear blockade.",
-  "tagline": "Charge up emerald ramps with a fearless white bull. Take the grandstand exit on confirmed cash-out before the bear drops the blockade and folds the course.",
+  "hook": "Bears have a podcast. MUMU has horns.",
+  "tagline": "A roaring arena of smug podcasts, cardboard gurus and short-seller robots. Smash the thesis, dodge the cope, and take the victory parade before customer support starts hiring.",
   "tags": [
-    "MUMU community",
-    "Uphill charge",
-    "Original cartoon"
+    "Crypto satire",
+    "Physical comedy",
+    "MUMU community"
   ],
   "renderer": "Canvas 2D",
   "licence": "open",
   "poster": {
-    "seconds": 8
+    "seconds": 7
   }
 }
