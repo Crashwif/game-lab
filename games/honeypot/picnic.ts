@@ -180,7 +180,7 @@ export function auditDone(p: Picnic): boolean {
   return p.fox.stamped;
 }
 
-/** `reduced` (prefers-reduced-motion) slows the swarm. */
+/** `reduced` slows the swarm. */
 export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; reduced: boolean; }
 
 export function pawPoint(p: Picnic, level: number): { x: number; y: number } {

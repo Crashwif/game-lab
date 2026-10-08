@@ -74,3 +74,69 @@ window.motionFixture={
     } finally { await page.close(); }
   });
 });
+
+// Real replay navigation covers the browser preference at the shell/scene boundary.
+test('replay pages animate characters with either operating-system motion preference', { timeout: 90_000 }, async t => {
+  const bundles = new Map();
+  for (const game of GAMES) {
+    const result = await build({ entryPoints: [`games/${game}/main.ts`], bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022' });
+    bundles.set(game, result.outputFiles[0].text);
+  }
+  const server = createServer(async (req, res) => {
+    if (req.url === '/') {
+      res.setHeader('content-type', 'text/html');
+      res.end(GAMES.map(game => `<a href="/${game}/index.html?mode=replay">${game}</a>`).join(''));
+      return;
+    }
+    const [, game, file] = req.url.split('?')[0].split('/');
+    if (!GAMES.includes(game)) { res.writeHead(404); res.end(); return; }
+    if (file === 'game.generated.js') { res.setHeader('content-type', 'text/javascript'); res.end(bundles.get(game)); return; }
+    if (!['index.html', 'style.css'].includes(file)) { res.writeHead(404); res.end(); return; }
+    res.setHeader('content-type', file.endsWith('.css') ? 'text/css' : 'text/html');
+    res.end(await readFile(`games/${game}/${file}`));
+  });
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise(done => server.close(done)));
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  for (const reducedMotion of ['reduce', 'no-preference']) for (const game of GAMES) await t.test(`${game}: ${reducedMotion}`, async () => {
+    const page = await browser.newPage({ viewport: { width: 1040, height: 740 }, reducedMotion });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+      const start = new Date('2026-10-08T00:00:00Z');
+      await page.clock.install({ time: start });
+      await page.clock.pauseAt(new Date(+start + 60_000));
+      await page.goto(`http://127.0.0.1:${server.address().port}/`);
+      await page.getByRole('link', { name: game, exact: true }).click();
+      await page.waitForLoadState('load');
+      await page.waitForSelector('html[data-mode=replay]');
+      await page.clock.runFor(50);
+      const measure = async () => {
+        await page.locator('canvas').evaluate(canvas => {
+          const crop = [260, 195, 340, 280].map((v, i) => Math.round(v * (i % 2 ? canvas.height / 540 : canvas.width / 960)));
+          window.motionSample = { crop, before: canvas.getContext('2d').getImageData(...crop).data };
+        });
+        await page.clock.runFor(850);
+        return page.locator('canvas').evaluate(canvas => {
+          const { crop, before } = window.motionSample;
+          const after = canvas.getContext('2d').getImageData(...crop).data;
+          let changed = 0;
+          for (let i = 0; i < before.length; i += 4) if (Math.abs(before[i] - after[i]) + Math.abs(before[i + 1] - after[i + 1]) + Math.abs(before[i + 2] - after[i + 2]) > 90) changed++;
+          return changed / (crop[2] * crop[3]);
+        });
+      };
+      assert.match(await page.locator('#status').innerText(), /Recorded round · betting/);
+      assert.ok(await measure() > 0.004, 'the actor moves during betting');
+      await page.clock.runFor(850);
+      assert.match(await page.locator('#status').innerText(), /Recorded round · running/);
+      assert.ok(await measure() > 0.004, 'the actor moves during running');
+      await page.locator('#restart').click();
+      await page.clock.runFor(50);
+      assert.match(await page.locator('#status').innerText(), /Recorded round · betting/);
+      assert.ok(await measure() > 0.004, 'restarting retains full character animation');
+      assert.equal(await page.locator('#notice').isVisible(), false);
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
+});

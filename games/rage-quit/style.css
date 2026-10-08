@@ -34,7 +34,6 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 #restart>span[aria-hidden=true]{visibility:hidden}
 [data-mode=embedded]::-webkit-scrollbar{display:none}
 @media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
-@media (prefers-reduced-motion:reduce){button:active{transform:none}}
 /* game */
 :root{--bg:#f3eedf;--fg:#242220;--accent:#e63d27;--on-accent:#fff8e8;color-scheme:light}
 .controls{border-top:3px solid #242220;background:#f3eedf}
