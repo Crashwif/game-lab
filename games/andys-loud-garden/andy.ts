@@ -560,10 +560,9 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   // Back leg and arm, then the torso over them.
   limb(pose.backLeg, 24, TEAL_DARK, TEAL_DARK);
   boot(backFoot, clamp(-backFoot.y / 16, 0, 1));
-  // The far arm's shoulder and upper arm always stay behind the body. Its forearm hangs behind with them at rest,
-  // crosses in front of the body to steady the can, and when caught rises beside the face, in front of the ear but
-  // behind the skull.
-  const backLayer: 'behind' | 'across' | 'raised' = raise > 0.5 ? 'raised' : rig.reach.x > 0.5 ? 'across' : 'behind';
+  // The far arm stays behind the body: it hangs there at rest and reaches behind the torso to steady the can from
+  // beneath. Only when he is caught does its forearm rise beside the face, in front of the ear but behind the skull.
+  const backLayer: 'behind' | 'raised' = raise > 0.5 ? 'raised' : 'behind';
   const { root: backShoulder, joint: backElbow } = pose.backArm;
   const sleeve = (): void => {
     segment(backShoulder, lerp(backShoulder, backElbow, 0.45), 23, INK);
@@ -593,7 +592,6 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
   limb(pose.frontLeg, 26, TEAL, TEAL);
   boot(frontFoot, clamp(-frontFoot.y / 16, 0, 1));
   disc(hip, 28, 18, TEAL, 3.5);
-  if (backLayer === 'across') backForearm();
 
   // The head: ears behind it, the skull and muzzle as one outline, then the face.
   ctx.save();
@@ -647,7 +645,6 @@ export function drawAndy(ctx: CanvasRenderingContext2D, rig: AndyRig, drive: And
     ctx.restore();
   }
   hand(frontHand, raise, YELLOW);
-  if (rig.can.held && rig.reach.x > 0.55) hand(backHand, 0, YELLOW_SHADE);
   ctx.restore();
 
   // The can where it fell, in world space, and the sweat flung off at the bust.
