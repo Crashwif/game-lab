@@ -42,6 +42,29 @@ export interface TrackView {
   /** How far the crash has gone, 0 to 1: the void deepens and the debris falls. */
   dark: number;
   reduced: boolean;
+  /** The dev at the end of the line, holding the rug the rails are laid on: 0 (not there) to 1. */
+  dev?: number;
+  /** His tug, 0 to 1: he leans back and the rug's end lifts. */
+  tug?: number;
+  /** A ripple running down the rails from his tug: the crest's depth and height in lane widths. */
+  wave?: number;
+  waveAmp?: number;
+}
+
+/** How high the tug's ripple lifts the rails at depth `z`. */
+export function floorBump(view: TrackView, z: number): number {
+  const amp = view.waveAmp ?? 0;
+  if (amp <= 0 || view.wave === undefined) return 0;
+  const d = (z - view.wave) / 1.1;
+  return amp * Math.exp(-d * d);
+}
+
+/** Depths to break the rails at: the ends, and densely around a ripple's crest so the rails bend over it. */
+function railStops(view: TrackView, end: number): number[] {
+  const stops = [NEAR];
+  if ((view.waveAmp ?? 0) > 0 && view.wave !== undefined) for (let z = Math.max(NEAR, view.wave - 3); z < Math.min(end, view.wave + 3); z += 0.25) if (z > NEAR) stops.push(z);
+  stops.push(end);
+  return stops;
 }
 
 const GRAFFITI: readonly (readonly [string, string])[] = [
@@ -57,6 +80,7 @@ const BILLBOARDS: readonly (readonly [string, string, string])[] = [
   ['YOU ARE HERE', 'SO IS THE TAXMAN', PINK],
   ['DEV IS BASED', 'TRUST ME BRO', CYAN],
   ['EXIT', 'CLOSED FOR RENOVATION', GOLD],
+  ['KOL SAYS: 100× GEM', 'NFA. (PAID POST)', LIME],
 ];
 const GATE_WORDS = ['KYC', 'GAS FEE', 'SIGN IN', 'TAX', 'SELL TAX', 'TERMS'];
 
@@ -184,24 +208,74 @@ function floor(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera): voi
     if (z + 0.2 < NEAR) continue;
     const z0 = Math.max(NEAR, z), z1 = Math.min(end, z + 0.2);
     if (z1 <= z0) continue;
-    const q = quad(project(-1.62, z0, 0, cam), project(1.62, z0, 0, cam), project(1.62, z1, 0, cam), project(-1.62, z1, 0, cam));
-    poly(ctx, q, (Math.floor((view.distance + z) / pitch) % 4 === 0) ? '#3a3155' : '#2b2546');
+    const h0 = floorBump(view, z0), h1 = floorBump(view, z1);
+    const q = quad(project(-1.62, z0, h0, cam), project(1.62, z0, h0, cam), project(1.62, z1, h1, cam), project(-1.62, z1, h1, cam));
+    // On the ripple's crest the rug under the rails shows through, red and gold.
+    const rugged = h0 > (view.waveAmp ?? 0) * 0.35;
+    poly(ctx, q, rugged ? (Math.floor((view.distance + z) / pitch) % 3 === 0 ? '#e9c46a' : '#b8202f') : (Math.floor((view.distance + z) / pitch) % 4 === 0) ? '#3a3155' : '#2b2546');
   }
-  // Rails: two a lane, tapered quads so the perspective holds; the third rails outside glow pink.
+  // Rails: two a lane, tapered quads so the perspective holds (bent over a ripple); the third rails outside glow pink.
+  const stops = railStops(view, end);
+  const rail = (x: number, half: number, h: number, colour: string) => {
+    for (let i = 1; i < stops.length; i += 1) {
+      const a = stops[i - 1]!, b = stops[i]!, ha = h + floorBump(view, a), hb = h + floorBump(view, b);
+      poly(ctx, quad(project(x - half, a, ha, cam), project(x + half, a, ha, cam), project(x + half, b, hb, cam), project(x - half, b, hb, cam)), colour);
+    }
+  };
   for (const lane of [-1, 0, 1]) {
     for (const side of [-0.32, 0.32]) {
-      const x = lane + side;
-      poly(ctx, quad(project(x - 0.035, NEAR, 0, cam), project(x + 0.035, NEAR, 0, cam), project(x + 0.035, end, 0, cam), project(x - 0.035, end, 0, cam)), '#6d7390');
-      poly(ctx, quad(project(x - 0.012, NEAR, 0.02, cam), project(x + 0.012, NEAR, 0.02, cam), project(x + 0.012, end, 0.02, cam), project(x - 0.012, end, 0.02, cam)), '#c9f7f2');
+      rail(lane + side, 0.035, 0, '#6d7390');
+      rail(lane + side, 0.012, 0.02, '#c9f7f2');
     }
   }
-  for (const x of [-1.52, 1.52]) {
-    poly(ctx, quad(project(x - 0.04, NEAR, 0.04, cam), project(x + 0.04, NEAR, 0.04, cam), project(x + 0.04, end, 0.04, cam), project(x - 0.04, end, 0.04, cam)), `rgba(255, 61, 138, ${0.55 + 0.35 * view.tension})`);
-  }
+  for (const x of [-1.52, 1.52]) rail(x, 0.04, 0.04, `rgba(255, 61, 138, ${0.55 + 0.35 * view.tension})`);
   // Lane edges, faint, so the three lanes read on a dark floor.
-  for (const x of [-0.5, 0.5]) {
-    const n = project(x, NEAR, 0, cam), f = project(x, end, 0, cam);
-    line(ctx, [[n.X, n.Y], [f.X, f.Y]], 'rgba(120, 110, 170, 0.18)', 1);
+  for (const x of [-0.5, 0.5]) line(ctx, stops.map((z): Point => { const p = project(x, z, floorBump(view, z), cam); return [p.X, p.Y]; }), 'rgba(120, 110, 170, 0.18)', 1);
+}
+
+/**
+ * The dev at the end of the line, in the light where the tunnel ends: a hooded silhouette with the rug the rails
+ * are laid on gathered in his fists. He tugs as the round climbs (the ripple runs down the rails) and he is gone
+ * into the dark once the rug is pulled.
+ */
+function devAtTheEnd(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera): void {
+  const show = clamp(view.dev ?? 0, 0, 1);
+  if (show <= 0.01) return;
+  const tug = clamp(view.tug ?? 0, 0, 1);
+  const foot = project(0, FAR - 0.4, 0, cam);
+  // He looms larger in the light as the number climbs, with more of the rug gathered up.
+  const loom = 1 + 0.8 * view.tension;
+  const k = (foot.s / 100) * loom;
+  ctx.save();
+  ctx.globalAlpha = show;
+  ctx.translate(foot.X, foot.Y);
+  ctx.scale(k, k);
+  // The rug's end, lifted off the floor into his hands; more of it as he pulls.
+  const hand = -70 - 24 * view.tension - 34 * tug;
+  // Its foot stays the width of the rails however big he looms.
+  const base = 175 / loom;
+  poly(ctx, [[-base, 3], [base, 3], [44, hand], [-44, hand]], '#b8202f', INK, 6);
+  line(ctx, [[-base * 0.69, -18 - 8 * tug], [base * 0.69, -18 - 8 * tug]], GOLD, 7);
+  // Legs braced, the body leaning back into the pull.
+  ctx.save();
+  ctx.translate(0, -60);
+  ctx.scale(1, 1 - 0.12 * tug);
+  for (const side of [-1, 1]) line(ctx, [[side * 18, 0], [side * (26 + 10 * tug), 58]], '#05040c', 22);
+  panel(ctx, -42, -120, 84, 124, '#0b0918', '#ff7ab8', 26, 5);
+  ellipse(ctx, 0, -146, 38, 40, '#0b0918', '#ff7ab8', 5);
+  ellipse(ctx, 0, -140, 24, 26, '#05040c');
+  // The eyes glow; the arms reach down to the rug.
+  for (const side of [-1, 1]) {
+    ellipse(ctx, side * 10, -142, 6, 5, CYAN);
+    line(ctx, [[side * 40, -100], [side * 50, -40], [side * 44, hand + 60]], '#0b0918', 20);
+  }
+  ctx.restore();
+  ctx.restore();
+  if (foot.s > 6) {
+    ctx.save();
+    ctx.globalAlpha = show * (0.6 + 0.4 * tug);
+    text(ctx, 'DEV', foot.X, foot.Y - 2.6 * foot.s * loom - 6, 10, PINK, 'center');
+    ctx.restore();
   }
 }
 
@@ -300,7 +374,26 @@ function rug(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera): void {
   if (m.s > 40 && !o.hit) text(ctx, 'RUG', m.X, m.Y, m.s * 0.3, '#fff3d6', 'center', m.s * 0.8);
 }
 
+/** A car run through square is vaporware: it glitches sideways in slices and fades, so nothing solid is passed through. */
 function train(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera, view: TrackView): void {
+  if (!o.hit) return carriage(ctx, o, cam, view);
+  const fade = clamp(1 - o.hitAge * 1.6, 0, 1);
+  if (fade <= 0) return;
+  const front = project(o.lane, o.z, ROOF * 0.5, cam);
+  ctx.save();
+  ctx.globalAlpha = fade * 0.75;
+  if (!view.reduced) ctx.translate((noise(o.seed * 7 + Math.floor(o.hitAge * 24)) - 0.5) * front.s * 0.12, 0);
+  carriage(ctx, o, cam, view);
+  ctx.restore();
+  if (front.s > 30) {
+    ctx.save();
+    ctx.globalAlpha = fade;
+    text(ctx, 'VAPORWARE', front.X, front.Y, front.s * 0.13, CYAN, 'center', front.s * 0.9);
+    ctx.restore();
+  }
+}
+
+function carriage(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera, view: TrackView): void {
   const l = o.lane - HALF, r = o.lane + HALF, z0 = o.z, z1 = o.z + o.length;
   const s = project(o.lane, z0, 0, cam).s;
   // The roof, with vents along it.
@@ -360,26 +453,46 @@ function train(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera, view: Tr
 
 const COIN_COLOUR: Record<string, [string, string]> = { cope: ['#d38b3a', '#8a5218'], wagmi: ['#ffd23f', '#a67c00'] };
 
+/** A SLIPPAGE puddle: an oily slick flat on the floor, rainbow at the rim. It stays put when run through. */
+function puddle(ctx: CanvasRenderingContext2D, p: Pickup, cam: Camera, view: TrackView): void {
+  const near = project(p.x, Math.max(NEAR, p.z - 0.35), 0.005, cam), far = project(p.x, p.z + 0.35, 0.005, cam);
+  const c = { X: (near.X + far.X) / 2, Y: (near.Y + far.Y) / 2 }, s = Math.min(near.s, 230);
+  const rx = 0.4 * (near.s + far.s) / 2, ry = Math.max(1, (near.Y - far.Y) / 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(c.X, c.Y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(16, 10, 34, 0.9)';
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, s * 0.02);
+  ctx.strokeStyle = view.reduced ? CYAN : [CYAN, PINK, GOLD, LIME][Math.floor(view.time * 3 + p.seed * 4) % 4]!;
+  ctx.stroke();
+  ellipse(ctx, c.X - rx * 0.3, c.Y - ry * 0.25, rx * 0.35, ry * 0.25, 'rgba(95, 242, 230, 0.25)');
+  if (s > 50) text(ctx, 'SLIPPAGE', c.X, c.Y, Math.min(ry * 0.9, s * 0.09), '#c4b5fd', 'center', rx * 1.6, MONO);
+  ctx.restore();
+}
+
 function pickup(ctx: CanvasRenderingContext2D, p: Pickup, cam: Camera, view: TrackView): void {
   const q = project(p.x, p.z, p.h, cam);
   // A pickup sliding past the runner is nearly under the camera: its size stops growing there.
   const s = Math.min(q.s, 230);
+  if (p.kind === 'slip') puddle(ctx, p, cam, view);
   if (p.taken) {
     // The pop: a ring and what it was worth, rising.
     const k = Math.min(1, p.age / 0.4);
     ctx.save();
     ctx.globalAlpha = 1 - k;
-    const colour = p.kind === 'honey' ? PINK : p.kind === 'magnet' || p.kind === 'double' ? CYAN : GOLD;
+    const colour = p.kind === 'honey' ? PINK : p.kind === 'magnet' || p.kind === 'double' || p.kind === 'slip' ? CYAN : GOLD;
     ctx.beginPath();
     ctx.arc(q.X, q.Y, s * (0.12 + 0.35 * k), 0, Math.PI * 2);
     ctx.strokeStyle = colour;
     ctx.lineWidth = Math.max(1, s * 0.03 * (1 - k));
     ctx.stroke();
-    const label = p.kind === 'honey' ? '-20% BAG' : p.kind === 'magnet' ? 'INSIDER TIP' : p.kind === 'double' ? '2× LEVERAGE' : `+${COIN_VALUE[p.kind]}`;
+    const label = p.kind === 'honey' ? '-20% BAG' : p.kind === 'magnet' ? 'INSIDER TIP' : p.kind === 'double' ? '2× LEVERAGE' : p.kind === 'slip' ? 'SLIPPAGE' : `+${COIN_VALUE[p.kind]}`;
     text(ctx, label, q.X, q.Y - s * (0.2 + 0.4 * k), Math.max(8, s * 0.14), colour, 'center');
     ctx.restore();
     return;
   }
+  if (p.kind === 'slip') return;
   const g = project(p.x, p.z, 0, cam);
   ellipse(ctx, g.X, g.Y, Math.max(1, s * 0.13), Math.max(1, s * 0.045), 'rgba(0, 0, 0, 0.35)');
   const spin = view.reduced ? 1 : Math.cos(view.time * 4 + p.seed * 9);
@@ -513,11 +626,17 @@ export function drawWorld(ctx: CanvasRenderingContext2D, w: World, view: TrackVi
   ceiling(ctx, view, cam);
   floor(ctx, view, cam);
   voidBeyond(ctx, view, cam);
+  devAtTheEnd(ctx, view, cam);
   station(ctx, view, cam);
   const items: Item[] = [];
+  // Whatever stands on the rails rides the ripple's swell with them.
+  const ride = (z: number, draw: () => void) => {
+    const lift = floorBump(view, Math.max(NEAR, z)) * FOCAL / Math.max(NEAR, z);
+    return lift < 0.3 ? draw : () => { ctx.save(); ctx.translate(0, -lift); draw(); ctx.restore(); };
+  };
   for (const o of w.obstacles) {
     if (o.z > Math.min(FAR, view.rugZ) || o.z + o.length < NEAR) continue;
-    const shape = o.kind === 'wall' ? () => wall(ctx, o, cam) : o.kind === 'gate' ? () => gate(ctx, o, cam) : o.kind === 'rug' ? () => rug(ctx, o, cam) : () => train(ctx, o, cam, view);
+    const shape = ride(o.z, o.kind === 'wall' ? () => wall(ctx, o, cam) : o.kind === 'gate' ? () => gate(ctx, o, cam) : o.kind === 'rug' ? () => rug(ctx, o, cam) : () => train(ctx, o, cam, view));
     // Once past the runner an obstacle is between it and the camera, where it would fill the picture: it fades out instead.
     const fade = clamp((o.z + o.length - RUNNER_Z + 0.5) / 0.5, 0, 1);
     if (fade <= 0) continue;
@@ -526,7 +645,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, w: World, view: TrackVi
   }
   for (const p of w.pickups) {
     if (p.z > Math.min(FAR, view.rugZ) || p.z < NEAR) continue;
-    items.push({ z: p.sortZ, end: p.z, draw: () => pickup(ctx, p, cam, view) });
+    items.push({ z: p.sortZ, end: p.z, draw: ride(p.z, () => pickup(ctx, p, cam, view)) });
   }
   if (Number.isFinite(view.rugZ)) items.push({ z: view.rugZ, end: view.rugZ + 0.9, draw: () => rugRoll(ctx, view, cam) });
   items.sort((a, b) => b.z - a.z);
