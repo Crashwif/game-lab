@@ -1,17 +1,17 @@
 /**
- * The tower crane. One floor per cycle: the hook drops to the pile, lifts a
- * block, the trolley runs out along the jib, the block is lowered onto the
- * stack and released. The block hangs as a real pendulum under the hook, so
- * every trolley start and stop leaves it swinging and it lands a little off
- * centre; that swing is what rocks the tower. The crane climbs with the stack.
+ * The tower crane. One floor per cycle: the hook drops to the truck parked
+ * under the jib, lifts the floor off its bed, the trolley runs out along the
+ * jib, the block is lowered onto the stack and released. The block hangs as a
+ * real pendulum under the hook, so every trolley start and stop leaves it
+ * swinging and it lands a little off centre; that swing is what rocks the
+ * tower. The crane climbs with the stack.
  */
 import { type Spring, clamp, fract, mix, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { FLOOR_H, GROUND_Y, TOWER_X, drawBlock } from './tower';
+import { BED_Y, PARK_X, PICKUP } from './truck';
 
 export const CRANE_X = 250;
-export const PILE_X = 340;
 export const JIB_TIP = TOWER_X + 110;
-export const PILE_BLOCKS = 3;
 /** Shortest cable, hook tucked under the trolley. */
 const HOOK_MIN = 46;
 /** Hook to the centre of the hanging block (sling plus half a floor). */
@@ -39,12 +39,12 @@ export interface CraneState {
 }
 
 export function createCrane(): CraneState {
-  return { phase: 0, trolley: spring(PILE_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, weight: spring(0), drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
+  return { phase: 0, trolley: spring(PARK_X), cable: spring(HOOK_MIN), jibY: spring(GROUND_Y - 210), swing: 0, swingV: 0, holding: false, weight: spring(0), drop: { offset: 0, velocity: 0 }, events: { release: false, touchdown: false, pickup: false } };
 }
 
 export function resetCrane(c: CraneState): void {
   c.phase = 0;
-  settleSpring(c.trolley, PILE_X);
+  settleSpring(c.trolley, PARK_X);
   settleSpring(c.cable, HOOK_MIN);
   c.swing = 0;
   c.swingV = 0;
@@ -63,22 +63,27 @@ export const jibTargetY = (topY: number): number => Math.min(GROUND_Y - 210, top
 
 function trolleyTarget(phase: number): number {
   const u = fract(phase);
-  // The first cycle has nothing to come back from: the trolley waits over the pile.
-  if (phase < 0.25) return PILE_X;
-  if (u < 0.25) return mix(TOWER_X, PILE_X, smoothstep(0, 0.25, u));
-  if (u < 0.35) return PILE_X;
-  if (u < 0.65) return mix(PILE_X, TOWER_X, smoothstep(0.35, 0.65, u));
+  // The first cycle has nothing to come back from: the trolley waits over the truck.
+  if (phase < PICKUP) return PARK_X;
+  if (u < 0.15) return mix(TOWER_X, PARK_X, smoothstep(0, 0.15, u));
+  if (u < 0.35) return PARK_X;
+  if (u < 0.65) return mix(PARK_X, TOWER_X, smoothstep(0.35, 0.65, u));
   return TOWER_X;
 }
 
+/**
+ * The cable for each part of the cycle: up from the floor it just set, down to the truck's bed, a beat there
+ * while the slings go on, up with the floor, then down onto the stack. `topY` is the surface it sets on.
+ */
 function cableTarget(phase: number, jibY: number, topY: number): number {
   const u = fract(phase);
-  const pileLen = GROUND_Y - (PILE_BLOCKS + 0.5) * FLOOR_H - LOAD_DROP - jibY;
+  const bedLen = BED_Y - FLOOR_H / 2 - LOAD_DROP - jibY;
   const setLen = topY - FLOOR_H / 2 - LOAD_DROP - jibY;
-  if (phase < 0.1) return HOOK_MIN;
-  if (u < 0.1) return mix(setLen + FLOOR_H, HOOK_MIN, smoothstep(0, 0.1, u));
-  if (u < 0.25) return mix(HOOK_MIN, pileLen, smoothstep(0.1, 0.25, u));
-  if (u < 0.35) return mix(pileLen, HOOK_MIN, smoothstep(0.25, 0.35, u));
+  if (phase < 0.08) return HOOK_MIN;
+  if (u < 0.08) return mix(setLen, HOOK_MIN, smoothstep(0, 0.08, u));
+  if (u < 0.17) return mix(HOOK_MIN, bedLen, smoothstep(0.08, 0.17, u));
+  if (u < PICKUP) return bedLen;
+  if (u < 0.35) return mix(bedLen, HOOK_MIN, smoothstep(PICKUP, 0.35, u));
   if (u < 0.65) return HOOK_MIN;
   if (u < 0.97) return mix(HOOK_MIN, setLen, smoothstep(0.65, 0.97, u));
   return setLen;
@@ -91,7 +96,7 @@ export function settleCrane(c: CraneState, phase: number, topY: number): void {
   settleSpring(c.jibY, jibTargetY(topY));
   settleSpring(c.trolley, trolleyTarget(phase));
   settleSpring(c.cable, cableTarget(phase, c.jibY.x, topY));
-  c.holding = u >= 0.25;
+  c.holding = u >= PICKUP;
   c.swing = 0;
   c.swingV = 0;
   settleSpring(c.weight, 0);
@@ -108,16 +113,31 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
   const u0 = fract(before);
   const u = fract(phase);
   const wrapped = Math.floor(phase) > Math.floor(before);
-  c.events.pickup = (u0 < 0.25 && u >= 0.25) || (wrapped && u >= 0.25);
+  c.events.pickup = (u0 < PICKUP && u >= PICKUP) || (wrapped && u >= PICKUP);
   c.events.touchdown = (u0 < 0.97 && u >= 0.97) || (wrapped && u >= 0.97);
   c.events.release = wrapped && c.holding;
   if (c.events.pickup) c.holding = true;
 
   stepSpring(c.jibY, jibTargetY(topY), 3, 1, dt);
+  // Empty while the cycle runs, the trolley and hook go exactly where it sends them, so the hook is over the floor
+  // and down on it when the slings go on. Loaded, or idle between rounds and after a collapse, they ride springs.
+  const exact = !c.holding && phase !== before && dt > 0;
   const v0 = c.trolley.v;
-  stepSpring(c.trolley, trolleyTarget(phase), 5, 1, dt);
+  if (!exact) stepSpring(c.trolley, trolleyTarget(phase), 5, 1, dt);
+  else {
+    const x = trolleyTarget(phase);
+    c.trolley.v = (x - c.trolley.x) / dt;
+    c.trolley.x = x;
+  }
   const accel = clamp(dt > 0 ? (c.trolley.v - v0) / dt : 0, -400, 400);
-  stepSpring(c.cable, cableTarget(phase, c.jibY.x, topY + (u < 0.1 ? FLOOR_H : 0)), 12, 0.9, dt);
+  // Just after a release the floor it set is part of the stack (from the step after the release frame), so the
+  // hook rises from the surface below the new top.
+  const cable = cableTarget(phase, c.jibY.x, topY + (u < 0.08 && !c.events.release ? FLOOR_H : 0));
+  if (!exact) stepSpring(c.cable, cable, 12, 0.9, dt);
+  else {
+    c.cable.v = (cable - c.cable.x) / dt;
+    c.cable.x = cable;
+  }
 
   // The load is a pendulum under the trolley; wind and trolley acceleration swing it.
   const length = Math.max(30, c.cable.x + LOAD_DROP);
@@ -125,7 +145,7 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
   while (left > 0) {
     const h = Math.min(1 / 240, left);
     left -= h;
-    const a = -(GRAVITY / length) * Math.sin(c.swing) - (0.4 * accel / length) * Math.cos(c.swing) - 1.6 * c.swingV + (wind * 0.15) / length;
+    const a = -(GRAVITY / length) * Math.sin(c.swing) - (0.25 * accel / length) * Math.cos(c.swing) - 2.4 * c.swingV + (wind * 0.15) / length;
     c.swingV += a * h;
     c.swing += c.swingV * h;
     if (Math.abs(c.swing) > 0.35) { c.swing = Math.sign(c.swing) * 0.35; c.swingV *= -0.2; }
@@ -140,6 +160,18 @@ export function stepCrane(c: CraneState, phase: number, topY: number, wind: numb
   c.weight.v += (-accel * 0.0025) * (0.1 + tension * 1.2) * dt * 8;
   stepSpring(c.weight, wind * 0.0012 * (0.15 + tension * 1.85), 5, 0.06, dt);
   c.weight.x = clamp(c.weight.x, -0.55, 0.55);
+}
+
+/**
+ * The hook takes the floor where it sits on the truck's bed (its centre at `x`, `y`): the slings go taut from
+ * there, so a hook not quite over it starts the floor swinging rather than snapping it across.
+ */
+export function takeLoad(c: CraneState, x: number, y: number): void {
+  const dx = x - c.trolley.x;
+  const dy = y - c.jibY.x;
+  c.swing = clamp(Math.atan2(dx, dy), -0.35, 0.35);
+  c.swingV = 0;
+  settleSpring(c.cable, Math.hypot(dx, dy) - LOAD_DROP);
 }
 
 /** World position of the hanging block's centre and its angle. */
@@ -175,15 +207,6 @@ function lattice(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: numb
     else ctx.lineTo(px + nx * side, py + ny * side);
   }
   ctx.stroke();
-}
-
-export function drawPile(ctx: CanvasRenderingContext2D): void {
-  for (let i = 0; i < PILE_BLOCKS; i += 1) {
-    ctx.save();
-    ctx.translate(PILE_X + (i % 2 ? 4 : -3), GROUND_Y - (i + 0.5) * FLOOR_H);
-    drawBlock(ctx, (i + 2) % 4);
-    ctx.restore();
-  }
 }
 
 export function drawCrane(ctx: CanvasRenderingContext2D, c: CraneState): void {

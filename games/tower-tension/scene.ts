@@ -5,10 +5,11 @@
  * time, and nothing drawn here changes the committed outcome.
  */
 import { pageAudio } from './audio';
-import { type CraneState, createCrane, drawCrane, drawPile, jolt, loadPose, resetCrane, settleCrane, stepCrane } from './crane';
+import { type CraneState, createCrane, drawCrane, jolt, loadPose, resetCrane, settleCrane, stepCrane, takeLoad } from './crane';
 import { clamp, fract, gust, mix, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
 import { type OfficeDrive, type OfficeState, createOffice, drawOffice, resetOffice, scatterQueue, sellPenthouse, sellUnit, settleOffice, stepOffice } from './office';
 import { FLOOR_H, GROUND_Y, TOWER_X, type TowerState, collapseTower, collapseCamera, runningCameraFrame, createTower, drawDebris, drawDust, drawFallers, drawTower, dropLoad, floorCount, landFloor, resetTower, stepTower, topOffset, towerHeight, towerTopY } from './tower';
+import { type Fleet, createFleet, drawFleet, resetFleet, scatterFleet, settleFleet, stepFleet, unloadTruck } from './truck';
 import { type Landing, type WorkerState, callHoist, createWorker, drawCage, drawWorker, resetWorker, settleSafe, stepWorker, towerFell } from './worker';
 
 export interface SceneView {
@@ -41,8 +42,8 @@ const INK = '#1c1f26';
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
 /** The widest the multiplier readout draws; a longer number condenses to fit. */
 const READOUT_MAX_W = 300;
-/** Floors placed per doubling of the multiplier: one every 1.9 s of a running round. */
-const FLOORS_PER_DOUBLING = 6;
+/** Floors placed per doubling of the multiplier: one every 3 s of a running round at the platform's pace. */
+const FLOORS_PER_DOUBLING = 3;
 /** Camera centre that puts the ground at screen y 500 at scale 1. */
 const GROUND_CAM_Y = GROUND_Y - 230;
 /** The multipliers a milestone stinger plays at: the caption ladder. */
@@ -235,6 +236,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const crane: CraneState = createCrane();
   const worker: WorkerState = createWorker();
   const office: OfficeState = createOffice();
+  const fleet: Fleet = createFleet();
   const cam = { x: spring(W / 2), y: spring(GROUND_CAM_Y), scale: spring(1) };
   const pop = spring(0);
   const badge = spring(0);
@@ -309,6 +311,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     towerFell(worker, tower, tower.rod.dir, quiet);
     scatterQueue(office, quiet);
+    if (quiet) scatterFleet(fleet, true);
     if (!quiet) {
       shake = 1;
       pop.v = 16;
@@ -375,6 +378,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       worker.y = worker.lastSurface = towerTopY(tower);
       if (secured) settleSafe(worker);
       settleOffice(office, officeDrive, crashed);
+      settleFleet(fleet, progress, running);
       if (secured) sellPenthouse(office);
       office.confetti = [];
       office.floaters = [];
@@ -393,6 +397,8 @@ export function createScene(options: SceneOptions = {}): Scene {
           tower.thud.v += 160;
           jolt(crane, -1.2);
           audio.fx('creak', 1.4);
+          // The drivers see it go before it falls.
+          scatterFleet(fleet, false);
         }
       }
       if (view.phase === 'betting') {
@@ -400,6 +406,8 @@ export function createScene(options: SceneOptions = {}): Scene {
         resetCrane(crane);
         resetWorker(worker);
         resetOffice(office);
+        // The first floor's truck drives in from just beyond the right of the view.
+        resetFleet(fleet, cam.x.x + W / 2 / cam.scale.x);
         outcome = null;
         secured = null;
         fuse = -1;
@@ -416,10 +424,19 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (running) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     if (secured && worker.mode === 'top' && running) callHoist(worker);
 
-    // Wind grows with the stack; the crane places a floor each time the count ticks over.
-    const wind = gust(time) * (60 + 1.8 * Math.min(30, floorCount(tower)));
+    // Wind grows with the stack; the crane places a floor each time the count ticks over, taking each off the
+    // truck that brought it.
+    const wind = gust(time) * (60 + 3.6 * Math.min(15, floorCount(tower)));
+    stepFleet(fleet, progress, running, dt);
+    if (fleet.events.parked) audio.fx('hiss', 0.35);
+    if (fleet.events.pulled) audio.fx('engine', 0.4);
+    if (fleet.events.bolted) audio.fx('engine', 1);
     if (running) {
       stepCrane(crane, progress, towerTopY(tower), wind, dt, tension);
+      if (crane.events.pickup) {
+        const bed = unloadTruck(fleet, Math.floor(crane.phase));
+        if (bed) takeLoad(crane, bed.x, bed.y);
+      }
       if (crane.events.release) {
         landFloor(tower, crane.drop.offset, crane.drop.velocity);
         if (!reduced) shake = Math.max(shake, 0.22);
@@ -512,8 +529,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     worldTransform(ctx, camY, s, 1, cam.x.x);
     drawGround(ctx);
+    drawFleet(ctx, fleet);
     drawOffice(ctx, office, officeDrive);
-    drawPile(ctx);
     drawCrane(ctx, crane);
     drawTower(ctx, tower, running || fuse >= 0 ? fear : tower.collapsed ? 0 : fear * 0.5, time);
     const grounded = worker.mode === 'falling' || worker.mode === 'down';
