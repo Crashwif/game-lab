@@ -1,0 +1,10 @@
+{
+  "name": "Alignment Check",
+  "hook": "Loyalty is a vesting schedule, chief",
+  "tagline": "A night rooftop forty storeys up, two militia in plain green headbands and one question: are you aligned? The suspect is a degen who has never been aligned with anything but the bag, and every step up the multiplier makes his answer worse while the flashlight comes up, the clipboard hits the gravel, a hand lands on his shoulder and his heels find the parapet. Cash out to airdrop a fistful of worthless coins and bolt for the stairwell before the big one says \"say less\" and the city scrolls up past him. Nobody lands; a pigeon looks down, looks at you, and blinks.",
+  "tags": ["A grip ladder on a patience spring", "A shrug that grows to the ledge", "Seeded throw past the skyline"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 30 }
+}
