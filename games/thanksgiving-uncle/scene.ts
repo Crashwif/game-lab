@@ -176,7 +176,6 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (harmless) {
       shake = 0;
       audio.crash('thud');
-      audio.fx('ding', 0.6);
       return;
     }
     shake = 1;
@@ -282,6 +281,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (fev.crack) audio.fx('tick', 1);
       if (fev.gasp) audio.fx('gasp', 0.7);
       if (rev.turkey) audio.fx('splash', 0.9);
+      if (rev.pie) audio.fx('ding', 0.6);
       landClock = Math.max(0, landClock - dt);
       if (rev.landed > 0 && landClock === 0) {
         landClock = 0.09;
