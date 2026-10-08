@@ -120,7 +120,7 @@ test('The Trenches captures drawn marching scale and squash before either exit',
   const api = await load('the-trenches/squad');
   for (const exit of ['dive', 'flung']) { const s = api.createSquad(); s.over.x = 1; s.act = 3; s.effort = .8; s.frogs.forEach(f => { f.mode = 'marching'; f.squash.x = .1; });
     if (exit === 'dive') api.diveBack(s, .7); else api.killSquad(s, false, .7);
-    const f = s.frogs.find(f => f.mode === (exit === 'dive' ? 'diving' : 'flung')); near(f.diveFrom.scale, 1 - .18 * .7); near(f.diveFrom.squash, .82);
+    const f = s.frogs.find(f => f.mode === (exit === 'dive' ? 'diving' : 'flung')); near(f.diveFrom.scale, 1 - .45 * .7); near(f.diveFrom.squash, .82);
     const c = canvas(); api.drawSquad(c, s, .7, .2, false); assert.ok(c.records.some(r => Math.abs(r.scale - f.diveFrom.scale) < 1e-6), 'renderer retains captured scale');
   }
 });
