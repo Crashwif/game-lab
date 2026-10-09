@@ -11,7 +11,8 @@ export const rowsFor = (multiplier: number): number => clamp(1 + Math.floor(Math
 export const heightFor = (rows: number): number => clamp(300 / (.82 * rows), 34, 66);
 export function place(rows: number, k: number, j: number): { x: number; y: number; h: number } {
   const h = heightFor(rows);
-  return { x: CENTRE + (j - k / 2) * h * .8, y: STAGE - (rows - 1 - k) * h * .82, h };
+  // A row that joins while the pyramid still shows one level fewer stands on the stage, never under it.
+  return { x: CENTRE + (j - k / 2) * h * .8, y: STAGE - Math.max(0, rows - 1 - k) * h * .82, h };
 }
 
 export type Foot = { x: number; y: number };
