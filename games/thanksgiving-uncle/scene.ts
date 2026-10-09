@@ -73,8 +73,8 @@ type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
 /** The multipliers that ring a milestone ding, the third onward an airhorn. The caption follows the lines instead. */
 const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22];
-/** After grace, the round keeps pumping: what they mutter with their heads down, keyed to how far past the exit it is. */
-const REGRET: [number, Who, string][] = [[1.5, 'rick', 'psst. $DALE is still pumping'], [2, 'niece', 'it 2x’d since grace, Grandma'], [3, 'gran', 'profits are profits, Richard'], [10, 'rick', 'amen. and also: wen moon']];
+/** After grace, the round keeps going: what they mutter with their heads down, keyed to how far past the exit it is. */
+const REGRET: [number, Who, string][] = [[1.5, 'rick', 'psst. the gravy is still 5G'], [2, 'niece', 'he’s still going, Grandma. it’s a thread'], [3, 'gran', 'heads DOWN, Richard. I voted. don’t ask'], [10, 'rick', 'amen. and also: wake up']];
 /** The wall's hit-stop and camera punch, then slow motion at a third speed. */
 const FREEZE_S = 0.15;
 const PUNCH_HOLD_S = 0.3;
@@ -87,14 +87,14 @@ const PUNCH_AT = { x: 760, y: 260 } as const;
 const WIPE_S = 0.35;
 
 function captionFor(view: SceneView, room: Room, outcome: Outcome | null, secured: Secured | null): string {
-  if (outcome === 'rekt') return 'RUGPULLED AT DINNER';
-  if (outcome === 'called') return 'GRANDMA DODGED THE RUG';
+  if (outcome === 'rekt') return 'TRUCK IN THE DINING ROOM';
+  if (outcome === 'called') return 'GRANDMA SAID GRACE';
   if (outcome === 'spectator') return 'WHO INVITED RICK';
   if (view.phase === 'betting') return 'THANKSGIVING';
   if (view.phase !== 'running') return 'FOOTBALL’S ON';
   if (secured) {
     const past = view.currentX100 / secured.x100;
-    return past >= 3 ? 'PROFITS ARE PROFITS' : past >= 2 ? 'IT KEPT PUMPING' : 'GRANDMA TOOK PROFITS';
+    return past >= 3 ? 'GRANDMA HEARD THAT' : past >= 2 ? 'RICK IS WHISPERING' : 'HEADS BOWED';
   }
   return room.caption || 'PASS THE GRAVY';
 }
@@ -210,7 +210,7 @@ export function createScene(): Scene {
     const rung = RUNGS.filter((r) => multiplier >= r).length;
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
-      // Seen land while the round runs: Grandma wakes up, takes profits and says grace, and everyone shuts up.
+      // Seen land while the round runs: Grandma wakes up and says grace, and everyone shuts up.
       if (running && !fresh && !room.crashed) {
         sayGrace(room);
         rick.mode = 'bowed';
@@ -249,7 +249,7 @@ export function createScene(): Scene {
 
     stepRoom(room, { running, multiplier, tension, time }, dt);
     if (secured && running && !room.crashed) {
-      // The round keeps pumping after grace: a regret ladder, muttered with heads down.
+      // The round keeps going after grace: a regret ladder, muttered with heads down.
       const past = view.currentX100 / secured.x100;
       while (regret < REGRET.length && past >= REGRET[regret]![0]) {
         const [, who, text] = REGRET[regret++]!;
