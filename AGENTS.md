@@ -1,6 +1,6 @@
 # Game Lab creator instructions
 
-Read `README.md`, `docs/integration.md`, and the selected game's source before editing. Ask what the creator wants to change when their prompt does not specify a remix.
+Read `README.md`, `docs/integration.md`, and the selected game's source before editing. `docs/animation.md` is the reference for rigs, inverse kinematics, gaits, springs, seeded crashes, late entry, portrait mode and the other techniques the games share; read it before adding or changing character or environment animation. Ask what the creator wants to change when their prompt does not specify a remix.
 
 ## Scope and outcomes
 
