@@ -65,10 +65,10 @@ export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, no
 
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
-/** The multipliers the ladder steps at: each is a milestone ding (the third onward an airhorn) and a step of her bags. */
+/** The multipliers the ladder steps at: each is a milestone ding (the third onward an airhorn) and a step of her pronouns. */
 const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22, 40, 100, 300, 1000];
-/** Her bags, which the HUD tracks while she talks them up: the multiplier climbs, the dog coin does not. */
-const BAGS = ['BAGS +12%', 'BAGS +400%', 'BAGS +40%', 'BAGS −20%', 'BAGS −61%', 'BAGS −84%', 'BAGS −97%', 'BAGS −99%', 'BAGS −99.9%', 'BAGS: DEV GONE', 'BAGS: DELISTED', 'BAGS: STILL HOLDING', 'BAGS: FEW UNDERSTAND', 'BAGS: GENERATIONAL', 'BAGS: INHERITED', 'BAGS: ETERNAL'];
+/** The pronouns of the moment, which the HUD tracks as she takes it further. */
+const PRONOUNS = ['she/her', 'she/they', 'they/them', 'they/them (for now)', 'ze/zir', 'xe/xem', 'fae/faer', 'any/all', 'none/none', '∅/∅', '[REDACTED]', 'tuesday/tuesdays', 'vibe/vibes', 'pie/pies', 'multitudes', 'yes/and'];
 /** What happens at the table, captioned the moment it happens (between the captions her lines put up). */
 const BEATS = { pearls: 'MOM CLUTCHES THE PEARLS', cross: 'THE CROSS IS RATTLING', steam: 'STEAM FROM THE EARS', slam: 'DAD SLAMS THE TABLE', kettle: 'THE KETTLE JOINS IN', cracks: 'DAD’S HEAD IS CRACKING' } as const;
 /** His cracks fade in from a rage of 0.88; the caption waits until they are plain to see. */
@@ -85,14 +85,15 @@ const PUNCH = 0.1;
 const PUNCH_HOLD_S = 0.3;
 
 function captionFor(view: SceneView, outcome: Outcome | null, secured: Secured | null, beat: string): string {
-  if (outcome === 'rekt' || outcome === 'spectator') return 'RUGGED AT DINNER';
-  if (outcome === 'called') return 'SHE TOOK PROFITS UPSTAIRS';
+  if (outcome === 'rekt') return 'HEADS EXPLODED';
+  if (outcome === 'spectator') return 'NOBODY SAID GRACE';
+  if (outcome === 'called') return 'SHE’S IN HER ROOM';
   if (view.phase === 'betting') return 'FAMILY MEETING';
   if (view.phase !== 'running') return 'GRACE FIRST';
   if (secured) {
-    // Paper hands, full plate: a good exit, and a little regret as the number keeps going without her.
+    // Left the table with her plate: a good exit, and a little regret as the number keeps going without her.
     const r = view.currentX100 / secured.x100;
-    return r < 1.25 ? 'SHE TOOK PROFITS' : r < 1.6 ? 'PAPER HANDS, FULL PLATE' : r < 2.5 ? 'SHE’S NOT CHECKING THE CHART' : r < 5 ? 'OK, SHE’S CHECKING THE CHART' : 'PROFIT IS STILL PROFIT';
+    return r < 1.25 ? 'LEFT THE TABLE' : r < 1.6 ? 'FULL PLATE, NO REGRETS' : r < 2.5 ? 'SHE’S NOT LISTENING AT THE DOOR' : r < 5 ? 'OK, SHE’S LISTENING AT THE DOOR' : 'SHE HAD MORE TO SAY';
   }
   return beat || 'FAMILY MEETING';
 }
@@ -362,7 +363,7 @@ export function createScene(): Scene {
       ctx.rotate(-0.08);
       const scale = clamp(pop.x, 0, 1.25);
       ctx.scale(scale, scale);
-      const word = outcome === 'rekt' ? 'MIND BLOWN' : outcome === 'called' ? 'DODGED' : 'THOUGHTS & PRAYERS';
+      const word = outcome === 'rekt' ? 'MIND BLOWN' : outcome === 'called' ? 'WENT TO MY ROOM' : 'THOUGHTS & PRAYERS';
       memeText(ctx, word, 0, 0, outcome === 'rekt' ? 42 : 36, outcome === 'rekt' ? '#ff4d6d' : '#ffe27a', 'center', 700);
       ctx.restore();
     }
@@ -373,7 +374,7 @@ export function createScene(): Scene {
       ctx.fillRect(0, 0, 960, 540);
     }
 
-    // The HUD: the caption, the secured badge, the multiplier, the blood pressure and her bags.
+    // The HUD: the caption, the secured badge, the multiplier, the blood pressure and the pronouns of the moment.
     capture(ctx);
     if (caption) {
       ctx.save();
@@ -402,7 +403,7 @@ export function createScene(): Scene {
     ctx.scale(thump, thump);
     memeText(ctx, bp, 0, 0, 22, dad.exploded ? '#ff4d6d' : heat > 0.6 ? '#ffb4c2' : '#f7eadb', 'left');
     ctx.restore();
-    memeText(ctx, BAGS[Math.min(rung, BAGS.length - 1)]!, 936, 520, 22, rung <= 2 ? '#7cf67c' : '#ffb4c2', 'right', 320);
+    memeText(ctx, `PRONOUNS ${PRONOUNS[Math.min(rung, PRONOUNS.length - 1)]!}`, 936, 520, 22, '#f7eadb', 'right', 320);
     present(ctx, view, view.phase === 'running' && view.cashoutX100 === null && act.stage > 0 ? act.line : caption, "AT THE TABLE", kitchen.bubbles.at(-1)?.text ?? 'Pass the potatoes.');
 
   }

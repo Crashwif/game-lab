@@ -22,56 +22,57 @@ export type Who = 'her' | 'dad' | 'mom';
 /** `cap` is the caption the line puts up when it is said, so a caption never runs ahead of the line it names. */
 export interface Line { at: number; who: Who; text: string; cap?: string }
 /**
- * The confession, keyed to the multiplier: the college fund, then the church fund, into memecoins, and the
- * parents get a word in between. A line every second and a half or so through the first 15 s, where most
- * rounds end; each line is a speech bubble and a cue; once she has left the table no more are said.
+ * The conversation, keyed to the multiplier: her lines go further every time, the parents get a word in
+ * between. A line every second and a half or so through the first 15 s, where most rounds end; each line is
+ * a speech bubble and a cue; once she has left the table no more are said.
  */
 export const LINES: Line[] = [
-  { at: 1.04, who: 'her', text: 'so… I’ve been thinking about my portfolio', cap: 'SO, UM, ABOUT MY PORTFOLIO' },
+  { at: 1.04, who: 'her', text: 'so… I’ve been thinking about my gender', cap: 'SO, UM, ABOUT MY GENDER' },
   { at: 1.18, who: 'dad', text: 'pass the potatoes' },
-  { at: 1.32, who: 'her', text: 'I put the college fund in a dog coin', cap: 'THE COLLEGE FUND IS IN A DOG COIN' },
+  { at: 1.32, who: 'her', text: 'I think I might be nonbinary', cap: 'IT’S A SPECTRUM' },
   { at: 1.48, who: 'mom', text: 'is this from the internet' },
-  { at: 1.68, who: 'her', text: 'it’s not gambling, it’s a DAO', cap: 'IT’S NOT GAMBLING, IT’S A DAO' },
-  { at: 1.9, who: 'dad', text: 'what in god’s name is a DAO' },
-  { at: 2.2, who: 'her', text: 'I’m a KOL now. 40k followers. mostly bots', cap: 'SHE’S A KOL NOW' },
+  { at: 1.68, who: 'her', text: 'gender is a social construct, mom', cap: 'IT’S A CONSTRUCT' },
+  { at: 1.9, who: 'dad', text: 'this casserole is a social construct' },
+  { at: 2.2, who: 'her', text: 'my pronouns are they/them. for now', cap: 'THEY/THEM (FOR NOW)' },
   { at: 2.55, who: 'mom', text: 'we raised you in a christian home' },
-  { at: 2.9, who: 'her', text: 'so I aped the church building fund', cap: 'SHE APED THE CHURCH FUND' },
-  { at: 3.35, who: 'dad', text: 'WHAT DID YOU DO WITH THE CHURCH FUND' },
-  { at: 3.8, who: 'her', text: 'few understand', cap: 'FEW UNDERSTAND' },
+  { at: 2.9, who: 'her', text: 'actually I’m demigender with a xenogender lean', cap: 'IT’S A JOURNEY' },
+  { at: 3.35, who: 'dad', text: 'a what' },
+  { at: 3.8, who: 'her', text: 'the binary is a colonial import, dad', cap: 'BEYOND THE BINARY' },
   { at: 4.4, who: 'mom', text: 'pastor rick is going to hear about this' },
-  { at: 5, who: 'her', text: 'pastor rick is in my discord, mom', cap: 'PASTOR RICK IS IN THE DISCORD' },
-  { at: 5.7, who: 'dad', text: 'is THAT why he drives a lambo' },
-  { at: 6.5, who: 'her', text: 'I’m not selling. diamond hands', cap: 'DIAMOND HANDS AT DINNER' },
-  { at: 7.4, who: 'mom', text: 'lord give me strength' },
-  { at: 8, who: 'her', text: 'also I borrowed against the minivan. 100x', cap: 'THE MINIVAN IS LEVERAGED' },
-  { at: 9, who: 'dad', text: 'WE NEED THE MINIVAN' },
-  { at: 10, who: 'her', text: 'money is a social construct, dad', cap: 'MONEY IS A CONSTRUCT' },
-  { at: 11.2, who: 'mom', text: 'I’m calling your grandmother' },
-  { at: 12.6, who: 'her', text: 'grandma’s in the discord too. she’s a whale', cap: 'GRANDMA IS A WHALE' },
-  { at: 15.8, who: 'her', text: 'it’s not a ponzi if grandma got in early', cap: 'IT’S NOT A PONZI' },
-  { at: 20, who: 'dad', text: 'how much is left' },
-  { at: 25, who: 'her', text: 'define “left”', cap: 'DEFINE “LEFT”' },
-  { at: 31.6, who: 'mom', text: 'lord, take the wheel. of the minivan' },
-  { at: 40, who: 'her', text: 'I minted the family bible as an NFT', cap: 'THE FAMILY BIBLE IS AN NFT' },
-  { at: 54, who: 'her', text: 'wagmi, mom. we’re all gonna make it', cap: 'WAGMI' },
-  { at: 73, who: 'dad', text: 'we are NOT all gonna make it' },
-  { at: 100, who: 'her', text: 'anyway, who wants pie. it’s tokenized', cap: 'THE PIE IS TOKENIZED' },
-  { at: 316, who: 'her', text: 'I sold the house to buy the dip', cap: 'SHE SOLD THE HOUSE' },
-  { at: 540, who: 'dad', text: 'WE LIVE IN THE HOUSE' },
-  { at: 1000, who: 'her', text: 'we rent it back from the DAO now', cap: 'THE DAO OWNS THE HOUSE' },
+  { at: 5, who: 'her', text: 'also property is theft. pass the salt', cap: 'ALSO, PROPERTY IS THEFT' },
+  { at: 5.7, who: 'her', text: 'I’m agender but I present post-gender', cap: 'POST-GENDER' },
+  { at: 6.5, who: 'her', text: 'gender is a performance. like church', cap: 'LIKE CHURCH' },
+  { at: 7.2, who: 'dad', text: 'WHAT DID YOU SAY ABOUT CHURCH' },
+  { at: 8, who: 'her', text: 'my identity is a superposition until observed', cap: 'A SUPERPOSITION UNTIL OBSERVED' },
+  { at: 9, who: 'her', text: 'the nuclear family is a cold war psyop', cap: 'THE FAMILY IS A PSYOP' },
+  { at: 10, who: 'mom', text: 'lord give me strength' },
+  { at: 11, who: 'her', text: 'the self is a non-euclidean manifold', cap: 'THE SELF IS A MANIFOLD' },
+  { at: 12.5, who: 'her', text: 'it’s praxis, dad', cap: 'IT’S PRAXIS, DAD' },
+  { at: 14.5, who: 'her', text: 'I identify as the concept of tuesday', cap: 'THE CONCEPT OF TUESDAY' },
+  { at: 17, who: 'her', text: 'there is no self. only vibes', cap: 'NO SELF, ONLY VIBES' },
+  { at: 20, who: 'her', text: 'I’m dating a polycule, by the way', cap: 'ALSO, A POLYCULE' },
+  { at: 24, who: 'her', text: 'my they/them is itself a construct', cap: 'THEOLOGICAL CODE RED' },
+  { at: 29, who: 'her', text: 'anyway, who wants pie' },
+  { at: 36, who: 'her', text: 'the pie is also a construct', cap: 'THE PIE IS A CONSTRUCT' },
+  { at: 45, who: 'her', text: 'I contain multitudes. legally', cap: 'MULTITUDES, LEGALLY' },
+  { at: 73, who: 'dad', text: 'is this going on the christmas card' },
+  { at: 100, who: 'her', text: 'my name is a frequency now. you can’t say it', cap: 'HER NAME IS A FREQUENCY' },
+  { at: 316, who: 'her', text: 'I got ordained online. as a vibe', cap: 'ORDAINED AS A VIBE' },
+  { at: 540, who: 'mom', text: 'lord, take the wheel' },
+  { at: 1000, who: 'her', text: 'this kitchen is also a construct', cap: 'THE KITCHEN IS A CONSTRUCT' },
 ];
 /** Dinner keeps going between and after the scripted ladder: a filler exchange whenever six seconds pass in silence. */
 const SECONDS: Omit<Line, 'at'>[] = [
   { who: 'dad', text: 'can we discuss literally anything else' },
-  { who: 'her', text: 'sure. wen dessert' },
+  { who: 'her', text: 'sure. who owns the leftovers' },
   { who: 'mom', text: 'the kettle has been screaming for ten minutes' },
-  { who: 'her', text: 'same. it’s been a rough cycle' },
+  { who: 'her', text: 'it has a lot to unpack' },
   { who: 'dad', text: 'I am starting a second casserole' },
-  { who: 'her', text: 'a second casserole? bullish' },
+  { who: 'her', text: 'a sequel? in this economy?' },
   { who: 'mom', text: 'dessert was supposed to be the easy part' },
-  { who: 'her', text: 'wait until you see the group chat' },
+  { who: 'her', text: 'wait until we get to the group chat' },
   { who: 'dad', text: 'why is the cross doing that' },
-  { who: 'her', text: 'even the decorations are capitulating' },
+  { who: 'her', text: 'even the decorations have questions' },
 ];
 /** The betting window: grace, and a warning. */
 const GRACE: Line[] = [
@@ -176,11 +177,11 @@ function say(k: Kitchen, who: Who, text: string, life = who === 'her' ? 5.5 : 3.
   k.bubbles.push({ who, text, age: 0, life, pop: spring(0.6) });
 }
 
-/** Her leaving line, the moment the cash-out is accepted: paper hands, full plate. */
+/** Her leaving line, the moment the cash-out is accepted. */
 export function sayLeaving(k: Kitchen): void {
   k.holding = true;
   k.queue = [];
-  say(k, 'her', 'anyway I’m taking profits in my room', 2.6);
+  say(k, 'her', 'anyway I’m eating in my room', 2.6);
 }
 
 /** The caption of the last scripted line said, for a scene that opens mid-round. */
