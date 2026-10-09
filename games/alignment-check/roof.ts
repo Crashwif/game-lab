@@ -1,6 +1,5 @@
-/** The roof set and everything loose on it: set pieces, coping pigeons, loose props, wind streaks, the escape wash and the flash. World space; nothing reads the outcome. */
+/** The roof set, the pigeons, the loose props, the wind streaks and the flash. World space. */
 import { clamp, mix, mulberry32, noise, type Spring, settleSpring, smoothstep, spring, stepSpring } from './motion';
-
 export const INK = '#202432';
 /** Where the set sits (world px). */
 export const FLOOR_Y = 400;
@@ -26,7 +25,6 @@ export const PIGEON_Y = 360;
 /** Flight and streak seconds. */
 const FLIGHT = 0.9;
 const STREAK_LIFE = 0.45;
-
 export type LooseKind = 'clipboard' | 'flashlight' | 'croc' | 'beanie' | 'phone' | 'shades' | 'gum' | 'coin' | 'bag';
 /** skid lands on the gravel, fall is beside the thrown suspect, over tumbles down the canyon, stick flies to the grille, drift is the bag. */
 export type LooseMode = 'skid' | 'fall' | 'over' | 'stick' | 'drift';
@@ -37,7 +35,6 @@ export interface Loose extends Drop { rot: number; age: number; rest: boolean; s
 /** (ox, oy) to (tx, ty) is the flight. */
 export interface Pigeon { home: number; x: number; y: number; state: 'coping' | 'away' | 'flying' | 'landing'; t: number; bob: number; ox: number; oy: number; tx: number; ty: number; face: number }
 export interface Streak { x: number; y: number; len: number; age: number }
-
 export interface RoofEvents {
   /** Props that touched down this frame. */
   landed: LooseKind[];
@@ -79,14 +76,12 @@ export interface Roof {
   seed: number;
   events: RoofEvents;
 }
-
 const noEvents = (): RoofEvents => ({ landed: [], door: null, pigeonsOff: false, pigeonLand: false, gust: 0 });
 const pigeonAt = (x: number): Pigeon => ({ home: x, x, y: PIGEON_Y, state: 'coping', t: 0, bob: 0, ox: x, oy: PIGEON_Y, tx: x, ty: PIGEON_Y, face: x > 720 ? 1 : -1 });
 const blank = (gravel: Roof['gravel']): Roof => ({
   gravel, door: spring(0), doorTarget: 0, exit: 0, wash: 0, bulb: 0, fan: 0, chair: 'bulkhead', pigeons: PIGEON_X.map(pigeonAt), pigeonClock: 1.2, loose: [],
   relic: false, gumOnGrille: false, pizzaBox: false, wind: 0.2, bagClock: 22, gustClock: 0, streaks: [], streakClock: 0, pages: 0, strokes: 0, seed: 7, events: noEvents(),
 });
-
 export function createRoof(): Roof {
   const rand = mulberry32(4040);
   const gravel: Roof['gravel'] = [];
@@ -97,7 +92,6 @@ export function createRoof(): Roof {
 export function resetRoof(r: Roof): void {
   Object.assign(r, blank(r.gravel));
 }
-
 export interface RoofDrive {
   running: boolean;
   tension: number;
@@ -115,7 +109,6 @@ export interface RoofDrive {
   camY: number;
   aftermath: boolean;
 }
-
 /** Puts a prop in flight (14 coins, one bag, one gum, 24 items: the oldest resting one goes). */
 export function spawnLoose(r: Roof, drop: Drop): void {
   if (drop.kind === 'coin' && r.loose.filter((l) => l.kind === 'coin').length >= 14) return;
@@ -134,7 +127,6 @@ function placeLoose(r: Roof, kind: LooseKind, x: number, y: number, rot: number)
 }
 const takeOff = (p: Pigeon, i: number, delay: number): void => void Object.assign(p, { state: 'flying', t: -delay, ox: p.x, oy: p.y, tx: 790 + i * 24, ty: 470 + i * 14, face: 1 });
 const comeBack = (p: Pigeon, i: number, x: number): void => void Object.assign(p, { state: 'landing', t: 0, ox: 800 + i * 20, oy: 480, tx: x, ty: PIGEON_Y, face: -1 });
-
 /** The escape: 14 seeded coins from `from`; the door and the pigeons follow drive.escapeT in stepRoof. `quiet` settles it (door shut, no coins). */
 export function escapeRoof(r: Roof, seed: number, from: { x: number; y: number }, quiet: boolean): void {
   if (quiet) {
@@ -157,7 +149,6 @@ export function crashRoof(r: Roof, seed: number, harmless: boolean): void {
   r.seed = seed;
   if (!harmless) r.pigeons.forEach((p, i) => p.state === 'coping' && takeOff(p, i, i * 0.06));
 }
-
 /** Advances the set by dt (0 in the hit-stop). */
 export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
   const ev = (r.events = noEvents());
@@ -186,7 +177,7 @@ export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
   stepSpring(r.door, r.doorTarget, 12, 0.7, dt);
   r.exit = Math.max(drive.escaped ? 0.4 : 0, r.exit - dt * 0.8);
   r.wash = Math.max(0, r.wash - (dt * 0.35) / 0.8);
-  // The pigeons leave at 3.4x; one comes back beside the croc.
+  // The pigeons leave at 3.4x; one comes back at 8x.
   if (drive.running && drive.rung >= 5 && !drive.escaped && r.pigeons.some((p) => p.state === 'coping')) {
     r.pigeons.forEach((p, i) => p.state === 'coping' && takeOff(p, i, i * 0.12));
     ev.pigeonsOff = true;
@@ -280,7 +271,6 @@ export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
   for (const s of r.streaks) s.age += dt;
   r.streaks = r.streaks.filter((s) => s.age < STREAK_LIFE);
 }
-
 /** A fresh scene mid-round: props by rung. */
 export function settleRoof(r: Roof, settle: { rung: number; tension: number; escaped: boolean }): void {
   if (settle.rung >= 4) r.gumOnGrille = true;
@@ -301,9 +291,7 @@ export function settleAftermath(r: Roof, settle: { harmless: boolean; crashT: nu
   for (const p of r.pigeons) p.state = 'away';
   if (settle.crashT >= 7) Object.assign(r.pigeons[0]!, { state: 'coping', x: RELIC.x - 14, home: RELIC.x - 14, y: PIGEON_Y, face: 1 });
 }
-
 // ---- Drawing ----
-
 type Ctx = CanvasRenderingContext2D;
 function ink(ctx: Ctx, width = 2): void {
   ctx.strokeStyle = INK;
@@ -346,7 +334,6 @@ function glow(ctx: Ctx, x: number, y: number, r0: number, r1: number, c0: string
   ctx.fillStyle = g;
   ctx.fillRect(x - r1, y - r1, r1 * 2, r1 * 2);
 }
-
 /** The door: the stairwell behind it, the leaf swinging toward the camera about the hinge. */
 function drawDoor(ctx: Ctx, r: Roof): void {
   const th = clamp(r.door.x, 0, 1.1) * 1.25;
@@ -370,7 +357,6 @@ function drawDoor(ctx: Ctx, r: Roof): void {
   ctx.lineWidth = 5;
   line(ctx, x0, y0, x1, y0);
 }
-
 /** The folded chair on the bulkhead's side. */
 function drawChair(ctx: Ctx): void {
   ctx.save();
@@ -389,7 +375,6 @@ function drawChair(ctx: Ctx): void {
   poly(ctx, [-7, -30, 7, -30, 7, -38, -7, -38], '#7a7e88');
   ctx.restore();
 }
-
 /** The AC unit, its fan, the gum and the pizza box. */
 function drawAC(ctx: Ctx, r: Roof): void {
   ink(ctx, 1.5);
@@ -426,7 +411,6 @@ function drawAC(ctx: Ctx, r: Roof): void {
     line(ctx, AC.x + 13, AC.y - 8, AC.x + 61, AC.y - 8);
   }
 }
-
 /** Behind the rigs: floor, gravel, back wall, bulkhead, door, EXIT box, chair, AC unit, the bulb's pool and the bulb. */
 export function drawRoofBack(ctx: Ctx, r: Roof, time: number): void {
   ctx.save();
@@ -438,7 +422,7 @@ export function drawRoofBack(ctx: Ctx, r: Roof, time: number): void {
   rect(ctx, BULKHEAD.x, BULKHEAD.y, BULKHEAD.w, BULKHEAD.h, '#3a3d45');
   rect(ctx, BULKHEAD.w - 6, BULKHEAD.y, 6, BULKHEAD.h, '#30333a');
   rect(ctx, 0, BULKHEAD.y - 4, BULKHEAD.w + 4, 6, '#464a53');
-  ctx.fillStyle = '#9aa0ab';
+  ctx.fillStyle = '#d8c8a0';
   ctx.textAlign = 'center';
   ctx.font = '800 13px system-ui, sans-serif';
   ctx.fillText('40F', 60, 250);
@@ -477,7 +461,6 @@ export function drawRoofBack(ctx: Ctx, r: Roof, time: number): void {
   ctx.restore();
   void time;
 }
-
 /** A coping pigeon: idle, bob, up and fly poses. */
 function drawPigeon(ctx: Ctx, p: Pigeon, i: number, time: number): void {
   const pose = p.state === 'coping' ? (p.bob ? 'bob' : 'idle') : p.t < 0 ? 'up' : 'fly';
@@ -498,7 +481,6 @@ function drawPigeon(ctx: Ctx, p: Pigeon, i: number, time: number): void {
   poly(ctx, [9, -9.5 + bob, 12.5, -8.5 + bob, 9, -7.5 + bob], '#d98a3a', false);
   ctx.restore();
 }
-
 /** A lime croc on its side. */
 function drawCroc(ctx: Ctx, x: number, y: number, rot: number): void {
   ctx.save();
@@ -523,11 +505,9 @@ function drawCroc(ctx: Ctx, x: number, y: number, rot: number): void {
   for (const dx of [-1, 3, 7]) rect(ctx, dx, -3, 1.6, 1.6, '#6fae3a');
   ctx.restore();
 }
-
 /** The dropped flashlight's beam: a sweep up to the sky, out by 2.85 s. */
 const beamOf = (l: Loose) => ({ angle: mix(2.6, -0.5, smoothstep(0.3, 1.5, l.age)), alpha: l.age < 0.3 ? 0 : 0.2 * (1 - smoothstep(2.4, 2.85, l.age)) });
 const beamLive = (l: Loose): boolean => l.kind === 'flashlight' && l.age < 2.85 && (l.rest || l.sliding);
-
 function drawLoose(ctx: Ctx, l: Loose, r: Roof, time: number): void {
   ctx.save();
   ctx.translate(l.x, l.y);
@@ -611,7 +591,6 @@ function drawLoose(ctx: Ctx, l: Loose, r: Roof, time: number): void {
   }
   ctx.restore();
 }
-
 /** Over the suspect: parapet, coping, drop face, sign, pigeons, the croc relic and the loose props at rest. */
 export function drawRoofFront(ctx: Ctx, r: Roof, time: number): void {
   ctx.save();
@@ -643,7 +622,6 @@ export function drawRoofFront(ctx: Ctx, r: Roof, time: number): void {
   }
   ctx.restore();
 }
-
 /** A soft 'lighter' cone, `width` px wide at the target. */
 export interface Beam { from: { x: number; y: number }; to: { x: number; y: number }; width: number; alpha: number }
 export function drawBeam(ctx: Ctx, beam: Beam): void {
@@ -668,7 +646,6 @@ export function drawBeam(ctx: Ctx, beam: Beam): void {
   ctx.fill();
   ctx.restore();
 }
-
 /** Props in flight and the wind streaks. */
 export function drawAir(ctx: Ctx, r: Roof): void {
   for (const l of r.loose) if (!l.rest) drawLoose(ctx, l, r, l.age);
@@ -680,7 +657,6 @@ export function drawAir(ctx: Ctx, r: Roof): void {
   for (const s of r.streaks) line(ctx, s.x, s.y, s.x, s.y - s.len * Math.sin((s.age / STREAK_LIFE) * Math.PI));
   ctx.restore();
 }
-
 /** Frame space: the white flash and the green wash, both <= 0.35. */
 export function drawFlash(ctx: Ctx, r: Roof, flash: number): void {
   if (flash > 0.005) rect(ctx, 0, 0, 960, 540, `rgba(255,248,220,${clamp(flash, 0, 0.35)})`);

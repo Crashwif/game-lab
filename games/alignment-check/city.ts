@@ -1,56 +1,50 @@
-/**
- * The city: sky and moon, the far and mid skylines with the $ALIGN billboard, the searchlight, the canyon and the
- * across-the-street building, the two cached facade strips the fall scrolls past, the camera model (each layer is
- * drawn translated by -cam times its LAYERS factor; CAM_MAX keeps the frame bottom above world y 2440) and the insert.
- */
+
 import { clamp, mix, mulberry32, noise, smoothstep, type Spring, settleSpring, spring, stepSpring } from './motion';
 import type { Thrown } from './rigs';
-
 type Ctx = CanvasRenderingContext2D;
 export interface Camera { x: number; y: number }
-/** Pan and tilt factors per layer. */
+
 export const LAYERS = { sky: { fx: 0.02, fy: 0.02 }, far: { fx: 0.12, fy: 0.12 }, mid: { fx: 0.35, fy: 0.35 }, across: { fx: 1, fy: 0.7 }, near: { fx: 1, fy: 1 } } as const;
 export const CAM_MAX = 1900;
 export const CAM_REST: Camera = { x: 0, y: 0 };
 export const MOON = { x: 720, y: 150, r: 22 } as const;
 export const BILLBOARD = { x: 130, y: 296, w: 150, h: 60 } as const;
-/** The searchlight source, below the frame. */
+
 export const SEARCH = { x: 880, y: 600 } as const;
-/** Across the street: the roof at y 455, the facade below it. */
+
 export const ACROSS = { x: 900, w: 300, top: 455 } as const;
 export const CANYON = { x: 744, w: 156 } as const;
-/** Our facade: rows every 72 px from world y 540. */
+
 export const ROW_PX = 72;
 export const FLOORS = 40;
 const GREEN = '#7cf67c';
 const RED = '#ff4d6d';
 const INK = '#0b0b12';
-/** A facade strip: rows of `cols` windows, a ledge band every `ledge` rows. */
+
 interface Strip { w: number; h: number; row: number; ww: number; wh: number; cols: number; pitch: number; x0: number; y0: number; lit: number; wall: string; ledge: number; seed: number }
-const OURS: Strip = { w: 744, h: 2600, row: ROW_PX, ww: 54, wh: 44, cols: 10, pitch: 73, x0: 12, y0: 14, lit: 0.35, wall: '#1c1b24', ledge: 5, seed: 7 };
-const THEIRS: Strip = { w: 300, h: 2000, row: 60, ww: 36, wh: 28, cols: 6, pitch: 48, x0: 14, y0: 16, lit: 0.4, wall: '#10142a', ledge: 4, seed: 13 };
+const OURS: Strip = { w: 744, h: 2600, row: ROW_PX, ww: 54, wh: 44, cols: 10, pitch: 73, x0: 12, y0: 14, lit: 0.35, wall: '#2b2620', ledge: 5, seed: 7 };
+const THEIRS: Strip = { w: 300, h: 2000, row: 60, ww: 36, wh: 28, cols: 6, pitch: 48, x0: 14, y0: 16, lit: 0.4, wall: '#262019', ledge: 4, seed: 13 };
 
 export interface Tower { x: number; w: number; top: number; seed: number }
-export interface Vignette { floor: number; kind: 'tv' | 'laptop'; snap: Spring; passed: boolean; col: number }
-export interface Bird { x: number; y: number; vx: number; vy: number; age: number }
+export interface Vignette { floor: number; kind: 'tv' | 'laptop'; snap: Spring; passed: boolean; col: number }export interface Bird { x: number; y: number; vx: number; vy: number; age: number }
 export interface CityEvents {
-  /** Three pigeons burst past the falling suspect. */
+  
   burst: boolean;
 }
 export interface City {
   stars: { x: number; y: number; r: number; seed: number }[];
-  /** The towers and their window cells (x/y interleaved, seeded shuffle). */
+  
   far: Tower[];
   mid: Tower[];
   farCells: number[];
   midCells: number[];
-  /** The $ALIGN chart ring: 160 log samples, one per 0.25 s. */
+  
   chart: number[];
   chartHead: number;
   chartClock: number;
   chartMode: 'pre' | 'live' | 'red';
   chartValue: number;
-  /** Sweep angle (deg), direction, aim (rad), lock, pulse. */
+  
   search: { angle: number; dir: number; aim: number; lock: Spring; pulse: number; target: { x: number; y: number } | null; mode: 'sweep' | 'lock' | 'throw' | 'down' };
   headlights: { x: number; y: number; speed: number }[];
   canyonPigeon: { x: number; y: number; t: number } | null;
@@ -63,9 +57,7 @@ export interface City {
   seed: number;
   events: CityEvents;
 }
-
 const noEvents = (): CityEvents => ({ burst: false });
-
 function towers(count: number, minW: number, maxW: number, minTop: number, maxTop: number, seed: number, x0: number): Tower[] {
   const rand = mulberry32(seed);
   const out: Tower[] = [];
@@ -77,7 +69,7 @@ function towers(count: number, minW: number, maxW: number, minTop: number, maxTo
   }
   return out;
 }
-/** Every window cell, seeded-shuffled so any prefix is random. */
+
 function cells(list: Tower[], px: number, py: number, x0: number, y0: number, seed: number): number[] {
   const rand = mulberry32(seed);
   const tmp: { x: number; y: number; r: number }[] = [];
@@ -87,28 +79,30 @@ function cells(list: Tower[], px: number, py: number, x0: number, y0: number, se
   for (const c of tmp) out.push(c.x, c.y);
   return out;
 }
-/** The per-round state. */
+
 function volatile() {
   const search: City['search'] = { angle: 40, dir: 1, aim: Math.PI / 2, lock: spring(0), pulse: 0, target: null, mode: 'sweep' };
   const vignettes: Vignette[] = [];
   const birds: Bird[] = [];
   return { chart: new Array<number>(160).fill(0), chartHead: 0, chartClock: 0, chartMode: 'pre' as const, chartValue: 1, search, canyonPigeon: null, pigeonClock: 0, vignettes, burst: { floor: 28, fired: false, birds }, litBoost: 0, seed: 1, events: noEvents() };
 }
-
 export function createCity(): City {
   const rand = mulberry32(2024);
   const stars: City['stars'] = [];
   for (let i = 0; i < 48; i += 1) stars.push({ x: rand() * 960, y: rand() * 300, r: 1 + Math.round(rand()), seed: rand() });
-  const far = towers(22, 24, 70, 200, 318, 11, -40);
-  const mid: Tower[] = [{ x: -30, w: 120, top: 326, seed: 0 }, { x: 105, w: 200, top: 366, seed: 1 }, ...towers(7, 60, 140, 290, 420, 23, 318).map((t, i) => ({ ...t, seed: i + 2 }))];
+  // A blocky hillside town: one broad hill under the moon, the roofs stepping down with it, no glass towers.
+  const farRaw = towers(26, 30, 64, 250, 330, 11, -40);
+  const far: Tower[] = farRaw.map((t, i) => ({ ...t, top: 330 - 80 * Math.sin((i / (farRaw.length - 1)) * Math.PI) + (t.top - 250) * 0.25 }));
+  const midRest: Tower[] = [{ x: -30, w: 120, top: 346, seed: 0 }, { x: 105, w: 170, top: 376, seed: 1 }];
+  const midHill = towers(9, 50, 110, 330, 430, 23, 318).map((t, i) => ({ ...t, top: 330 + 100 * (i / 8) + (t.top - 330) * 0.2, seed: i + 2 }));
+  const mid: Tower[] = [...midRest, ...midHill];
   return { stars, far, mid, farCells: cells(far, 6, 7, 3, 6, 31), midCells: cells(mid, 9, 10, 5, 12, 37), headlights: [{ x: 760, y: 508, speed: 1 }, { x: 830, y: 530, speed: -1 }, { x: 870, y: 514, speed: 1.3 }, { x: 790, y: 524, speed: -0.8 }, { x: 890, y: 534, speed: -1.1 }], mastPhase: 0, flicker: 0, ...volatile() };
 }
-/** The betting edge; geometry and caches stay. */
+
 export function resetCity(c: City): void {
   Object.assign(c, volatile());
 }
 
-/** `target` is the suspect's head (null once gone); `crashT` is -1 before a crash. */
 export interface CityDrive {
   running: boolean;
   crashed: boolean;
@@ -123,7 +117,6 @@ export interface CityDrive {
   camY: number;
 }
 
-/** Advances the city by dt. */
 export function stepCity(c: City, drive: CityDrive, dt: number): void {
   c.events = noEvents();
   c.litBoost = 0.2 * clamp(drive.elapsed / 150000, 0, 1);
@@ -203,7 +196,6 @@ export function stepCity(c: City, drive: CityDrive, dt: number): void {
   c.burst.birds = c.burst.birds.filter((b) => b.age < 1.5);
 }
 
-/** A fresh scene mid-round: the chart flat, the searchlight settled. */
 export function settleCity(c: City, settle: { multiplier: number; tension: number; running: boolean; crashed: boolean; escaped: boolean }): void {
   c.chartMode = settle.running || settle.crashed ? 'live' : 'pre';
   c.chart.fill(Math.log(Math.max(1, settle.multiplier)));
@@ -212,7 +204,7 @@ export function settleCity(c: City, settle: { multiplier: number; tension: numbe
   settleSpring(c.search.lock, locked ? 1 : 0);
   c.search.mode = locked ? 'lock' : 'sweep';
 }
-/** The crash: seeds the vignettes' and the burst's floors; the billboard goes red. */
+
 export function crashCity(c: City, seed: number): void {
   const rand = mulberry32(seed + 17);
   c.seed = seed;
@@ -224,20 +216,23 @@ export function crashCity(c: City, seed: number): void {
   c.burst = { floor: 24 + Math.floor(rand() * 11), fired: false, birds: [] };
 }
 
-/** The 0.5 s pan from the follow-through and the tilt tracker during the fall. */
 export function cameraFor(thrown: Thrown | null, crashT: number): Camera {
   if (!thrown || crashT < 0 || crashT >= thrown.times.back) return { x: 0, y: 0 };
   const x = 160 * smoothstep(0, 1, clamp((crashT - thrown.times.follow) / 0.5, 0, 1));
   const y = crashT >= thrown.times.fall ? clamp(thrown.y - (250 + 0.08 * thrown.vy), 0, CAM_MAX) : 0;
   return { x, y };
 }
-/** The FLOOR counter for a camera y. */
+
 export const floorAt = (camY: number): number => FLOORS - Math.floor(Math.max(0, camY) / ROW_PX);
-
 // ---- Drawing ----
-
 function layer(ctx: Ctx, cam: Camera, l: { fx: number; fy: number }): void {
   ctx.translate(-cam.x * l.fx, -cam.y * l.fy);
+}
+function seg(ctx: Ctx, x0: number, y0: number, x1: number, y1: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
 }
 function R(ctx: Ctx, fill: string | CanvasGradient, x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = fill;
@@ -255,7 +250,7 @@ function oval(ctx: Ctx, x: number, y: number, rx: number, ry: number, fill: stri
   ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
   ctx.fill();
 }
-/** A soft disc: `inner` alpha at r0 to clear at r1. */
+
 function glow(ctx: Ctx, x: number, y: number, r0: number, r1: number, rgb: string, inner: number): void {
   const g = ctx.createRadialGradient(x, y, r0, x, y, r1);
   g.addColorStop(0, `rgba(${rgb},${inner.toFixed(3)})`);
@@ -263,15 +258,14 @@ function glow(ctx: Ctx, x: number, y: number, r0: number, r1: number, rgb: strin
   disc(ctx, x, y, r1, g);
 }
 
-/** Sky, haze, stars, the moon and its halo. */
 export function drawSky(ctx: Ctx, c: City, cam: Camera, tension: number, time: number): void {
   ctx.save();
   const g = ctx.createLinearGradient(0, 0, 0, 340);
-  g.addColorStop(0, '#0b1230');
-  g.addColorStop(0.88, '#2a1d3f');
-  g.addColorStop(1, '#3d2d48');
+  g.addColorStop(0, '#0d0f14');
+  g.addColorStop(0.88, '#251a12');
+  g.addColorStop(1, '#38291a');
   R(ctx, g, 0, 0, 960, 540);
-  R(ctx, 'rgba(42,35,67,0.5)', 0, 300, 960, 40);
+  R(ctx, 'rgba(52,38,24,0.5)', 0, 300, 960, 40);
   layer(ctx, cam, LAYERS.sky);
   ctx.fillStyle = '#ffffff';
   for (let i = 0; i < c.stars.length; i += 1) {
@@ -294,7 +288,6 @@ export function drawSky(ctx: Ctx, c: City, cam: Camera, tension: number, time: n
   ctx.restore();
 }
 
-/** The lit windows: a shuffled prefix plus `toggles` flickering cells. */
 function windows(ctx: Ctx, list: number[], w: number, h: number, lit: number, colour: string, body: string, flicker: number, toggles: number): void {
   const n = list.length >> 1;
   const L = Math.floor(n * clamp(lit, 0, 1));
@@ -318,51 +311,70 @@ function windows(ctx: Ctx, list: number[], w: number, h: number, lit: number, co
   }
 }
 
-/** A skyline layer: 'far' (flickering windows, the mast) or 'mid' (roof furniture, the billboard). */
 export function drawSkyline(ctx: Ctx, c: City, cam: Camera, which: 'far' | 'mid', tension: number, time: number): void {
   ctx.save();
   layer(ctx, cam, LAYERS[which]);
   const list = which === 'far' ? c.far : c.mid;
-  const body = which === 'far' ? '#141b3a' : '#0c1024';
+  const body = which === 'far' ? '#242019' : '#191510';
   ctx.fillStyle = body;
   ctx.beginPath();
   for (const t of list) ctx.rect(t.x, t.top, t.w, 600 - t.top);
   ctx.fill();
   if (which === 'far') {
-    windows(ctx, c.farCells, 2, 3, 0.18, 'rgba(255,210,122,0.6)', body, c.flicker, 14);
-    R(ctx, '#2a2f4a', 299, 170, 2, 150);
-    ctx.fillRect(292, 318, 16, 14);
+    windows(ctx, c.farCells, 2, 3, 0.18, 'rgba(255,196,110,0.6)', body, c.flicker, 14);
+    // Rooftop water tanks and satellite dishes
+    for (const t of list) {
+      const wx = t.x + t.w * 0.3;
+      if (t.seed % 3 === 1) {
+        R(ctx, '#2e2921', wx, t.top - 12, 12, 12);
+        R(ctx, '#3a342a', wx - 1, t.top - 13, 14, 2);
+        R(ctx, '#241f18', wx + 4, t.top - 16, 4, 4);
+      } else if (t.seed % 3 === 2) {
+        ctx.strokeStyle = '#332d24';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(wx + 5, t.top - 2, 4.5, Math.PI, 0);
+        ctx.stroke();
+        seg(ctx, wx + 5, t.top - 2, wx + 5, t.top);
+      }
+    }
+    // The minaret: a thin cylinder, a balcony
+    R(ctx, '#332d24', 297, 190, 7, 130);
+    R(ctx, '#403a2e', 293, 226, 15, 5);
+    R(ctx, '#332d24', 294, 178, 13, 14);
+    R(ctx, '#3f382c', 292, 174, 17, 5);
+    ctx.fillStyle = '#d8c274';
+    ctx.beginPath();
+    ctx.arc(300.5, 168, 3.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#241f18';
+    ctx.beginPath();
+    ctx.arc(302, 166.8, 3, 0, Math.PI * 2);
+    ctx.fill();
     if (c.mastPhase % 1 < 0.5) {
-      glow(ctx, 300, 167, 1, 9, '255,77,77', 0.5);
-      disc(ctx, 300, 167, 2.5, '#ff4d4d');
+      glow(ctx, 300, 167, 1, 9, '255,214,130', 0.5);
     }
   } else {
     for (const t of list) {
-      R(ctx, '#1b2244', t.x, t.top, t.w, 6);
-      R(ctx, '#2a3260', t.x, t.top, t.w, 1.5);
+      // Flat roofs with parapets, tanks and AC c
+      R(ctx, '#2a2419', t.x, t.top, t.w, 6);
+      R(ctx, '#38301f', t.x, t.top, t.w, 1.5);
       const wx = t.x + t.w * 0.35;
       if (t.seed % 3 === 0) {
-        R(ctx, '#1b2244', wx - 6, t.top - 8, 2, 8);
-        ctx.fillRect(wx + 4, t.top - 8, 2, 8);
-        R(ctx, '#2a3050', wx - 8, t.top - 20, 16, 12);
-        ctx.beginPath();
-        ctx.moveTo(wx - 9, t.top - 20);
-        ctx.lineTo(wx, t.top - 26);
-        ctx.lineTo(wx + 9, t.top - 20);
-        ctx.fill();
+        R(ctx, '#2e2921', wx, t.top - 10, 11, 10);
+        R(ctx, '#241f18', wx + 3, t.top - 13, 4, 3);
+        R(ctx, '#38301f', wx - 2, t.top - 1, 15, 1);
       } else if (t.seed !== 1) {
-        R(ctx, '#222846', wx, t.top - 6, 10, 6);
-        ctx.fillRect(wx + t.w * 0.3, t.top - 5, 8, 5);
-        R(ctx, '#323a60', wx, t.top - 6, 10, 1);
+        R(ctx, '#241f18', wx, t.top - 5, 9, 5);
+        R(ctx, '#2e2921', wx + t.w * 0.3, t.top - 4, 7, 4);
       }
     }
-    windows(ctx, c.midCells, 4, 5, 0.3 + 0.3 * tension + c.litBoost, 'rgba(255,210,122,0.85)', body, 0, 0);
+    windows(ctx, c.midCells, 4, 5, 0.3 + 0.3 * tension + c.litBoost, 'rgba(255,196,110,0.85)', body, 0, 0);
     billboard(ctx, c, time);
   }
   ctx.restore();
 }
 
-/** The $ALIGN billboard: frame, screen, the log-scale chart. */
 function billboard(ctx: Ctx, c: City, time: number): void {
   const b = BILLBOARD;
   const red = c.chartMode === 'red';
@@ -406,7 +418,6 @@ function billboard(ctx: Ctx, c: City, time: number): void {
   ctx.fillText(red ? '-100 %' : `${v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v.toFixed(2)}×`, b.x + b.w - 6, b.y + b.h - 6);
 }
 
-/** The 14 deg 'lighter' wedge: alpha 0.06 sweeping, 0.06..0.12 locked. */
 export function drawSearchlight(ctx: Ctx, c: City, cam: Camera, time: number): void {
   const s = c.search;
   const lock = clamp(s.lock.x, 0, 1);
@@ -428,7 +439,6 @@ export function drawSearchlight(ctx: Ctx, c: City, cam: Camera, time: number): v
   ctx.restore();
 }
 
-/** A small side-view pigeon; `dir` -1 flies left. */
 function bird(ctx: Ctx, x: number, y: number, flap: number, dir: number, colour = '#8a8d96'): void {
   ctx.save();
   ctx.translate(x, y);
@@ -447,7 +457,6 @@ function bird(ctx: Ctx, x: number, y: number, flap: number, dir: number, colour 
   ctx.restore();
 }
 
-/** Paints a strip: wall, panes, mullions, ledge bands. */
 function paintStrip(g: Ctx, s: Strip): void {
   R(g, s.wall, 0, 0, s.w, s.h);
   for (let r = 0; r * s.row < s.h; r += 1) {
@@ -455,20 +464,20 @@ function paintStrip(g: Ctx, s: Strip): void {
     for (let col = 0; col < s.cols; col += 1) {
       const x = s.x0 + col * s.pitch;
       const k = noise(s.seed + r * 131.7 + col * 17.3);
-      R(g, k < s.lit ? (noise(k * 97.1) > 0.3 ? 'rgba(255,210,122,0.6)' : 'rgba(190,215,255,0.5)') : '#0d0d15', x, ry + s.y0, s.ww, s.wh);
-      R(g, 'rgba(8,8,14,0.55)', x + s.ww / 2 - 1, ry + s.y0, 2, s.wh);
+      R(g, k < s.lit ? (noise(k * 97.1) > 0.3 ? 'rgba(255,206,124,0.6)' : 'rgba(255,232,190,0.5)') : '#181410', x, ry + s.y0, s.ww, s.wh);
+      R(g, 'rgba(10,8,6,0.55)', x + s.ww / 2 - 1, ry + s.y0, 2, s.wh);
     }
     if (r % s.ledge === s.ledge - 1) {
-      R(g, '#2d2c38', 0, ry + s.row - 6, s.w, 5);
-      R(g, '#3b3a47', 0, ry + s.row - 6, s.w, 1);
+      R(g, '#3d352a', 0, ry + s.row - 6, s.w, 5);
+      R(g, '#4a4234', 0, ry + s.row - 6, s.w, 1);
       R(g, 'rgba(0,0,0,0.35)', 0, ry + s.row - 1, s.w, 3);
     }
   }
-  R(g, s === OURS ? '#15141a' : '#0b0e20', s === OURS ? s.w - 6 : 0, 0, 6, s.h);
+  R(g, s === OURS ? '#211d17' : '#181410', s === OURS ? s.w - 6 : 0, 0, 6, s.h);
 }
-/** The offscreen strips, shared by every scene; null without a 2D context. */
+
 let STRIPS: { ours: HTMLCanvasElement | null; across: HTMLCanvasElement | null } | null = null;
-/** Blits a strip at its world origin, building the caches on the first call. */
+
 function facade(ctx: Ctx, which: 'ours' | 'across'): void {
   if (!STRIPS) {
     STRIPS = { ours: null, across: null };
@@ -495,24 +504,35 @@ function facade(ctx: Ctx, which: 'ours' | 'across'): void {
   else R(ctx, strip.wall, ox, oy, strip.w, strip.h);
 }
 
-/** The across-the-street facade and roof (fy 0.7), then the canyon with its headlights and pigeon. */
 export function drawStreet(ctx: Ctx, c: City, cam: Camera, time: number): void {
   const A = ACROSS;
   ctx.save();
   layer(ctx, cam, LAYERS.across);
   facade(ctx, 'across');
-  R(ctx, '#181d3a', A.x, A.top, A.w, 12);
-  R(ctx, '#262c52', A.x, A.top, A.w, 3);
-  R(ctx, '#1e2446', A.x + 44, A.top - 14, 30, 16);
-  R(ctx, '#2d345c', A.x + 44, A.top - 14, 30, 3);
+  R(ctx, '#262019', A.x, A.top, A.w, 12);
+  R(ctx, '#332a1d', A.x, A.top, A.w, 3);
+  R(ctx, '#332c20', A.x + 44, A.top - 14, 30, 16);
+  R(ctx, '#41382a', A.x + 44, A.top - 14, 30, 3);
+  // The minaret on the across-the-street blo
+  R(ctx, '#332d24', A.x + 128, A.top - 54, 8, 56);
+  R(ctx, '#403a2e', A.x + 123, A.top - 30, 18, 5);
+  R(ctx, '#3f382c', A.x + 126, A.top - 58, 12, 5);
+  ctx.fillStyle = '#d8c274';
+  ctx.beginPath();
+  ctx.arc(A.x + 132, A.top - 62, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#241f18';
+  ctx.beginPath();
+  ctx.arc(A.x + 133.3, A.top - 63, 2.3, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
   ctx.save();
   layer(ctx, cam, LAYERS.near);
   const g = ctx.createLinearGradient(0, 372, 0, 440);
-  g.addColorStop(0, 'rgba(6,8,26,0.5)');
-  g.addColorStop(1, '#06081a');
+  g.addColorStop(0, 'rgba(12,8,4,0.5)');
+  g.addColorStop(1, '#120d08');
   R(ctx, g, CANYON.x, 372, CANYON.w, 68);
-  R(ctx, '#06081a', CANYON.x, 440, CANYON.w, 2300);
+  R(ctx, '#120d08', CANYON.x, 440, CANYON.w, 2300);
   const fade = clamp(1 - cam.y / 60, 0, 1);
   if (fade > 0) {
     ctx.beginPath();
@@ -528,7 +548,6 @@ export function drawStreet(ctx: Ctx, c: City, cam: Camera, time: number): void {
   ctx.restore();
 }
 
-/** A TV-lit guy who turns and waves, or a laptop guy whose chart flips red. */
 function vignette(ctx: Ctx, v: Vignette, time: number): void {
   const x = OURS.x0 + v.col * OURS.pitch;
   const y = 540 + (FLOORS - 1 - v.floor) * ROW_PX + OURS.y0;
@@ -567,7 +586,6 @@ function vignette(ctx: Ctx, v: Vignette, time: number): void {
   }
 }
 
-/** Our facade from world y 540 with the vignettes and the burst; at rest only a sliver of wall. */
 export function drawFacades(ctx: Ctx, c: City, cam: Camera, time: number): void {
   ctx.save();
   layer(ctx, cam, LAYERS.near);
@@ -580,7 +598,6 @@ export function drawFacades(ctx: Ctx, c: City, cam: Camera, time: number): void 
   ctx.restore();
 }
 
-/** The 140 px pigeon: head down from +0.15, back by +0.50, the blink at +0.50. */
 function pigeon(ctx: Ctx, t: number): void {
   const down = t < 0.35 ? smoothstep(0.15, 0.35, t) : 1 - smoothstep(0.35, 0.5, t);
   const cx = 480;

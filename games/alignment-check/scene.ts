@@ -1,8 +1,4 @@
-/**
- * Composes Alignment Check: the city under the parallax camera, the roof, the three rigs, the dialogue, the
- * escape, the seeded throw, every cue, the HUD and the portrait hand-off. Everything follows the SceneView and
- * the frame time; nothing reads or predicts the committed outcome.
- */
+/** Composes the scene: the city, the roof, the rigs, the dialogue, the clocks, the camera, the HUD and the portrait. */
 import { actAt, drawAct } from './acts';
 import { type Effect, pageAudio } from './audio';
 import { cameraFor, type City, crashCity, createCity, drawFacades, drawInsert, drawSearchlight, drawSky, drawSkyline, drawStreet, floorAt, resetCity, settleCity, stepCity } from './city';
@@ -11,7 +7,6 @@ import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { createPortrait, isPortrait } from './portrait';
 import { type Roof, crashRoof, createRoof, drawAir, drawBeam, drawFlash, drawRoofBack, drawRoofFront, escapeRoof, resetRoof, settleAftermath, settleRoof, spawnLoose, stepRoof } from './roof';
 import { type Crew, anchors, beamFor, beginHeave, beginThrow, createCrew, drawMilitia, drawSuspect, drawThrown, escapeCrew, resetCrew, settleCrashed, settleCrew, stepCrew } from './rigs';
-
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
   /** Hundredths; the crash point once crashed. */
@@ -30,7 +25,6 @@ export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose?(): void;
 }
-
 type Outcome = 'rekt' | 'called' | 'spectator';
 type Secured = { x100: number; payout: number | null };
 type Cue = { at: number; fx: Effect; strength: number };
@@ -93,7 +87,6 @@ export function createScene(): Scene {
   let heartClock = 0;
   let actStage = 0;
   let actCue = false;
-
   function fx(effect: Effect, strength: number): void {
     if (!canCue) return;
     const was = lastFx[effect];
@@ -110,7 +103,6 @@ export function createScene(): Scene {
     say(talk, who, text, life);
     fx('pop', who === 'suspect' ? 0.8 : 0.5);
   }
-
   function reset(): void {
     resetCity(city);
     resetRoof(roof);
@@ -133,7 +125,6 @@ export function createScene(): Scene {
     settleSpring(badge, 0);
     settleSpring(punch, 0);
   }
-
   /** The cash-out seen live: the airdrop and the run for the stairwell. */
   function beginEscape(x100: number): void {
     escapeT = 0;
@@ -152,7 +143,6 @@ export function createScene(): Scene {
     talk.holding = true;
     badge.x = 1;
   }
-
   /** The crash: the seeded throw (mulberry32(crashX100)), or the harmless heave once secured; `quiet` (met late) settles the aftermath with no cues. */
   function beginCrash(view: SceneView, quiet: boolean): void {
     const seed = view.currentX100;
@@ -198,13 +188,12 @@ export function createScene(): Scene {
     if (instant) say(talk, 'lead', THROW_LINES.instantOpener, crew.thrown!.times.hitstop);
     else speak('suspect', THROW_LINES.wait, 0.3);
   }
-
   function captionFor(view: SceneView, rung: number): string {
     const T = crew.thrown?.times;
     if (outcome === 'called') return 'TOOK THE STAIRS';
     if (outcome && T && crashT >= T.back) return outcome === 'spectator' ? 'NOT MY ROOFTOP' : instant ? 'NO QUESTIONS ASKED' : 'ALIGNMENT RESOLVED';
     if (outcome && T && crashT >= T.hitstop) return 'YUP. THAT’S ME.';
-    if (view.phase === 'betting') return 'ALIGNMENT CHECK';
+    if (view.phase === 'betting') return 'Q4P CHECK';
     if (view.phase === 'waiting') return 'ROOF ACCESS ONLY';
     if (secured) return 'HE DIPPED';
     if (talk.overtimeK >= 0) return OVERTIME[talk.overtimeK % OVERTIME.length]!.caption;
@@ -230,11 +219,10 @@ export function createScene(): Scene {
     const m = clamp(crew.suspect.ledge.x, -0.5, 4) + wobble;
     return { text: ledgeText(m), colour: m <= 0.2 ? RED : m <= 1 ? PINK : '#ffffff' };
   }
-
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
     const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
     last = now;
-    // Only the hit-stop and slow-motion countdowns and the flash use real time.
+    // Only the hit-stop and slow-motion countdowns and the flash use the real clock.
     let dt = real;
     if (freeze > 0) {
       freeze -= real;
@@ -258,8 +246,7 @@ export function createScene(): Scene {
     const rung = RUNGS.filter((r) => multiplier >= r).length;
     const wind = 0.2 + 0.8 * tension;
     canCue = !fresh && !muted;
-
-    // The escape before the crash: both can land in one frame, and the crash is then harmless.
+    // The escape before the crash: both can land in one frame, and only one wins.
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
       if (!fresh && !outcome && (running || (crashed && previous !== 'crashed'))) beginEscape(view.cashoutX100);
@@ -292,8 +279,7 @@ export function createScene(): Scene {
       beginAftermath(talk, 'called');
     }
     const aftermathT = outcome === 'called' ? harmlessT : outcome ? (crew.thrown && crashT < crew.thrown.times.back ? -1 : view.crashAge / 1000) : -1;
-
-    // The words, then the rigs (kicked by the lines), the roof (fed the drops), the city.
+    // The words, then the rigs (kicked by the lines), the roof (fed by the crew) and the city.
     stepDialogue(talk, { running, multiplier, escapeT, aftermathT }, dt);
     const tev = talk.events;
     const talking = { suspect: false, lead: false, heavy: false };
@@ -311,7 +297,6 @@ export function createScene(): Scene {
     const a = anchors(crew);
     stepCity(city, { running, crashed, multiplier, tension, time, elapsed: view.elapsed, escaped: secured !== null, target: a.suspectHead, crashT, thrown: crew.thrown, camY: cam.y }, dt);
     const cev = city.events;
-
     for (const l of tev.said) {
       if (l.who === 'hq') {
         fx('buzz', 0.4);
@@ -460,7 +445,6 @@ export function createScene(): Scene {
     }
     alignFlash = Math.max(0, alignFlash - dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
-
     // ---- The picture, in depth order, under the camera ----
     ctx.save();
     const simmer = running && !crew.thrown && !secured ? tension * tension * 1.5 : 0;
@@ -496,7 +480,7 @@ export function createScene(): Scene {
     }
     ctx.restore();
     drawFlash(ctx, roof, flash);
-    // The cut: two near-black frames (the HUD stays), then the pigeon-eye insert.
+    // The cut: two near-black frames (the HUD stays), then the pigeon insert.
     if (crew.thrown && crashT >= crew.thrown.times.cut && crashT < crew.thrown.times.back) {
       if (crashT < crew.thrown.times.insert) {
         ctx.fillStyle = 'rgba(4,4,8,0.92)';
@@ -509,8 +493,7 @@ export function createScene(): Scene {
     vig.addColorStop(1, `rgba(0,0,0,${0.35 + 0.15 * tension})`);
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, 960, 540);
-
-    // ---- The HUD, after the portrait compositor has the clean frame ----
+    // ---- The HUD, after the portrait compositor has the clean fr
     capture(ctx);
     const T = crew.thrown?.times;
     if (caption) {
@@ -551,6 +534,5 @@ export function createScene(): Scene {
     if (T && crashT >= T.cut && crashT < T.back) detail = [0, 60, 960, 480];
     present(ctx, view, running && !secured && act.stage > 0 ? act.line : caption, 'ON THE ROOF', talk.bubbles[talk.bubbles.length - 1]?.text ?? 'Simple question.', detail);
   }
-
   return { draw };
 }
