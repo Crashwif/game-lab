@@ -267,13 +267,14 @@ export function stepRally(r: Rally, drive: RallyDrive, dt: number): void {
   stepSpring(r.heliX, r.crashed ? 600 : heliXFor(drive.tension), 2.4, 0.9, dt);
   // Long rounds: the hover bob grows from about 30× so the picture keeps moving.
   const bob = Math.sin(r.time * Math.PI / 12) * (4 + 20 * smoothstep(0.45, 0.65, lateFor(drive.multiplier)));
-  stepSpring(r.heliY, r.crashed ? 90 : heliYFor(drive.running ? drive.tension : 0) + bob, 2.2, 0.85, dt);
+  stepSpring(r.heliY, r.crashed ? 50 : heliYFor(drive.running ? drive.tension : 0) + bob, 2.2, 0.85, dt);
   // The yank: the lift starts a beat after the frame and picks up speed, so he leaves faster than he rose.
   if (r.crashed && r.crashT > LIFT_DELAY) {
     const lift = { x: r.lift, v: r.liftV };
     stepSpring(lift, LIFT_MAX, 4, 1, Math.min(dt, r.crashT - LIFT_DELAY)); r.lift = lift.x; r.liftV = lift.v;
   }
-  stepSpring(r.travel, (r.heliX.x - 430) * 0.6 * smoothstep(0, LIFT_MAX, r.lift), 4, 1, dt);
+  // He swings in under the helicopter as the lift takes him, rather than trailing beside it.
+  stepSpring(r.travel, (r.heliX.x - 430) * 0.9 * smoothstep(0, LIFT_MAX, r.lift), 4, 1, dt);
   if (r.lift > 0 && dt > 0) r.swing.v += ((r.heliX.v - oldHeliV) * -0.002 + (r.liftV - oldLiftV) * 0.001) * (drive.reduced ? 0.25 : 1);
   stepSpring(r.swing, 0, 3.4, 0.3, dt);
   // The tie grows with the tension and flaps in the downdraft; its tail lags the lift and swings up after him.

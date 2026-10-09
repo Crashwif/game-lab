@@ -213,6 +213,8 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
   } else {
     // A bust before she has said a word: she barely got the first syllable out.
     if (k.nextLine === 0 && !quiet) say(k, 'her', 'so, um—', 1.2);
+    // Whatever the parents were saying ends with their heads.
+    for (const b of k.bubbles) if (b.who !== 'her') b.life = Math.min(b.life, b.age + 0.12);
     k.smokeFrom = necks;
     k.aftermath = [{ at: 0.75, who: 'her', text: '…so anyway' }, { at: 2.6, who: 'her', text: 'can I borrow the car' }];
     const c = k.cross;

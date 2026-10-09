@@ -99,16 +99,17 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   c.restore();
 
   // A travelling wave follows the scarf down its length, behind the moving neck.
+  // The collar wraps the neck under the chin, clear of the beak above it.
   const wind = p.scarf;
   const scarf: [number, number][] = [];
   for (let i = 0; i < 9; i += 1) {
     const u = i / 8;
-    scarf.push([-10 - u * (95 + wind * 33), -123 + u * 19 + Math.sin(time * 11 - u * 5) * u * (6 + wind * 8)]);
+    scarf.push([-10 - u * (95 + wind * 33), -110 + u * 19 + Math.sin(time * 11 - u * 5) * u * (6 + wind * 8)]);
   }
   for (let i = 8; i >= 0; i -= 1) { const u = i / 8; const [x, y] = scarf[i]!; scarf.push([x + 4, y + 15 - u * 5]); }
   polygon(c, scarf, p.mood === 'cosmic' ? GOLD : CORAL, 3);
-  box(c, -30, -126, 76, 18, p.mood === 'cosmic' ? GOLD : CORAL, 7, 3);
-  ellipse(c, -20, -117, 12, 11, p.mood === 'cosmic' ? '#ffe9ad' : '#f69a7d', 0, 2);
+  box(c, -30, -113, 76, 18, p.mood === 'cosmic' ? GOLD : CORAL, 7, 3);
+  ellipse(c, -20, -104, 12, 11, p.mood === 'cosmic' ? '#ffe9ad' : '#f69a7d', 0, 2);
   flipper(c, -33, -114, wing + (p.airborne ? 1.3 : .15), true);
   if (p.paper) {
     c.save(); c.translate(-69, -50); c.rotate(-.4 + wing * .3); box(c, -18, -28, 45, 56, WHITE, 1, 2);

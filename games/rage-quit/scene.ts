@@ -88,7 +88,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       label(c, 'RAGE QUIT', 22, 22, 22, RED, 227);
       label(c, caption, 23, 60, 27, PAPER, 683);
       label(c, formatX(view.currentX100), 940, 43, 51, dead ? GOLD : PAPER, 231, 'right');
-      mono(c, dead ? 'ROUND CRASHED' : running ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN ROUND' : 'WAITING', 934 - 200, 77, 12, PAPER, 201);
+      mono(c, dead ? 'ROUND CRASHED' : running ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN ROUND' : 'WAITING', 938, 77, 12, PAPER, 201, 'right');
       if (safe) {
         box(c, 338, 473, 387, 45, GREEN, 4);
         label(c, `CASH-OUT CONFIRMED · ${formatX(view.cashoutX100!)}`, 531, 496, 21, INK, 367, 'center');

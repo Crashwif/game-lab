@@ -1348,7 +1348,9 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
     strokeLimb(ctx, k, midJ(k, f), f, b.limb - 2, SKIN);
     ctx.save();
     ctx.translate(f.x, f.y);
-    ctx.rotate(Math.atan2(f.y - k.y, f.x - k.x) - Math.PI / 2);
+    // A planted croc lies flat on the gravel whatever the knee does; it turns with the shin only once the foot lifts.
+    const lifted = Math.min(1, Math.abs(f.y - s.feetY) / 10);
+    ctx.rotate((Math.atan2(f.y - k.y, f.x - k.x) - Math.PI / 2) * lifted);
     ell(ctx, 0, -6, 6, 4.5, '#f4f4f0', 1.5);
     if (s.crocs[i]) {
       ell(ctx, -4, -1, 12, 5, CROC);

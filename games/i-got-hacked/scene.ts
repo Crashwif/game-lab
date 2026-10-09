@@ -263,7 +263,6 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawParty(ctx, party, tension, view.stake !== null, reduced);
     drawBarbecue(ctx, mansion, reduced);
     drawPhone(ctx, mansion, multiplier, 1 + 0.12 * clamp(phonePunch.x, -0.5, 1.2), reduced);
-    drawTicker(ctx, party, multiplier);
     if (outcome && pop.x > 0.02 && mansion.endAge > 0.4) {
       ctx.save();
       ctx.translate(STAGE.w / 2, 330);
@@ -275,6 +274,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
+    // The ticker is chrome, outside the punch-in, so its count never leaves the picture.
+    drawTicker(ctx, party, multiplier);
     // The drone's flash and the green of an exit wash the whole picture; neither under reduced motion.
     if (!reduced && mansion.drone.flash > 0.02) {
       ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * mansion.drone.flash * mansion.drone.flash})`;

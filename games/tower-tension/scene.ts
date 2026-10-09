@@ -705,6 +705,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       // Dodged, the stamp sits above the floor you dodged so the tape still reads, also as it shrinks away.
       const dodged = popText === 'DODGED!';
       if (dodged) sy = Math.min(sy, H / 2 + (GROUND_Y - exitFloor * FLOOR_H - camY) * s - 60);
+      // Down in the rubble, the worker and his tag stay readable under the stamp.
+      if (grounded) sy = Math.min(sy, H / 2 + (worker.y - camY) * s - 110);
       sy = clamp(sy, dodged ? 170 : 130, 420);
       ctx.save();
       ctx.translate(sx, sy);

@@ -210,7 +210,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       pulseAt = seconds + mix(1.4, 0.35, tension);
     }
 
-    stepField(field, { running, tension, multiplier, reduced }, dt);
+    stepField(field, { running, tension, multiplier, reduced, real }, dt);
     stepSquad(squad, { seconds, running, tension, multiplier, progress, reduced }, dt);
     const fe = field.events;
     const se = squad.events;
@@ -251,7 +251,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawSky(ctx, field, tension, multiplier, reduced);
     drawGround(ctx, field, tension, progress, squad.scroll);
     // The long round's act props fade out under the nuke rather than vanishing.
-    if (running || crashed) drawAdvance(ctx, seconds, reduced, running ? 1 : 1 - smoothstep(0, 0.5, field.nukeAge));
+    if (running || crashed) drawAdvance(ctx, seconds, reduced, running ? 1 : 1 - smoothstep(0, 0.5, field.nukeAge), tension, field.time);
     drawCloud(ctx, field, tension, reduced);
     drawSquad(ctx, squad, progress, tension, view.stake !== null);
     drawTrench(ctx, squad, tension, view.stake !== null, progress);

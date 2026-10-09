@@ -40,11 +40,13 @@ function leg(c: CanvasRenderingContext2D, p: BullPose, hipX: number, phase: numb
 
 function head(c: CanvasRenderingContext2D, p: BullPose): void {
   c.save(); c.translate(61, -25); c.rotate(p.head);
+  // Both ears sit behind the skull: the far one flicks out past the back horn, the near one pokes out under the near horn.
   oval(c, -1, -18, 18, 9, CREAM, 4, -0.4);
   poly(c, [[9, -30], [-16, -58], [-21, -89], [-9, -77], [-6, -59], [23, -47]], GOLD, 4);
+  oval(c, 96, -12, 17, 9, CREAM, 4, 0.5);
+  oval(c, 100, -11, 9, 4, '#efb9a3', 0, 0.5);
   c.beginPath(); c.moveTo(2, -35); c.bezierCurveTo(15, -65, 57, -67, 72, -36); c.bezierCurveTo(91, -1, 63, 33, 25, 24); c.bezierCurveTo(-8, 19, -9, -13, 2, -35); c.closePath(); shape(c, '#fff9df', 5);
   poly(c, [[51, -41], [82, -48], [111, -36], [126, -56], [119, -25], [94, -20], [68, -22]], GOLD, 4);
-  oval(c, 64, -35, 16, 9, '#cbd2ae', 3, 0.14);
   const angry = p.face === 'charge', panic = p.face === 'panic', victory = p.face === 'victory';
   if (victory) {
     box(c, 18, -34, 46, 21, INK, 5, 2);

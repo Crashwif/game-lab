@@ -13,18 +13,21 @@ function minion(c: CanvasRenderingContext2D, x: number, y: number, time: number,
   polygon(c, [[-9, -44], [7, -44], [10, -11], [-4, -2], [-9, -15]], CORAL, 2);
   c.restore();
 }
+/** The herd stands on the ice beside the hero: back rows first, each a step further back on the floe's top face. */
 export function herd(c: CanvasRenderingContext2D, time: number, act: Act, active: boolean, reduced: boolean): void {
   const loud = active && act.kind === 0;
   const t = reduced ? 0 : time;
   const n = 5 + Math.min(4, act.tier);
-  for (let i = 0; i < n; i += 1) {
-    const x = 55 + (i % 3) * 48 + Math.floor(i / 3) * 5;
-    const y = 417 - Math.floor(i / 3) * 25;
-    minion(c, x, y, t + i, loud, .64 + i % 2 * .11);
-  }
   const bob = reduced ? 0 : Math.sin(t * 4) * (loud ? 8 : 2);
-  line(c, [[115, 330 + bob], [111, 398]], '#bc9574', 6);
-  c.save(); c.translate(126, 312 + bob); c.rotate(reduced ? -.03 : Math.sin(t * 3) * .07);
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const row = Math.floor(i / 3);
+    const x = 55 + (i % 3) * 48 + row * 22;
+    const y = 433 - row * 14;
+    // The sign's pole is held from the front row, so it stands between the rows.
+    if (i === 2) line(c, [[115, 344 + bob], [111, 412]], '#bc9574', 6);
+    minion(c, x, y, t + i, loud, .64 + i % 2 * .11 - row * .05);
+  }
+  c.save(); c.translate(126, 326 + bob); c.rotate(reduced ? -.03 : Math.sin(t * 3) * .07);
   box(c, -104, -32, 207, 61, '#eaddb7', 2, 4);
   words(c, loud ? act.prop : 'RETURN TO WORK', 0, -4, 23, INK, 192);
   c.restore();

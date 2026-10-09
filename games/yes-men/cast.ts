@@ -717,17 +717,17 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
     ctx.stroke();
     ctx.translate(0, -26);
   } else {
-    // Seated, then up for the ovation, then down on the knees.
-    ctx.translate(0, -26 * stand + 16 * kneel - kick);
+    // Seated, then up for the ovation with the feet on the floor beside the chair's, then down on the knees.
+    ctx.translate(0, -14 * stand + 16 * kneel - kick);
     if (stand > 0.05) {
       ctx.strokeStyle = INK;
       ctx.lineWidth = 8;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(-5, -4);
-      ctx.lineTo(-5, 26 * stand);
+      ctx.lineTo(-5, 58 * stand);
       ctx.moveTo(5, -4);
-      ctx.lineTo(5, 26 * stand);
+      ctx.lineTo(5, 58 * stand);
       ctx.stroke();
     }
     if (kneel > 0.05) {

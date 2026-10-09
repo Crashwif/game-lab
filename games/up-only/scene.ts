@@ -511,9 +511,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     else if (!reduced && running && !off) ctx.translate(0, Math.sin(time * 90) * 1.2 * speedK * speedK);
     const fall = fallen ? clamp(fallAge / 1.2, 0, 1) : 0;
     // The jet comes in from the right under the height he is holding, then carries him to the berth.
-    const jetIn = { x: mix(W + 220, BIRD_X + 4, clamp(jet.x, 0, 1)), y: hoverY + 34 };
+    const jetIn = { x: mix(W + 220, BIRD_X + 4, clamp(jet.x, 0, 1)), y: hoverY + 50 };
     const jetAt = { x: mix(jetIn.x, BERTH.x, berth.x), y: mix(jetIn.y, BERTH.y, berth.x) + (reduced ? 0 : Math.sin(time * 1.8) * 6 * berth.x) };
-    const birdAt = fallen ? { x: BIRD_X - 60 * fall, y: fallY + fallV * fallAge + 0.5 * GRAVITY * fallAge * fallAge } : { x: mix(BIRD_X, jetAt.x - 4, boarding), y: mix(b.y, jetAt.y - 34, boarding) };
+    const birdAt = fallen ? { x: BIRD_X - 60 * fall, y: fallY + fallV * fallAge + 0.5 * GRAVITY * fallAge * fallAge } : { x: mix(BIRD_X, jetAt.x - 4, boarding), y: mix(b.y, jetAt.y - 50, boarding) };
     birdScreen = birdAt;
     drawChart(ctx, world, chart, BIRD_X - world.distance, () => {
       if (secured && jet.x > 0.02) drawJet(ctx, { x: jetAt.x, y: jetAt.y, time, bank: -0.08 * (1 - berth.x) - 0.04 * berth.x, reduced });

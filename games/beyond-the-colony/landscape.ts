@@ -44,15 +44,30 @@ export function sky(c: CanvasRenderingContext2D, time: number, chapter: number, 
   }
 }
 
+export interface FloeFrame { x: number; y: number; angle: number; drop: number; broken: number }
+/** The floe under a world x: its top centre, and how far it has tilted and dropped since the crash. */
+export function floeUnder(x: number, travel: number, sag: number, crash: number | null, reduced: boolean): FloeFrame {
+  const scroll = ((travel % 240) + 240) % 240;
+  return floeFrame(Math.floor((x + scroll) / 240), scroll, sag, crash, reduced);
+}
+function floeFrame(i: number, scroll: number, sag: number, crash: number | null, reduced: boolean): FloeFrame {
+  const x = i * 240 - scroll;
+  const delay = Math.abs(x + 120 - 460) / 930;
+  const broken = crash === null ? 0 : reduced ? 1 : clamp((crash - .15 - delay) / .7);
+  const dip = Math.exp(-Math.pow((x + 120 - 450) / 250, 2)) * sag;
+  return { x: x + 120, y: 429 + dip, angle: broken * (i % 2 ? -.38 : .35), drop: broken * (170 + (i % 3 + 3) * 35), broken };
+}
+/** Puts the context into a floe's frame, so whatever stands on it tilts and falls with it; world coordinates still apply. */
+export function rideFloe(c: CanvasRenderingContext2D, floe: FloeFrame): void {
+  c.translate(floe.x, floe.y); c.rotate(floe.angle); c.translate(-floe.x, floe.drop - 429);
+}
+
 export function floes(c: CanvasRenderingContext2D, travel: number, time: number, sag: number, crash: number | null, reduced: boolean): void {
   const scroll = ((travel % 240) + 240) % 240;
   for (let i = -1; i < 6; i += 1) {
-    const x = i * 240 - scroll;
-    const delay = Math.abs(x + 120 - 460) / 930;
-    const broken = crash === null ? 0 : reduced ? 1 : clamp((crash - .15 - delay) / .7);
-    const dip = Math.exp(-Math.pow((x + 120 - 450) / 250, 2)) * sag;
-    c.save(); c.translate(x + 120, 429 + dip);
-    c.rotate(broken * (i % 2 ? -.38 : .35)); c.translate(0, broken * (170 + (i % 3 + 3) * 35));
+    const { x: centre, y, angle, drop, broken } = floeFrame(i, scroll, sag, crash, reduced);
+    c.save(); c.translate(centre, y);
+    c.rotate(angle); c.translate(0, drop);
     polygon(c, [[-126, 0], [124, -2], [120, 47], [62, 112], [-53, 97], [-123, 47]], '#296c85', 3);
     polygon(c, [[-126, 0], [-17, 13], [-53, 97], [-123, 47]], '#458f9f');
     polygon(c, [[-14, 13], [124, -2], [120, 47], [62, 112]], '#184e6d');

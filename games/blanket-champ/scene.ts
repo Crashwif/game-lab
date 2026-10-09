@@ -359,11 +359,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shownSecured && badge.x > 0.02) {
       const text = `${shownSecured.payout !== null ? `+${shownSecured.payout} · ` : ''}${(shownSecured.x100 / 100).toFixed(2)}× SECURED`;
       ctx.save();
-      ctx.translate(430, 114 + Math.sin(time * 2) * 3);
+      // Under the caption and above the back row's placards.
+      ctx.translate(430, 98 + Math.sin(time * 2) * 2);
       ctx.rotate(-0.03);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);
-      memeText(ctx, text, 0, 0, 28, '#7cf67c', 'center');
+      memeText(ctx, text, 0, 0, 24, '#7cf67c', 'center');
       ctx.restore();
     }
     const colour = outcome ? '#ff4d6d' : running ? '#ffffff' : '#ffe08a';

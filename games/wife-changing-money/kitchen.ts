@@ -185,7 +185,7 @@ function freshKitchen(): Kitchen {
     harmless: false,
     crashed: false,
     crashT: 0,
-    suitX: 786,
+    suitX: 640,
     suitV: 0,
     suitLid: spring(0.08),
     rolling: false,
@@ -1251,7 +1251,8 @@ export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: n
   });
 }
 
-function drawSuitcase(ctx: CanvasRenderingContext2D, k: Kitchen): void {
+/** The suitcase meter, on the floor beside the stair foot; the room draws it before anyone walks past or climbs. */
+export function drawSuitcase(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   const fill = clamp(k.meter.x, 0, 1);
   ctx.save();
   ctx.translate(k.suitX, 392);
@@ -1331,13 +1332,12 @@ function drawDog(ctx: CanvasRenderingContext2D, x: number): void {
 
 export function drawFront(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   if (k.wifeMode !== 'asleep' && k.wifeMode !== 'wait' && k.wifeAlpha > 0.02) {
-    // On the stairs, behind the suitcase at their foot. She leans into each drop and stands up straight on the floor.
+    // On the stairs, clear of the suitcase beside their foot. She leans into each drop and stands up straight on the floor.
     const feet = wifeFeet(k);
     ctx.globalAlpha = k.wifeAlpha;
     drawWife(ctx, feet.x, feet.y, k.harmless ? 'soft' : 'angry', !k.ring.dropped, k.squash, k.wifeLean, k.fling);
     ctx.globalAlpha = 1;
   }
-  drawSuitcase(ctx, k);
   if (k.rolling && k.dogX < 980) drawDog(ctx, k.dogX);
   if (k.ring.dropped) {
     ctx.save();

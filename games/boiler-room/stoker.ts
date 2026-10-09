@@ -554,7 +554,7 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
     const l = runFoot(HOME_X - s.x, -1), r = runFoot(HOME_X - s.x, 1);
     target = { back: { x: -30, y: -64 }, front: { x: 46, y: -54 }, footL: stand(s.x - 38, l), footR: stand(s.x + 40, r) };
   } else if (s.mode === 'sheltered') {
-    target = { back: rel({ x: SHIELD.x - 12, y: SHIELD.top + 2 }), front: rel({ x: SHIELD.x + 14, y: SHIELD.top + 2 }), footL: stand(s.x - 38), footR: stand(s.x + 40) };
+    target = { back: rel({ x: SHIELD.x - 12, y: SHIELD.top + 2 }), front: rel({ x: SHIELD.x + 14, y: SHIELD.top + 2 }), footL: stand(s.x - 24), footR: stand(s.x + 6) };
   } else if (blasted) {
     target = { back: { x: -30, y: -100 }, front: { x: 46, y: -90 }, footL: { x: -34, y: 60 }, footR: { x: 36, y: 58 } };
   } else {
@@ -594,8 +594,10 @@ export function drawStoker(ctx: CanvasRenderingContext2D, s: StokerState): void 
     ctx.fillStyle = colour; ctx.fill();
   }
   // Legs and boots, then the back arm behind the body.
-  boot(limb({ x: hip.x - 8, y: hip.y }, at(limbs.footL), 50, 50, -1, 22, '#2f343d').end);
-  boot(limb({ x: hip.x + 8, y: hip.y }, at(limbs.footR), 50, 50, -1, 24, TROUSERS).end);
+  // Crouched behind the shield the knees fold back toward the wall, so nothing pokes out at the firebox.
+  const kneeSide = s.mode === 'sheltered' ? 1 : -1;
+  boot(limb({ x: hip.x - 8, y: hip.y }, at(limbs.footL), 50, 50, kneeSide, 22, '#2f343d').end);
+  boot(limb({ x: hip.x + 8, y: hip.y }, at(limbs.footR), 50, 50, kneeSide, 24, TROUSERS).end);
   const backShoulder = { x: shoulder.x - 10, y: shoulder.y + 6 };
   hand(limb(backShoulder, at(limbs.back), 56, 60, 1, 15, SKIN_SHADE).end, 8.5, SKIN_SHADE);
   // Torso, shirt and braces.

@@ -300,7 +300,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.save();
       // A dodged rug sits under the discharge badge.
       const called = outcome === 'called';
-      ctx.translate(WARD.w / 2, called ? 156 : 128);
+      ctx.translate(WARD.w / 2, called ? 176 : 128);
       ctx.rotate(-0.06);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
@@ -335,7 +335,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× DISCHARGED`;
       ctx.save();
-      ctx.translate(WARD.w / 2, 100 + Math.sin(time * 2) * 3);
+      // In the gap under the ward sign, above the poster's text.
+      ctx.translate(WARD.w / 2, 116 + Math.sin(time * 2) * 2);
       ctx.rotate(-0.02);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);

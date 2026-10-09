@@ -1,8 +1,8 @@
 import { pageAudio } from './audio';
 import { herd, setpiece } from './actors';
 import { perform } from './choreography';
-import { balloon, box, burst, GOLD, INK, JADE, polygon, WHITE, words } from './drawing';
-import { avalanche, cloudSeat, floes, impactSnow, office, sky, slideSpray, weather } from './landscape';
+import { balloon, box, burst, GOLD, INK, JADE, line, polygon, WHITE, words } from './drawing';
+import { avalanche, cloudSeat, floeUnder, floes, impactSnow, office, rideFloe, sky, slideSpray, weather } from './landscape';
 import { actAt, between, clamp, recoil, smooth, TAU } from './motion';
 import { penguin, type PenguinPose } from './penguin';
 import { portrait } from './portrait';
@@ -92,13 +92,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     sky(c, liveTime, act.tier, reduced);
     const hit = reduced ? 0 : crashed ? Math.exp(-age * 4) * 9 : act.kind === 2 ? Math.abs(recoil(act.age - 2.15, 5)) : 0;
     c.save(); c.translate(Math.sin(liveTime * 68) * hit, Math.cos(liveTime * 73) * hit);
+    floes(c, performance.travel, liveTime, performance.sag, crashed ? age : null, reduced);
+    // The herd and the encounters stand on the ice, and the herd goes down with its floe when the mountain answers.
+    c.save(); rideFloe(c, floeUnder(103, performance.travel, performance.sag, crashed ? age : null, reduced));
     herd(c, liveTime, act, running && !safe, reduced);
+    c.restore();
     if (running && !safe) setpiece(c, liveTime, act, reduced);
     else if (!active) {
       balloon(c, view.phase === 'betting' ? 'YOU COMING OR WHAT?' : 'IS THIS ALL THERE IS?', 504, 162, 315, WHITE, 25);
+      line(c, [[806, 418], [806, 440]], '#bc9574', 6);
       box(c, 725, 360, 163, 61, '#e9dcb1', 2, 4); words(c, 'FORBIDDEN', 806, 378, 20, INK, 149); words(c, 'MOUNTAIN →', 806, 402, 19, INK, 149);
     }
-    floes(c, performance.travel, liveTime, performance.sag, crashed ? age : null, reduced);
 
     if (crashed && !safe) {
       if (age < 1.06 && !reduced) {
