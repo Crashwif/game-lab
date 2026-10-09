@@ -121,7 +121,7 @@ test('a game listed as remixable in the browser must fit the platform\'s AI inpu
 test('every catalog game reserves remix growth capacity before export', () => {
   const files = { 'main.ts': 'export {};', 'sprite-data.ts': 'x'.repeat(150_000) };
   assert.deepEqual(catalogBudgetProblems('demo', files), []);
-  assert.match(catalogBudgetProblems('demo', { ...files, 'sprite-data.ts': 'x'.repeat(473_000) })[0], /15% input headroom, over the platform catalog's 330000/);
+  assert.match(catalogBudgetProblems('demo', { ...files, 'sprite-data.ts': 'x'.repeat(946_000) })[0], /15% input headroom, over the platform catalog's 660000/);
   const allowance = Math.floor(MAX_CATALOG_INPUT_TOKENS / 1.15) - remixInputBound(files);
   const boundary = { ...files, 'sprite-data.ts': files['sprite-data.ts'] + 'x'.repeat(allowance) };
   assert.deepEqual(catalogBudgetProblems('demo', boundary), []);

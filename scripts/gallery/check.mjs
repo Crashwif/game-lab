@@ -41,7 +41,7 @@ function resolveRelative(files, importer, spec) {
 /** The AI input budget of a browser remix step, in tokens; the platform bounds a text's tokens by its UTF-8 bytes plus this allowance. */
 export const MAX_AI_INPUT_TOKENS = 120_000;
 /** The platform's catalog capacity, including the 15% growth room required by its remix-size suite. */
-export const MAX_CATALOG_INPUT_TOKENS = 330_000;
+export const MAX_CATALOG_INPUT_TOKENS = 660_000;
 const TOKEN_ALLOWANCE = 2_048;
 /** The bytes of the system prompt the platform sends ahead of the files. */
 const SYSTEM_PROMPT_BYTES = 2_639;

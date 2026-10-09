@@ -1,12 +1,12 @@
 /** Composes the scene: the city, the roof, the rigs, the dialogue, the clocks, the camera, the HUD and the portrait. */
-import { actAt, drawAct } from './acts';
+import { actAt, drawAct, drawActBehind } from './acts';
 import { type Effect, pageAudio } from './audio';
 import { cameraFor, type City, crashCity, createCity, drawFacades, drawInsert, drawSearchlight, drawSky, drawSkyline, drawStreet, floorAt, resetCity, settleCity, stepCity } from './city';
 import { ALIGNMENTS, CAPTIONS, FIRST_ANSWER_X100, OVERTIME, RUNGS, THROW_LINES, type Talk, type Who, beginAftermath, beginEscapeLines, clearBubbles, createDialogue, drawBubbles, floorText, ledgeText, memeText, resetDialogue, say, settleAftermathLines, settleDialogue, stepDialogue } from './lines';
 import { clamp, noise, settleSpring, spring, stepSpring } from './motion';
 import { createPortrait, isPortrait } from './portrait';
 import { type Roof, crashRoof, createRoof, drawAir, drawBeam, drawFlash, drawRoofBack, drawRoofFront, escapeRoof, resetRoof, settleAftermath, settleRoof, spawnLoose, stepRoof } from './roof';
-import { type Crew, anchors, beamFor, beginHeave, beginThrow, createCrew, drawMilitia, drawSuspect, drawThrown, escapeCrew, resetCrew, settleCrashed, settleCrew, stepCrew } from './rigs';
+import { type Crew, anchors, beamFor, beginHeave, beginThrow, createCrew, drawMilitia, drawSuspect, drawThrown, escapeCrew, reachesSuspect, resetCrew, settleCrashed, settleCrew, stepCrew } from './rigs';
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
   /** Hundredths; the crash point once crashed. */
@@ -464,15 +464,21 @@ export function createScene(): Scene {
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
     drawRoofBack(ctx, roof, time);
-    drawMilitia(ctx, crew.heavy, crew, time);
+    const acting = running && !secured;
+    const actAnchors = { heavyHead: a.heavyHead, leadX: crew.lead.x, leadHead: a.leadHead, leadHand: a.leadHand, radio: a.radio, time, suspectHead: a.suspectHead, suspectHand: a.suspectHand };
+    if (acting) drawActBehind(ctx, act, actAnchors);
+    // The heavy's arm on the suspect draws after him; the rest of the heavy, then the lead, stay behind.
+    const reach = reachesSuspect(crew.heavy, crew);
+    drawMilitia(ctx, crew.heavy, crew, time, reach ? 'body' : 'all');
     drawMilitia(ctx, crew.lead, crew, time);
     const beam = beamFor(crew, time);
     if (beam) drawBeam(ctx, beam);
     drawSuspect(ctx, crew, time);
     drawThrown(ctx, crew, time);
+    if (reach) drawMilitia(ctx, crew.heavy, crew, time, 'reach');
     drawRoofFront(ctx, roof, time);
     drawAir(ctx, roof);
-    if (running && !secured) drawAct(ctx, act, { heavyHead: a.heavyHead, leadX: crew.lead.x, time, suspectHead: a.suspectHead, suspectHand: a.suspectHand });
+    if (acting) drawAct(ctx, act, actAnchors);
     ctx.restore();
     if (!isPortrait(ctx.canvas)) {
       const frame = (p: { x: number; y: number } | null) => (p ? { x: p.x - cam.x, y: p.y - cam.y } : null);
