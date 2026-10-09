@@ -100,6 +100,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Rage Quit](games/rage-quit) | An articulated office rage comic with alternating fist strokes, invasive prompts and scam gurus, reactive desk props, a confirmed rolling exit and a room-collapse payoff | Playable |
 | [Beyond the Colony](games/beyond-the-colony) | An existential penguin expedition with broad waddles, leaps and belly slides, workplace enforcers and absurd summit encounters, an avalanche punchline and a confirmed refuge escape | Playable |
 | [MUMU Bull Run](games/mumu-bull-run) | A white bull with a jointed gallop, physical FUD-stall and bear-podcast encounters, a confirmed victory exit and a crash into customer support | Playable |
+| [Alignment Check](games/alignment-check) | A night rooftop forty storeys up with a parallax skyline and a street canyon as the height tell, two militia rigs in plain green headbands whose heat faces, finger jab, flashlight and grip ladder follow the multiplier, a degen suspect whose shrug grows as a LEDGE readout walks him onto the parapet with a livestream in his hand, an ALIGNMENT readout and a billboard that charts the round, an airdrop escape down the stairwell, a seeded two-handed heave with hit-stop, a tilt-down fall past the lit windows and a pigeon cutaway that never shows a landing | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
