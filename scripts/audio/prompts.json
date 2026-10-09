@@ -60,6 +60,36 @@
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A minimal friendly chiptune for a Hello World starter game: a gentle square-wave motif at 100 BPM, warm triangle bass and sparse soft percussion. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony, simplify the texture while keeping the pulse, rebuild with a new melodic variation, and finish with a gentle return toward the opening. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
       }
     },
+    "the-wake": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A sparse funeral-home organ piece: a slow hymn-like organ motif at 60 BPM over a soft string drone, gaining one added layer per section — a quiet bell, a cello line, a low woodwind — each section warmer and fuller than the last. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "gender-reveal": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A suburban backyard party: bright ukulele and glockenspiel at 110 BPM with a party subwoofer under it, each section adding one more expected element — a brass stab, a hand-clap loop, a detuned party horn, a rising synth — until the arrangement is almost too much. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "repo-man": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A nocturnal small-hours blues: idling diesel bass pulse at 70 BPM, muted guitar scratches, a dry brush kit and one lonely harmonica, each section adding a mechanical layer — a winch creak, a hydraulic hiss, a beacon ping — while the pulse never quickens. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "degen-anonymous": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A church-basement acoustic set: fingerpicked guitar and soft strings at 85 BPM over a fluorescent-hum pad, each section warmer — a gentle harmonica, a brushed snare, a second guitar — like a meeting slowly becoming a concert. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "congressional-hearing": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. Government muzak with teeth: a stiff string quartet at 95 BPM, each section adding one institutional layer — a timpani roll, a brass fanfare, a snare-drum procession — that grows grander while staying pompous. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
+    "the-reading": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A rain-on-the-window study: solo cello at 65 BPM over rain and a low fire crackle pad, each section adding one drawing-room layer — a second cello, a harp figure, a muted horn — like an estate being counted. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
+    },
     "balloon-pump": {
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Playful anxious 8-bit chiptune at 150 BPM: springy square-wave melody, bubbly arpeggios, balloon-like pitch bends, rubbery bass and crisp noise-channel drums."

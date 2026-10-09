@@ -1,0 +1,10 @@
+{
+  "name": "Congressional Hearing",
+  "hook": "So the money is in the computer?",
+  "tagline": "A committee of five senators who have never held a phone questions a hoodie witness about a coin for as long as the round multiplier holds: the minutes stack, the bail applications grow, the sergeant at arms checks his watch, and every senator's line is a business opportunity for someone in the gallery. Cash out at your own minute of the record, or stay to see the clock run out.",
+  "tags": ["Senators on the curve", "Minutes that stack", "Bail application bouquet"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 34 }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "The Wake",
+  "hook": "He is survived by 4.2 billion $BAGS",
+  "tagline": "A funeral for a man who never sold: an open casket, a phone still glowing in his hands, a celebrant whose eulogy deepens with the round multiplier and a widow whose knuckles whiten with every milestone. Slip out the side door with the commemorative candle before the phone in the casket buzzes, because the notification that ends the round is DEV SOLD.",
+  "tags": ["Eulogy on the curve", "Lawn chair widow", "Buzz in the casket"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 34 }
+}
