@@ -24,7 +24,15 @@ export function drawAct(c: CanvasRenderingContext2D, a: Act, alpha = 1): void {
   if (a.stage === 1 || a.stage === 3 || a.stage === 6) { c.save(); c.translate(479, 332); c.rotate(a.stage === 1 ? -.15 * a.reach + .03 * a.pulse * a.effort : 0); oval(0, -8, 27, 13, '#dce0c4'); line(18,-13,37,-25,'#dce0c4',8); c.restore(); }
   // The volume box sits on the sideboard beside the speaker, clear of its light ring.
   if (a.stage >= 2) { box(24, 268, 46, 32, '#334c51'); oval(47, 284, 10, 10, a.stage === 3 ? '#859b78' : '#c59478'); }
-  if (a.stage >= 4) { line(771, 108, 769 + a.reach * 48, 235, '#a9815e', 13); }
+  if (a.stage >= 4) {
+    // Checking the window: a roller shade comes partway down over the glass, its pull swaying, Dale still in view.
+    const drop = 16 + a.reach * 38 + a.pulse * a.effort * 3;
+    c.fillStyle = '#efe6d2'; c.strokeStyle = '#202432'; c.lineWidth = 3;
+    c.beginPath(); c.rect(692, 60, 206, drop); c.fill(); c.stroke();
+    box(684, 48, 222, 14, '#6b4a2b');
+    line(878, 60 + drop, 878, 60 + drop + 24, '#d9c39a', 3);
+    oval(878, 60 + drop + 28, 5, 5, '#d9c39a');
+  }
   if (a.stage >= 5) { box(702, 386, 62, 51, '#c6a878'); line(732,389,732,435,'#f1dba5',8); box(711,404,16,9,'#f4e3c1'); }
   c.restore();
 }

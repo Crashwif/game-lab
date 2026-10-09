@@ -87,8 +87,8 @@ const BUBBLE_AT: Record<Who, { x: number; y: number; tail: { x: number; y: numbe
   dad: { x: 300, y: 134, tail: { x: 350, y: 176 }, width: 230 },
   niece: { x: 672, y: 134, tail: { x: 622, y: 176 }, width: 230 },
   echo: { x: 118, y: 212, tail: { x: SPEAKER.x + 6, y: SPEAKER.y - 34 }, width: 190 },
-  gran: { x: 252, y: 204, tail: { x: 208, y: 250 }, width: 150 },
-  dale: { x: 852, y: 104, tail: { x: 806, y: 134 }, width: 90 },
+  gran: { x: 290, y: 176, tail: { x: 208, y: 250 }, width: 150 },
+  dale: { x: 860, y: 176, tail: { x: 806, y: 134 }, width: 90 },
 };
 
 export interface Bubble { who: Who; text: string; age: number; life: number; pop: Spring }
@@ -133,17 +133,19 @@ export interface Room {
   filming: boolean;
   /** The rug under the table, yanked toward the truck as Dale reverses: 0 in place, 1 pulled. */
   rug: Spring;
+  /** The pie, out of the kitchen once the rug was dodged: 0 still in the kitchen, 1 on the table. */
+  pie: Spring;
   crashed: boolean;
   harmless: boolean;
   crashT: number;
   flash: number;
   /** She has said grace: no more lines, the dog settles. */
   holding: boolean;
-  events: { line: Line | null; listen: boolean; order: boolean; rev: boolean; bark: boolean; blink: boolean; flip: boolean; wall: boolean; landed: number; turkey: boolean };
+  events: { line: Line | null; listen: boolean; order: boolean; rev: boolean; bark: boolean; blink: boolean; flip: boolean; wall: boolean; landed: number; turkey: boolean; pie: boolean };
 }
 
 function noEvents(): Room['events'] {
-  return { line: null, listen: false, order: false, rev: false, bark: false, blink: false, flip: false, wall: false, landed: 0, turkey: false };
+  return { line: null, listen: false, order: false, rev: false, bark: false, blink: false, flip: false, wall: false, landed: 0, turkey: false, pie: false };
 }
 
 function fresh(): Room {
@@ -168,6 +170,7 @@ function fresh(): Room {
     caption: '',
     filming: false,
     rug: spring(0),
+    pie: spring(0),
     crashed: false,
     harmless: false,
     crashT: 0,
@@ -257,6 +260,9 @@ export function crashRoom(r: Room, crashX100: number, quiet: boolean, harmless: 
   const rand = mulberry32(crashX100 * 5 + 3);
   if (harmless) {
     schedule(r, [{ at: 0.5, who: 'echo', text: '$DALE: −99%. Grandma sold' }, { at: 1.6, who: 'dad', text: 'pie?' }, { at: 3, who: 'niece', text: 'finally' }]);
+    // Grandma's GRACE. NOW. clears before Dad asks for pie, so the two bubbles never sit on each other.
+    for (const b of r.bubbles) if (b.who === 'gran') b.life = Math.min(b.life, b.age + 1.1);
+    if (quiet) settleSpring(r.pie, 1);
   } else {
     // An instant bust cuts Rick off before his first pitch.
     schedule(r, [...(unsaid ? [{ at: 0, who: 'rick' as const, text: 'so. has anyone heard of $DA—' }] : []), { at: 0.8, who: 'rick', text: 'DALE, NO' }, { at: 2.2, who: 'echo', text: 'playing: Free Bird' }, { at: 3.5, who: 'niece', text: 'got it' }]);
@@ -471,6 +477,10 @@ function stepTurkey(r: Room, dt: number): void {
 export function stepRoom(r: Room, drive: RoomDrive, dt: number): void {
   r.events = noEvents();
   if (r.crashed) r.crashT += dt;
+  // The rug was dodged: the pie comes out of the kitchen a beat after the dump is read, just before Dad asks.
+  const pieOut = r.crashed && r.harmless && r.crashT >= 1.3;
+  if (pieOut && r.pie.x === 0 && r.pie.v === 0) r.events.pie = true;
+  stepSpring(r.pie, pieOut ? 1 : 0, 7, 0.55, dt);
   r.listening = Math.max(0, r.listening - dt);
 
   while (!r.holding && drive.running && r.nextLine < LINES.length && drive.multiplier >= LINES[r.nextLine]!.at) {
@@ -1278,26 +1288,31 @@ export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: nu
   }
 }
 
-/** A chair back behind one of the family, drawn before them. */
+/**
+ * A ladder-back chair behind one of the family, drawn before them and pulled up to the table: its posts run
+ * down to the table's far edge, and the top rail and the posts show beside the head and above the shoulders.
+ */
 export function drawChairBack(ctx: CanvasRenderingContext2D, x: number): void {
   ctx.save();
   ctx.translate(x, 0);
   ink(ctx, 2.5);
   ctx.fillStyle = '#2a2a30';
-  ctx.beginPath();
-  ctx.roundRect(-46, 172, 92, 12, 6);
-  ctx.fill();
-  ctx.stroke();
-  for (const s of [-40, 40]) {
+  for (const s of [-58, 58]) {
     ctx.beginPath();
-    ctx.roundRect(s - 4, 182, 8, 150, 3);
+    ctx.roundRect(s - 5, 176, 10, TABLE.far + 2 - 176, 3);
     ctx.fill();
     ctx.stroke();
   }
   ctx.beginPath();
-  ctx.roundRect(-40, 196, 80, 40, 6);
+  ctx.roundRect(-64, 168, 128, 14, 6);
   ctx.fill();
   ctx.stroke();
+  for (const y of [200, 226, 252]) {
+    ctx.beginPath();
+    ctx.roundRect(-58, y, 116, 9, 3);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -1536,7 +1551,43 @@ export function drawTable(ctx: CanvasRenderingContext2D, r: Room, time: number):
     ctx.ellipse(PLATTER.x, PLATTER.y + 8, 40, 10, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (r.pie.x > 0.01) drawPie(ctx, mix(206, 286, clamp(r.pie.x, 0, 1.1)), 430, clamp(r.pie.x, 0, 1.15));
   for (const b of r.bits) if (b.rest) drawBit(ctx, b);
+}
+
+/** A whole pumpkin pie on a plate with a dollop of cream, about its centre, at scale `s`: it slides onto the table. */
+function drawPie(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ink(ctx, 2);
+  ctx.fillStyle = '#f7f3ea';
+  ctx.beginPath();
+  ctx.ellipse(0, 4, 46, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#c98a3a';
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 38, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#e08a3a';
+  ctx.beginPath();
+  ctx.ellipse(0, -2, 38, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#b86a2a';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(0, -2, 35, 11, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ink(ctx, 1.5);
+  ctx.beginPath();
+  ctx.arc(0, -6, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBit(ctx: CanvasRenderingContext2D, b: Bit): void {

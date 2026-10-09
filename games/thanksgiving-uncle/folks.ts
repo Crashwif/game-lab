@@ -15,10 +15,13 @@ export const NIECE_X = 592;
 const HEAD_Y = -52;
 /** Where Rick sits: the chair's foot, at the near edge of the table. Grandma's seat at the far left end. */
 export const RICK_X = 604;
-/** The seat leaves floor space under the legs through the camera's crash punch. */
-const CHAIR_Y = 460;
+/**
+ * The seat of his chair: the rig's origin, level with the table's near edge so the chair sits in front of it.
+ * Its feet reach 528, which keeps floor under them through the camera's crash punch (1.043× about y 260).
+ */
+const CHAIR_Y = 470;
 /** Where his chair's feet meet the floor (or the rug, when Dale pulls it). */
-export const RICK_FEET = CHAIR_Y + 50;
+export const RICK_FEET = CHAIR_Y + 58;
 export const GRAN = { x: 182, y: 362 } as const;
 /** Dad's wine glass, in the room, for the shards. */
 export const GLASS_AT = { x: DAD_X - 46, y: SEAT_Y + 34 } as const;
@@ -737,7 +740,24 @@ export function drawGran(ctx: CanvasRenderingContext2D, g: Gran, time: number): 
   ctx.roundRect(-34, 0, 60, 10, 3);
   ctx.fill();
   ctx.stroke();
+  // Her stockings run from the skirt's hem to the floor behind the table's edge; her feet stay planted as she stands.
+  ctx.strokeStyle = '#d9cfc0';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  for (const x of [8, 20]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 30 - up * 26);
+    ctx.lineTo(x + 6, 54);
+    ctx.stroke();
+  }
   ctx.translate(0, -up * 26);
+  // The wool skirt over the seat, to the knees.
+  ctx.fillStyle = '#7a5a80';
+  ink(ctx, 2.5);
+  ctx.beginPath();
+  ctx.roundRect(-22, -6, 50, 40, 8);
+  ctx.fill();
+  ctx.stroke();
   // The cane: leaning on the chair, then raised in her hand.
   ctx.save();
   const grip = caneGrip(up, g.shake);
@@ -901,22 +921,23 @@ export function drawRickChair(ctx: CanvasRenderingContext2D): void {
   ctx.save();
   ctx.translate(RICK_X, CHAIR_Y);
   ink(ctx, 2.5);
+  // The front legs, set in behind the back ones; the back legs run up into the posts; a stretcher between them.
   ctx.fillStyle = '#1f1f24';
   for (const s of [-46, 46]) {
     ctx.beginPath();
-    ctx.roundRect(s - 5, 10, 10, 40, 2);
+    ctx.roundRect(s - 5, 10, 10, 48, 2);
     ctx.fill();
     ctx.stroke();
   }
   ctx.fillStyle = '#2a2a30';
   for (const s of [-62, 62]) {
     ctx.beginPath();
-    ctx.roundRect(s - 6, -62, 12, 110, 3);
+    ctx.roundRect(s - 6, -62, 12, 114, 3);
     ctx.fill();
     ctx.stroke();
   }
   ctx.beginPath();
-  ctx.roundRect(-62, 28, 124, 7, 3);
+  ctx.roundRect(-62, 34, 124, 7, 3);
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();
@@ -956,17 +977,17 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   const tilt = r.tilt.x;
   ctx.save();
   ctx.translate(RICK_X, CHAIR_Y);
-  // Jeans and work boots under the seat.
+  // Jeans and work boots under the seat, the soles on the floor level with the chair's feet.
   ink(ctx, 2.5);
   for (const side of [-1, 1]) {
     ctx.fillStyle = '#3f5f8a';
     ctx.beginPath();
-    ctx.roundRect(side * 26 - 15, -6, 30, 36, 6);
+    ctx.roundRect(side * 26 - 15, -6, 30, 54, 6);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#5a3a22';
     ctx.beginPath();
-    ctx.roundRect(side * 26 - 17, 24, 34, 14, 4);
+    ctx.roundRect(side * 26 - 17, 44, 34, 14, 4);
     ctx.fill();
     ctx.stroke();
   }
