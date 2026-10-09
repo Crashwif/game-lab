@@ -16,18 +16,14 @@ export function actAt(elapsed: number) {
   return { stage, age, loop, effort, reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
-/** World px anchors; the suspect's head and hand when known. */
-export interface ActAnchors { heavyHead: { x: number; y: number }; leadX: number; time: number; suspectHead?: { x: number; y: number } | null; suspectHand?: { x: number; y: number } | null }
+type Pt = { x: number; y: number };
+/** World px anchors: the lieutenant's feet x, head, torch hand and belt radio; the suspect's head and hand when known. */
+export interface ActAnchors { heavyHead: Pt; leadX: number; leadHead: Pt; leadHand: Pt; radio: Pt; time: number; suspectHead?: Pt | null; suspectHand?: Pt | null }
 const INK = '#202432';
 const SKIN = '#f1c9a5';
 const BAND = '#2f8f3a';
 const TAU = Math.PI * 2;
-/** World-space act props, drawn after the rigs; nothing is written on any of them. */
-export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): void {
-  if (!a.stage) return;
-  const t = at.time;
-  const age = a.age;
-  c.save();
+const tools = (c: CanvasRenderingContext2D) => {
   c.lineCap = 'round';
   c.lineJoin = 'round';
   const ink = (w: number): void => { c.strokeStyle = INK; c.lineWidth = w; };
@@ -38,6 +34,31 @@ export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): vo
   const seg = (x: number, y: number, x2: number, y2: number, col: string, w: number): void => {
     for (const [ww, cc] of [[w + 2, INK], [w, col]] as const) { c.strokeStyle = cc; c.lineWidth = ww; c.beginPath(); c.moveTo(x, y); c.lineTo(x2, y2); c.stroke(); }
   };
+  return { fin, oval, box, dot, seg };
+};
+/** The chair of act 5, drawn behind the rigs: it unfolds under the lieutenant, so it cannot sit on top of him. */
+export function drawActBehind(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): void {
+  if (a.stage !== 5) return;
+  c.save();
+  const { box, seg } = tools(c);
+  c.translate(at.leadX, 436);
+  c.scale(mix(0.2, 1, smoothstep(0, 0.6, a.age)), 1);
+  seg(-24, -50, -20, 0, '#6a6e78', 3);
+  seg(14, -50, 8, 0, '#6a6e78', 3);
+  seg(-22, -26, 11, -26, '#6a6e78', 2);
+  seg(-26, -52, -31, -118, '#6a6e78', 3);
+  seg(-18, -52, -23, -118, '#6a6e78', 3);
+  box(-34, -120, 14, 34, '#7a7e88', 2);
+  box(-27, -55, 43, 7, '#7a7e88', 2);
+  c.restore();
+}
+/** World-space act props, drawn after the rigs; nothing is written on any of them. */
+export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): void {
+  if (!a.stage) return;
+  const t = at.time;
+  const age = a.age;
+  c.save();
+  const { fin, oval, box, dot, seg } = tools(c);
   const poly = (pts: number[], col: string): void => { c.beginPath(); c.moveTo(pts[0]!, pts[1]!); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i]!, pts[i + 1]!); c.closePath(); fin(col); };
   const cup = (x: number, y: number): void => {
     seg(x + 2, y - 2, x + 7, y - 16, '#e46aa0', 3);
@@ -148,46 +169,32 @@ export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): vo
     c.strokeStyle = '#e8e2d0';
     c.lineWidth = 2;
     c.globalAlpha = Math.floor(t * 12) % 2 ? 0.9 : 0.35;
-    for (const r of [8, 13, 18]) { c.beginPath(); c.arc(at.leadX - 17, 330, r, -2.2, -0.9); c.stroke(); }
+    for (const r of [8, 13, 18]) { c.beginPath(); c.arc(at.radio.x, at.radio.y - 2, r, -2.2, -0.9); c.stroke(); }
     c.globalAlpha = 1;
   }
-  // 5: the chair unfolds under the lieutenant.
-  if (a.stage === 5) {
-    c.save();
-    c.translate(at.leadX, 436);
-    c.scale(mix(0.2, 1, smoothstep(0, 0.6, age)), 1);
-    seg(-24, -50, -20, 0, '#6a6e78', 3);
-    seg(14, -50, 8, 0, '#6a6e78', 3);
-    seg(-22, -26, 11, -26, '#6a6e78', 2);
-    seg(-26, -52, -31, -118, '#6a6e78', 3);
-    seg(-18, -52, -23, -118, '#6a6e78', 3);
-    box(-34, -120, 14, 34, '#7a7e88', 2);
-    box(-27, -55, 43, 7, '#7a7e88', 2);
-    c.restore();
-  }
-  // 6: the headband blows off, is caught and retied (the rig hides its own for 3 s).
+  // 6: the headband blows off the lieutenant's actual head, is caught in his torch hand and retied (the rig hides its own for 3 s).
   if (a.stage === 6 && age < 3) {
-    const hx = at.leadX + 2;
-    const hy = 275;
-    const cx = at.leadX + 46;
-    const cy = 300;
+    const hx = at.leadHead.x;
+    const hy = at.leadHead.y - 11;
+    const cx = at.leadHand.x;
+    const cy = at.leadHand.y - 6;
     let x: number;
     let y: number;
     if (age < 0.5) {
       const u = smoothstep(0, 0.5, age);
       x = mix(hx, hx + 70, u);
-      y = mix(hy - 20, hy - 60, u);
+      y = mix(hy, hy - 40, u);
     } else if (age < 1) {
       const u = smoothstep(0.5, 1, age);
       x = mix(hx + 70, cx, u);
-      y = mix(hy - 60, cy, u) - Math.sin(u * Math.PI) * 18;
+      y = mix(hy - 40, cy, u) - Math.sin(u * Math.PI) * 18;
     } else if (age < 1.9) {
       x = cx;
       y = cy;
     } else {
       const u = smoothstep(1.9, 2.8, age);
       x = mix(cx, hx, u);
-      y = mix(cy, hy - 20, u);
+      y = mix(cy, hy, u);
     }
     c.save();
     c.translate(x, y);

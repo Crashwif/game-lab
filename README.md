@@ -106,7 +106,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 
 ### Lightweight games for the browser Studio
 
-Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 330,000-token limit with 15% headroom for edits.
+Hello World, Wen Moon, Bull Run and Pyramid Scheme are listed in `BROWSER_REMIX` in `scripts/games.mjs` and checked against a 120,000-token input budget. Every catalog game must also fit the platform's 660,000-token limit with 15% headroom for edits.
 
 Rage Quit, Beyond the Colony, MUMU Bull Run and Yes Men use Desktop Game Studio for source remixing. Their character rigs, staged encounters and close portrait compositions fit the catalog budget; their compiled three-file bundles use the same Studio renderer upload.
 

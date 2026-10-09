@@ -25,8 +25,8 @@ const RED = '#ff4d6d';const TAU = Math.PI * 2;
 export const LEAD_REST = { x: 400, feetY: 436, height: 185 } as const;
 export const HEAVY_REST = { x: 522, feetY: 426, height: 215 } as const;
 export const SUSPECT_REST = { x: 600, feetY: 432, height: 180 } as const;
-export const CAP = { x: 722, feetY: 362 } as const;
-export const RADIO = { dx: -17, y: 330 } as const;
+/** The coping stone's top is 362; the soles sit on it, not in it. */
+export const CAP = { x: 722, feetY: 358 } as const;
 export const heavyXFor = (rung: number): number => (rung >= 10 ? 610 : rung >= 7 ? 560 : HEAVY_REST.x);
 export const leadXFor = (rung: number): number => (rung >= 10 ? 480 : LEAD_REST.x);
 export type Joint = { x: number; y: number };
@@ -644,7 +644,9 @@ function solveAll(c: Crew, tension: number, escaped: boolean): void {
   solveMilitia(c.heavy, c, drive);
   solveMilitia(c.lead, c, drive);
 }
-export interface CrewAnchors { suspectHead: Joint | null; suspectMouth: Joint | null; suspectHand: Joint; leadMouth: Joint; heavyMouth: Joint; heavyHead: Joint; leadHand: Joint; radio: Joint }
+export interface CrewAnchors { suspectHead: Joint | null; suspectMouth: Joint | null; suspectHand: Joint; leadMouth: Joint; heavyMouth: Joint; heavyHead: Joint; leadHead: Joint; leadHand: Joint; radio: Joint }
+/** The belt radio hangs off the back hip, so it follows the pelvis when he leans or sits. */
+const radioAt = (m: Militia): Joint => J(m.sk.pelvis.x - 15, m.sk.pelvis.y - 7);
 
 export function anchors(c: Crew): CrewAnchors {
   const s = c.suspect;
@@ -652,7 +654,7 @@ export function anchors(c: Crew): CrewAnchors {
   const head = th ? (th.phase !== 'gone' ? th.head : null) : s.mode !== 'gone' ? s.sk.head : null;
   const lh = c.lead.sk.head;
   const hh = c.heavy.sk.head;
-  return { suspectHead: head, suspectMouth: head ? { x: head.x - 8, y: head.y + 10 } : null, suspectHand: s.sk.hands[1], leadMouth: { x: lh.x + 10, y: lh.y + 8 }, heavyMouth: { x: hh.x + 10, y: hh.y + 8 }, heavyHead: hh, leadHand: c.lead.sk.hands[1], radio: { x: c.lead.x + RADIO.dx, y: RADIO.y } };
+  return { suspectHead: head, suspectMouth: head ? { x: head.x - 8, y: head.y + 10 } : null, suspectHand: s.sk.hands[1], leadMouth: { x: lh.x + 10, y: lh.y + 8 }, heavyMouth: { x: hh.x + 10, y: hh.y + 8 }, heavyHead: hh, leadHead: lh, leadHand: c.lead.sk.hands[1], radio: radioAt(c.lead) };
 }
 const raiseFor = (m: Militia): number => (m.flashlight === 'face' ? 1 : m.flashlight === 'hip' ? smoothstep(0.2, 0.5, clamp(m.heat.x, 0, 1)) : 0);
 
@@ -917,11 +919,12 @@ function gripPose(m: Militia, grip: Grip, c: Crew, base: Pose): Pose {
     case 'fists':
     case 'step':
       return H({ ...base, stance: base.stance + (grip === 'step' ? 10 : 0) }, hang, hang, false, false, 0, 0);
+    // The hand lands on the shoulder facing him, so the arm never crosses the suspect's face; the hood grab is at the scruff behind the neck.
     case 'shoulder':
     case 'threat':
-      return H({ ...base, spine: base.spine + 0.08 }, hang, J(s.shoulders[0].x + 4, s.shoulders[0].y - 6), false, true, 0, 1 - Math.floor(clamp(m.gripBeat, 0, 0.449) / 0.15) / 3);
+      return H({ ...base, spine: base.spine + 0.08 }, hang, J(s.shoulders[1].x - 2, s.shoulders[1].y - 8), false, true, 0, 1 - Math.floor(clamp(m.gripBeat, 0, 0.449) / 0.15) / 3);
     case 'hood':
-      return H({ ...base, spine: base.spine + 0.2 }, hang, J(s.neck.x + 8, s.neck.y - 2), false, true, 0, 0.2);
+      return H({ ...base, spine: base.spine + 0.2 }, hang, J(s.neck.x + 14, s.neck.y - 6), false, true, 0, 0.2);
     default:
       return H({ ...base, spine: base.spine + (grip === 'coil' ? 0.28 : 0.2), pelvisY: base.pelvisY - (grip === 'coil' ? 8 : 4), pelvisX: 10, stance: base.stance + 16 }, J(s.pelvis.x - 10, s.pelvis.y + 12), J(s.pelvis.x + 8, s.pelvis.y + 6), true, true, 0, 0);
   }
@@ -943,9 +946,10 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
   p.head = clamp(m.kick.x, -3, 3) * 0.04 + (lead ? 0 : 0.17 * heat);
   if (lead) {
     const fl = m.flashlight;
-    const flHand = fl === 'dropped' ? hang : fl === 'side' ? J(8, 56) : fl === 'down' ? J(hw + 44, 24) : mixJ(J(hw + 6, 46), J(hw + 34, -2), raiseFor(m));
+    const flHand = fl === 'dropped' ? hang : fl === 'side' ? J(8, 56) : fl === 'down' ? J(hw + 44, 24) : mixJ(J(hw + 16, 50), J(hw + 34, -2), raiseFor(m));
     const board = m.clipboard === 'hand';
-    p = H(p, board ? J(hw * 0.7, 26) : hang, flHand, false, false, board ? 0 : 0.5, fl === 'dropped' ? 0.5 : 0);
+    // The board sits against the belly, its clip a hand's width under the chin, not on the neck.
+    p = H(p, board ? J(hw + 2, 44) : hang, flHand, false, false, board ? 0 : 0.5, fl === 'dropped' ? 0.5 : 0);
     const jab = clamp(m.jab.x / 0.3, 0, 1);
     if (jab > 0.01 && !th) {
       const reach = drive.overtime >= 0 ? 30 : drive.rung >= 9 ? 70 : drive.rung >= 7 ? 45 : 20;
@@ -954,20 +958,22 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
       if (!front && reach >= 70) jp.feet = [J(-p.stance / 2 - 10, -22), p.feet[1]];
       p = mixP(p, jp, jab);
     }
+    // A hand carried over from a blended pose is already in world space: keep its flag, or it flies off.
     const palm = clamp(m.notYet.x / 0.5, 0, 1);
-    if (palm > 0.01 && !th) p = mixP(p, H(p, J(hw + 26, -6), p.hands[1], false, false, 1, p.open[1]), palm);
+    if (palm > 0.01 && !th) p = mixP(p, H(p, J(hw + 26, -6), p.hands[1], false, p.world[1], 1, p.open[1]), palm);
     if (drive.rung >= 11 && !th && !drive.escaped && c.suspect.mode === 'roof') {
+      // The step in to hold the heavy's arm; the torch tucks to his own chest instead of crossing the heavy's.
       const fa = midJ(c.heavy.sk.elbows[0], c.heavy.sk.hands[0]);
-      p = { ...H(p, J(fa.x - 6, fa.y - 4), p.hands[1], true, false, 1, p.open[1]), pelvisX: p.pelvisX + 45, spine: p.spine + 0.1, feet: [J(p.feet[0].x + 30, 0), J(p.feet[1].x + 52, 0)] };
+      p = { ...H(p, J(fa.x - 6, fa.y - 4), J(hw + 2, 10), true, false, 1, p.open[1]), pelvisX: p.pelvisX + 45, spine: p.spine + 0.1, feet: [J(p.feet[0].x + 30, 0), J(p.feet[1].x + 52, 0)] };
     }
     const g = clamp(m.gasp.x / 0.45, 0, 1);
-    if (g > 0.01) p = mixP(p, { ...H(p, p.hands[0], J(hw * 0.3, 12), false, false, p.open[0], 1), pelvisX: p.pelvisX - 14, spine: p.spine - 0.22, head: p.head - 0.15 }, g);
+    if (g > 0.01) p = mixP(p, { ...H(p, p.hands[0], J(hw * 0.3, 12), p.world[0], false, p.open[0], 1), pelvisX: p.pelvisX - 14, spine: p.spine - 0.22, head: p.head - 0.15 }, g);
     if (m.seated > 0) p = mixP(p, { ...p, pelvisY: 58, pelvisX: 2, spine: 0.08, feet: [J(16, 0), J(34, 0)] }, smoothstep(0, 1, m.seated));
     if (m.coin === 'diving') {
       const u = clamp(m.coinT / 0.6, 0, 1);
-      p = mixP(p, { ...H(p, p.hands[0], J(hw + 24, 30 - 70 * (1 - u)), false, false, p.open[0], 1), pelvisY: p.pelvisY - 24 * Math.sin(u * Math.PI), spine: p.spine + 0.3 * u }, smoothstep(0, 0.15, m.coinT));
-    } else if (m.coin === 'caught') p = H(p, p.hands[0], J(hw * 0.4, 20), false, false, p.open[0], 0);
-    else if (m.coin === 'looking') p = { ...H(p, p.hands[0], J(hw * 0.6, 2), false, false, p.open[0], 1), head: p.head + 0.5 };
+      p = mixP(p, { ...H(p, p.hands[0], J(hw + 24, 30 - 70 * (1 - u)), p.world[0], false, p.open[0], 1), pelvisY: p.pelvisY - 24 * Math.sin(u * Math.PI), spine: p.spine + 0.3 * u }, smoothstep(0, 0.15, m.coinT));
+    } else if (m.coin === 'caught') p = H(p, p.hands[0], J(hw * 0.4, 20), p.world[0], false, p.open[0], 0);
+    else if (m.coin === 'looking') p = { ...H(p, p.hands[0], J(hw * 0.6, 2), p.world[0], false, p.open[0], 1), head: p.head + 0.5 };
     if (th) {
       const hp = c.heavy.sk.pelvis;
       if (m.grab > 0) p = mixP(p, { ...H(p, J(hp.x - 16, hp.y - 8), J(hp.x - 10, hp.y + 2), true, true, 0, 0), pelvisX: p.pelvisX + 100, spine: -0.5, head: 0.2, feet: [J(56, 0), J(110, 0)], stance: 60 }, m.grab);
@@ -984,13 +990,13 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
     if (m.coin === 'diving') {
       const kneel = smoothstep(0, 0.3, m.coinT) * (1 - smoothstep(1.8, 2.2, m.coinT)) * (1 - Math.abs(Math.sin((m.coinT / 1.7) * TAU)) * 0.3);
       p = mixP(p, { ...H(p, J(hw + 20, 96), J(hw + 34, 100), false, false, 1, 1), pelvisY: p.pelvisY * 0.45, spine: 0.9, head: 0.3, feet: [J(-34, 0), J(10, 0)] }, kneel);
-    } else if (m.coin === 'pocketed' && m.coinT < 0.6) p = H(p, p.hands[0], J(2, 52), false, false, 0, 0);
+    } else if (m.coin === 'pocketed' && m.coinT < 0.6) p = H(p, p.hands[0], J(2, 52), p.world[0], false, 0, 0);
     if (c.harmless && m.clipboard === 'hand') {
       const wind = clamp((drive.harmlessT - 0.7) / 0.4, 0, 1);
-      p = mixP(H(p, p.hands[0], J(hw + 10, 30), false, false, 0, 0), { ...H(p, p.hands[0], J(-hw - 10, -30), false, false, 0, 0), spine: -0.3 }, wind);
+      p = mixP(H(p, p.hands[0], J(hw + 10, 30), p.world[0], false, 0, 0), { ...H(p, p.hands[0], J(-hw - 10, -30), p.world[0], false, 0, 0), spine: -0.3 }, wind);
     } else if (c.harmless && drive.harmlessT >= 1.1 && drive.harmlessT < 1.9) {
       const u = clamp((drive.harmlessT - 1.1) / 0.4, 0, 1);
-      p = mixP(p, { ...H(p, p.hands[0], J(hw + 60, -40 + 60 * u), false, false, 0, 0), spine: 0.5 * u, pelvisX: 12 * u }, smoothstep(1.9, 1.5, drive.harmlessT));
+      p = mixP(p, { ...H(p, p.hands[0], J(hw + 60, -40 + 60 * u), p.world[0], false, 0, 0), spine: 0.5 * u, pelvisX: 12 * u }, smoothstep(1.9, 1.5, drive.harmlessT));
     }
     if (m.shrug > 0) {
       const a = m.shrug < 0.28 ? m.shrug / 0.28 : m.shrug < 0.68 ? 1 : 1 - (m.shrug - 0.68) / 0.32;
@@ -1016,8 +1022,16 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
   m.open = p.open;
 }
 
-/** One militia rig from its solved skeleton. */
-export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number): void {
+export type MilitiaLayer = 'all' | 'body' | 'reach';
+const ON_SUSPECT: ReadonlySet<Grip> = new Set(['shoulder', 'threat', 'hood', 'both', 'coil']);
+/** True while the heavy's near arm is on the suspect: the scene then draws that arm (the `reach` layer) after him. */
+export function reachesSuspect(m: Militia, c: Crew): boolean {
+  const s = c.suspect.mode;
+  return m.kind === 'heavy' && (s === 'roof' || s === 'thrown') && (ON_SUSPECT.has(m.grip) || (m.blendT < 1 && ON_SUSPECT.has(m.gripFrom)));
+}
+
+/** One militia rig from its solved skeleton: the far arm, legs, neck, vest, a far forearm across the front, the head, then the near arm and what it holds. */
+export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number, layer: MilitiaLayer = 'all'): void {
   const b = BUILDS[m.kind];
   const sk = m.sk;
   const lead = m.kind === 'lead';
@@ -1026,23 +1040,40 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   const sleeve = lead ? OLIVE : '#101010';
   const handColour = (i: number) => (m.gloves > (i === 1 ? 0 : 1) ? GLOVE : skin);
   const pointAt = (i: 0 | 1) => Math.atan2(sk.hands[i].y - sk.elbows[i].y, sk.hands[i].x - sk.elbows[i].x);
-  const jab = clamp(m.jab.x / 0.3, 0, 1);
-  const jabbing = lead && jab > 0.3 && !c.thrown;
+  const jabbing = lead && clamp(m.jab.x / 0.3, 0, 1) > 0.3 && !c.thrown;
+  // The finger: the near hand below rung 7, the freed far hand from then on.
+  const hand = (i: 0 | 1) => drawHand(ctx, sk.hands[i], b.limb * 0.6, m.open[i], handColour(i), jabbing && (i === 1) === c.rung < 7 ? pointAt(i) : undefined);
+  const board = m.clipboard === 'hand';
   ctx.save();
   ctx.translate((noise(Math.floor(time * 40) + m.seed) - 0.5) * 4 * heat * heat, 0);
+  if (layer === 'reach') {
+    strokeLimb(ctx, sk.shoulders[1], sk.elbows[1], sk.hands[1], b.limb, sleeve);
+    hand(1);
+    ctx.restore();
+    return;
+  }
   strokeLimb(ctx, sk.shoulders[0], sk.elbows[0], sk.hands[0], b.limb, sleeve);
+  hand(0);
   for (const i of [0, 1] as const) {
     strokeLimb(ctx, sk.hips[i], sk.knees[i], sk.feet[i], b.limb + 2, i ? OLIVE : '#0e130e');
     ell(ctx, sk.feet[i].x + 5, sk.feet[i].y - 3, lead ? 13 : 16, 6, i ? '#2a2a30' : '#20242a');
+  }
+  // The neck goes on before the vest so the collar covers its end, and stays narrower than the jaw it holds up.
+  ctx.lineCap = 'butt';
+  const nw = (lead ? 1.1 : 1.5) * b.headR;
+  for (const [w, col] of [[nw + 4, INK], [nw, skin]] as [number, string][]) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    seg(ctx, sk.chest.x, sk.chest.y + 4, sk.neck.x, sk.neck.y - 4);
   }
   const [sh0, sh1] = sk.shoulders;
   const [hp0, hp1] = sk.hips;
   poly(ctx, [J(sh0.x - 6, sh0.y - 6), J(sh1.x + 6, sh1.y - 6), J(hp1.x + 6, hp1.y + 6), J(hp0.x - 6, hp0.y + 6)], OLIVE);
   poly(ctx, [J(sh0.x + 2, sh0.y - 2), J(sh1.x - 2, sh1.y - 2), J(hp1.x + 1, hp1.y), J(hp0.x - 1, hp0.y)], VEST, 2);
-  // The chest patch: green with the same white script, stitched on the vest.
+  // The chest patch: green with the same white script, high on the vest where neither the board nor a folded arm covers it.
   {
-    const cx = (sh0.x + sh1.x) / 2 + 3;
-    const cy = (sh0.y + hp0.y) / 2 - 4;
+    const cx = (sh0.x + sh1.x) / 2 - 14;
+    const cy = sh0.y + 6;
     const pw = 15;
     const ph = 10;
     ctx.fillStyle = HEADBAND;
@@ -1061,25 +1092,27 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   ctx.lineWidth = 4;
   seg(ctx, hp0.x - 4, hp0.y + 2, hp1.x + 4, hp1.y + 2);
   if (lead) {
-    const rx = m.x + RADIO.dx;
-    const ry = RADIO.y + sk.pelvis.y - (m.feetY - basePose(b, 30).pelvisY);
+    const { x: rx, y: ry } = radioAt(m);
     rr(ctx, rx - 5, ry - 8, 10, 16, 1, '#2d3038', 1.5);
     seg(ctx, rx + 3, ry - 8, rx + 3, ry - 18);
     ctx.fillStyle = '#ff6b6b';
     ctx.fillRect(rx - 3, ry - 6, 2, 2);
   }
-  ctx.lineCap = 'butt';
-  for (const [w, col] of [[(lead ? 1.1 : 2.1) * b.headR + 4, INK], [(lead ? 1.1 : 2.1) * b.headR, skin]] as [number, string][]) {
-    ctx.strokeStyle = col;
-    ctx.lineWidth = w;
-    seg(ctx, sk.chest.x, sk.chest.y + 4, sk.neck.x, sk.neck.y - 4);
-  }
+  // A far forearm across the front (folded arms, the board, a grip) comes over the vest, under the near arm; the lead's board between them.
+  const front = sk.hands[0].x > sk.chest.x;
+  if (front) strokeLimb(ctx, sk.elbows[0], sk.elbows[0], sk.hands[0], b.limb, sleeve);
+  if (lead && board) drawClipboard(ctx, J(sk.hands[0].x + 8, sk.hands[0].y - 8), c.lead.strokes, m.pen === 'hand');
+  if (front) hand(0);
   drawMilitiaHead(ctx, m, c, time, skin);
+  if (layer === 'body') {
+    ctx.restore();
+    return;
+  }
   strokeLimb(ctx, sh1, sk.elbows[1], sk.hands[1], b.limb, sleeve);
-  // The near hand last, over the near arm; held objects (the board, the coin, the torch) with it.
-  if (m.clipboard === 'hand') drawClipboard(ctx, lead ? J(sk.hands[0].x + 2, sk.hands[0].y - 4) : sk.hands[1], c.lead.strokes, lead && m.pen === 'hand');
+  // The near hand last, over the near arm, with what it holds: the heavy's board, the coin, the torch.
+  if (!lead && board) drawClipboard(ctx, sk.hands[1], c.lead.strokes, false);
   if (m.coin === 'looking' || (m.coin === 'diving' && m.coinT > 2.2)) disc(ctx, sk.hands[1].x, sk.hands[1].y - 2, 5, '#f2c14e', 1.5);
-  drawHand(ctx, sk.hands[1], b.limb * 0.6, m.open[1], handColour(1), jabbing && c.rung < 7 ? pointAt(1) : undefined);
+  hand(1);
   if (lead && m.flashlight !== 'dropped' && m.coin === 'none') {
     const beam = m.flashlight === 'off' ? null : beamFor(c, time);
     drawFlashlight(ctx, sk.hands[1], beam ? Math.atan2(beam.to.y - beam.from.y, beam.to.x - beam.from.x) : pointAt(1), beam !== null);
@@ -1097,7 +1130,7 @@ function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, tim
   ctx.save();
   ctx.translate(m.sk.head.x, m.sk.head.y);
   ctx.scale(swell, swell);
-  if (!lead) rr(ctx, -r * 0.9, -r * 0.1 + jaw, r * 1.8, r * 1.05, 7, skin, 2.5);
+  if (!lead) rr(ctx, -r * 0.9, -r * 0.1 + jaw, r * 1.8, r * 1.05, 9, skin, 2.5);
   disc(ctx, 0, 0, r, skin, 2.5);
   if (!lead) {
     ctx.fillStyle = skin;
@@ -1110,6 +1143,12 @@ function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, tim
     ctx.ellipse(r * 0.95, -r * 0.15, r * 0.14, r * 0.3, 0, 0, TAU);
   } else ctx.arc(0, 0, r * 0.98, Math.PI * 1.05, Math.PI * 1.95);
   ctx.fill();
+  // The pen tucked behind the ear: under the ear, over the hair.
+  if (lead && m.pen === 'ear') {
+    ctx.strokeStyle = '#1b2a6b';
+    ctx.lineWidth = 2.5;
+    seg(ctx, -r * 0.95, -r * 0.3, -r * 1.05, r * 0.1);
+  }
   disc(ctx, -r * 0.95, 0, r * 0.2, skin);
   const drop = lead ? 8 * heat : 2;
   const v = lead ? 0.436 * heat : 0.05;
@@ -1194,11 +1233,6 @@ function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, tim
     for (const side of [-1, 1]) disc(ctx, side * r * 0.9 + side * age * 8, -r * 0.55 - age * 22, 4 + age * 6, ctx.fillStyle, 0);
   }
   if (!(lead && m.actClock > 0 && m.actClock < 3)) drawHeadband(ctx, r, 1, 0.2 + 0.8 * heat, time, m.seed);
-  if (lead && m.pen === 'ear') {
-    ctx.strokeStyle = '#1b2a6b';
-    ctx.lineWidth = 2.5;
-    seg(ctx, -r * 0.95, -r * 0.3, -r * 1.05, r * 0.1);
-  }
   ctx.restore();
 }
 function slowNoise(time: number, period: number, seed: number): number {
@@ -1258,7 +1292,8 @@ function solveSuspect(c: Crew, drive: CrewDrive): void {
   const hands: [Joint, Joint] = [hang, hang];
   const open: [number, number] = [0.5, 0.5];
   if (!phoneOut && conf < 0.3 && s.mode === 'roof') {
-    hands[0] = J(hw * 0.9, 40);
+    // Arms folded: the far hand crosses the chest line so its forearm draws over the hoodie.
+    hands[0] = J(hw * 1.4, 40);
     hands[1] = J(hw * 0.6, 42);
     open[0] = open[1] = 0;
   }
@@ -1280,7 +1315,7 @@ function solveSuspect(c: Crew, drive: CrewDrive): void {
       case 'foot':
         return { ...H(p, J(688, 398), J(694, 392), true, true, 1, 1), spine: -0.15, pelvisX: -6, feet: [J(x - 700, -72), J(10, 0)] };
       case 'sit':
-        return { ...H(p, J(752, 382), J(706, 358), true, true, 0.2, 1), pelvisY: 80, pelvisX: 0, spine: 0.05, feet: [J(x - 752, -2), J(x - 758, -8)], knee: J(-1, -1) };
+        return { ...H(p, J(752, 382), J(706, 358), true, true, 0.2, 1), pelvisY: 86, pelvisX: 0, spine: 0.05, feet: [J(x - 752, -2), J(x - 758, -8)], knee: J(-1, -1) };
       case 'cap':
         return { ...H(p, J(-34, 4), J(36, 2), false, false, 1, 1), spine: -0.12, chest: -0.08, head: -0.16, stance: 24, feet: [J(-12, 0), J(12, 0)] };
       case 'heels': {
@@ -1406,19 +1441,33 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
     }
     ctx.restore();
   }
+  // The neck before the hoodie, so the collar covers its end.
+  const neck = sk.neck;
+  ctx.lineCap = 'butt';
+  for (const [w, col] of [[r * 0.9 + 4, INK], [r * 0.9, SKIN]] as [number, string][]) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    seg(ctx, sk.chest.x, sk.chest.y + 4, neck.x, neck.y - 2);
+  }
   const sh0 = collar ? collar[0] : sk.shoulders[0];
   const sh1 = collar ? collar[1] : sk.shoulders[1];
   const hem0 = J(sk.hips[0].x + 4, sk.hips[0].y + 14);
   const hem1 = J(sk.hips[1].x - 4, sk.hips[1].y + 14);
-  const pts = [J(sh0.x + 7, sh0.y - 6), J(sh1.x - 7, sh1.y - 6), hem1];
+  const top0 = J(sh0.x + 7, sh0.y - 6);
+  const top1 = J(sh1.x - 7, sh1.y - 6);
+  const pts = [top0, top1, hem1];
   if (flap) pts.push(J(hem1.x + flap.x * 0.6, hem1.y + flap.y * 0.6), J(hem0.x + flap.x, hem0.y + flap.y));
   pts.push(hem0);
+  const trace = (ps: Joint[]): void => {
+    ctx.beginPath();
+    ps.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+  };
   poly(ctx, pts, '#f5f2ee');
-  // The rainbow tee: six bands clipped to the hoodie's open front.
+  // The rainbow tee shows through the hoodie's open front: a panel from the collar that falls open toward the hem.
+  const panel = [mixJ(top0, top1, 0.42), mixJ(top0, top1, 0.8), mixJ(hem0, hem1, 0.88), mixJ(hem0, hem1, 0.34)];
   ctx.save();
-  ctx.beginPath();
-  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-  ctx.closePath();
+  trace(panel);
   ctx.clip();
   const top = Math.min(sh0.y, sh1.y) - 8;
   const band = Math.max(hem0.y, hem1.y) + 8 - top;
@@ -1427,14 +1476,16 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
     ctx.fillRect(Math.min(sh0.x, sh1.x) - 20, top + i * (band / RAINBOW.length), Math.abs(sh1.x - sh0.x) + 40, band / RAINBOW.length + 1);
   });
   ctx.restore();
+  ink(ctx, 1.5);
+  seg(ctx, panel[0]!.x, panel[0]!.y, panel[3]!.x, panel[3]!.y);
+  seg(ctx, panel[1]!.x, panel[1]!.y, panel[2]!.x, panel[2]!.y);
+  trace(pts);
   ink(ctx, 2.5);
   ctx.stroke();
-  const neck = sk.neck;
-  ctx.lineCap = 'butt';
-  for (const [w, col] of [[r * 0.9 + 4, INK], [r * 0.9, SKIN]] as [number, string][]) {
-    ctx.strokeStyle = col;
-    ctx.lineWidth = w;
-    seg(ctx, sk.chest.x, sk.chest.y + 4, neck.x, neck.y - 2);
+  // The far forearm across his front (folded arms, finger guns) comes over the hoodie; `rot` keeps "front" his own while he tumbles.
+  if (-((sk.hands[0].x - sk.chest.x) * Math.cos(rot) + (sk.hands[0].y - sk.chest.y) * Math.sin(rot)) > 0) {
+    strokeLimb(ctx, sk.elbows[0], sk.elbows[0], sk.hands[0], b.limb, '#d8d5cd');
+    drawHand(ctx, sk.hands[0], b.limb * 0.65, s.open[0] * 0.8, SKIN, pointing && fh === 0 ? pointAt(0) : undefined);
   }
   drawSuspectHead(ctx, s, sk, rot, time);
   ctx.strokeStyle = '#f4f4f0';
@@ -1491,6 +1542,17 @@ function drawSuspectHead(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton
   ctx.quadraticCurveTo(r * 0.82, -r * 0.45, r * 0.86, r * 0.18);
   ctx.stroke();
   ctx.restore();
+  if (s.hood) {
+    // The hood up for the run: a shell over the crown and the back, the face open.
+    ctx.fillStyle = '#f5f2ee';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.22, -Math.PI * 0.78, Math.PI * 0.45);
+    ctx.arc(0, 0, r * 0.72, Math.PI * 0.45, -Math.PI * 0.78, true);
+    ctx.closePath();
+    ctx.fill();
+    ink(ctx, 2.5);
+    ctx.stroke();
+  }
   const shadesOn = s.shades === 'down' || s.shades === 'laser';
   ink(ctx, 3);
   for (const side of [-1, 1]) {
