@@ -66,9 +66,9 @@ function paintBackdrop(c: CanvasRenderingContext2D) {
 }
 
 /** `extra` keeps a long round's jungle climbing past the fence; `raid` is the time since the raid began (negative before). */
-export function plant(c: CanvasRenderingContext2D, x: number, ground: number, growth: number, time: number, seed: number, raid: number, reduced: boolean, extra = 0) {
+export function plant(c: CanvasRenderingContext2D, x: number, ground: number, growth: number, time: number, seed: number, raid: number, extra = 0) {
   const height = 34 + growth * 208 + extra;
-  const sway = reduced ? 0 : Math.sin(time * 1.6 + seed) * (0.015 + growth * 0.025);
+  const sway = Math.sin(time * 1.6 + seed) * (0.015 + growth * 0.025);
   const wilt = raid < 0 ? 0 : ease((raid - 0.3) / 1.2) * (seed % 2 ? -0.26 : 0.3);
   c.save(); c.translate(x, ground); c.rotate(sway + wilt);
   oval(c, 0, 4, 49 + growth * 27, 9, '#152f3e44');
@@ -146,8 +146,8 @@ export function pollinators(c: CanvasRenderingContext2D, time: number) {
   }
 }
 
-export function flyingLeaves(c: CanvasRenderingContext2D, age: number, reduced: boolean) {
-  if (age < 0 || age > 1.7 || reduced) return;
+export function flyingLeaves(c: CanvasRenderingContext2D, age: number) {
+  if (age < 0 || age > 1.7) return;
   for (let i = 0; i < 21; i++) {
     const t = clamp((age - 0.05) / 1.6);
     const x = 530 + (noise(i + 60) - 0.5) * 340 + (noise(i + 90) - 0.5) * 290 * t;

@@ -27,11 +27,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the hit-stop, the punch-in, the dev's tremble and the camera flash. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -180,11 +175,10 @@ function drawYard(ctx: CanvasRenderingContext2D, time: number): void {
   for (let y = POOL.top + 8; y < H; y += 16) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'eurodance', crash: 'splash' });
   const pool: PoolState = createPool();
-  const party: PartyState = createParty(reduced ? 0 : 1);
+  const party: PartyState = createParty();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
@@ -227,7 +221,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       punchHold = PUNCH_S;
@@ -325,7 +319,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepParty(party, pool, growth, running, tension, dt);
     // Cues from the party's own events: landings, the helicopter, the whale, the chain, the drain and the selfie.
     if (party.events.splash) {
-      if (!reduced) shake = Math.max(shake, party.events.splash.big ? 0.2 : 0.12);
+      shake = Math.max(shake, party.events.splash.big ? 0.2 : 0.12);
       if (running) audio.fx('splash', party.events.splash.big ? 1 : 0.6);
     }
     if (party.events.heli) audio.fx('whoosh', 0.9);
@@ -380,8 +374,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const beat = Math.exp(-6 * (beats - Math.floor(beats))) * (Math.floor(beats) % 4 === 0 ? 1 : 0.65) * (running ? 0.35 + 0.65 * tension : 0.3);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the drain and eases back out.
       const k = 1 + 0.1 * clamp(punch.x, 0, 1.2);
       ctx.translate(DRAIN.x, pool.level);

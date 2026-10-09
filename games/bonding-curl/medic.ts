@@ -117,11 +117,11 @@ export function stepMedic(m: Medic, drive: MedicDrive, dt: number): void {
   stepSpring(m.watch, m.mode === 'waiting' && !rolling && Math.floor(m.time * 0.45) % 2 === 1 ? 1 : 0, 6, 0.7, dt);
 }
 
-/** The ambulance outside: a red and blue wash from the door on the right; one steady colour when motion is reduced. */
-export function drawSirenGlow(ctx: CanvasRenderingContext2D, m: Medic, steady: boolean): void {
+/** The ambulance outside: a red and blue wash from the door on the right. */
+export function drawSirenGlow(ctx: CanvasRenderingContext2D, m: Medic): void {
   const k = clamp(m.glow.x, 0, 1);
   if (k < 0.02) return;
-  const red = steady ? 0.5 : 0.5 + 0.5 * Math.sin(m.time * 7);
+  const red = 0.5 + 0.5 * Math.sin(m.time * 7);
   for (const [colour, w] of [['255, 40, 70', red], ['60, 120, 255', 1 - red]] as const) {
     const wash = ctx.createRadialGradient(960, 250, 10, 960, 250, 340);
     wash.addColorStop(0, `rgba(${colour}, ${0.34 * k * w})`);

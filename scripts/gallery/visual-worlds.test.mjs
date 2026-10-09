@@ -27,7 +27,7 @@ test('Honeypot fixed arm enters only through the mouth, then steps clear of the 
   }
   p.pullPaw(state);
   for(let i=0;i<150;i++) {
-    p.stepPicnic(state,{running:true,multiplier:100000,tension:1,level:0.96,reduced:false},1/60);
+    p.stepPicnic(state,{running:true,multiplier:100000,tension:1,level:0.96},1/60);
     const {shoulder,elbow,paw}=p.bearReach(state,0.96);
     assert.ok(Math.abs(length(shoulder,elbow)-56)<1e-7);
     assert.ok(Math.abs(length(elbow,paw)-56)<1e-7);

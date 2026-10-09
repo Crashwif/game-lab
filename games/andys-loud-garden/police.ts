@@ -45,11 +45,11 @@ function agent(c: CanvasRenderingContext2D, x: number, y: number, travel: number
 }
 
 /** The raid, `age` seconds after the frozen beat: the SEC car, two agents, the flashlight and the tape, all in place by about 1.3 s. */
-export function police(c: CanvasRenderingContext2D, age: number, reduced: boolean) {
+export function police(c: CanvasRenderingContext2D, age: number) {
   if (age < 0) return;
-  const arrival = reduced ? 1 : ease(age / 0.55);
+  const arrival = ease(age / 0.55);
   const x = 1090 - arrival * 295;
-  const shake = reduced || age > 1 ? 0 : Math.sin(age * 18) * 2 * (1 - clamp(age / 1));
+  const shake = age > 1 ? 0 : Math.sin(age * 18) * 2 * (1 - clamp(age / 1));
   c.save(); c.translate(x, 422 + shake);
   oval(c, 0, 23, 117, 13, '#151b2e55');
   shape(c, [[-118, 6], [-109, -33], [-63, -48], [-37, -87], [45, -87], [84, -43], [115, -31], [121, 7]], '#2c3348', 5);
@@ -60,24 +60,24 @@ export function police(c: CanvasRenderingContext2D, age: number, reduced: boolea
   text(c, 'SEC', -42, -6, 22, NAVY, 'center'); text(c, 'ENFORCEMENT', 62, -10, 9, NAVY, 'center');
   for (const wheel of [-73, 77]) { oval(c, wheel, 9, 24, 24, '#1d2130', 3); oval(c, wheel, 9, 12, 12, '#8e98a0', 3); }
   box(c, -34, -98, 61, 12, '#23344b', 3, 2);
-  const red = reduced ? 0.8 : 0.45 + Math.sin(age * 7) * 0.35;
+  const red = 0.45 + Math.sin(age * 7) * 0.35;
   c.globalAlpha = red; box(c, -31, -103, 27, 13, '#fa5c76', 4, 1);
-  c.globalAlpha = reduced ? 0.8 : 0.9 - red; box(c, 1, -103, 23, 13, '#75c8ff', 4, 1); c.globalAlpha = 1;
+  c.globalAlpha = 0.9 - red; box(c, 1, -103, 23, 13, '#75c8ff', 4, 1); c.globalAlpha = 1;
   box(c, -115, -27, 17, 12, '#fff2ae', 2, 1);
   c.restore();
-  if (age > 0.4 || reduced) {
+  if (age > 0.4) {
     // The agents step out and walk in by distance: four steps for the first, three for the second.
-    const approach = reduced ? 1 : ease((age - 0.5) / 0.85);
-    c.save(); c.globalAlpha = reduced ? 1 : ease((age - 0.4) / 0.15);
-    c.save(); c.globalAlpha *= reduced ? 0.14 : 0.1 + Math.sin(age * 1.4) * 0.025;
+    const approach = ease((age - 0.5) / 0.85);
+    c.save(); c.globalAlpha = ease((age - 0.4) / 0.15);
+    c.save(); c.globalAlpha *= 0.1 + Math.sin(age * 1.4) * 0.025;
     // The beam leaves the first agent's flashlight lens and lands on Andy.
     shape(c, [[701 - approach * 101, 410], [201, 259], [192, 463]], '#fff4b9', 0); c.restore();
     agent(c, 774 - approach * 101, 480, approach * 101 / 0.85, 2 * 101 / 0.85 / 4, 0.85, false);
     agent(c, 897 - approach * 53, 475, approach * 53 / 0.78, 2 * 53 / 0.78 / 3, 0.78, true);
     c.restore();
   }
-  if (age > 0.85 || reduced) {
-    const reveal = reduced ? 1 : ease((age - 0.85) / 0.4);
+  if (age > 0.85) {
+    const reveal = ease((age - 0.85) / 0.4);
     c.save(); c.translate(455, 497); c.rotate(-0.035); c.scale(reveal, 1);
     box(c, -290, -13, 650, 28, '#edd271', 0, 3);
     for (let i = 0; i < 18; i++) shape(c, [[-290 + i * 38, -13], [-277 + i * 38, -13], [-292 + i * 38, 15], [-305 + i * 38, 15]], '#252638', 0);
@@ -98,9 +98,9 @@ export function headlights(c: CanvasRenderingContext2D, at: number, power: numbe
 }
 
 /** Red and blue on the clouds beyond the fence: a siren somewhere down the street. */
-export function sirenGlow(c: CanvasRenderingContext2D, age: number, power: number, reduced: boolean) {
+export function sirenGlow(c: CanvasRenderingContext2D, age: number, power: number) {
   if (power <= 0.01) return;
-  const swap = reduced ? 0.5 : 0.5 + 0.5 * Math.sin(age * 16);
+  const swap = 0.5 + 0.5 * Math.sin(age * 16);
   c.save(); c.globalCompositeOperation = 'lighter';
   for (const [x, color, k] of [[870, '255, 60, 95', swap], [955, '70, 140, 255', 1 - swap]] as const) {
     const g = c.createRadialGradient(x, 290, 4, x, 290, 175);
@@ -111,15 +111,15 @@ export function sirenGlow(c: CanvasRenderingContext2D, age: number, power: numbe
 }
 
 /** A drone crossing the dusk with a searchlight; `x` is where it hovers, `sweep` where the beam lands. */
-export function drone(c: CanvasRenderingContext2D, x: number, y: number, sweep: number, power: number, time: number, reduced: boolean) {
+export function drone(c: CanvasRenderingContext2D, x: number, y: number, sweep: number, power: number, time: number) {
   if (power <= 0.01) return;
   c.save(); c.globalAlpha = power;
   c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.16 * power;
   shape(c, [[x - 5, y + 9], [x + 5, y + 9], [sweep + 70, 486], [sweep - 70, 486]], '#fff4c4', 0); c.restore();
   line(c, [[x - 24, y - 2], [x + 24, y - 2]], '#30293d', 4);
-  for (const dx of [-24, 24]) oval(c, x + dx, y - 6, reduced ? 12 : 4 + 9 * Math.abs(Math.sin(time * 40 + dx)), 2.5, '#5b5470aa');
+  for (const dx of [-24, 24]) oval(c, x + dx, y - 6, 4 + 9 * Math.abs(Math.sin(time * 40 + dx)), 2.5, '#5b5470aa');
   box(c, x - 13, y - 5, 26, 13, '#3b3550', 5, 2);
   oval(c, x, y + 10, 5, 4, '#fff6cf', 1.5);
-  oval(c, x + 9, y - 1, 2.5, 2.5, (reduced || Math.sin(time * 9) > 0) ? '#ff5d72' : '#5a2833');
+  oval(c, x + 9, y - 1, 2.5, 2.5, (Math.sin(time * 9) > 0) ? '#ff5d72' : '#5a2833');
   c.restore();
 }

@@ -33,7 +33,6 @@ export interface FrogPose {
   magnet: boolean;
   double: boolean;
   time: number;
-  reduced: boolean;
   /** Standing breath, in rig px, lifting the body over planted feet. */
   breath?: number;
   /** 0 to 1: arms up and a look back at the camera as the floor goes. */
@@ -63,7 +62,7 @@ function limb(ctx: CanvasRenderingContext2D, a: [number, number], b: [number, nu
 export function runnerLegs(p: FrogPose) {
   const cycle = p.stride * Math.PI * 2;
   const bob = (p.air || p.slide > .3 ? 0 : Math.abs(Math.sin(cycle)) * 4 * (1 - clamp(p.hover, 0, 1))) + (p.breath ?? 0);
-  const angle = -p.lean * .05 + (p.reduced ? 0 : Math.sin(p.time * 40) * .12 * Math.max(0, p.stumble / .5));
+  const angle = -p.lean * .05 + (Math.sin(p.time * 40) * .12 * Math.max(0, p.stumble / .5));
   const sx = 1 + .22 * p.slide, sy = 1 - .48 * p.slide;
   return { bob, legs: [-1, 1].map((side, i) => {
     const phase = cycle + i * Math.PI;
@@ -90,17 +89,17 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   ctx.save();
   ctx.translate(p.X, p.Y);
   ctx.scale(k, k);
-  if (p.fall > 0 && !p.reduced) ctx.rotate(p.fall * 5);
-  else ctx.rotate(-p.lean * 0.05 + (p.reduced ? 0 : Math.sin(p.time * 40) * 0.12 * stumbleK));
+  if (p.fall > 0) ctx.rotate(p.fall * 5);
+  else ctx.rotate(-p.lean * 0.05 + (Math.sin(p.time * 40) * 0.12 * stumbleK));
   if (downK > 0) {
     // The knockdown: one roll along the rails and back up.
     ctx.translate(0, -Math.sin(downK * Math.PI) * 26 - 30);
-    ctx.rotate(p.reduced ? 0 : downK * Math.PI * 2);
+    ctx.rotate(downK * Math.PI * 2);
     ctx.translate(0, 30);
   }
   if (p.hover > 0) {
     // The golden EXIT LIQUIDITY board, tilting with the lean and humming.
-    const tilt = -p.lean * 0.12 + (p.reduced ? 0 : Math.sin(p.time * 5) * 0.03);
+    const tilt = -p.lean * 0.12 + (Math.sin(p.time * 5) * 0.03);
     ctx.save();
     ctx.rotate(tilt);
     const glow = ctx.createRadialGradient(0, 8, 4, 0, 8, 70);
@@ -123,7 +122,7 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   line(ctx, [[-22, -60], [22, -60]], HOODIE_DARK, 3);
   ellipse(ctx, 0, -97, 25, 9, HOODIE_DARK, INK, 1.5);
   if (p.drip.has('cape')) {
-    const flap = p.reduced ? 0 : Math.sin(p.time * 9) * 8 + p.lean * 14;
+    const flap = Math.sin(p.time * 9) * 8 + p.lean * 14;
     ctx.beginPath();
     ctx.moveTo(-26, -92);
     ctx.bezierCurveTo(-40 + flap, -60, -44 + flap, -30, -30 + flap * 1.4, -12);
@@ -143,7 +142,7 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   ctx.save();
   ctx.translate(0, -78 + grab * 90);
   ctx.scale(1 + grab * 0.6, 1 + grab * 0.6);
-  ctx.rotate(p.reduced ? 0 : Math.sin(cycle) * 0.06 - p.lean * 0.1);
+  ctx.rotate(Math.sin(cycle) * 0.06 - p.lean * 0.1);
   ellipse(ctx, 0, 0, r, r * 0.96, BAG, BAG_DARK, 2.5);
   ellipse(ctx, 0, -r * 0.92, r * 0.42, r * 0.22, BAG_DARK, INK, 1.5);
   ellipse(ctx, -r * 0.3, -r * 0.3, r * 0.22, r * 0.14, 'rgba(255, 255, 255, 0.18)');
@@ -157,8 +156,8 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
     // The slide spreads the arms in proportion, so they blend in and out with it rather than snapping.
     const slide = clamp(p.slide, 0, 1);
     const swing = p.air ? -1 : -Math.sin(phase) * (1 - slide);
-    const flail = stumbleK > 0 && !p.reduced ? Math.sin(p.time * 35 + i) * 20 : 0;
-    const shake = scare > 0 && !p.reduced ? Math.sin(p.time * 31 + i * 2) * 5 * scare : 0;
+    const flail = stumbleK > 0 ? Math.sin(p.time * 35 + i) * 20 : 0;
+    const shake = scare > 0 ? Math.sin(p.time * 31 + i * 2) * 5 * scare : 0;
     const shoulder: [number, number] = [side * 28, -90];
     const elbow: [number, number] = [side * mix(36 + 22 * slide, 42, scare), mix(-72 - swing * 14 + flail, -118, scare)];
     const hand: [number, number] = [side * mix(34 + 44 * slide + (p.air ? 8 : 0), 38, scare), mix(p.air ? -110 : -56 - swing * 22 + flail, -150 + shake, scare)];
@@ -191,13 +190,13 @@ export function drawFrog(ctx: CanvasRenderingContext2D, p: FrogPose): void {
   }
   // A power-up shows on him: a magnet ring, or the 2× leverage sparks.
   if (p.magnet) {
-    const pulse = p.reduced ? 1 : 1 + Math.sin(p.time * 8) * 0.06;
+    const pulse = 1 + Math.sin(p.time * 8) * 0.06;
     ctx.beginPath();
     ctx.ellipse(0, -80, 58 * pulse, 70 * pulse, 0, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(95, 242, 230, 0.65)';
     ctx.lineWidth = 3;
     ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = p.reduced ? 0 : -p.time * 60;
+    ctx.lineDashOffset = -p.time * 60;
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -225,7 +224,6 @@ export interface TaxmanPose {
   idle: boolean;
   fall: number;
   time: number;
-  reduced: boolean;
   /** The run cycle in radians, integrated from the course speed; the clock drives it when absent. */
   cycle?: number;
   /** 0 to 1: shaking a fist at the frog as the round leaves the platform. */
@@ -237,13 +235,13 @@ export function drawTaxman(ctx: CanvasRenderingContext2D, p: TaxmanPose): void {
   ctx.globalAlpha = p.idle ? 1 : clamp(p.heat * 3, 0, 1);
   ctx.translate(p.X, p.Y);
   ctx.scale(p.k, p.k);
-  if (p.fall > 0 && !p.reduced) ctx.rotate(p.fall * 4);
+  if (p.fall > 0) ctx.rotate(p.fall * 4);
   const cycle = p.idle ? 0 : p.cycle ?? p.time * 9;
   const bob = p.idle ? 0 : Math.abs(Math.sin(cycle)) * 5;
   const fist = clamp(p.fist ?? 0, 0, 1);
   ctx.translate(0, -bob);
   // Trousers and shoes; on the platform one foot taps, impatient.
-  const tap = p.idle && !p.reduced ? Math.max(0, Math.sin(p.time * Math.PI * 4)) * 7 * (1 - fist) : 0;
+  const tap = p.idle ? Math.max(0, Math.sin(p.time * Math.PI * 4)) * 7 * (1 - fist) : 0;
   for (const i of [0, 1]) {
     const side = i === 0 ? -1 : 1;
     const lift = p.idle ? (i ? tap : 0) : Math.max(0, Math.sin(cycle + i * Math.PI)) * 26;
@@ -266,7 +264,7 @@ export function drawTaxman(ctx: CanvasRenderingContext2D, p: TaxmanPose): void {
     if (p.grab > 0.55) ellipse(ctx, hx, hy + 12, 16, 15, '#a8642a', '#6e3f14', 2);
   } else if (fist > 0) {
     // The fist, raised over the hat and shaking.
-    const shake = p.reduced ? 0 : Math.sin(p.time * 26) * 7;
+    const shake = Math.sin(p.time * 26) * 7;
     limb(ctx, shoulder, [mix(52, 58, fist), mix(-112, -170, fist)], [mix(56, 50 + shake, fist), mix(-84, -220, fist)], '#3a3d4d', 11, '#e8c39e', 9);
   } else {
     const swing = p.idle ? 0 : Math.sin(cycle) * 18;

@@ -75,11 +75,11 @@ export function directionAt(elapsedMs: number, x100?: number): Direction {
 
 /** Clown makeup follows the multiplier: the nose pops at 1.5×, white face at 2.5×, painted mouth at 4×. */
 export interface Paint { nose: number; face: number; mouth: number }
-export function paintAt(x100: number, reduced = false): Paint {
+export function paintAt(x100: number): Paint {
   const x = Number.isFinite(x100) ? x100 / 100 : 1;
   const u = clamp((x - 1.5) / .07);
   // A short overshoot sells the nose arriving; the face and mouth paint in.
-  const nose = u <= 0 ? 0 : reduced ? 1 : 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2;
+  const nose = u <= 0 ? 0 : 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2;
   return { nose, face: ease((x - 2.5) / .25), mouth: ease((x - 4) / .45) };
 }
 
@@ -91,10 +91,10 @@ export function stampReach(d: Direction): number {
   return ease((d.action - STAMP_AT + lead) / lead) * (1 - ease((d.action - .77) / .18));
 }
 /** Labels stamped so far, and seconds since the newest landed. */
-export function stampsAt(d: Direction, reduced = false): { count: number; age: number } {
+export function stampsAt(d: Direction): { count: number; age: number } {
   if (d.serial > 2) return { count: 3, age: 9 };
-  const landed = reduced || d.cycle > 0 || d.action >= STAMP_AT;
-  return { count: d.serial + (landed ? 1 : 0), age: landed && !reduced ? d.age - STAMP_AT * 4.8 : 9 };
+  const landed = d.cycle > 0 || d.action >= STAMP_AT;
+  return { count: d.serial + (landed ? 1 : 0), age: landed ? d.age - STAMP_AT * 4.8 : 9 };
 }
 
 /** Crash beats fit the room's two-second crash hold: impact and hit-stop, packing, then one peanut. */

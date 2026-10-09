@@ -200,7 +200,7 @@ function readout(ctx: CanvasRenderingContext2D, x: number, y: number, title: str
 }
 
 /** The monitor panel: the trace, the vitals, the dose ladder. `you` marks the bed as the player's. */
-export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplier: number, tension: number, reduced: boolean, you = false): void {
+export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplier: number, tension: number, you = false): void {
   ctx.save();
   ctx.fillStyle = '#0b1418';
   ctx.fillRect(PANEL.x, PANEL.y, PANEL.w, PANEL.h);
@@ -209,7 +209,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   ctx.fillRect(PANEL.x, PANEL.y, PANEL.w, 54);
   // Discharged before the rug: the leads are off and the flat line is nobody's.
   const dodged = m.flat && m.discharged;
-  const alarm = m.flat && !dodged && !reduced ? Math.floor(m.time * 4) % 2 === 0 : false;
+  const alarm = m.flat && !dodged ? Math.floor(m.time * 4) % 2 === 0 : false;
   const charging = m.flat && m.charge > 0.5;
   const unstable = tension > 0.65;
   ctx.fillStyle = charging ? '#e6a23c' : dodged ? '#2e8b57' : m.flat ? (alarm ? '#e63946' : '#7a1f28') : m.discharged ? '#2e8b57' : unstable ? '#e6a23c' : '#2e8b57';
@@ -229,7 +229,7 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
   const scale = TRACE.h * 0.42;
   const colour = dodged || (m.discharged && !m.flat) ? '#8fd3ff' : m.flat ? '#ff4d6d' : '#7cf67c';
   ctx.strokeStyle = colour; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
-  ctx.shadowColor = colour; ctx.shadowBlur = reduced ? 0 : 6;
+  ctx.shadowColor = colour; ctx.shadowBlur = 6;
   ctx.beginPath();
   const head = Math.floor(m.head);
   for (let i = 0; i < TRACE.w; i += 1) {
@@ -252,14 +252,14 @@ export function drawMonitor(ctx: CanvasRenderingContext2D, m: Monitor, multiplie
     label(ctx, dodged ? 'patient already discharged' : 'beeeeep', TRACE.x + TRACE.w / 2, TRACE.y + TRACE.h - 16, 12, dodged ? '#8fd3ff' : '#ff9db0', 'center', true);
   }
   // Scanline flicker.
-  if (!reduced) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(TRACE.x, TRACE.y + ((m.time * 60) % TRACE.h), TRACE.w, 3); }
+  { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(TRACE.x, TRACE.y + ((m.time * 60) % TRACE.h), TRACE.w, 3); }
   ctx.restore();
   ctx.strokeStyle = '#22333a'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(TRACE.x, TRACE.y, TRACE.w, TRACE.h, 6); ctx.stroke();
   // Vitals.
   const bpm = Math.round(m.bpm.x);
   const hopium = m.flat ? 0 : Math.round(clamp(1 - tension * 0.95, 0, 1) * 100);
-  const blink = unstable && !m.flat && !m.discharged && !reduced ? Math.floor(m.time * 3) % 2 === 0 : false;
+  const blink = unstable && !m.flat && !m.discharged ? Math.floor(m.time * 3) % 2 === 0 : false;
   readout(ctx, PANEL.x + 14, 236, 'HEART', dodged ? '--' : m.flat ? '0' : `${bpm}`, 'bpm', m.flat && !dodged ? '#ff4d6d' : '#7cf67c', blink || alarm);
   readout(ctx, PANEL.x + 166, 236, 'HOPIUM', `${hopium}`, '%', hopium < 30 ? '#ffe27a' : '#8fd3ff', blink && hopium < 30);
   readout(ctx, PANEL.x + 14, 310, 'COPE', dodged ? '0' : m.flat ? 'MAX' : `${Math.round(tension * 100)}`, m.flat && !dodged ? '' : '%', '#ff9db0', false);

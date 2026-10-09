@@ -13,7 +13,6 @@ export interface RoadView {
   /** 0 to 1: your skid onto the STOP LOSS barrier, which is hit at 1. */
   wreck: number;
   parked: number;
-  reduced: boolean;
   cars: readonly Car[];
   /** Round seconds (held through the crash) for the scripted near misses; -1 between rounds. */
   elapsed: number;
@@ -125,7 +124,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
   ctx.save();
   const wreck = view.wreck * view.aftermath;
   if (wreck > 0) {
-    const spin = view.reduced ? 0 : Math.sin(Math.min(1, wreck) * 2.2) * 0.32;
+    const spin = Math.sin(Math.min(1, wreck) * 2.2) * 0.32;
     ctx.translate(480, 220); ctx.rotate(spin); ctx.translate(-480, -220);
   }
   skyline(ctx, view);
@@ -197,7 +196,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
   // towed. Without the roll it stops a little further off, so its sign stays between the pillar, panel and caption.
   if (wreck > 0) {
     ctx.save(); ctx.globalAlpha = view.aftermath;
-    barrier(ctx, view.reduced ? project(280 * (1 - view.wreck) + 60, -1.28) : project(280 * (1 - view.wreck) + 24, -1.08)); ctx.restore();
+    barrier(ctx, project(280 * (1 - view.wreck) + 24, -1.08)); ctx.restore();
   }
   // From the valet: a STOP LOSS ahead, and after the crash someone else's Lambo overtakes from under the dash and spins into it.
   const ahead = view.dodge >= 0 ? view.aftermath * Math.max(smoothstep(0.6, 1, view.parked), smoothstep(0, 0.2, view.dodge)) : smoothstep(0.6, 1, view.parked);
@@ -208,7 +207,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
       const slide = smoothstep(0, 0.42, view.dodge), hit = view.dodge - 0.42;
       const rebound = hit > 0 ? Math.exp(-hit * 5) * Math.sin(hit * 14) * 0.08 : 0;
       const car = project(-20 + 170 * (1 - (1 - slide) ** 2), -0.32 - 0.56 * slide + rebound);
-      traffic(ctx, car.x, car.y, car.s * 1.05, 1, false, view.reduced ? 0 : -0.8 * slide - rebound * 4);
+      traffic(ctx, car.x, car.y, car.s * 1.05, 1, false, -0.8 * slide - rebound * 4);
       if (hit > 0) {
         ctx.save(); ctx.globalAlpha = ahead * smoothstep(0.05, 0.2, hit);
         panel(ctx, car.x - 24, car.y - 98 * car.s - 9, 48, 15, '#2a1020', PINK, 3);
@@ -237,7 +236,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
     poly(ctx, [[-17, -3], [-56, -9], [-57, -3], [-20, 5]], '#161d31');
     line(ctx, [[0, -13], [0, -23]], '#1c2037', 3);
     line(ctx, [[-43, -24], [43, -24]], '#8aa4b6', 2);
-    if (!view.reduced) line(ctx, [[-Math.sin(view.time * 35) * 42, -27], [Math.sin(view.time * 35) * 42, -27]], '#a0b4c9', 2);
+    line(ctx, [[-Math.sin(view.time * 35) * 42, -27], [Math.sin(view.time * 35) * 42, -27]], '#a0b4c9', 2);
     text(ctx, 'SEC', 5, 0, 9, '#fff', 'center');
     ctx.restore();
   }
@@ -252,7 +251,7 @@ export function drawRoad(ctx: CanvasRenderingContext2D, view: RoadView): void {
     }
     ctx.globalAlpha = 1;
     ctx.translate(x, y); ctx.rotate(Math.atan2(nx - x, y - ny));
-    poly(ctx, [[-8, 16], [0, 34 + (view.reduced ? 0 : Math.sin(view.time * 9) * 5)], [8, 16]], '#ffaf42');
+    poly(ctx, [[-8, 16], [0, 34 + (Math.sin(view.time * 9) * 5)], [8, 16]], '#ffaf42');
     poly(ctx, [[-9, 17], [-8, -10], [0, -24], [8, -10], [9, 17]], '#e5e3d6', '#3d314f');
     ellipse(ctx, 0, -5, 5, 7, PINK); ctx.restore();
   }

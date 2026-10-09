@@ -1,7 +1,7 @@
 /** Elapsed-time presentation only: no result, stake or crash prediction enters this director. */
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["Steady rhythm", "The neighbour is listening", "Emergency bed repair", "A little quiet, please", "The brace starts slipping", "One more repair attempt", "The room holds its breath"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -11,7 +11,7 @@ export function actAt(elapsed: number, reduced = false) {
   // `effort` is the act's own breath, a dip mid-act before renewed activity. The scene only eases the quilt's tempo
   // a little with `release`; tension and fear never follow it down.
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - release) * .52);
-  return { stage, age, effort, release, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, release, reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** `alpha` fades the props in at a new act and out at the finish or a cash-out instead of cutting them. */

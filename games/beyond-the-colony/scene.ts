@@ -12,7 +12,6 @@ export interface SceneView {
   currentX100: number; elapsed: number; crashAge: number;
   stake: number | null; cashoutX100: number | null; payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 const CUES = ['crowd', 'engine', 'clang', 'beep', 'hiss', 'airhorn', 'phone', 'gasp'] as const;
@@ -39,8 +38,7 @@ function hud(c: CanvasRenderingContext2D, view: SceneView): void {
   words(c, detail, 480, 526, 16, view.cashoutX100 !== null ? JADE : '#bfd5ca', 914);
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'dnb', bpm: 144, tempoRise: .18, music: .5, crash: 'shatter' });
   let previousPhase: SceneView['phase'] | null = null;
   let previousElapsed = 0;
@@ -54,8 +52,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const age = crashed ? Math.max(0, view.crashAge) / 1000 : 0;
     const active = running || crashed;
     const clock = active ? seconds + age : now / 1000;
-    const liveTime = reduced ? 0 : clock;
-    const performance = perform(seconds, active, now / 1000, reduced);
+    const liveTime = clock;
+    const performance = perform(seconds, active, now / 1000);
     const act = performance.act;
     let p = { ...performance.pose };
     // The final server duration can precede the last interpolated running frame.
@@ -84,20 +82,20 @@ export function createScene(options: SceneOptions = {}): Scene {
           audio.fx(fx, cue === 2.15 || cue === 3.3 ? .42 : .25);
         }
       }
-      if (Math.floor(performance.pose.gait * 2) !== Math.floor(perform(previousElapsed / 1000, true, now / 1000, reduced).pose.gait * 2) && p.walk) audio.fx('stomp', .13);
+      if (Math.floor(performance.pose.gait * 2) !== Math.floor(perform(previousElapsed / 1000, true, now / 1000).pose.gait * 2) && p.walk) audio.fx('stomp', .13);
     }
     previousPhase = view.phase; previousCashout = view.cashoutX100; previousElapsed = view.elapsed;
 
     c.save();
-    sky(c, liveTime, act.tier, reduced);
-    const hit = reduced ? 0 : crashed ? Math.exp(-age * 4) * 9 : act.kind === 2 ? Math.abs(recoil(act.age - 2.15, 5)) : 0;
+    sky(c, liveTime, act.tier);
+    const hit = crashed ? Math.exp(-age * 4) * 9 : act.kind === 2 ? Math.abs(recoil(act.age - 2.15, 5)) : 0;
     c.save(); c.translate(Math.sin(liveTime * 68) * hit, Math.cos(liveTime * 73) * hit);
-    floes(c, performance.travel, liveTime, performance.sag, crashed ? age : null, reduced);
+    floes(c, performance.travel, liveTime, performance.sag, crashed ? age : null);
     // The herd and the encounters stand on the ice, and the herd goes down with its floe when the mountain answers.
-    c.save(); rideFloe(c, floeUnder(103, performance.travel, performance.sag, crashed ? age : null, reduced));
-    herd(c, liveTime, act, running && !safe, reduced);
+    c.save(); rideFloe(c, floeUnder(103, performance.travel, performance.sag, crashed ? age : null));
+    herd(c, liveTime, act, running && !safe);
     c.restore();
-    if (running && !safe) setpiece(c, liveTime, act, reduced);
+    if (running && !safe) setpiece(c, liveTime, act);
     else if (!active) {
       balloon(c, view.phase === 'betting' ? 'YOU COMING OR WHAT?' : 'IS THIS ALL THERE IS?', 504, 162, 315, WHITE, 25);
       line(c, [[806, 418], [806, 440]], '#bc9574', 6);
@@ -105,39 +103,39 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     if (crashed && !safe) {
-      if (age < 1.06 && !reduced) {
+      if (age < 1.06) {
         const tumble = smooth((age - .13) / .84);
         p.x += Math.sin(tumble * Math.PI) * 115;
         p.y -= Math.sin(tumble * Math.PI) * 83 - tumble * 61;
         p.angle += tumble * TAU * 1.35;
         p.walk = false; p.airborne = true; p.arm = 1.8; p.mood = 'panic'; p.time = seconds + age;
       } else {
-        office(c, age, reduced);
-        p = { ...p, x: 458, y: 473, scale: .91, time: reduced ? 0 : seconds + age, angle: 0, walk: false, airborne: false, crouch: 0, stretch: 0, arm: -.25, head: -.4, mood: 'dazed', paper: false, look: -1, scarf: 0 };
+        office(c, age);
+        p = { ...p, x: 458, y: 473, scale: .91, time: seconds + age, angle: 0, walk: false, airborne: false, crouch: 0, stretch: 0, arm: -.25, head: -.4, mood: 'dazed', paper: false, look: -1, scarf: 0 };
       }
     }
     if (!safe) {
-      if (running && !reduced) slideSpray(c, p.x, 429, liveTime, performance.spray);
+      if (running) slideSpray(c, p.x, 429, liveTime, performance.spray);
       penguin(c, p);
-      if (!crashed && !reduced) impactSnow(c, p.x, 429, performance.landAge, 1.1);
+      if (!crashed) impactSnow(c, p.x, 429, performance.landAge, 1.1);
       if (running && act.kind === 2 && act.age > 3.2 && act.age < 3.65) { burst(c, 634, 315, 58, GOLD); words(c, 'DECLINED', 634, 315, 21, INK, 101); }
-      if (crashed && (age >= 1.06 || reduced)) {
+      if (crashed && (age >= 1.06)) {
         polygon(c, [[268, 424], [634, 423], [666, 457], [244, 457]], '#f0d8a5', 4);
         words(c, 'WELCOME BACK, CHAMP.', 461, 201, 31, GOLD, 681, 'center', true);
-        if (!reduced) impactSnow(c, 477, 449, age - 1.06, 1.6);
+        impactSnow(c, 477, 449, age - 1.06, 1.6);
       }
     }
-    if (crashed) avalanche(c, age, reduced);
+    if (crashed) avalanche(c, age);
     c.restore();
 
     if (safe) {
-      const q = reduced || !secureEntry ? 1 : smooth((now - secureEntry.at) / 850);
+      const q = !secureEntry ? 1 : smooth((now - secureEntry.at) / 850);
       const from = secureEntry?.pose ?? p;
-      const bob = reduced ? 0 : Math.sin(liveTime * 2.5) * 7;
-      c.save(); c.globalAlpha = clamp(q * 2); cloudSeat(c, 732, 411 + bob, liveTime, reduced); c.restore();
+      const bob = Math.sin(liveTime * 2.5) * 7;
+      c.save(); c.globalAlpha = clamp(q * 2); cloudSeat(c, 732, 411 + bob, liveTime); c.restore();
       p = {
         ...p, x: from.x + (713 - from.x) * q,
-        y: from.y + (403 + bob - from.y) * q - (reduced ? 0 : Math.sin(q * Math.PI) * 69),
+        y: from.y + (403 + bob - from.y) * q - (Math.sin(q * Math.PI) * 69),
         scale: 1.12 - q * .27, angle: from.angle * (1 - q) - q * .15,
         mood: 'smug', airborne: q < 1, walk: false, arm: q < 1 ? 1.4 : -.2, head: -.25,
         time: liveTime, scarf: .2, crouch: 0, stretch: 0, paper: q >= 1,
@@ -145,7 +143,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       penguin(c, p);
       if (q >= 1) words(c, 'DO NOT DISTURB MY NOTHING.', 697, 135, 24, GOLD, 471, 'center', true);
     }
-    if (!reduced) weather(c, liveTime, safe ? .1 : performance.gale);
+    weather(c, liveTime, safe ? .1 : performance.gale);
     if (!close) hud(c, view);
     heroX = p.x;
     c.restore();

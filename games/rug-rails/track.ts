@@ -41,7 +41,6 @@ export interface TrackView {
   rugZ: number;
   /** How far the crash has gone, 0 to 1: the void deepens and the debris falls. */
   dark: number;
-  reduced: boolean;
   /** The dev at the end of the line, holding the rug the rails are laid on: 0 (not there) to 1. */
   dev?: number;
   /** His tug, 0 to 1: he leans back and the rug's end lifts. */
@@ -112,7 +111,7 @@ function backdrop(ctx: CanvasRenderingContext2D, view: TrackView): void {
   ctx.fillRect(0, 0, W, H);
   // The light at the end of the tunnel, which is a train.
   const glow = ctx.createRadialGradient(W / 2, HORIZON, 4, W / 2, HORIZON, 210);
-  const pulse = 0.55 + 0.25 * view.tension + (view.reduced ? 0 : Math.sin(view.time * 3) * 0.05);
+  const pulse = 0.55 + 0.25 * view.tension + (Math.sin(view.time * 3) * 0.05);
   glow.addColorStop(0, `rgba(255, 120, 190, ${pulse})`);
   glow.addColorStop(0.35, `rgba(95, 242, 230, ${0.22 * pulse})`);
   glow.addColorStop(1, 'rgba(20, 10, 40, 0)');
@@ -182,7 +181,7 @@ function ceiling(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera): v
     // A strip light between the ribs, brighter as the round heats up.
     const l = project(0, z - step * 0.5, CROWN - 0.05, cam);
     if (l.s > 12 && z - step * 0.5 > NEAR) {
-      const flicker = view.reduced ? 1 : 0.85 + 0.15 * Math.sin(view.time * 17 + z);
+      const flicker = 0.85 + 0.15 * Math.sin(view.time * 17 + z);
       ellipse(ctx, l.X, l.Y, Math.max(2, l.s * 0.32), Math.max(1, l.s * 0.05), `rgba(210, 240, 255, ${0.65 * flicker})`);
       const halo = ctx.createRadialGradient(l.X, l.Y, 1, l.X, l.Y, l.s * 0.7);
       halo.addColorStop(0, `rgba(95, 242, 230, ${0.22 * flicker})`);
@@ -382,7 +381,7 @@ function train(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera, view: Tr
   const front = project(o.lane, o.z, ROOF * 0.5, cam);
   ctx.save();
   ctx.globalAlpha = fade * 0.75;
-  if (!view.reduced) ctx.translate((noise(o.seed * 7 + Math.floor(o.hitAge * 24)) - 0.5) * front.s * 0.12, 0);
+  ctx.translate((noise(o.seed * 7 + Math.floor(o.hitAge * 24)) - 0.5) * front.s * 0.12, 0);
   carriage(ctx, o, cam, view);
   ctx.restore();
   if (front.s > 30) {
@@ -437,7 +436,7 @@ function carriage(ctx: CanvasRenderingContext2D, o: Obstacle, cam: Camera, view:
     const a = project(l, z0, 0, cam), b = project(r, z0, 0, cam), c = project(r, z0, ROOF, cam), d = project(l, z0, ROOF, cam);
     poly(ctx, quad(a, b, c, d), '#646a86', INK, Math.max(1, s * 0.012));
     poly(ctx, quad(project(l + 0.1, z0, 0.45, cam), project(r - 0.1, z0, 0.45, cam), project(r - 0.1, z0, 0.85, cam), project(l + 0.1, z0, 0.85, cam)), '#151b30');
-    const blink = view.reduced ? 1 : Math.sin(view.time * 6 + o.seed * 9) > 0 ? 1 : 0.35;
+    const blink = Math.sin(view.time * 6 + o.seed * 9) > 0 ? 1 : 0.35;
     for (const x of [l + 0.12, r - 0.12]) {
       const p = project(x, z0, 0.28, cam);
       ellipse(ctx, p.X, p.Y, Math.max(1, p.s * 0.05), Math.max(1, p.s * 0.035), `rgba(255, 70, 90, ${blink})`);
@@ -464,7 +463,7 @@ function puddle(ctx: CanvasRenderingContext2D, p: Pickup, cam: Camera, view: Tra
   ctx.fillStyle = 'rgba(16, 10, 34, 0.9)';
   ctx.fill();
   ctx.lineWidth = Math.max(1, s * 0.02);
-  ctx.strokeStyle = view.reduced ? CYAN : [CYAN, PINK, GOLD, LIME][Math.floor(view.time * 3 + p.seed * 4) % 4]!;
+  ctx.strokeStyle = [CYAN, PINK, GOLD, LIME][Math.floor(view.time * 3 + p.seed * 4) % 4]!;
   ctx.stroke();
   ellipse(ctx, c.X - rx * 0.3, c.Y - ry * 0.25, rx * 0.35, ry * 0.25, 'rgba(95, 242, 230, 0.25)');
   if (s > 50) text(ctx, 'SLIPPAGE', c.X, c.Y, Math.min(ry * 0.9, s * 0.09), '#c4b5fd', 'center', rx * 1.6, MONO);
@@ -495,7 +494,7 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, cam: Camera, view: Tra
   if (p.kind === 'slip') return;
   const g = project(p.x, p.z, 0, cam);
   ellipse(ctx, g.X, g.Y, Math.max(1, s * 0.13), Math.max(1, s * 0.045), 'rgba(0, 0, 0, 0.35)');
-  const spin = view.reduced ? 1 : Math.cos(view.time * 4 + p.seed * 9);
+  const spin = Math.cos(view.time * 4 + p.seed * 9);
   switch (p.kind) {
     case 'cope':
     case 'wagmi': {
@@ -531,7 +530,7 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, cam: Camera, view: Tra
       ellipse(ctx, q.X - w * 0.08, q.Y + h * 0.02, w * 0.05, w * 0.06, '#1f5a14');
       ellipse(ctx, q.X + w * 0.08, q.Y + h * 0.02, w * 0.05, w * 0.06, '#1f5a14');
       line(ctx, [[q.X - w * 0.1, q.Y + h * 0.17], [q.X + w * 0.1, q.Y + h * 0.17]], '#1f5a14', Math.max(1, w * 0.04));
-      for (const dx of [-0.35, 0.3]) ellipse(ctx, q.X + w * dx, q.Y + h * 0.5 + (view.reduced ? 0 : ((view.time * 0.6 + p.seed) % 1) * h * 0.2), w * 0.06, w * 0.1, '#8be26b');
+      for (const dx of [-0.35, 0.3]) ellipse(ctx, q.X + w * dx, q.Y + h * 0.5 + (((view.time * 0.6 + p.seed) % 1) * h * 0.2), w * 0.06, w * 0.1, '#8be26b');
       if (w > 18) text(ctx, 'HONEYPOT', q.X, q.Y - h * 0.8, w * 0.28, '#8be26b', 'center');
       break;
     }
@@ -565,7 +564,7 @@ function voidBeyond(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera)
     const t = noise(i * 3.1), u = noise(i * 7.7);
     const x = -1.9 + t * 3.8, depth = z + u * u * (FAR - z);
     const p = project(x, depth, -0.02, cam);
-    const tw = view.reduced ? 0.7 : 0.5 + 0.5 * Math.sin(view.time * 5 + i);
+    const tw = 0.5 + 0.5 * Math.sin(view.time * 5 + i);
     ellipse(ctx, p.X, p.Y, 1.2, 1.2, `rgba(255, 255, 255, ${0.5 * tw})`);
   }
   for (let i = 0; i < 9; i += 1) {
@@ -593,7 +592,7 @@ function rugRoll(ctx: CanvasRenderingContext2D, view: TrackView, cam: Camera): v
   ctx.fill();
   ctx.clip();
   // The bands roll as the rug is pulled.
-  const roll = view.reduced ? 0 : (view.time * 3) % 1;
+  const roll = (view.time * 3) % 1;
   for (let i = -1; i < 6; i += 1) {
     const y = c.Y - ry + ((i + roll) / 5) * ry * 2;
     ctx.fillStyle = i % 2 ? GOLD : '#7a1522';

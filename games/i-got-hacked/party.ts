@@ -119,12 +119,12 @@ function arrive(p: Party, age: number): void {
   p.fans.push({ x: slot.x, y: slot.y, seed, inPool: slot.inPool, arrive: age, scale: slot.inPool ? 0.5 : 0.6, bob: noise(seed * 5.3) * TAU, swim: noise(seed * 6.1) * TAU, hype: spring(0) });
 }
 
-/** Your fan leaves the party. `gone` skips the walk for a cash-out made before this scene started; the confetti is skipped under reduced motion. */
-export function leaveParty(p: Party, gone = false, reduced = false): void {
+/** Your fan leaves the party. `gone` skips the walk for a cash-out made before this scene started. */
+export function leaveParty(p: Party, gone = false): void {
   if (p.you.mode !== 'partying') return;
   if (gone) { p.you = { ...fresh(), mode: 'gone', x: DOOR, modeAge: 10, towel: spring(1), hype: spring(1) }; return; }
   p.you.mode = 'towel'; p.you.modeAge = 0;
-  if (reduced) return;
+
   // A small burst of confetti over your fan: the only one at this party who got out.
   const rng = mulberry32(77);
   for (let i = 0; i < 32; i += 1) p.corks.push({ x: YOU_X + (rng() - 0.5) * 30, y: POOL.y + POOL.h - 50, vx: (rng() - 0.5) * 300, vy: -140 - rng() * 200, age: 0, life: 1 + rng() * 0.7, colour: ['#7cf67c', '#ffe27a', '#ffffff'][i % 3]!, size: 2.5 + rng() * 3.5 });
@@ -144,15 +144,14 @@ export function drainParty(p: Party, seed: number, quiet: boolean): void {
 }
 
 /** A milestone: the corks fly. */
-function pop(p: Party, index: number, reduced: boolean): void {
-  if (reduced) return;
+function pop(p: Party, index: number): void {
   const rng = mulberry32(index * 131 + 7);
   const x = POOL.x + rng() * POOL.w;
   for (let i = 0; i < 18; i += 1) p.corks.push({ x, y: POOL.y - 10, vx: (rng() - 0.5) * 240, vy: -160 - rng() * 160, age: 0, life: 1 + rng() * 0.8, colour: ['#ffe27a', '#ffffff', '#ff9db0', '#7cf67c'][i % 4]!, size: 2 + rng() * 4 });
   if (p.corks.length > CORK_CAP) p.corks.splice(0, p.corks.length - CORK_CAP);
 }
 
-export interface PartyDrive { running: boolean; multiplier: number; tension: number; reduced: boolean }
+export interface PartyDrive { running: boolean; multiplier: number; tension: number; }
 
 /** Returns true on the frame a milestone is reached. */
 export function stepParty(p: Party, drive: PartyDrive, dt: number): boolean {
@@ -171,7 +170,7 @@ export function stepParty(p: Party, drive: PartyDrive, dt: number): boolean {
       p.popIndex += 1;
       p.nextPop = POPS[p.popIndex] ?? Infinity;
       reached = true;
-      pop(p, p.popIndex, drive.reduced);
+      pop(p, p.popIndex);
     }
   }
   for (const f of p.fans) {
@@ -326,7 +325,7 @@ function drawFan(ctx: CanvasRenderingContext2D, x: number, y: number, seed: numb
 }
 
 /** The lawn, the pool, the fans and your fan (tagged YOU only for a player); then the corks. */
-export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: number, player: boolean, reduced: boolean): void {
+export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: number, player: boolean): void {
   // Lawn.
   const lawn = ctx.createLinearGradient(0, 290, 0, STAGE.h);
   lawn.addColorStop(0, '#5cb85c'); lawn.addColorStop(1, '#2f8a3e');
@@ -369,17 +368,17 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
   const lean = clamp(p.lean.x, 0, 1);
   /** The post lands on the party a fan at a time: a jump of shock that ripples back through the crowd, then, about
    * 0.8 s on, hands on heads. A crash met late goes straight to the sulk. */
-  const hopOf = (delay: number): number => !reduced && p.shock >= 0 ? Math.sin(Math.PI * clamp((p.shock - 0.1 - delay) / 0.4, 0, 1)) * 16 : 0;
+  const hopOf = (delay: number): number => p.shock >= 0 ? Math.sin(Math.PI * clamp((p.shock - 0.1 - delay) / 0.4, 0, 1)) * 16 : 0;
   const sulkOf = (delay: number): number => !p.drained ? 0 : p.shock < 0 ? 1 : smoothstep(0.75 + delay, 1.15 + delay, p.shock);
   for (const f of p.fans) {
     const k = smoothstep(0, 0.5, f.arrive);
     const delay = delayOf(f.seed);
-    const bob = hopOf(delay) + (reduced ? 0 : Math.max(0, Math.sin(f.bob)) * 7 * cheer);
+    const bob = hopOf(delay) + (Math.max(0, Math.sin(f.bob)) * 7 * cheer);
     const inWater = f.inPool ? water : 0;
     const y = f.inPool ? f.y + (1 - water) * 18 : f.y;
     ctx.save();
     ctx.globalAlpha = k;
-    drawFan(ctx, f.x, y, f.seed, f.scale * (0.6 + 0.4 * k), false, { bob, lean, hype: clamp(f.hype.x, 0, 1.1), sulk: sulkOf(delay), shock: p.drained, inWater, towel: 0, stride: 0, paddle: reduced ? 0 : f.swim });
+    drawFan(ctx, f.x, y, f.seed, f.scale * (0.6 + 0.4 * k), false, { bob, lean, hype: clamp(f.hype.x, 0, 1.1), sulk: sulkOf(delay), shock: p.drained, inWater, towel: 0, stride: 0, paddle: f.swim });
     ctx.restore();
   }
   // Your fan, front row centre: the towel and the bob blend over as they leave; the crowd's post lands on them too
@@ -387,8 +386,8 @@ export function drawParty(ctx: CanvasRenderingContext2D, p: Party, tension: numb
   const you = p.you;
   if (you.mode !== 'gone') {
     const partying = you.mode === 'partying', settle = 1 - clamp(you.towel.x, 0, 1);
-    const bob = (partying ? hopOf(0) : 0) + (reduced ? 0 : Math.max(0, Math.sin(you.bob)) * 7 * cheer * settle);
-    drawFan(ctx, you.x, POOL.y + POOL.h + 26, 99, 0.7, player, { bob, lean: lean * settle, hype: clamp(you.hype.x, 0, 1.1), sulk: partying ? sulkOf(0) : 0, shock: partying && p.drained, inWater: 0, towel: clamp(you.towel.x, 0, 1), stride: you.mode === 'walking' && !reduced ? (you.x - YOU_X) / 0.7 : 0, paddle: 0 });
+    const bob = (partying ? hopOf(0) : 0) + (Math.max(0, Math.sin(you.bob)) * 7 * cheer * settle);
+    drawFan(ctx, you.x, POOL.y + POOL.h + 26, 99, 0.7, player, { bob, lean: lean * settle, hype: clamp(you.hype.x, 0, 1.1), sulk: partying ? sulkOf(0) : 0, shock: partying && p.drained, inWater: 0, towel: clamp(you.towel.x, 0, 1), stride: you.mode === 'walking' ? (you.x - YOU_X) / 0.7 : 0, paddle: 0 });
   }
   if (you.mode === 'towel') {
     ctx.save(); ctx.translate(YOU_X, POOL.y + POOL.h - 60);

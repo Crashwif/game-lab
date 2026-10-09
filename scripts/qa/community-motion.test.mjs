@@ -16,12 +16,12 @@ test('community scenes keep acting during betting and early and late running rou
       stdin: { contents: `import {createScene} from './games/${game}/scene';
 const canvas=document.querySelector('canvas');canvas.width=960;canvas.height=540;
 const ctx=canvas.getContext('2d',{willReadFrequently:true});
-let scene=createScene({reducedMotion:false});
+let scene=createScene();
 let now=1000;
 const view={phase:'betting',currentX100:150,elapsed:0,crashAge:0,stake:50,cashoutX100:null,payout:null};
 const frame=()=>{ctx.setTransform(1,0,0,1,0,0);scene.draw(ctx,view,now);};
 window.motionFixture={
- reset(phase,elapsed){scene.dispose?.();scene=createScene({reducedMotion:false});now=1000+elapsed;Object.assign(view,{phase,elapsed});frame();},
+ reset(phase,elapsed){scene.dispose?.();scene=createScene();now=1000+elapsed;Object.assign(view,{phase,elapsed});frame();},
  sample(){
   const before=ctx.getImageData(120,135,720,340).data;
   let peak=0;

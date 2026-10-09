@@ -15,7 +15,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; dispose(): void }
 
 /** Dense early beats: most rounds end before 3×, so something new lands every couple of seconds until then. */
@@ -105,12 +104,12 @@ function hud(ctx: CanvasRenderingContext2D, view: SceneView, car: CockpitView, h
     text(ctx, spectator ? 'JOIN THE ROUND. CASH OUT BEFORE THE WRECK.' : 'YOU\'RE IN. CASH OUT BEFORE THE STOP LOSS.', 478, 237, 8, '#bfcad0', 'center', 274, MONO);
     ctx.restore();
   } else {
-    const near = h.miss >= 0.66, fresh = car.reduced ? 1 : 1 + 0.12 * (1 - (near ? smoothstep(0.66, 0.72, h.miss) : smoothstep(0, 0.22, h.alertAge)));
+    const near = h.miss >= 0.66, fresh = 1 + 0.12 * (1 - (near ? smoothstep(0.66, 0.72, h.miss) : smoothstep(0, 0.22, h.alertAge)));
     caption(ctx, near ? 'NEAR MISS. STILL SENDING.' : STAGES[h.stage]!.caption, '#f0ffcf', fresh);
     if (h.alertAge < 4) {
       const alert = STAGES[h.stage]!, colour = alert.at >= 2.1 ? PINK : CYAN;
       ctx.save(); ctx.globalAlpha = Math.min(1, h.alertAge * 6, (4 - h.alertAge) * 2);
-      ctx.translate(car.reduced ? 0 : -26 * (1 - smoothstep(0, 0.25, h.alertAge)), 0);
+      ctx.translate(-26 * (1 - smoothstep(0, 0.25, h.alertAge)), 0);
       panel(ctx, 93, 187, 239, 52, 'rgba(11, 20, 34, .91)', colour, 5);
       ctx.fillStyle = colour; ctx.fillRect(94, 198, 3, 29);
       text(ctx, alert.alert, 108, 203, 12, colour, 'left', 211);
@@ -121,8 +120,7 @@ function hud(ctx: CanvasRenderingContext2D, view: SceneView, car: CockpitView, h
   if (car.running || car.crashed) text(ctx, `ROUND ${m}×`, 873, 172, 9, '#eef2d6', 'right', undefined, MONO);
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'phonk', bpm: 132, tempoRise: 0.3, crash: 'shatter', music: 0.58 });
   const engine = engineSound(audio);
   const speed = spring(0), steering = spring(0), parked = spring(0);
@@ -189,7 +187,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (wrecked) {
         audio.fx('shatter', 0.85); audio.fx('thud', 0.8);
         hitStop = HIT_STOP; impactAge = 0;
-        if (!reduced) { headPitch.v += 90; headRoll.v -= 1.4; }
+        { headPitch.v += 90; headRoll.v -= 1.4; }
       } else audio.fx('thud', 0.35);
     }
     if (running && previous !== 'running' && !first) { alertAge = 0; dodged = null; tunnel = { k: -1, from: 0, to: -1 }; }
@@ -204,7 +202,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const { gear, rpm } = drivetrain(multiplier);
     if (driving && gear > lastGear && !first) {
       audio.fx('engine', 0.3); shiftAge = 0;
-      if (!reduced) headPitch.v += 60;
+      headPitch.v += 60;
     }
     lastGear = gear;
     const limited = driving && rpm >= 0.95;
@@ -225,7 +223,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       miss = { k: near.k, p: near.p };
     }
     // The camera sidesteps away from the intruder while the wheel jerks the other way.
-    const swerve = near && !reduced ? near.side * 0.45 * smoothstep(0.5, 0.66, near.p) * (1 - smoothstep(0.8, 1, near.p)) * live : 0;
+    const swerve = near ? near.side * 0.45 * smoothstep(0.5, 0.66, near.p) * (1 - smoothstep(0.8, 1, near.p)) * live : 0;
 
     stepSpring(speed, driving ? pace : 0, crashed ? 7 : secured !== null ? 3.5 : 2.5, 1, dt);
     stepSpring(parked, secured === null ? 0 : 1, 3, 1, dt);
@@ -233,8 +231,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(steering, steer, 8, 0.85, dt);
     const restingRoll = crashed && wrecked ? -0.12 : 0;
     if (first) settleSpring(headRoll, restingRoll);
-    stepSpring(headRoll, restingRoll + (reduced ? 0 : clamp(-steering.v * 0.07 - steering.x * Math.min(1, speed.x / 200) * 0.12 + swerve * 0.25, -0.18, 0.18)), 9, 0.65, dt);
-    stepSpring(headPitch, reduced ? 0 : clamp(-speed.v * 0.025, -4, 7), 11, 0.7, dt);
+    stepSpring(headRoll, restingRoll + (clamp(-steering.v * 0.07 - steering.x * Math.min(1, speed.x / 200) * 0.12 + swerve * 0.25, -0.18, 0.18)), 9, 0.65, dt);
+    stepSpring(headPitch, clamp(-speed.v * 0.025, -4, 7), 11, 0.7, dt);
     distance += Math.max(0, speed.x) * dt * 1.45;
     // Traffic eases to the lobby's pace instead of braking in one frame when a long round ends.
     cruise = ease(cruise, pace, 1.5);
@@ -261,15 +259,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     // Your own wreck or a dodged one stays until the tow truck wipes it during the next lobby.
     const aftermath = crashed ? 1 : 1 - smoothstep(0.3, 0.6, towAge);
     const wreck = wrecked ? aftermath : 0;
-    const jitter = reduced ? 0 : (Math.sin(time * 7.3) + 0.6 * Math.sin(time * 12.1 + 1)) / 1.6 * (0.02 + 0.12 * tension * tension) * live;
+    const jitter = (Math.sin(time * 7.3) + 0.6 * Math.sin(time * 12.1 + 1)) / 1.6 * (0.02 + 0.12 * tension * tension) * live;
     const ring = STAGES[stage]!.cue === 'phone' && driving && alertAge < 1.4 ? 1 : 0;
     const car: CockpitView = {
-      time, tension, speed: Math.max(0, speed.x), multiplier, gear, rpm: driving || idle ? revs : 0, limiter: limited && !reduced && limiter % 1 < 0.5,
-      shift: reduced ? 0 : 1 - clamp(shiftAge / 0.35, 0, 1), steering: steering.x + jitter - swerve, headRoll: headRoll.x, headPitch: headPitch.x,
-      crashAge, crashed, wreck, cashout: secured, running, reduced, cops, pulse: reduced ? (driving ? 0.5 : 0) : pulse, ring,
+      time, tension, speed: Math.max(0, speed.x), multiplier, gear, rpm: driving || idle ? revs : 0, limiter: limited && limiter % 1 < 0.5,
+      shift: 1 - clamp(shiftAge / 0.35, 0, 1), steering: steering.x + jitter - swerve, headRoll: headRoll.x, headPitch: headPitch.x,
+      crashAge, crashed, wreck, cashout: secured, running, cops, pulse: pulse, ring,
     };
     ctx.save();
-    if (!reduced) {
+    {
       const after = crashAge - IMPACT;
       const shake = crashed && wrecked ? (after < 0 ? 3 : 12 * Math.exp(-after * 6)) : (0.4 + 2.6 * tension * tension) * live;
       const punch = crashed && wrecked ? 0.1 * (impactAge < 0.3 ? 1 : Math.exp(-(impactAge - 0.3) * 7)) : 0;
@@ -279,10 +277,10 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(Math.sin(time * 73) * shake, Math.cos(time * 59) * shake * 0.65 + 2 * Math.sin(Math.PI * clamp(shiftAge / 0.12, 0, 1)));
     }
     drawRoad(ctx, {
-      time, distance, tension, steering: steering.x + jitter + swerve, wreck: wrecked ? smoothstep(0, IMPACT, crashAge) : 0, parked: parked.x, reduced, cars: traffic,
+      time, distance, tension, steering: steering.x + jitter + swerve, wreck: wrecked ? smoothstep(0, IMPACT, crashAge) : 0, parked: parked.x, cars: traffic,
       elapsed: roundTime, live, heli, rocket, tunnel, dodge: wrecked || aftermath <= 0 ? -1 : crashAge, aftermath,
     });
-    if (live > 0 && tension > 0.3 && !reduced) {
+    if (live > 0 && tension > 0.3) {
       const count = 20 + Math.round(deep * 16);
       for (let i = 0; i < count; i += 1) {
         const angle = noise(i * 3) * Math.PI * 2, u = ((streak + i * 69) % 480) / 480, r = 150 + u * 480;
@@ -291,14 +289,14 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       ctx.globalAlpha = 1;
     }
-    if (towAge < TOW && !reduced) drawTow(ctx, towAge / TOW, time);
+    if (towAge < TOW) drawTow(ctx, towAge / TOW, time);
     drawCockpit(ctx, car); drawDamage(ctx, car);
     if (wreck > 0 && crashed && crashAge >= IMPACT && crashAge < 0.75) {
-      ctx.fillStyle = `rgba(255, 204, 160, ${(1 - (crashAge - IMPACT) / 0.33) * (reduced ? 0.07 : 0.28)})`;
+      ctx.fillStyle = `rgba(255, 204, 160, ${(1 - (crashAge - IMPACT) / 0.33) * (0.28)})`;
       ctx.fillRect(-60, -60, 1080, 660);
     }
     if (towAge < TOW) {
-      ctx.fillStyle = `rgba(8, 10, 22, ${Math.sin(Math.PI * towAge / TOW) * (reduced ? 0.4 : 0.5)})`;
+      ctx.fillStyle = `rgba(8, 10, 22, ${Math.sin(Math.PI * towAge / TOW) * (0.5)})`;
       ctx.fillRect(-60, -60, 1080, 660);
     }
     ctx.restore();

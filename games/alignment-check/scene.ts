@@ -26,10 +26,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions {
-  /** QA only: drops the shake, hit-stop, punch, flash and jitter. */
-  reducedMotion?: boolean;
-}
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose?(): void;
@@ -55,9 +51,9 @@ const PINK = '#ffb4c2';
 const FALL_CUES: [number, Effect, number][] = [[0.3, 'whoosh', 0.4], [0.6, 'whistle', 0.4], [0.8, 'whoosh', 0.6], [1.3, 'whoosh', 0.8]];
 const INSERT_CUES: [number, Effect, number][] = [[0.05, 'whoosh', 1], [0.15, 'squeak', 0.3], [0.45, 'pop', 0.15]];
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait('ALIGNMENT CHECK', [330, 170, 430, 300], '#8fe388');
-  const reduced = options.reducedMotion === true;
+
   const audio = pageAudio({ style: 'phonk', crash: 'scratch', music: 0.55 });
   const city: City = createCity();
   const roof: Roof = createRoof();
@@ -179,7 +175,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         audio.crash('scratch', true);
         return;
       }
-      shake = reduced ? 0 : 0.15;
+      shake = 0.15;
       audio.crash();
       return;
     }
@@ -253,7 +249,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (crashT >= 0) crashT += dt;
     if (harmlessT >= 0) harmlessT += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
     const fresh = previous === null;
@@ -302,7 +298,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tev = talk.events;
     const talking = { suspect: false, lead: false, heavy: false };
     for (const b of talk.bubbles) if (b.age < 1.6 && b.age < b.life && b.who !== 'hq') talking[b.who] = true;
-    stepCrew(crew, { phase: view.phase, running, multiplier, rung, tension, time, reduced, wind, said: tev.said, talking, escaped: secured !== null, escapeT, crashT, aftermathT, harmlessT, overtime: talk.overtimeK, actStage: running && !secured ? act.stage : 0 }, dt);
+    stepCrew(crew, { phase: view.phase, running, multiplier, rung, tension, time, wind, said: tev.said, talking, escaped: secured !== null, escapeT, crashT, aftermathT, harmlessT, overtime: talk.overtimeK, actStage: running && !secured ? act.stage : 0 }, dt);
     const ev = crew.events;
     for (const d of ev.drops) spawnLoose(roof, d);
     if (ev.pickup) roof.loose = roof.loose.filter((l) => l.kind !== 'clipboard');
@@ -310,10 +306,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     roof.chair = running && !secured && act.stage === 5 ? 'out' : 'bulkhead';
     roof.pizzaBox = running && !secured && view.elapsed >= 79000;
     const cam = cameraFor(crew.thrown, crashT);
-    stepRoof(roof, { running, tension, time, reduced, wind, rung, overtime: talk.overtimeK, escaped: secured !== null, escapeT, crashT, aftermathT, camY: cam.y, aftermath: crew.thrown !== null && crashT >= crew.thrown.times.back }, dt);
+    stepRoof(roof, { running, tension, time, wind, rung, overtime: talk.overtimeK, escaped: secured !== null, escapeT, crashT, aftermathT, camY: cam.y, aftermath: crew.thrown !== null && crashT >= crew.thrown.times.back }, dt);
     const rev = roof.events;
     const a = anchors(crew);
-    stepCity(city, { running, crashed, multiplier, tension, time, elapsed: view.elapsed, reduced, escaped: secured !== null, target: a.suspectHead, crashT, thrown: crew.thrown, camY: cam.y }, dt);
+    stepCity(city, { running, crashed, multiplier, tension, time, elapsed: view.elapsed, escaped: secured !== null, target: a.suspectHead, crashT, thrown: crew.thrown, camY: cam.y }, dt);
     const cev = city.events;
 
     for (const l of tev.said) {
@@ -341,11 +337,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     else if (ev.steam === 'puff') fx('hiss', 0.4);
     if (ev.stomp > 0) {
       fx('stomp', ev.stomp);
-      if (!reduced) shake = Math.max(shake, 0.25 * ev.stomp);
+      shake = Math.max(shake, 0.25 * ev.stomp);
     }
     if (ev.camera) {
       fx('camera', 1);
-      if (!reduced) flash = Math.max(flash, 0.35);
+      flash = Math.max(flash, 0.35);
     }
     if (ev.phoneOut) fx('notify', 0.6);
     if (ev.chat) fx('notify', 0.25);
@@ -355,13 +351,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (ev.load) speak('heavy', THROW_LINES.sayLess, 0.9);
     if (ev.hitstop) {
       // The freeze-frame: punch, shake, motivated flash, record scratch.
-      if (!reduced) {
+      {
         freeze = FREEZE_S;
         slow = SLOW_S;
         flash = 0.35;
       }
       punch.v = 9;
-      shake = reduced ? 0 : 1;
+      shake = 1;
       if (canCue) audio.crash('scratch');
     }
     if (ev.release) {
@@ -377,7 +373,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (rev.door === 'open') fx('door', 1);
     if (rev.door === 'shut') {
       fx('clang', 0.5);
-      if (!reduced) shake = Math.max(shake, 0.5);
+      shake = Math.max(shake, 0.5);
     }
     if (rev.pigeonsOff) fx('squeak', 0.3);
     if (rev.gust > 0) fx('hiss', rev.gust);
@@ -467,9 +463,9 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     // ---- The picture, in depth order, under the camera ----
     ctx.save();
-    const simmer = running && !reduced && !crew.thrown && !secured ? tension * tension * 1.5 : 0;
-    if (!reduced && (shake > 0 || simmer > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + simmer), Math.cos(time * 70) * 5 * shake);
-    if (!reduced && punch.x > 0.005) {
+    const simmer = running && !crew.thrown && !secured ? tension * tension * 1.5 : 0;
+    if ((shake > 0 || simmer > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + simmer), Math.cos(time * 70) * 5 * shake);
+    if (punch.x > 0.005) {
       const k = 1 + 0.07 * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
       ctx.scale(k, k);
@@ -484,11 +480,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.save();
     ctx.translate(-cam.x, -cam.y);
     drawRoofBack(ctx, roof, time);
-    drawMilitia(ctx, crew.heavy, crew, time, reduced);
-    drawMilitia(ctx, crew.lead, crew, time, reduced);
+    drawMilitia(ctx, crew.heavy, crew, time);
+    drawMilitia(ctx, crew.lead, crew, time);
     const beam = beamFor(crew, time);
     if (beam) drawBeam(ctx, beam);
-    drawSuspect(ctx, crew, time, reduced);
+    drawSuspect(ctx, crew, time);
     drawThrown(ctx, crew, time);
     drawRoofFront(ctx, roof, time);
     drawAir(ctx, roof);
@@ -505,7 +501,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (crashT < crew.thrown.times.insert) {
         ctx.fillStyle = 'rgba(4,4,8,0.92)';
         ctx.fillRect(0, 0, 960, 540);
-      } else drawInsert(ctx, city, crashT - crew.thrown.times.insert, reduced);
+      } else drawInsert(ctx, city, crashT - crew.thrown.times.insert);
     }
     // The vignette.
     const vig = ctx.createRadialGradient(480, 270, 260, 480, 270, 640);

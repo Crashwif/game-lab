@@ -102,7 +102,6 @@ export interface RoofDrive {
   running: boolean;
   tension: number;
   time: number;
-  reduced: boolean;
   wind: number;
   rung: number;
   /** −1 before 30x. */
@@ -166,7 +165,7 @@ export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
   r.fan = (r.fan + dt * (2 + 10 * drive.wind)) % (Math.PI * 2);
   r.pages = drive.wind * (0.5 + 0.5 * Math.sin(drive.time * (3 + 9 * drive.wind)));
   const tick = Math.floor(drive.time * 18);
-  r.bulb = drive.tension > 0.9 && !drive.reduced && noise(tick) > 0.74 - 0.05 * clamp(drive.overtime, 0, 4) ? 0.4 + 0.6 * noise(tick + 3) : 0;
+  r.bulb = drive.tension > 0.9 && noise(tick) > 0.74 - 0.05 * clamp(drive.overtime, 0, 4) ? 0.4 + 0.6 * noise(tick + 3) : 0;
   // The door on the escape clock, then the pigeons' returns.
   if (drive.escapeT >= 0) {
     const was = r.doorTarget;
@@ -175,7 +174,7 @@ export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
       ev.door = was ? 'shut' : 'open';
       if (!was) {
         r.exit = 1;
-        r.wash = drive.reduced ? 0.18 : 0.35;
+        r.wash = 0.35;
       }
     }
     const i = r.pigeons.findIndex((p) => p.state === 'away');
@@ -274,7 +273,7 @@ export function stepRoof(r: Roof, drive: RoofDrive, dt: number): void {
   }
   r.loose = r.loose.filter((l) => !l.rest || l.mode === 'skid');
   // Fall streaks, capped at 12.
-  if (drive.camY > 1 && !drive.reduced && (r.streakClock += dt) > 0.035 && r.streaks.length < 12) {
+  if (drive.camY > 1 && (r.streakClock += dt) > 0.035 && r.streaks.length < 12) {
     r.streakClock = 0;
     r.streaks.push({ x: 560 + noise(drive.time * 7.3) * 380, y: drive.camY + noise(drive.time * 13.1) * 540, len: 12 + drive.camY * 0.05, age: 0 });
   }

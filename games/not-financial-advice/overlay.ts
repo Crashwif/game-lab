@@ -139,7 +139,7 @@ export function floodOverlay(o: Overlay, quiet: boolean): void {
   o.cursor = 6;
 }
 
-export interface OverlayDrive { running: boolean; multiplier: number; tension: number; still?: boolean; }
+export interface OverlayDrive { running: boolean; multiplier: number; tension: number; }
 
 export function stepOverlay(o: Overlay, drive: OverlayDrive, dt: number): void {
   stepSpring(o.follower, followerCount(drive.multiplier), 6, 0.85, dt);
@@ -155,7 +155,7 @@ export function stepOverlay(o: Overlay, drive: OverlayDrive, dt: number): void {
     o.cursor += 1;
   }
   // He says it faster as it climbs (an integrated phase, so the rate change never jumps it), and stops at the crash.
-  if (!drive.still) o.chant += dt * (3 + 14 * drive.tension);
+  o.chant += dt * (3 + 14 * drive.tension);
   o.chantA += ((drive.running && drive.tension > 0.15 ? 1 : 0) - o.chantA) * (1 - Math.exp(-dt * 8));
   if (o.leaving && !o.gone) {
     // A short walk-up (about 0.3 s) to a stroll; the feet are planted by distance, so they never skate.

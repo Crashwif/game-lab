@@ -82,7 +82,6 @@ export interface FamilyDrive {
   running: boolean;
   tension: number;
   time: number;
-  reduced: boolean;
   /** Rick said something this frame. */
   rickLine: boolean;
   /** Grandma has said grace: heads down, phones away, civility back. */
@@ -136,7 +135,7 @@ export function stepFamily(f: Relative[], drive: FamilyDrive, dt: number): Famil
       r.glass = 'cracked';
       ev.crack = true;
     }
-    r.twitch = heat > 0.45 && !drive.reduced ? Math.max(0, Math.sin(drive.time * 23 + r.seed)) * heat : 0;
+    r.twitch = heat > 0.45 ? Math.max(0, Math.sin(drive.time * 23 + r.seed)) * heat : 0;
     const rand = () => noise(drive.time * 131 + r.seed + r.sweat.length);
     if (heat > 0.5 && !drive.grace) {
       r.sweatClock += dt;
@@ -381,13 +380,13 @@ function drawTorso(ctx: CanvasRenderingContext2D, r: Relative, heat: number, tim
   ctx.stroke();
 }
 
-function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, reduced: boolean): void {
+function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): void {
   const heat = clamp(r.heat.x, 0, 1);
   const bow = clamp(r.bow.x, 0, 1);
   const shock = clamp(r.shock.x, 0, 1.2);
   /** The take: a nod or recoil of a few pixels, the brows up and the pupils pinned while it lasts. */
   const jolt = clamp(Math.abs(r.kick.x) / 2.5, 0, 1);
-  const jit = reduced ? 0 : 3 * heat * heat;
+  const jit = 3 * heat * heat;
   const jx = (noise(Math.floor(time * 42) + r.seed) - 0.5) * 2 * jit;
   const jy = (noise(Math.floor(time * 38) + r.seed + 9) - 0.5) * 2 * jit;
   ctx.save();
@@ -504,7 +503,7 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
   // Eyes: his go wide; hers roll up until only the whites show, with an arc on each of Rick's lines.
   const roll = r.kind === 'niece' ? smoothstep(0.05, 0.85, heat) * (1 - shock) : 0;
   const u = clamp(r.takeAge / 0.6, 0, 1);
-  const arc = r.kind === 'niece' && !reduced && u < 1 ? Math.sin(Math.PI * u) : 0;
+  const arc = r.kind === 'niece' && u < 1 ? Math.sin(Math.PI * u) : 0;
   for (const side of [-1, 1]) {
     if (closed || blinking) {
       ink(ctx, 2.5);
@@ -648,11 +647,11 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number, redu
   ctx.restore();
 }
 
-export function drawRelative(ctx: CanvasRenderingContext2D, r: Relative, time: number, reduced: boolean): void {
+export function drawRelative(ctx: CanvasRenderingContext2D, r: Relative, time: number): void {
   ctx.save();
   ctx.translate(r.x, SEAT_Y);
   drawTorso(ctx, r, clamp(r.heat.x, 0, 1), time);
-  drawHead(ctx, r, time, reduced);
+  drawHead(ctx, r, time);
   ctx.restore();
 }
 
@@ -674,12 +673,12 @@ export function resetGran(g: Gran): void {
   Object.assign(g, createGran());
 }
 
-export function stepGran(g: Gran, awake: boolean, dt: number, reduced = false): void {
+export function stepGran(g: Gran, awake: boolean, dt: number): void {
   g.awake = awake;
   g.upAge = awake ? g.upAge + dt : 0;
   // Two 4° shakes of the cane once it is up.
   const s = g.upAge - 0.35;
-  g.shake = !reduced && s > 0 && s < 0.7 ? 0.07 * Math.sin((s / 0.35) * Math.PI * 2) : 0;
+  g.shake = s > 0 && s < 0.7 ? 0.07 * Math.sin((s / 0.35) * Math.PI * 2) : 0;
   stepSpring(g.stand, awake ? 1 : 0, 7, 0.6, dt);
   if (!awake) {
     g.snoreClock += dt;
@@ -971,7 +970,7 @@ function drawCan(ctx: CanvasRenderingContext2D, x: number, y: number, rot: numbe
 }
 
 /** Rick from behind: the camo cap and the strap, a sunburnt neck, the blaze vest over flannel, a beer and a pointing finger. */
-export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, reduced: boolean): void {
+export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number): void {
   const g = clamp(r.gesture.x, 0, 1);
   const beer = clamp(r.beer.x, 0, 1.2);
   const tilt = r.tilt.x;
@@ -1060,7 +1059,7 @@ export function drawRick(ctx: CanvasRenderingContext2D, r: Rick, time: number, r
   ctx.rotate(tilt * 0.35 + 0.25 * turn);
   // Facing the table his left cheek shows; turned to the truck, his right, in profile.
   const side = turn > 0.5 ? 1 : -1;
-  if (r.talk > 0 && !reduced) ctx.translate(0, Math.sin(time * 5) * 1.5);
+  if (r.talk > 0) ctx.translate(0, Math.sin(time * 5) * 1.5);
   ctx.fillStyle = '#e0a080';
   ink(ctx, 2.5);
   ctx.beginPath();

@@ -8,7 +8,6 @@ export interface ApplicantPose {
   x: number;
   y: number;
   scale: number;
-  reduced: boolean;
   mode: 'idle' | 'scan' | 'dance' | 'escape' | 'boxed';
   progress: number;
   /** Cycle within the appointment; reactions and stamps belong to its first cycle. */
@@ -41,7 +40,7 @@ const ease = (n: number): number => { const t = clamp(n); return t * t * (3 - 2 
 /** First-cycle acting: the opening glance and forced grin, the dental smile, and a flinch as each stamp lands. */
 function stageReaction(pose: ApplicantPose): { active: boolean; grin: number; recoil: number; glance: number } {
   if ((pose.mode !== 'scan' && pose.mode !== 'boxed') || pose.stage > 2 || pose.level > 2) return { active: false, grin: 0, recoil: 0, glance: 0 };
-  if (pose.reduced) return { active: true, grin: pose.stage < 2 ? 0.55 : 0, recoil: 0, glance: 0 };
+
   const a = clamp(pose.action);
   // The crash freezes the round clock, so a reaction caught mid-beat relaxes as he is packed instead of holding.
   const weight = (pose.cycle ?? 0) === 0 ? 1 - (pose.mode === 'boxed' ? clamp(pose.progress) : 0) : 0;
@@ -327,10 +326,10 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, rig: Rig): voi
 
   if (fear > 0.28 && !escaping) {
     // The drip phase is integrated by the scene; it grows in rather than appearing at a threshold.
-    const drop = pose.reduced ? 0.45 : (pose.sweat ?? rig.t * 0.9) % 1;
+    const drop = (pose.sweat ?? rig.t * 0.9) % 1;
     const grow = ease((fear - 0.28) / 0.08);
     ctx.save();
-    ctx.globalAlpha = alpha * (pose.reduced ? 1 : clamp(Math.min(drop, 1 - drop) * 7));
+    ctx.globalAlpha = alpha * (clamp(Math.min(drop, 1 - drop) * 7));
     ctx.translate(-36, -10 + drop * 27);
     ctx.scale(grow, grow);
     shape(ctx, 'M0 -7 Q-6 1 -4 4 Q0 8 4 4 Q6 1 0 -7Z', '#79d7d2', 1.3);
@@ -340,8 +339,8 @@ function face(ctx: CanvasRenderingContext2D, pose: ApplicantPose, rig: Rig): voi
   ctx.restore();
 }
 
-function foil(ctx: CanvasRenderingContext2D, time: number, reduced: boolean): void {
-  const flutter = reduced ? 0 : Math.sin(time * 12) * 4;
+function foil(ctx: CanvasRenderingContext2D, time: number): void {
+  const flutter = Math.sin(time * 12) * 4;
   const silver = ctx.createLinearGradient(-55, -135, 52, -65);
   silver.addColorStop(0, '#d5e6dc');
   silver.addColorStop(0.28, '#ffffed');
@@ -358,18 +357,18 @@ function foil(ctx: CanvasRenderingContext2D, time: number, reduced: boolean): vo
 
 /** Unblended pose targets; all transforms remain in applicant space. */
 function rigFor(pose: ApplicantPose) {
-  const t = pose.reduced ? 0 : pose.time;
+  const t = pose.time;
   const fear = clamp(pose.tension);
   const dancing = pose.mode === 'dance' || (pose.mode === 'boxed' && pose.stage === 4);
   const escaping = pose.mode === 'escape';
   const boxed = pose.mode === 'boxed';
   const scanning = pose.mode === 'scan' || (pose.mode === 'boxed' && pose.stage !== 4);
   const reaction = stageReaction(pose);
-  const cycle = pose.reduced ? 0 : clamp(pose.action) * TAU;
+  const cycle = clamp(pose.action) * TAU;
   const packed = boxed ? clamp(pose.progress) : 0;
   // The escape follows distance along the floor. Both feet start under the hips (one mid-stance, one mid-swing),
   // so only the lift ramps in and out; the planted foot never slides.
-  const travel = escaping && !pose.reduced ? Math.abs(pose.walk ?? 0) : 0;
+  const travel = escaping ? Math.abs(pose.walk ?? 0) : 0;
   const heading = Math.sign(pose.walk ?? 0) || -1;
   const stride = pose.stride ?? 92;
   const gait = escaping ? Math.min(ease(travel / 10), ease((1 - clamp(pose.progress)) / 0.12)) : 0;
@@ -439,15 +438,15 @@ function rigFor(pose: ApplicantPose) {
 
   // Secondary motion lives in the rig, so appointment and phase blends cover it too.
   const blink = (t % 5.6 - 4.8) / 0.16;
-  let lid = pose.reduced || boxed || blink <= 0 || blink >= 1 ? 0 : clamp((1 - Math.abs(blink * 2 - 1)) * 1.6);
+  let lid = boxed || blink <= 0 || blink >= 1 ? 0 : clamp((1 - Math.abs(blink * 2 - 1)) * 1.6);
   // "Blink like you mean it": a forced triple blink in the opening scan.
   const forced = (pose.action - 0.4) / 0.15;
-  if (!pose.reduced && pose.mode === 'scan' && pose.level === 0 && (pose.cycle ?? 0) === 0 && forced > 0 && forced < 1) {
+  if (pose.mode === 'scan' && pose.level === 0 && (pose.cycle ?? 0) === 0 && forced > 0 && forced < 1) {
     lid = clamp((1 - Math.abs(forced * 3 % 1 * 2 - 1)) * 1.8);
   }
   const relax = scanning || boxed ? 0 : 1 - ease((fear - 0.25) / 0.14);
   const look = escaping ? 4 : boxed ? -1 : reaction.active ? reaction.glance * 5 - reaction.recoil * 2 : scanning ? Math.sin(t * 0.6) * 1.3 : Math.sin(t * 0.9) * 2.5;
-  const hair = pose.reduced ? 0 : Math.sin(t * 3.1 - 0.5) * (dancing ? 3 : 0.8);
+  const hair = Math.sin(t * 3.1 - 0.5) * (dancing ? 3 : 0.8);
   const badge = Math.sin(t * (dancing ? 6.3 : 2.1) - 0.8) * (dancing ? 0.23 : 0.045 + fear * 0.025);
   return { t, fear, dancing, escaping, hip, chest, headX, headY, headAngle, leftShoulder, rightShoulder, left, right, open, feet, lid, relax, look, hair, badge };
 }
@@ -470,7 +469,7 @@ export function blendRig(from: Rig, to: Rig, k: number): Rig {
 /** Appointment-age blending is seek deterministic, including repeated late audits. */
 export function applicantRig(pose: ApplicantPose): Rig {
   const current = rigFor(pose);
-  if (pose.reduced || pose.mode === 'idle' || pose.mode === 'escape') return current;
+  if (pose.mode === 'idle' || pose.mode === 'escape') return current;
   const d = directionAt(pose.time * 1000);
   if (d.serial === 0 || d.age >= .35) return current;
   const prior = directionAt((d.seconds - d.age) * 1000 - .0001);
@@ -520,7 +519,7 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
   badge(ctx, rig.badge, stamps > 2 ? newest(2) : -1);
   // Stamped labels ride on the hoodie through the dance, the escape and the crate.
   if (stamps > 0) sticker(ctx, CHECKS[0].stamp, 1, -66, -0.09, 138, 33, 16, newest(0));
-  if (escaping) foil(ctx, t, pose.reduced);
+  if (escaping) foil(ctx, t);
   ctx.restore();
   arm(ctx, rightShoulder, right, 1, open, false);
   if (stamps > 1) {
@@ -544,8 +543,8 @@ export function drawApplicant(ctx: CanvasRenderingContext2D, pose: ApplicantPose
 }
 
 /** The witness remains unimpressed by the applicant's verification ordeal. */
-export function drawDog(ctx: CanvasRenderingContext2D, x: number, y: number, time: number, tension: number, reduced: boolean): void {
-  const t = reduced ? 0 : time;
+export function drawDog(ctx: CanvasRenderingContext2D, x: number, y: number, time: number, tension: number): void {
+  const t = time;
   const bob = Math.sin(t * 1.4) * 0.5;
   ctx.save();
   ctx.translate(x, y + bob);

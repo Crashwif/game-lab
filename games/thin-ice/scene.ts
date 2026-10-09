@@ -26,11 +26,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake and twinkle. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -111,7 +106,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'SHE IS UNLIQUIDATABLE';
 }
 
-function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Flake[], reduced: boolean): void {
+function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Flake[]): void {
   const sky = ctx.createLinearGradient(0, 0, 0, ICE_FAR_Y);
   sky.addColorStop(0, '#0b1a3a');
   sky.addColorStop(0.55, '#24406f');
@@ -120,7 +115,7 @@ function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Flake[], re
   ctx.fillRect(0, 0, W, ICE_FAR_Y);
   ctx.fillStyle = '#ffffff';
   for (const [i, s] of stars.entries()) {
-    ctx.globalAlpha = reduced ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * s.k + i));
+    ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * s.k + i));
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -311,8 +306,7 @@ function drawCaption(ctx: CanvasRenderingContext2D, caption: string, scale: numb
 /** The top of a skater's head on screen, from the neck drawSkater returns and her lean: where a tag points. */
 const headTop = (neck: Point, lean: number, scale: number): Point => ({ x: neck.x + (7 * Math.cos(lean) + 31 * Math.sin(lean)) * scale, y: neck.y + (7 * Math.sin(lean) - 31 * Math.cos(lean)) * scale });
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'synthwave', crash: 'shatter' });
   const ice: IceState = createIce();
   const skater: SkaterState = createSkater();
@@ -397,7 +391,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (ghost !== null && victim === ghost) iceBroke(ghost);
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       slowRate = SLOW_RATE;
@@ -712,7 +706,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         // It stops short: she flinches, and the moment hangs for a beat.
         skater.brace.v += 9;
         skater.lean.v -= 1.2;
-        if (!reduced) {
+        {
           slow = 0.12;
           slowRate = 0.35;
         }
@@ -778,8 +772,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
-    if (!reduced && punch.x > 0.005 && ice.shattered) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (punch.x > 0.005 && ice.shattered) {
       // The camera punches in on the hole and eases back out.
       const k = 1 + 0.1 * clamp(punch.x, 0, 1.2);
       const px = clamp(ice.shatterAt.x - cameraX, 0, W);
@@ -788,7 +782,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.scale(k, k);
       ctx.translate(-px, -py);
     }
-    drawSky(ctx, time, stars, reduced);
+    drawSky(ctx, time, stars);
     drawMountains(ctx, cameraX);
     drawShore(ctx, cameraX);
     if (exitAt !== null && exitSign.x > 0.02) drawExitSign(ctx, exitAt - cameraX, clamp(exitSign.x, 0, 1.3));
@@ -883,7 +877,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     // The drone over the word: its verdict stays readable while it flies round to the side.
-    drawEngine(ctx, engine, engineDrive, reduced);
+    drawEngine(ctx, engine, engineDrive);
     // Snow in screen space, drifting against the skating direction.
     ctx.fillStyle = '#ffffff';
     for (const f of flakes) {

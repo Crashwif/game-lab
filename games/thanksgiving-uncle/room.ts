@@ -190,7 +190,6 @@ export interface RoomDrive {
   multiplier: number;
   tension: number;
   time: number;
-  reduced: boolean;
 }
 
 /** The slow, log-paced driver for long rounds: 0 at 1×, a third at 10×, all the way at 1000×. */
@@ -422,8 +421,8 @@ function stepTruck(r: Room, drive: RoomDrive, dt: number): void {
       t.creep = Math.max(t.creep, depth(drive.multiplier));
     }
     t.blink = Math.max(0, t.blink - dt);
-    // Reduced motion holds the headlight beat steady instead of flashing it.
-    t.lights = t.blink > 0 ? drive.reduced || t.blink % 0.3 > 0.15 : live && a > 0.8 && !drive.reduced && Math.sin(drive.time * 14) > 0;
+    // The headlights flash on the beat.
+    t.lights = t.blink > 0 ? t.blink % 0.3 > 0.15 : live && a > 0.8 && Math.sin(drive.time * 14) > 0;
     stepSpring(t.y, PARKED.y + CREEP.y * t.creep, 3, 1, dt);
     stepSpring(t.scale, PARKED.scale + CREEP.scale * t.creep, 3, 1, dt);
   } else {
@@ -590,12 +589,12 @@ export function blend(a: string, b: string, t: number): string {
  * The truck, seen from the front, about the bottom centre of its bumper: lifted on big tyres, a light bar, a flag
  * on the antenna, DALE on the plate, and Dale himself at the wheel with his paws up, more worked up with `agitation`.
  */
-function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduced: boolean): void {
+function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number): void {
   ctx.save();
   ctx.translate(t.x.x, t.y.x);
   ctx.scale(t.scale.x, t.scale.x);
   const a = t.agitation;
-  const bounce = t.state !== 'parked' || reduced ? 0 : Math.sin(time * 18) * 2 * a;
+  const bounce = t.state !== 'parked' ? 0 : Math.sin(time * 18) * 2 * a;
   ctx.translate(0, bounce);
   ink(ctx, 3);
   // Tyres, then the lifted body.
@@ -699,7 +698,7 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
   ctx.lineTo(86, -146);
   ctx.closePath();
   ctx.clip();
-  drawDale(ctx, 0, -158, t, time, reduced);
+  drawDale(ctx, 0, -158, t, time);
   ctx.restore();
   ctx.fillStyle = '#2a2a30';
   ink(ctx, 2.5);
@@ -708,7 +707,7 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
   ctx.fill();
   ctx.stroke();
   for (let x = -56; x <= 56; x += 28) {
-    ctx.fillStyle = t.lights && !reduced && Math.sin(time * 20 + x) > 0 ? '#fff6b0' : '#d9dde3';
+    ctx.fillStyle = t.lights && Math.sin(time * 20 + x) > 0 ? '#fff6b0' : '#d9dde3';
     ctx.beginPath();
     ctx.arc(x, -221, 4.5, 0, Math.PI * 2);
     ctx.fill();
@@ -719,7 +718,7 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
   ctx.moveTo(92, -214);
   ctx.lineTo(96, -300);
   ctx.stroke();
-  const wave = reduced ? 0 : Math.sin(time * 6) * 4;
+  const wave = Math.sin(time * 6) * 4;
   ctx.fillStyle = '#c4302b';
   ink(ctx, 2);
   ctx.beginPath();
@@ -749,14 +748,14 @@ function drawTruck(ctx: CanvasRenderingContext2D, t: Truck, time: number, reduce
  * Dale: a brown dog at the wheel, paws up, tongue out, ears flapping harder the more worked up he is. Every time
  * Rick speaks his ears prick up and a paw taps the horn.
  */
-function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, t: Truck, time: number, reduced: boolean): void {
+function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, t: Truck, time: number): void {
   const agitation = t.agitation;
   const driving = t.state !== 'parked';
   const perk = t.perk < 0.8 ? Math.sin((Math.PI * t.perk) / 0.8) : 0;
-  const tap = reduced ? 0 : perk * Math.abs(Math.sin(t.perk * Math.PI * 5)) * 6;
+  const tap = perk * Math.abs(Math.sin(t.perk * Math.PI * 5)) * 6;
   ctx.save();
   ctx.translate(x, y);
-  const bob = reduced ? 0 : Math.sin(t.phase) * (2 + agitation * 5);
+  const bob = Math.sin(t.phase) * (2 + agitation * 5);
   ctx.translate(0, bob);
   ink(ctx, 2.5);
   // Wheel.
@@ -768,7 +767,7 @@ function drawDale(ctx: CanvasRenderingContext2D, x: number, y: number, t: Truck,
   // Ears, head, muzzle, eyes, tongue, collar.
   ctx.fillStyle = '#7a4a24';
   ink(ctx, 2.5);
-  const flap = reduced ? 0 : Math.sin(time * 15) * 8 * agitation;
+  const flap = Math.sin(time * 15) * 8 * agitation;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.ellipse(side * (30 + 3 * perk), -4 + flap * side - 10 * perk, 10, 22, side * (0.4 - 0.5 * perk), 0, Math.PI * 2);
@@ -1073,7 +1072,7 @@ function drawSideboard(ctx: CanvasRenderingContext2D, r: Room, time: number): vo
   ctx.restore();
 }
 
-function drawWindow(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
+function drawWindow(ctx: CanvasRenderingContext2D, r: Room, time: number): void {
   const W = WINDOW;
   const broken = r.truck.state !== 'parked';
   ctx.save();
@@ -1140,7 +1139,7 @@ function drawWindow(ctx: CanvasRenderingContext2D, r: Room, time: number, reduce
     ctx.fill();
   }
   ctx.restore();
-  drawTruck(ctx, r.truck, time, reduced);
+  drawTruck(ctx, r.truck, time);
   ctx.restore();
   // Frame, mullions, sill.
   ctx.strokeStyle = '#f7f3ea';
@@ -1247,18 +1246,18 @@ function drawRug(ctx: CanvasRenderingContext2D, r: Room): void {
   }
 }
 
-export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
+export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number): void {
   drawWalls(ctx);
   drawGalleryWall(ctx, r);
   drawSign(ctx, r);
-  drawWindow(ctx, r, time, reduced);
+  drawWindow(ctx, r, time);
   drawFloor(ctx);
   drawRug(ctx, r);
   drawSideboard(ctx, r, time);
 }
 
 /** The truck once it is through the wall, drawn after the table so its bumper sits in the room. */
-export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
+export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: number): void {
   if (r.truck.state === 'parked') return;
   const t = r.truck;
   // The tow strap from the bumper to the rug Dale has hooked, showing as the truck lands.
@@ -1276,7 +1275,7 @@ export function drawTruckInRoom(ctx: CanvasRenderingContext2D, r: Room, time: nu
   ctx.lineWidth = 4;
   ctx.stroke();
   ctx.restore();
-  drawTruck(ctx, t, time, reduced);
+  drawTruck(ctx, t, time);
   if (r.turkey.landed) {
     // Gravy down the hood, and the bird on it, riding it back.
     const h = hood(t);

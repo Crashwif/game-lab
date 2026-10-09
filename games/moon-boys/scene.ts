@@ -31,11 +31,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the camera shake and roll, the flashes, the hit-stop, the sweat and the sparks. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   /** Releases the WebGL context and stops listening to it; a new scene can be created afterwards. */
@@ -87,8 +82,7 @@ function popFor(outcome: Outcome, crashX100: number): [string, string] {
 
 const stageText = (boosters: boolean, core: boolean): string => (boosters ? 'STAGE 1 · FULL STACK' : core ? 'STAGE 2 · SNIPERS GONE' : 'STAGE 3 · JUST VIBES');
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Synthwave up the gravity well; the crash is a sad trombone.
   const audio = pageAudio({ style: 'synthwave', bpm: 116, tempoRise: 0.3, crash: 'trombone', music: 0.7 });
   const rumble = pageSound(audio);
@@ -204,7 +198,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   }
 
   function drawWorld(r: Renderer, view: SceneView, m: number, tension: number, labels: Label[], dt: number): void {
-    const flash = crashFlash(crash) * (reduced ? 0.35 : 1);
+    const flash = crashFlash(crash) * (1);
     if (outside(crash)) {
       const cam = studioCamera(crash);
       lookAt(viewMatrix, cam.eye, cam.target, [0, 1, 0]);
@@ -212,7 +206,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       perspective(projMatrix, fov, W / H, 0.1, 300);
       r.begin(viewMatrix, projMatrix, cam.eye, studioEnvironment(flash), time, fov);
       r.drawSky({ space: 0, studio: 1 });
-      drawStudio(crash, r, time, labels, reduced);
+      drawStudio(crash, r, time, labels);
       r.end();
       return;
     }
@@ -226,7 +220,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     centre[1] = Math.max(2, centre[1]);
     const az = 0.55 * Math.sin(time * 0.23 + 0.6);
     const pitch = -0.12 + 0.62 * dip.x;
-    const closeup = elapsed > 45 && !crash.active && !reduced ? Math.pow(Math.max(0, Math.sin((elapsed - 45) * Math.PI / 18)), 4) : 0;
+    const closeup = elapsed > 45 && !crash.active ? Math.pow(Math.max(0, Math.sin((elapsed - 45) * Math.PI / 18)), 4) : 0;
     // The chase pushes in as the tension climbs.
     const dist = (17 - 5 * tension) * (1 - 0.35 * closeup);
     const chaseEye = madd(centre, [Math.sin(az) * Math.cos(pitch), Math.sin(pitch), Math.cos(az) * Math.cos(pitch)], dist);
@@ -236,20 +230,20 @@ export function createScene(options: SceneOptions = {}): Scene {
     const orbitTarget: Vec3 = [0, 8.5, 0];
     let eye = lerp3(chaseEye, orbitEye, orbit.x);
     const target = lerp3(chaseTarget, orbitTarget, orbit.x);
-    if (!reduced && crash.active && crash.age > SNAP) {
+    if (crash.active && crash.age > SNAP) {
       const k = Math.max(0, 1 - (crash.age - SNAP) / 0.8);
       eye = add(eye, [Math.sin(time * 91) * 0.3 * k, Math.cos(time * 77) * 0.25 * k, 0]);
     }
-    if (!reduced && racing && !crash.active) {
+    if (racing && !crash.active) {
       const k = 0.02 + 0.06 * tension;
       eye = add(eye, [Math.sin(time * 37) * k, Math.cos(time * 29) * k, 0]);
     }
     eye[1] = Math.max(1.2, eye[1]);
     const forward = normalize(sub(target, eye));
-    const roll = reduced ? 0 : (rocket.swayX.v * 0.01 + 0.03 * tension * Math.sin(time * 1.7)) * (1 - orbit.x);
+    const roll = (rocket.swayX.v * 0.01 + 0.03 * tension * Math.sin(time * 1.7)) * (1 - orbit.x);
     const up = rotateAbout([0, 1, 0], forward, roll);
     lookAt(viewMatrix, eye, target, up);
-    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) - 4 * tension - 5 * clamp(punch.x, 0, 1.2);
+    const kick = 10 * Math.max(0, 1 - launchAge / 0.8) - 4 * tension - 5 * clamp(punch.x, 0, 1.2);
     const fov = ((66 + kick) * Math.PI) / 180;
     perspective(projMatrix, fov, W / H, 0.1, 1400);
     const right = normalize(cross(forward, up));
@@ -263,10 +257,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     const moonM = view.phase === 'running' ? m : crash.active ? crashX100 / 100 : 1;
     const placement = moonPlacement(centre, moonM);
     drawMoon(world, r, placement, cam, centre, labels);
-    const drawn = drawRocket(rocket, r, labels, time, reduced, reduced ? 0 : 0.04 + 0.14 * tension, view.stake === null);
+    const drawn = drawRocket(rocket, r, labels, time, 0.04 + 0.14 * tension, view.stake === null);
     lastEngine = drawn.engine;
     if (drawn.you) labels.push({ text: 'YOU', at: add(drawn.you, [1.7, 0.7, 0]), colour: '#c9f76b', size: orbit.x >= 0.5 ? 24 : 18 });
-    drawWires(world, r, drawn.nose, time, labels, reduced);
+    drawWires(world, r, drawn.nose, time, labels);
     drawCameraGags(world, r, cam, time, labels);
     if (flatSeen && rocket.alt > 20 && rocket.alt < 200) labels.push({ text: 'FLAT EARTH', at: [0, 0, 140], colour: '#8ff0ff', size: 22, far: true });
     r.end();
@@ -355,18 +349,18 @@ export function createScene(options: SceneOptions = {}): Scene {
       killRocket(rocket);
       rumble.twang();
       audio.fx('scream', 0.9);
-      if (!reduced) {
+      {
         freeze = FREEZE_S;
         slow = SLOW_S;
         punch.x = 1;
       }
     }
-    stepRocket(rocket, { racing: running && !crash.active, multiplier, tension, crashed }, dt, reduced);
-    stepWorld(world, multiplier, running && !crash.active, dt, reduced);
+    stepRocket(rocket, { racing: running && !crash.active, multiplier, tension, crashed }, dt);
+    stepWorld(world, multiplier, running && !crash.active, dt);
     for (const e of rocket.events) {
       if (e === 'boosters') { notice('SNIPERS DUMPED', 1.8, 0, 'kaching', 0.8); post(feed, 'dev', 'stage 1 separated (snipers)', 'news'); }
       if (e === 'core') { notice('BUNDLED', 1.5, 0, 'thud', 0.5); post(feed, 'rugdoctor', 'core stage sold · 60% of supply', 'news'); }
-      if (e === 'jeets') { if (!event) setEvent('JEETS LET GO', 1.3); post(feed, 'gm_ser', `${Math.round(6 + rocket.wave * 4)} holders let go`, 'leave'); audio.fx('boo', 0.4 + 0.4 * tension); if (rocket.wave > 3 && !reduced) audio.fx('scream', 0.35); }
+      if (e === 'jeets') { if (!event) setEvent('JEETS LET GO', 1.3); post(feed, 'gm_ser', `${Math.round(6 + rocket.wave * 4)} holders let go`, 'leave'); audio.fx('boo', 0.4 + 0.4 * tension); if (rocket.wave > 3) audio.fx('scream', 0.35); }
       if (e === 'bailed') { bailFlash = 1; post(feed, 'you', 'left the call (parachute)', 'leave'); audio.fx('zap', 0.8); }
     }
     for (const e of world.events) {
@@ -401,7 +395,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The beat of the climb, ticking from 1.2 Hz up to 2.4 Hz with the tension, until you bail.
     const beatWas = Math.floor(beat / (Math.PI * 2));
     beat += dt * (running ? 7.5 * (1 + tension) : crashed ? 6 : 1.2);
-    if (running && !crash.active && !secured && Math.floor(beat / (Math.PI * 2)) !== beatWas && !reduced) audio.fx('tick', 0.25 + 0.4 * tension);
+    if (running && !crash.active && !secured && Math.floor(beat / (Math.PI * 2)) !== beatWas) audio.fx('tick', 0.25 + 0.4 * tension);
     if (running && !crash.active) audio.milestone(RUNGS.filter((r) => multiplier >= r).length);
     audio.update(view.phase, secured ? 0.1 : tension);
     rumble.update(rocket.thrust, (running || crash.active) && !outside(crash), tension);
@@ -439,20 +433,20 @@ export function createScene(options: SceneOptions = {}): Scene {
       drawFallback(ctx, multiplier, running, crash.active ? crash.age : null, time, secured !== null);
     }
 
-    const whiteout = crashFlash(crash) * (reduced ? 0.35 : 1);
+    const whiteout = crashFlash(crash) * (1);
     if (whiteout > 0.01) {
       ctx.fillStyle = `rgba(255,252,246,${Math.min(1, whiteout)})`;
       ctx.fillRect(0, 0, W, H);
     }
     const beatGlow = Math.pow(Math.max(0, Math.sin(beat)), 6);
-    if (!outside(crash)) drawVignette(ctx, running ? tension : 0, reduced ? 0 : beatGlow);
+    if (!outside(crash)) drawVignette(ctx, running ? tension : 0, beatGlow);
     if (r) drawLabels(ctx, labels, r.viewProj);
     if (!outside(crash)) drawFeed(ctx, feed);
     if (!outside(crash)) {
       const sus = Math.min(100, susGained + 8 * Math.log2(running ? multiplier : 1));
-      drawPanel(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, running, holders: headline(running ? multiplier : 1, outcome !== null) + (running ? aboard(rocket) : 0), fuel: running ? 0.05 + 0.95 / multiplier : outcome ? 0 : 1, sus: outcome ? 100 : sus, stage: outcome ? 'STAGE: RUGGED' : stageText(rocket.boosters.attached, rocket.core.attached), time, reduced });
+      drawPanel(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, running, holders: headline(running ? multiplier : 1, outcome !== null) + (running ? aboard(rocket) : 0), fuel: running ? 0.05 + 0.95 / multiplier : outcome ? 0 : 1, sus: outcome ? 100 : sus, stage: outcome ? 'STAGE: RUGGED' : stageText(rocket.boosters.attached, rocket.core.attached), time });
     }
-    if (bailFlash > 0.01 && !reduced) {
+    if (bailFlash > 0.01) {
       ctx.fillStyle = `rgba(201,247,107,${0.3 * bailFlash})`;
       ctx.fillRect(0, 0, W, H);
     }
@@ -465,7 +459,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     if (view.phase === 'betting' && !outcome) memeText(ctx, "MOM'S BACKYARD SPACEPORT · $MOONBOYS", W / 2, 82, 18, '#ffd0dc', 'center');
     else if (running && view.stake === null) memeText(ctx, "WATCHING FROM MOM'S PORCH", W / 2, 84, 17, '#ffd0dc', 'center');
-    if (launchAge < 1.6 && running && !reduced) {
+    if (launchAge < 1.6 && running) {
       ctx.save();
       ctx.globalAlpha = clamp((1.6 - launchAge) / 0.4, 0, 1);
       ctx.translate(W / 2, H / 2 + 20);

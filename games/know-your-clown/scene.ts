@@ -14,7 +14,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 const CUES: Effect[] = ['beep', 'camera', 'thud', 'ratchet', 'beep', 'beep', 'ratchet', 'thud'];
@@ -38,10 +37,8 @@ export function punchline(view: SceneView, d: Direction, accepted: number | null
 }
 
 /** State comes from the SDK shell; the machinery is an illustration of the current round. */
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'techno', bpm: 160, music: .48, effects: .8, crash: 'slam' });
-  const transcript = typeof document === 'undefined' ? null : document.querySelector<HTMLOutputElement>('#inspection');
   let previous: SceneView['phase'] | null = null;
   let lastElapsed = 0;
   let lastNow: number | null = null;
@@ -79,7 +76,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const leftCrash = previous === 'crashed' && view.phase !== 'crashed';
     const restarted = view.phase === 'betting' && previous !== 'betting' || leftCrash
       || view.phase === 'running' && previous === 'running' && view.elapsed + 1000 < lastElapsed;
-    if (leftCrash && last && !gap && !reduced) { departing = last; entry = 0; }
+    if (leftCrash && last && !gap) { departing = last; entry = 0; }
     if (restarted) reset();
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
@@ -107,7 +104,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // A seek enters its current cue window; it never replays the missed audit or a burst of sounds.
     const quarter = Math.floor(d.action * 4);
     const cue = `${d.serial}:${d.cycle}:${quarter}`;
-    const stamps = stampsAt(d, reduced);
+    const stamps = stampsAt(d);
     const jolt = joltAt(d.seconds);
     if (running && !fresh && !gap && !restarted && !escaped) {
       if (d.serial !== stageSerial) audio.fx('buzz', .2);
@@ -130,28 +127,28 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stageSerial = d.serial; cueSerial = cue; heardStamps = stamps.count; heardJolt = jolt.index; lastX100 = view.currentX100;
 
-    const follow = (value: number, target: number, rate: number): number => fresh || reduced ? target : value + (target - value) * (1 - Math.exp(-rate * dt));
+    const follow = (value: number, target: number, rate: number): number => fresh ? target : value + (target - value) * (1 - Math.exp(-rate * dt));
     park = follow(park, crashed && crashAge! >= HIT ? 1 : 0, 9);
     gone = follow(gone, escaped ? 1 : 0, 7);
-    push = follow(push, reduced ? 0 : .045 * ease((d.dread - .25) / .6), 3);
+    push = follow(push, .045 * ease((d.dread - .25) / .6), 3);
     // The belt stops dead at the crash; otherwise it eases in and out and keeps running after a cash-out.
-    beltSpeed = crashed ? 0 : follow(beltSpeed, running && !reduced ? 35 : 0, 4);
+    beltSpeed = crashed ? 0 : follow(beltSpeed, running ? 35 : 0, 4);
     belt += beltSpeed * dt;
     if (!escaped) sweat += dt * (.7 + d.dread * .6);
 
-    const exit = !escaped ? 0 : reduced ? 1 : ease((now - exitAt) / 1400);
+    const exit = !escaped ? 0 : ease((now - exitAt) / 1400);
     const mode: ApplicantPose['mode'] = escaped ? 'escape' : crashAge !== null ? 'boxed' : !running ? 'idle' : d.stage === 4 ? 'dance' : 'scan';
     const act = escaped ? acceptedAct ?? d : d;
     // Phase changes (idle → scan, scan → escape, idle or scan → crate) blend from the last drawn rig; the next applicant starts fresh.
-    if (mode !== lastMode) { modeAge = fresh ? 9 : 0; from = last && !fresh && !reduced && !leftCrash ? last : null; }
-    const stamped = mode === 'idle' ? { count: 0, age: 9 } : stampsAt(act, reduced);
+    if (mode !== lastMode) { modeAge = fresh ? 9 : 0; from = last && !fresh && !leftCrash ? last : null; }
+    const stamped = mode === 'idle' ? { count: 0, age: 9 } : stampsAt(act);
     const rise = departing ? ease((entry - .4) / .6) : 1;
     const pose: ApplicantPose = {
       x: escaped ? mix(511, 143, exit) : 511, y: 427 + (1 - rise) * 250, scale: escaped ? mix(1, .63, exit) : 1,
       time: mode === 'idle' || escaped ? clock : d.seconds, tension: escaped ? .15 : d.dread,
-      stage: act.stage, level: act.level, action: act.action, cycle: act.cycle, reduced, mode,
-      progress: escaped ? exit : crashAge === null ? 0 : reduced ? 1 : ease((crashAge - HIT) / .7),
-      paint: paintAt(mode === 'idle' ? 100 : accepted ?? d.x100, reduced), stamps: stamped.count, sweat, ...walked(-368, exit),
+      stage: act.stage, level: act.level, action: act.action, cycle: act.cycle, mode,
+      progress: escaped ? exit : crashAge === null ? 0 : ease((crashAge - HIT) / .7),
+      paint: paintAt(mode === 'idle' ? 100 : accepted ?? d.x100), stamps: stamped.count, sweat, ...walked(-368, exit),
       // A crash or cash-out freezes the act, so the newest label's landing settles on presentation time instead.
       stampAge: stamped.age + (escaped || crashAge !== null ? modeAge : 0),
     };
@@ -164,9 +161,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       const feet = r.feet.map(({ x, y }) => ({ x: (q.x + x * q.scale - p.x) / p.scale, y: (q.y + y * q.scale - p.y) / p.scale }));
       return blendRig({ ...r, feet }, rig, ease(modeAge / .35));
     };
-    const jolted = (running || crashed) && !reduced ? 16 * ease(jolt.age / .07) * (1 - ease((jolt.age - .1) / .35)) : 0;
+    const jolted = (running || crashed) ? 16 * ease(jolt.age / .07) * (1 - ease((jolt.age - .1) / .35)) : 0;
     const walls = crateWalls(d) + jolted;
-    const ministry: MinistryView = { d, time: reduced ? 0 : clock, reduced, running, crash: crashAge, escaped, park, gone, belt };
+    const ministry: MinistryView = { d, time: clock, running, crash: crashAge, escaped, park, gone, belt };
 
     /** The applicant, the leaving one, the front apparatus and the crate, for either composition. */
     function figure(g: CanvasRenderingContext2D, p: ApplicantPose, crate = true): Rig {
@@ -190,22 +187,18 @@ export function createScene(options: SceneOptions = {}): Scene {
       g.restore();
       drawProcedure(g, ministry, true);
       if (!crate) return rig;
-      if (crashAge !== null) drawPacking(g, reduced ? Math.max(5, crashAge) : crashAge, reduced, walls, escaped);
+      if (crashAge !== null) drawPacking(g, crashAge, walls, escaped);
       else if (running) drawCrate(g, walls, 0, 0, escaped);
       return rig;
     }
 
-    const caption = escaped ? `Claim abandoned. Cashed out at ${multiplierLabel(accepted!)}. Paper hands, privacy intact.`
-      : crashed ? 'Round crashed. Identity exported. Final allocation: one fictional peanut.'
-      : running ? `${d.title}. ${d.demand} ${d.line}` : 'Waiting for the next applicant.';
-    if (transcript && transcript.textContent !== caption) transcript.textContent = caption;
     let rig: Rig;
     if (isPortrait(c.canvas)) {
       rig = drawPortrait(c, ministry, view, accepted, exit, pose, figure, punchline(view, d, accepted, crashAge));
     } else {
       c.save();
       // The camera pushes in as dread rises; the crash punches in 10% and holds before easing back.
-      const punch = crashAge === null || quietCrash || reduced || escaped ? 0 : crashAge < .3 ? 1 : 1 - ease((crashAge - .3) / .35);
+      const punch = crashAge === null || quietCrash || escaped ? 0 : crashAge < .3 ? 1 : 1 - ease((crashAge - .3) / .35);
       const zoom = 1 + push + punch * .1;
       c.beginPath(); c.rect(0, 82, 960, 417); c.clip();
       c.translate(480, 300); c.scale(zoom, zoom); c.translate(-480, -300);
@@ -217,7 +210,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       const witness = 1 - Math.max(park, gone);
       if (d.stage === 2 && witness > .01) {
         c.save(); c.globalAlpha *= witness;
-        drawDog(c, 123, 399, reduced ? 0 : d.seconds, d.dread, reduced);
+        drawDog(c, 123, 399, d.seconds, d.dread);
         // A single restrained speech bubble gives the witness a clear punchline.
         box(c, 49, 314, 114, 29, 9, C.cream, C.ink, 2);
         line(c, [119, 343, 123, 351, 128, 343], C.ink, 2);
@@ -230,10 +223,10 @@ export function createScene(options: SceneOptions = {}): Scene {
         label(c, 'PRIVACY INTACT', 144, 443, 12, C.ink, 'center');
       }
       c.restore();
-      drawReceipt(c, d, crashed, escaped, view.stake === null, stamps.count > d.serial, reduced ? 0 : clock);
+      drawReceipt(c, d, crashed, escaped, view.stake === null, stamps.count > d.serial, clock);
       drawHeader(c, view, accepted, running);
       drawFooter(c, view, d, accepted, crashAge);
-      if (crashAge !== null && crashAge < 1.2 && !quietCrash && !escaped) drawRejection(c, crashAge, reduced);
+      if (crashAge !== null && crashAge < 1.2 && !quietCrash && !escaped) drawRejection(c, crashAge);
     }
     last = { pose: shown, rig, crate: crashAge !== null, empty: escaped };
     lastMode = mode;
@@ -287,9 +280,9 @@ function drawFooter(c: CanvasRenderingContext2D, view: SceneView, d: Direction, 
   label(c, punchline(view, d, accepted, crashAge), 480, 527, payoff ? 27 : 19, accepted !== null ? C.mint : crashAge !== null ? C.coral : C.cream, 'center', 904);
 }
 
-function drawRejection(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
+function drawRejection(c: CanvasRenderingContext2D, age: number): void {
   const t = ease(age / .12);
-  const scale = reduced ? 1 : mix(1.4, 1, t);
+  const scale = mix(1.4, 1, t);
   c.save(); c.globalAlpha *= 1 - ease((age - .95) / .25);
   c.translate(511, 280); c.rotate(-.14); c.scale(scale, scale);
   box(c, -141, -39, 282, 78, 5, '#fff3d7ee', C.red, 5);

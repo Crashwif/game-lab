@@ -90,7 +90,6 @@ export interface FamilyDrive {
   running: boolean;
   tension: number;
   time: number;
-  reduced: boolean;
   /** She said something this frame. */
   herLine: boolean;
   /** She has left the table (an accepted cash-out): they simmer rather than boil. */
@@ -192,7 +191,7 @@ export function stepParents(ps: Parent[], drive: FamilyDrive, dt: number): Famil
       s.r += s.grow * dt;
     }
     p.steam = p.steam.filter((s) => s.age < s.life);
-    if (p.kind === 'mom' && heat > 0.7 && !drive.reduced) {
+    if (p.kind === 'mom' && heat > 0.7) {
       p.dripClock += dt;
       if (p.dripClock > 0.5) {
         p.dripClock = 0;
@@ -500,20 +499,20 @@ function drawTorso(ctx: CanvasRenderingContext2D, p: Parent, heat: number, time:
   ctx.restore();
 }
 
-function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduced: boolean): void {
+function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number): void {
   const heat = clamp(p.rage.x, 0, 1);
   const strain = clamp(p.strain, 0, 1);
-  const s = 1 + 0.22 * heat + 0.12 * strain + (reduced ? 0 : 0.035 * heat * Math.sin(time * 9));
-  const jit = reduced ? 0 : 7 * heat * heat + 3 * strain;
+  const s = 1 + 0.22 * heat + 0.12 * strain + (0.035 * heat * Math.sin(time * 9));
+  const jit = 7 * heat * heat + 3 * strain;
   const jx = (noise(Math.floor(time * 42) + p.seed) - 0.5) * 2 * jit;
   const jy = (noise(Math.floor(time * 38) + p.seed + 9) - 0.5) * 2 * jit;
   const skin = heatColour(p, heat);
-  // The take at each of her lines: a nod of about 5 px (none with reduced motion), the brows shooting up 6 px for a quarter
+  // The take at each of her lines: a nod of about 5 px, the brows shooting up 6 px for a quarter
   // second, the pupils pinning.
   const up = p.take < 0.5 ? 6 * smoothstep(0, 0.06, p.take) * (1 - smoothstep(0.25, 0.5, p.take)) : 0;
   const closed = p.sag > 0.5 || (p.blink < 0 && p.blink > -0.12);
   ctx.save();
-  ctx.translate(jx, HEAD_Y + jy + (reduced ? 0 : p.kick.x * 1.5) + 8 * p.sag);
+  ctx.translate(jx, HEAD_Y + jy + (p.kick.x * 1.5) + 8 * p.sag);
   ctx.scale(s, s);
   ink(ctx, 2.5);
   if (p.kind === 'mom') {
@@ -597,7 +596,7 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
   }
   // Eyes: wider, pupils smaller, one twitching, bloodshot.
   for (const side of [-1, 1]) {
-    const twitch = side < 0 && heat > 0.5 && !reduced ? 1 + 0.35 * heat * Math.max(0, Math.sin(time * 27)) : 1;
+    const twitch = side < 0 && heat > 0.5 ? 1 + 0.35 * heat * Math.max(0, Math.sin(time * 27)) : 1;
     const rx = 9 + 4 * heat;
     const ry = (7 + 5 * heat) * twitch;
     if (closed) {
@@ -684,7 +683,7 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
     }
   }
   // The mouth: a smile, a line, then a shout with teeth; it flaps while they are saying something.
-  const flap = reduced ? 0.5 * p.talk : p.talk * Math.abs(Math.sin(time * 14));
+  const flap = p.talk * Math.abs(Math.sin(time * 14));
   const open = p.sag > 0.5 ? 0 : Math.max(smoothstep(0.55, 0.95, heat), 0.45 * flap);
   ink(ctx, 2.5);
   if (p.sag > 0.5) {
@@ -789,11 +788,11 @@ function drawHead(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduce
   ctx.globalAlpha = 1;
 }
 
-export function drawParent(ctx: CanvasRenderingContext2D, p: Parent, time: number, reduced: boolean): void {
+export function drawParent(ctx: CanvasRenderingContext2D, p: Parent, time: number): void {
   ctx.save();
   ctx.translate(p.x, SEAT_Y);
   drawTorso(ctx, p, clamp(p.rage.x, 0, 1), time);
-  if (!p.exploded) drawHead(ctx, p, time, reduced);
+  if (!p.exploded) drawHead(ctx, p, time);
   ctx.restore();
 }
 
@@ -823,14 +822,14 @@ export function resetDaughter(d: Daughter): void {
   Object.assign(d, createDaughter());
 }
 
-export interface DaughterDrive { speaking: boolean; tension: number; time: number; crashT: number; rekt: boolean; waiting?: boolean; reduced?: boolean }
+export interface DaughterDrive { speaking: boolean; tension: number; time: number; crashT: number; rekt: boolean; waiting?: boolean; }
 export interface DaughterEvents { door: boolean; camera: boolean }
 
 export function stepDaughter(d: Daughter, drive: DaughterDrive, dt: number): DaughterEvents {
   const ev: DaughterEvents = { door: false, camera: false };
   d.talk += clamp((drive.speaking ? 1 : 0) - d.talk, -dt * 3, dt * 8);
   stepSpring(d.gesture, d.talk * (0.45 + 0.55 * drive.tension), 5, 0.6, dt);
-  stepSpring(d.restless, drive.waiting && !drive.reduced && d.mode === 'seated' ? 1 : 0, 9, 1, dt);
+  stepSpring(d.restless, drive.waiting && d.mode === 'seated' ? 1 : 0, 9, 1, dt);
   d.fidget = (d.fidget + dt * 3 * 2 * Math.PI) % (2 * Math.PI);
   if (d.mode === 'leaving') {
     stepSpring(d.stand, 1, 7, 0.75, dt);
@@ -927,10 +926,10 @@ export function drawDaughterChair(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: number, tension: number, reduced: boolean): void {
+export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: number, tension: number): void {
   if (d.mode === 'gone') return;
   const stand = clamp(d.stand.x, 0, 1);
-  const walking = d.walk > 0 && !reduced;
+  const walking = d.walk > 0;
   const distance = Math.max(0, d.x - DAUGHTER_X);
   const bounce = clamp(d.restless.x, 0, 1) * (0.5 - 0.5 * Math.cos(d.fidget));
   ctx.save();
@@ -1038,7 +1037,7 @@ export function drawDaughter(ctx: CanvasRenderingContext2D, d: Daughter, time: n
   ctx.fillStyle = '#d4a05a'; ctx.beginPath(); ctx.ellipse(plate.x, plate.y - 3, plate.w * 0.5, plate.w * 0.14, 0, 0, Math.PI * 2); ctx.fill();
   // The head: a cheek and the corner of her mouth on the left, the hair over the rest down to her shoulders.
   ctx.save();
-  ctx.translate(-6, -112 + (d.talk > 0 && !reduced ? Math.sin(time * 5) * 1.5 : 0));
+  ctx.translate(-6, -112 + (d.talk > 0 ? Math.sin(time * 5) * 1.5 : 0));
   ctx.fillStyle = '#f1cfb0';
   ink(ctx, 2.5);
   ctx.beginPath();

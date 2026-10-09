@@ -5,8 +5,7 @@ export type Mood = 'bored' | 'defiant' | 'panic' | 'smug' | 'cosmic' | 'dazed';
 export interface PenguinPose {
   x: number; y: number; time: number; gait: number; walk: boolean;
   angle: number; crouch: number; stretch: number; airborne: boolean;
-  arm: number; head: number; mood: Mood; scarf: number; scale: number;
-  reduced: boolean; aura?: number; paper?: boolean; look?: number;
+  arm: number; head: number; mood: Mood; scarf: number; scale: number; aura?: number; paper?: boolean; look?: number;
 }
 
 interface Foot extends Point { tilt: number }
@@ -39,11 +38,11 @@ function flipper(c: CanvasRenderingContext2D, x: number, y: number, angle: numbe
 
 /** All joints inherit the pelvis transform; the head and scarf trail each large change in pose. */
 export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
-  const time = p.reduced ? 0 : p.time;
-  const gait = p.reduced ? 0 : p.gait;
-  const waddle = p.walk && !p.reduced ? Math.sin(gait * TAU) * .105 : 0;
-  const bob = p.walk && !p.airborne && !p.reduced ? -Math.abs(Math.sin(gait * TAU)) * 7 : 0;
-  const breath = p.reduced ? 0 : Math.sin(time * 2.3) * 2.6;
+  const time = p.time;
+  const gait = p.gait;
+  const waddle = p.walk ? Math.sin(gait * TAU) * .105 : 0;
+  const bob = p.walk && !p.airborne ? -Math.abs(Math.sin(gait * TAU)) * 7 : 0;
+  const breath = Math.sin(time * 2.3) * 2.6;
   const squash = 1 + p.crouch * .22;
   c.save(); c.translate(p.x, p.y);
   if (!p.airborne && Math.abs(p.angle) < .4) ellipse(c, 0, 5, 61 * p.scale, 9, 'rgba(0,21,35,.27)');
@@ -76,7 +75,7 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   ellipse(c, 0, 0, 43, 44, '#102e40', -.08, 3);
   ellipse(c, -9, 4, 21, 29, WHITE, -.15);
   ellipse(c, 23, 5, 21, 29, WHITE, .2);
-  const blink = !p.reduced && Math.sin(time * 1.77) > .994;
+  const blink = Math.sin(time * 1.77) > .994;
   const panic = p.mood === 'panic';
   const bored = p.mood === 'bored' || p.mood === 'smug';
   const gaze = p.look ?? 1;

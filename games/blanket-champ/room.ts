@@ -94,16 +94,14 @@ export interface RoomState {
   /** The TV's two-line headline, and how far it has slid in (1 in place). */
   headline: [string, string];
   slide: Spring;
-  /** 1, or 0 under reduced motion: the champ's tremble near the top. */
-  motion: number;
   puffs: Puff[];
   events: { beat: boolean; glassFell: boolean; catLeft: boolean; fist: boolean; catBack: boolean; crack: boolean };
 }
 
 const noEvents = (): RoomState['events'] => ({ beat: false, glassFell: false, catLeft: false, fist: false, catBack: false, crack: false });
 
-export function createRoom(motion = 1): RoomState {
-  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, multiplier: 1, drive: 0, rest: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassTarget: GLASS_X, glass: spring(GLASS_X), glassFallen: false, glassFall: { x: GLASS_X, y: 0, vy: 0, done: false }, catX: CAT_X, catV: 0, catWalk: 0, catFled: false, catGone: false, catBack: false, catSign: spring(0), catSignText: 'NGMI', fist: spring(0), fistSeen: false, legs: spring(0), wallCracks: 0, crackShown: 0, phone: spring(0), rollAge: 99, rollWhy: 'cat', wipe: 0, ghost: { cracks: 0, shards: false, glassX: null }, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), headline: ['TONIGHT:', 'THE MAIN EVENT'], slide: spring(1), motion, puffs: [], events: noEvents() };
+export function createRoom(): RoomState {
+  return { time: 0, beatPhase: 0, tempo: 0, tension: 0, multiplier: 1, drive: 0, rest: 0, lump: spring(0.6), headboard: spring(0), lamp: spring(0), glassTarget: GLASS_X, glass: spring(GLASS_X), glassFallen: false, glassFall: { x: GLASS_X, y: 0, vy: 0, done: false }, catX: CAT_X, catV: 0, catWalk: 0, catFled: false, catGone: false, catBack: false, catSign: spring(0), catSignText: 'NGMI', fist: spring(0), fistSeen: false, legs: spring(0), wallCracks: 0, crackShown: 0, phone: spring(0), rollAge: 99, rollWhy: 'cat', wipe: 0, ghost: { cracks: 0, shards: false, glassX: null }, finished: false, finishAge: 0, armOut: spring(0), thumb: spring(0), headline: ['TONIGHT:', 'THE MAIN EVENT'], slide: spring(1), puffs: [], events: noEvents() };
 }
 
 /**
@@ -346,7 +344,7 @@ function drawTV(ctx: CanvasRenderingContext2D, r: RoomState): void {
   ctx.font = '900 8px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText('DEGEN NEWS', sx + 3, sy + 9);
-  ctx.fillStyle = Math.floor(r.time * 2) % 2 || r.motion === 0 ? '#e63946' : '#7a1a24';
+  ctx.fillStyle = Math.floor(r.time * 2) % 2 ? '#e63946' : '#7a1a24';
   ctx.beginPath(); ctx.arc(sx + sw - 7, sy + 6, 2.5, 0, Math.PI * 2); ctx.fill();
   const ly = sy + sh - 36;
   ctx.fillStyle = '#e63946';
@@ -437,7 +435,7 @@ function drawCat(ctx: CanvasRenderingContext2D, r: RoomState): void {
   // It rises onto its legs as it picks up speed and settles back into a loaf as it stops; the walked distance sets the stride.
   const stand = smoothstep(0, 50, Math.abs(r.catV));
   const rise = 7 * stand;
-  const bob = Math.abs(Math.sin(Math.PI * r.catWalk / 18)) * 1.5 * stand * r.motion;
+  const bob = Math.abs(Math.sin(Math.PI * r.catWalk / 18)) * 1.5 * stand;
   ctx.save();
   ctx.translate(r.catX, 384 - rise - bob);
   // It faces the way it walks: the head is drawn on the left.
@@ -517,7 +515,7 @@ export function drawFloorAndFurniture(ctx: CanvasRenderingContext2D, r: RoomStat
   if (r.ghost.glassX !== null && r.wipe > 0) drawGlass(ctx, r, r.ghost.glassX, 398, 0, r.wipe);
   if (!r.glassFallen || !r.glassFall.done) {
     // Each knock kicks it along: it skids after its mark with a little hop and tilt, then goes over the edge.
-    const skid = r.glassFallen ? 0 : r.glass.v * r.motion;
+    const skid = r.glassFallen ? 0 : r.glass.v;
     const gx = r.glassFallen ? r.glassFall.x + r.glassFall.y * 0.35 : r.glass.x;
     const gy = 398 + (r.glassFallen ? r.glassFall.y : -Math.min(3, Math.abs(skid) * 0.04));
     drawGlass(ctx, r, gx, gy, r.glassFallen ? r.glassFall.y * 0.03 : clamp(skid * 0.003, -0.15, 0.15), fresh);
@@ -544,14 +542,14 @@ export function drawFloorAndFurniture(ctx: CanvasRenderingContext2D, r: RoomStat
 export function drawBed(ctx: CanvasRenderingContext2D, r: RoomState): void {
   const legs = clamp(r.legs.x, 0, 1);
   const tilt = legs * 0.05;
-  // Reduced motion stills the oscillation (time, beat, lift, tremble) but keeps every expression and line.
+  // The room clock drives the champ’s oscillation alongside each expression and line.
   const roll = smoothstep(0, 0.25, r.rollAge) * (1 - smoothstep(1.2, 1.6, r.rollAge));
   const pose: SleeperPose = {
-    time: r.time * r.motion, beat: r.beatPhase * Math.PI * 2 * r.motion, tension: r.tension,
-    lift: (clamp(r.lump.x, 0, 1.3) - 0.6) * r.motion,
-    active: r.tempo > 0, drive: r.drive * r.motion, finished: r.finished, rest: r.rest,
+    time: r.time, beat: r.beatPhase * Math.PI * 2, tension: r.tension,
+    lift: (clamp(r.lump.x, 0, 1.3) - 0.6),
+    active: r.tempo > 0, drive: r.drive, finished: r.finished, rest: r.rest,
     // A small tremble from 2.5×, full by 20×.
-    tremble: r.motion * (r.tempo > 0 ? clamp((r.tension - 0.6) / 0.35, 0, 1) : 0),
+    tremble: (r.tempo > 0 ? clamp((r.tension - 0.6) / 0.35, 0, 1) : 0),
     multiplier: r.multiplier, phone: clamp(r.phone.x, 0, 1.2), roll: r.finished ? 0 : roll, rollWhy: r.rollWhy,
     yawn: r.tempo > 0 ? yawnAt(r.multiplier) : 0,
   };

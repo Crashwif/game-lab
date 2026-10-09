@@ -250,8 +250,8 @@ export function auditDone(p: Picnic): boolean {
   return p.fox.stamped;
 }
 
-/** `reduced` slows the swarm and the idle motion. `round` is the running round's seconds (0 outside one). */
-export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; reduced: boolean; round?: number; }
+/** `round` is the running round's seconds (0 outside one). */
+export interface PicnicDrive { running: boolean; multiplier: number; tension: number; level: number; round?: number; }
 
 /**
  * A foot's offset from its rest for a body moving toward +x, from the ground covered: planted (sliding back under
@@ -310,14 +310,14 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
     bear.tugIn -= dt;
     if (bear.tugIn <= 0) {
       bear.tugIn += mix(3, 0.7, drive.tension);
-      bear.tug.v += drive.reduced ? 4 : 9;
+      bear.tug.v += 9;
       p.events.tug = true;
     }
   }
   stepSpring(bear.tug, 0, 9, 0.35, dt);
   stepSpring(bear.flinch, 0, 10, 0.4, dt);
-  bear.breath += dt * (1.6 + 3.5 * drive.tension) * (drive.reduced ? 0.3 : 1);
-  const slow = drive.reduced ? 0.25 : 1;
+  bear.breath += dt * (1.6 + 3.5 * drive.tension) * (1);
+  const slow = 1;
   for (const [i, guest] of p.guests.entries()) {
     const want = drive.multiplier >= guest.at ? 1 : 0.05;
     const was = guest.lean.x > 0.5;
@@ -330,7 +330,7 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
   }
   p.puddle = clamp(p.puddle + dt * (drive.running ? 0.03 + drive.tension * 0.05 : 0), 0.2, 1);
   for (const bee of p.bees) {
-    bee.angle += dt * bee.speed * (p.leaving ? 3 : 1 + drive.tension * 2) * (drive.reduced ? 0.2 : 1);
+    bee.angle += dt * bee.speed * (p.leaving ? 3 : 1 + drive.tension * 2) * (1);
     bee.wob += dt * bee.rate * slow;
   }
   if (p.leaving) {
@@ -362,7 +362,7 @@ export function stepPicnic(p: Picnic, drive: PicnicDrive, dt: number): void {
   if (drive.running && !p.leaving && count === TEXTS.length && phone.age >= 8) {
     phone.followup += 1;
     phone.age = 0;
-    phone.shake.v = drive.reduced ? 0 : 8;
+    phone.shake.v = 8;
     p.events.msg = true;
     if (phone.followup % 3 === 0 && p.fox.mode === 'gone') {
       p.fox.mode = 'away';

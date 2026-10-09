@@ -123,11 +123,11 @@ export function cloudAt(tension: number, running: boolean): { x: number; y: numb
 }
 
 /** Draws the cloud, the throne, the dev and the lever at a screen position and scale. */
-export function drawDev(ctx: CanvasRenderingContext2D, d: DevState, x: number, y: number, s: number, tension: number, reduced: boolean): void {
+export function drawDev(ctx: CanvasRenderingContext2D, d: DevState, x: number, y: number, s: number, tension: number): void {
   const hand = clamp(reachOf(d), 0, 1.1);
   const lever = clamp(d.lever.x, -0.2, 1.15);
-  // The tremble grows as his hand closes on the lever (none under reduced motion); it shakes the hand most.
-  const tremble = reduced || d.pulled ? 0 : smoothstep(0.2, 0.7, d.hand.x);
+  // The tremble grows as his hand closes on the lever; it shakes the hand most.
+  const tremble = d.pulled ? 0 : smoothstep(0.2, 0.7, d.hand.x);
   const jx = (noise(Math.floor(d.time * 33)) - 0.5) * 3 * tremble;
   const jy = (noise(Math.floor(d.time * 29) + 5) - 0.5) * 2.5 * tremble;
   ctx.save();

@@ -198,7 +198,7 @@ export function killRocket(rocket: Rocket): void {
 
 export interface Drive { racing: boolean; multiplier: number; tension: number; crashed: boolean }
 
-export function stepRocket(rocket: Rocket, drive: Drive, dt: number, reduced: boolean): void {
+export function stepRocket(rocket: Rocket, drive: Drive, dt: number): void {
   rocket.events = rocket.bailEvent ? ['bailed'] : []; rocket.bailEvent = false;
   const previous = rocketFrame(rocket);
   rocket.time += dt;
@@ -215,7 +215,7 @@ export function stepRocket(rocket: Rocket, drive: Drive, dt: number, reduced: bo
     rocket.thrust = Math.max(0, rocket.thrust - dt * 2);
   }
   const t = rocket.time;
-  const wander = drive.racing && !rocket.dead ? (0.3 + 0.9 * drive.tension) * (reduced ? 0.4 : 1) : 0;
+  const wander = drive.racing && !rocket.dead ? (0.3 + 0.9 * drive.tension) * (1) : 0;
   stepSpring(rocket.swayX, wander * (Math.sin(t * 0.9) * 0.6 + Math.sin(t * 2.3) * 0.25), 1.8, 0.6, dt);
   stepSpring(rocket.swayZ, wander * (Math.cos(t * 0.7) * 0.5 + Math.sin(t * 1.9 + 1) * 0.2), 1.8, 0.6, dt);
   const current = rocketFrame(rocket);
@@ -260,12 +260,12 @@ export function stepRocket(rocket: Rocket, drive: Drive, dt: number, reduced: bo
     const down: Vec3 = [-frame.y[0], -frame.y[1], -frame.y[2]];
     for (const [index, [at, size]] of clusters.entries()) {
       const emit = (slot: number, rate: number) => { const n = (rocket.emissions[slot] ?? 0) + rate * dt * burn; rocket.emissions[slot] = n % 1; return Math.floor(n); };
-      const flames = emit(index * 2, vent ? 0 : reduced ? 48 : 95);
+      const flames = emit(index * 2, vent ? 0 : 95);
       for (let i = 0; i < flames; i += 1) {
         const jitter: Vec3 = [(r() - 0.5) * 0.5, (r() - 0.5) * 0.5, (r() - 0.5) * 0.5];
         rocket.particles.push({ p: madd(at, jitter, size), v: madd(madd(down, jitter, 4), down, 16 + r() * 8), age: 0, life: 0.22 + r() * 0.2, size: size * (0.45 + r() * 0.35), smoke: false });
       }
-      const smokes = emit(index * 2 + 1, reduced ? 14 : 28);
+      const smokes = emit(index * 2 + 1, 28);
       for (let i = 0; i < smokes; i += 1) {
         const jitter: Vec3 = [(r() - 0.5) * 1.2, (r() - 0.5) * 0.4, (r() - 0.5) * 1.2];
         rocket.particles.push({ p: madd(madd(at, down, 1.2), jitter, size), v: vent ? [jitter[0] * 3, 0, 2.6] : madd(madd(down, jitter, 2.5), down, 3), age: 0, life: 1.4 + r() * 1.2, size: size * (0.5 + r() * 0.4), smoke: true });
@@ -314,7 +314,7 @@ export interface Drawn {
 }
 
 /** Draws the rocket, its stages, everyone on it and the exhaust; `flutter` kicks the clinging holders' legs, and a spectator has no astronaut aboard. */
-export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: number, reduced: boolean, flutter: number, spectator: boolean): Drawn {
+export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: number, flutter: number, spectator: boolean): Drawn {
   const m = r.meshes;
   const frame = rocketFrame(rocket);
   const { x, y, z } = frame;
@@ -398,12 +398,12 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     // A spectator's place at the front goes to one more holder.
     const s = spectator ? 0.5 : you.size, at = toWorld(frame, yo[0] * (0.85 + 0.44 * s), you.y, yo[2] * (0.85 + 0.44 * s));
     if (spectator) clings = putInstance(m.cling, clings, at, ux, y, cross(ux, y), [s, s, s], [1, 1, 1, 1], [FACE.doge, 0, -flutter, 1]);
-    else drawHero(r, youAt = at, ux, y, cross(ux, y), s, rocket.time, 0, reduced, 1);
+    else drawHero(r, youAt = at, ux, y, cross(ux, y), s, rocket.time, 0, 1);
   } else if (you.mode === 'eject') {
     const t = you.age, open = clamp((t - 0.45) / 0.35, 0, 1), uz = normalize([(you.frame?.z ?? z)[0], 0, (you.frame?.z ?? z)[2]]), ux = cross([0, 1, 0], uz);
-    const swing = reduced ? 0 : Math.sin(t * 2.2) * 0.18 * open * Math.exp(-t * 0.3);
+    const swing = Math.sin(t * 2.2) * 0.18 * open * Math.exp(-t * 0.3);
     const sx = rotateAbout(ux, uz, swing), sy = rotateAbout([0, 1, 0], uz, swing);
-    drawHero(r, youAt = bailPosition(rocket), sx, sy, uz, you.size, rocket.time, open, reduced, 1 - smoothstep(0.05, 0.35, t));
+    drawHero(r, youAt = bailPosition(rocket), sx, sy, uz, you.size, rocket.time, open, 1 - smoothstep(0.05, 0.35, t));
     if (open > 0) {
       const top = madd(youAt, sy, 2.4), size = 1.6 * open, harness = madd(youAt, sy, 0.9 * you.size);
       putInstance(m.chute, 0, top, sx, sy, uz, [size, size * 0.9, size]);
@@ -427,7 +427,7 @@ export function drawRocket(rocket: Rocket, r: Renderer, labels: Label[], time: n
     r.sprite(k.p, k.size * (0.7 + life * 0.8), [1, 0.55 + 0.45 * heat, 0.15 + 0.6 * heat * heat, 0.9 * heat], 2, scale(k.v, 0.02));
   }
   const engineAt = rocket.core.attached ? toWorld(frame, 0, -0.6, 0) : toWorld(frame, 0, 7.7, 0);
-  if (rocket.thrust > 0.02 && !reduced) r.sprite(engineAt, 2.2 * rocket.thrust * (0.9 + 0.1 * Math.sin(time * 40)), [1, 0.75, 0.35, 0.55 * rocket.thrust], 2);
+  if (rocket.thrust > 0.02) r.sprite(engineAt, 2.2 * rocket.thrust * (0.9 + 0.1 * Math.sin(time * 40)), [1, 0.75, 0.35, 0.55 * rocket.thrust], 2);
   r.flushSprites('additive');
   for (const k of rocket.particles) {
     if (!k.smoke) continue;
@@ -445,20 +445,20 @@ export function heroJoint(root: [number, number], end: [number, number], upper: 
   return [root[0] + dx / d * along - dy / d * bend, root[1] + dy / d * along + dx / d * bend];
 }
 /** A limb's root, elbow or knee, and end: `grip` 1 holds the hull, 0 is free, and a bail crouches in between. Elbows bend out, knees forward. */
-export function heroLimb(side: number, arm: boolean, size: number, time: number, open: number, reduced: boolean, grip: number) {
-  const root: Vec3 = [side * (arm ? 0.24 : 0.12), (arm ? 0.65 : 0.3) + lift(time, reduced, grip), 0], hold = side * (arm ? 0.42 : 0.23);
-  const free: Vec3 = arm ? [side * (0.57 - 0.25 * open), 0.82 + 0.3 * open, 0] : [side * (0.23 - open * 0.06), -0.1 + (reduced ? 0 : Math.sin(time * 2 + side) * 0.08 * (1 - grip)), 0];
+export function heroLimb(side: number, arm: boolean, size: number, time: number, open: number, grip: number) {
+  const root: Vec3 = [side * (arm ? 0.24 : 0.12), (arm ? 0.65 : 0.3) + lift(time, grip), 0], hold = side * (arm ? 0.42 : 0.23);
+  const free: Vec3 = arm ? [side * (0.57 - 0.25 * open), 0.82 + 0.3 * open, 0] : [side * (0.23 - open * 0.06), -0.1 + (Math.sin(time * 2 + side) * 0.08 * (1 - grip)), 0];
   const end = lerp3(free, [hold, arm ? 1.05 : -0.1, (Math.sqrt(0.85 ** 2 - (hold * size) ** 2) - 0.85 - 0.44 * size) / size], grip);
   const bone = arm ? 0.4 : 0.36;
   const d = sub(end, root), axis = normalize(d), bend = normalize(cross(axis, arm ? [0, 0, side] : [1, 0, 0]));
   const joint = madd(madd(root, d, 0.5), bend, Math.sqrt(Math.max(0, bone * bone - d.reduce((n, v) => n + v * v, 0) / 4)));
   return { root, joint, end, bone };
 }
-const lift = (time: number, reduced: boolean, grip: number): number => (reduced ? 0 : Math.sin(time * 2.1) * 0.035) - 0.08 * Math.sin(Math.PI * grip);
-function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number, time: number, open: number, reduced: boolean, grip: number): void {
+const lift = (time: number, grip: number): number => (Math.sin(time * 2.1) * 0.035) - 0.08 * Math.sin(Math.PI * grip);
+function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number, time: number, open: number, grip: number): void {
   const m = r.meshes;
   const point = (p: Vec3): Vec3 => [0, 1, 2].map(i => at[i]! + size * (x[i]! * p[0] + y[i]! * p[1] + z[i]! * p[2])) as Vec3;
-  putInstance(m.hero, 0, point([0, lift(time, reduced, grip), 0]), x, y, z, [size, size, size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
+  putInstance(m.hero, 0, point([0, lift(time, grip), 0]), x, y, z, [size, size, size], [1, 1, 1, 1], [FACE.you, 0, 0, 0]);
   r.drawLit(m.hero, 1);
   let parts = 0;
   const segment = (a: Vec3, b: Vec3, width: number, dark = false) => {
@@ -468,7 +468,7 @@ function drawHero(r: Renderer, at: Vec3, x: Vec3, y: Vec3, z: Vec3, size: number
     parts = putInstance(m.box, parts, madd(start, d, 0.5), lx, ly, lz, [width * size, Math.hypot(...d), width * size], dark ? [0.2, 0.22, 0.26, 1] : [0.93, 0.94, 0.96, 1]);
   };
   for (const side of [-1, 1]) for (const arm of [true, false]) {
-    const { root, joint, end } = heroLimb(side, arm, size, time, open, reduced, grip);
+    const { root, joint, end } = heroLimb(side, arm, size, time, open, grip);
     const width = arm ? 0.13 : 0.15;
     segment(root, joint, width); segment(joint, end, width);
     if (!arm) segment(end, [end[0] + side * 0.08, end[1], end[2]], 0.17, true);

@@ -7,7 +7,7 @@ import { mix, smoothstep } from './motion';
 
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ['Simple question.', 'A pigeon lands on the heavy', 'A drone delivers a bubble tea', 'The pizza guy finds the roof', 'HQ crackles, nobody answers', 'The lieutenant takes a seat', 'The headband blows off'];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0;
   for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
@@ -18,7 +18,7 @@ export function actAt(elapsed: number, reduced = false) {
   const ramp = Math.min(1, age / 5);
   const release = Math.max(0, 1 - Math.abs(age - 5) / 5);
   const effort = stage === 0 ? 1 : Math.min(1, 0.3 + 0.03 * stage + (1 - release) * 0.52);
-  return { stage, age, loop, effort, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, loop, effort, reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** World px anchors; the suspect's head and hand when known. */

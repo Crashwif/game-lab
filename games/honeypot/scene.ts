@@ -27,8 +27,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-
-export interface SceneOptions { reducedMotion?: boolean; }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
@@ -88,8 +86,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'NEW ATH, SAME PAW';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Sunny eurodance for the picnic, and the crash is a sad trombone under the lid coming down.
   const audio = pageAudio({ style: 'eurodance', crash: 'trombone' });
   const jar: JarState = createJar();
@@ -101,7 +98,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   const punch = spring(0);
   let punchHold = 0;
   let last: number | null = null;
-  /** The decorative clock: always counting (slowed under reduced motion), never jumped to the round's time. */
+  /** The decorative clock: always counting, never jumped to the round's time. */
   let time = 0;
   let previous: SceneView['phase'] | null = null;
   let shake = 0;
@@ -163,7 +160,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 14;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       punchHold = PUNCH_HOLD;
@@ -185,7 +182,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       slow -= real;
       dt = real * SLOW_RATE;
     }
-    time += reduced ? dt * 0.2 : dt;
+    time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
     const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
@@ -226,21 +223,21 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running && !jar.crashed) pullPaw(picnic);
 
     const paw = pawPoint(picnic, jar.level.x);
-    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x, reduced, round }, dt);
+    stepPicnic(picnic, { running, multiplier, tension, level: jar.level.x, round }, dt);
     // Honey strings follow the paw until it tears out of the neck.
-    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling' && picnic.bear.paw < 0.3, pawX: paw.x, pawY: paw.y, reduced }, dt);
+    stepJar(jar, { running, multiplier, tension, pulling: picnic.bear.mode === 'pulling' && picnic.bear.paw < 0.3, pawX: paw.x, pawY: paw.y }, dt);
     const pe = picnic.events;
     const je = jar.events;
     if (pe.stamp) {
       stampAudit(jar);
       knockJar(jar, 0.6);
-      if (!reduced) shake = Math.max(shake, 0.14);
+      shake = Math.max(shake, 0.14);
     }
     if (pe.pawFree) knockJar(jar, 1);
-    if (pe.tug && !reduced) knockJar(jar, 0.2);
+    if (pe.tug) knockJar(jar, 0.2);
     if (je.jolt) startle(picnic);
-    if (je.seated && !reduced) shake = Math.max(shake, 0.5);
-    if (jar.taxFlash > 0.9 && !reduced) shake = Math.max(shake, 0.16);
+    if (je.seated) shake = Math.max(shake, 0.5);
+    if (jar.taxFlash > 0.9) shake = Math.max(shake, 0.16);
     // The swarm's buzz quickens with the tension (every 0.9 s by 2×), for as long as the paw is in the jar.
     const pulse = running && !secured && !jar.crashed;
     if (pulse) pulseIn -= dt;
@@ -279,8 +276,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.4);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 70) * 8 * shake, 0);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 70) * 8 * shake, 0);
+    if (punch.x > 0.005) {
       // The camera punches in on the lid and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.1);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);

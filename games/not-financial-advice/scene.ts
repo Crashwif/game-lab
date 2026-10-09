@@ -32,11 +32,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the freeze frame and the punch-in; the tow-light strobe stays on one colour. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -113,9 +108,9 @@ function drawDesktop(ctx: CanvasRenderingContext2D): void {
   });
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("NOT FINANCIAL ADVICE", [15, 200, 395, 320], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Trap for the shill, and the crash is the record scratch of the reveal.
   const audio = pageAudio({ style: 'trap', crash: 'scratch' });
   const studio: Studio = createStudio();
@@ -167,7 +162,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 14;
-    if (!secured && !reduced) {
+    if (!secured) {
       // The full reveal, watched: the freeze on SOLD, the cloth in slow motion, the camera in on his face.
       freeze = FREEZE_S;
       slow = SLOW_S;
@@ -194,7 +189,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The freeze drains the colour, which comes back through the slow motion.
     const desat = freeze > 0 ? 1 : slow > 0 ? slow / SLOW_S : 0;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×, 0.9 at 10×: the window nearly every round lives in escalates. The log
     // driver keeps opening the set through very long rounds after the tension has saturated.
     const tension = clamp(1 - 1 / multiplier, 0, 1);
@@ -253,13 +248,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
     }
     audio.update(view.phase, tension);
-    // Reduced motion skips the walk out: your subscriber is simply on the grass.
-    if (secured && running && !overlay.leaving) unfollow(overlay, reduced);
+    // An accepted cashout starts the subscriber’s walk to the grass.
+    if (secured && running && !overlay.leaving) unfollow(overlay, false);
 
-    const shownTime = reduced ? 0 : time;
+    const shownTime = time;
     const reads = RUNGS.filter((r) => multiplier >= r).length;
-    stepStudio(studio, { running, tension, reads, elapsed: view.elapsed / 1000, long, still: reduced }, dt);
-    stepOverlay(overlay, { running, multiplier, tension, still: reduced }, dt);
+    stepStudio(studio, { running, tension, reads, elapsed: view.elapsed / 1000, long }, dt);
+    stepOverlay(overlay, { running, multiplier, tension }, dt);
     if (!fresh && !muted) {
       // The set's own events as cues: a sell queued, the read, the truck, its reversing, the disclosure's next step down.
       const ev = studio.events;
@@ -310,8 +305,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 80) * 7 * shake, Math.cos(time * 60) * 4 * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 80) * 7 * shake, Math.cos(time * 60) * 4 * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the reveal and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);

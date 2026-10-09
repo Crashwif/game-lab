@@ -15,7 +15,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose(): void;
@@ -43,9 +42,9 @@ const STREET = { x: 940, y: 400 };
 const HIT_STOP = 0.16;
 
 /** The room supplies every outcome; growth, actors and effects only present its view. */
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("ANDY\u2019S LOUD GARDEN", [100, 205, 430, 290], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   const audio = pageAudio({ style: 'lofi', crash: 'siren', music: 0.6, effects: 0.8 });
   const andy = createAndy(HOME_X);
   let disposed = false;
@@ -81,7 +80,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       box(c, 282, 124, 376, 43, '#245847', 12, 3);
       text(c, `JEETED THE HARVEST AT ${(cash / 100).toFixed(2)}×`, 470, 152, 19, '#d8f4ad', 'center', 352);
     } else if (running) {
-      c.save(); c.translate(222, 178 + (reduced ? 0 : Math.sin(time * 2) * 2));
+      c.save(); c.translate(222, 178 + (Math.sin(time * 2) * 2));
       box(c, -84, -21, 175, 38, '#fcf0c9', 12, 3);
       c.fillStyle = INK; c.font = 'bold 13px system-ui, sans-serif'; c.textAlign = 'center';
       c.fillText(bubble, 3, 3, 157);
@@ -96,12 +95,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (disposed) return;
     const running = view.phase === 'running';
     const crashed = view.phase === 'crashed';
-    if (view.phase === 'betting' && previous === 'crashed' && snap && !reduced) dissolve = 1;
+    if (view.phase === 'betting' && previous === 'crashed' && snap) dissolve = 1;
     if ((view.phase === 'betting' && previous !== 'betting') || (running && view.elapsed < lastElapsed)) reset();
     const delta = lastNow === null ? 0 : Math.max(0, (now - lastNow) / 1000);
     const dt = Math.min(0.05, delta);
     const live = previous !== null && delta < 0.3;
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     const cash = view.cashoutX100;
     const x = running || crashed ? Math.max(1, view.currentX100 / 100) : 1;
     const lnx = Math.log(x);
@@ -114,9 +113,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     const over = Math.max(0, Math.log2(x / 4.92));
     const zoom = 1 - 0.15 * ease(over / 4);
     const bustAge = crashed ? Math.max(0, view.crashAge / 1000) : -1;
-    const raid = crashed ? reduced ? bustAge : bustAge - HIT_STOP : -1;
+    const raid = crashed ? bustAge - HIT_STOP : -1;
     const caught = crashed && cash === null;
-    if (!reduced && !(caught && bustAge < HIT_STOP)) clock += dt;
+    if (!(caught && bustAge < HIT_STOP)) clock += dt;
     const time = clock;
     if (cash !== null && !cashed) { cashed = true; if (live) audio.cashout(); }
     const exitAge = cash === null ? -1 : Math.max(0, since(cash / 100) + (crashed ? bustAge : 0));
@@ -150,22 +149,22 @@ export function createScene(options: SceneOptions = {}): Scene {
       beamAt = s3 < 0.9 ? 990 - 330 * ease(s3 / 0.9) : s3 < 1.7 ? 660 - 20 * (s3 - 0.9) / 0.8 : 640 - 280 * ((s3 - 1.7) / 0.7) ** 2;
     }
     beam *= calm;
-    if (reduced) beamAt = 760;
+
     const siren = s25 >= 0 && s25 < 1.8 ? ease(s25 / 0.25) * (1 - ease((s25 - 1.2) / 0.6)) * calm : 0;
     const pass = s55 >= 0 ? (s55 % 10) / 7 : 2;
     const flying = pass <= 1 ? ease(Math.min(pass, 1 - pass) * 8) * calm : 0;
-    const droneX = reduced ? 700 : 1010 - 1080 * pass;
-    const sweep = droneX + (reduced ? 0 : 50 * Math.sin(s55 * 0.9));
+    const droneX = 1010 - 1080 * pass;
+    const sweep = droneX + (50 * Math.sin(s55 * 0.9));
     const alarm = running && cash === null ? Math.max(beam * (beamAt < 930 ? 1 : 0), siren, flying * clamp(1 - Math.abs(sweep - HOME_X) / 140)) : 0;
 
     // Andy: what the round has him doing, and where the exit walks him.
-    const departure = cash !== null ? reduced ? 1 : ease((exitAge - 0.7) / 3.3) : 0;
+    const departure = cash !== null ? ease((exitAge - 0.7) / 3.3) : 0;
     const mode: AndyMode = cash !== null ? 'harvest' : crashed ? 'busted' : running ? act.stage > 0 && act.effort < 0.5 ? 'idle' : 'watering' : 'idle';
     const drive: AndyDrive = { mode, x: HOME_X - departure * 396, ground: GROUND, tension, alarm, bed: BED, street: STREET };
-    if (previous === null) settleAndy(andy, drive, reduced);
+    if (previous === null) settleAndy(andy, drive);
     // The raid lands on a frozen beat before he jumps.
-    const frozen = !reduced && mode === 'busted' && bustAge < HIT_STOP;
-    stepAndy(andy, drive, frozen ? 0 : dt, reduced);
+    const frozen = mode === 'busted' && bustAge < HIT_STOP;
+    stepAndy(andy, drive, frozen ? 0 : dt);
     if (live && andy.events.pour) audio.fx('glug', 0.25);
     if (live && andy.events.land) audio.fx('clang', 0.3);
     if (live && andy.events.step) audio.fx('stomp', 0.12);
@@ -173,30 +172,30 @@ export function createScene(options: SceneOptions = {}): Scene {
     c.save();
     c.save();
     // The camera: pulled back for a long round's jungle, punched in on Andy through the raid's first beat, shaken by the notice.
-    const punch = reduced || !caught ? 0 : bustAge < 0.06 ? ease(bustAge / 0.06) : 1 - ease((bustAge - 0.42) / 0.5);
-    const quake = !reduced && raid > 0.22 && raid < 0.67 ? Math.sin((raid - 0.22) * 38) * 5 * (1 - (raid - 0.22) / 0.45) : 0;
+    const punch = !caught ? 0 : bustAge < 0.06 ? ease(bustAge / 0.06) : 1 - ease((bustAge - 0.42) / 0.5);
+    const quake = raid > 0.22 && raid < 0.67 ? Math.sin((raid - 0.22) * 38) * 5 * (1 - (raid - 0.22) / 0.45) : 0;
     c.translate(240 + quake, 330); c.scale(1 + 0.1 * punch, 1 + 0.1 * punch); c.translate(-240, -330);
     c.translate(480, 540); c.scale(zoom, zoom); c.translate(-480, -540);
     backdrop(c);
     neighbour(c, lit, caller, time);
-    sirenGlow(c, s25, siren, reduced);
+    sirenGlow(c, s25, siren);
     headlights(c, beamAt, beam);
     const extra = Math.min(200, 40 * over);
-    for (let i = 0; i < 3; i++) plant(c, 419 + i * 151, 451, growth * (i === 1 ? 1 : 0.9), time, i + 1, raid, reduced, extra * (i === 1 ? 1 : 0.9));
+    for (let i = 0; i < 3; i++) plant(c, 419 + i * 151, 451, growth * (i === 1 ? 1 : 0.9), time, i + 1, raid, extra * (i === 1 ? 1 : 0.9));
     beds(c, view.stake === null ? null : cash !== null ? 'JEETED' : 'YOUR PLOT');
     drawAct(c, act, cash !== null ? 1 - ease(exitAge / 0.5) : running ? 1 : crashed ? 1 - ease(Math.max(0, raid) / 0.35) : 0);
     const moths = clamp((growth - 0.7) / 0.1) * calm;
-    if (moths > 0) { c.globalAlpha = moths; pollinators(c, reduced ? 0 : view.elapsed / 1000); c.globalAlpha = 1; }
+    if (moths > 0) { c.globalAlpha = moths; pollinators(c, view.elapsed / 1000); c.globalAlpha = 1; }
     const seen = drawAndy(c, andy, drive);
-    if (!reduced) drawStream(c, seen, BED.y + 6, time);
+    drawStream(c, seen, BED.y + 6, time);
     if (cash !== null && departure > 0.85) {
       c.save(); c.globalAlpha = ease((departure - 0.85) / 0.15); c.translate(121, 327); c.rotate(-0.075); box(c, -76, -29, 152, 60, '#f7df9f', 8, 3);
       text(c, 'GONE HOME', 0, -2, 16, '#352b48', 'center'); text(c, 'PROFITS TAKEN.', 0, 18, 11, '#345844', 'center', 136); c.restore();
     }
-    flyingLeaves(c, raid, reduced);
-    police(c, raid, reduced);
-    drone(c, droneX, 540 - 400 / zoom + (reduced ? 0 : Math.sin(time * 1.7) * 6), sweep, flying, time, reduced);
-    if (calm > 0 && !reduced) {
+    flyingLeaves(c, raid);
+    police(c, raid);
+    drone(c, droneX, 540 - 400 / zoom + (Math.sin(time * 1.7) * 6), sweep, flying, time);
+    if (calm > 0) {
       for (let i = 0; i < 10; i++) {
         const t = (time * 0.13 + noise(i + 20)) % 1;
         const sx = 365 + noise(i + 40) * 420 + Math.sin(time * 1.2 + i) * 8;
@@ -206,7 +205,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       c.globalAlpha = 1;
     }
     c.restore();
-    if (caught && !reduced && bustAge < 0.45) {
+    if (caught && bustAge < 0.45) {
       // Red, then blue, washes in from the street over the frozen beat.
       const wash = c.createLinearGradient(160, 0, 960, 0), color = bustAge < 0.1 || (bustAge > 0.2 && bustAge < 0.3) ? '255, 70, 105' : '80, 140, 255';
       wash.addColorStop(0, `rgba(${color}, 0)`); wash.addColorStop(1, `rgba(${color}, 0.55)`);
@@ -214,13 +213,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (raid >= 0) {
       // The notice slams down from above the frame, then the scene shakes with it; the dissolve to betting carries it out.
-      const slam = reduced ? 1 : ease(raid / 0.22);
-      c.save(); c.globalAlpha = reduced ? 1 : ease(raid / 0.08); c.translate(509, 229); c.rotate(-0.065); c.scale(1.7 - 0.7 * slam, 1.7 - 0.7 * slam);
+      const slam = ease(raid / 0.22);
+      c.save(); c.globalAlpha = ease(raid / 0.08); c.translate(509, 229); c.rotate(-0.065); c.scale(1.7 - 0.7 * slam, 1.7 - 0.7 * slam);
       box(c, -190, -58, 380, 110, cash !== null ? '#5aa36d' : '#f06c78', 14, 6);
       text(c, cash !== null ? 'SEC · NOTICE UNSERVED' : 'SEC · DIVISION OF ENFORCEMENT', 0, -27, 13, '#fff0c5', 'center', 340);
       text(c, cash !== null ? 'NOBODY HOME' : 'WELLS NOTICE', 0, 28, 50, '#fff0c5', 'center', 350); c.restore();
     }
-    if (typeof document !== 'undefined' && !reduced) {
+    if (typeof document !== 'undefined') {
       const canvas = c.canvas;
       if (crashed) {
         snap ??= document.createElement('canvas');

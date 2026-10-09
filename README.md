@@ -118,7 +118,7 @@ Every game's `main.ts` and `audio.ts` are copies of the canonical files in [`scr
 
 The shell connects to the local emulator or the platform's embedded bridge, drives `scene.ts` from room state, and handles controls, status, notices, resizing and replay. It stops offering cash-out after two seconds without a server frame. Embedded games hide Join because the host owns betting, keep Cash out, and report their height to the host. Replay uses the frame clock and pauses while the picture is hidden. See [embedded mode](docs/integration.md#embedded-mode) for the host contract.
 
-Published games use full character and environment animation. The shell calls `createScene()` without an alternate motion option; browser and operating-system motion preferences do not change the scene.
+Published games use full character and environment animation. Scenes expose `createScene()` with no motion options; browser and operating-system motion preferences do not change the scene.
 
 A scene calls `pageAudio({ style, crash })` from `./audio`, then `update(phase, tension)` each frame and cues such as `cashout()`, `crash()` and `fx(name)` when appropriate. [`audio.ts`](scripts/shell/audio.ts) lists the available styles, effects and options. The helper owns the Sound button and page lifecycle, and goes quiet while the page or picture is hidden.
 

@@ -4,14 +4,13 @@ import { pageAudio } from './audio';
 import { createInput, type Commands } from './input';
 import { addPrints, clamp, createWorld, driveAt, stepWorld, LANE, type World } from './course';
 import { drawSkier, drawYeti, drawYetiHands, drawYetiTeeth, drawTree, drawCoin, drawRock, drawRug, drawRamp, drawSign, drawLift, drawPrint, liftSway } from './art';
-import { yetiPose, reducedCrashAge, impactAge, ENDING_SECONDS, YETI_SCALE, HOLE_BELOW_SKIER, MOUTH_TOP, MOUTH_BOTTOM } from './yeti-rig';
+import { yetiPose, impactAge, ENDING_SECONDS, YETI_SCALE, HOLE_BELOW_SKIER, MOUTH_TOP, MOUTH_BOTTOM } from './yeti-rig';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
   currentX100: number; elapsed: number; crashAge: number;
   stake: number | null; cashoutX100: number | null; payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; dispose(): void }
 interface Field { x: number; y: number; w: number; h: number }
 const C = { ink: '#282348', purple: '#6451be', lime: '#cefa65', snow: '#fafbf5', shade: '#e2e4f0', grey: '#d9d9e1', muted: '#77758b', pink: '#ec759d' };
@@ -79,8 +78,7 @@ function tag(ctx: CanvasRenderingContext2D, line: string, x: number, y: number, 
   text(ctx, line, x, y, 11, color, 'center');
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Phones have no Space bar: there the frame names the Cash out button instead.
   const touchOnly = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
   const audio = pageAudio({ style: 'chiptune', bpm: 132, crash: 'boom', music: 0.35, tempoRise: 0.12 });
@@ -186,21 +184,21 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (crashed && previous !== 'crashed') {
       crashAngle = Math.sin(world.time * 40) * world.stumble * 0.12;
       crashLean = world.lean;
-      crashFrom = world.distance; crashSpeed = reduced ? 0 : world.speed;
+      crashFrom = world.distance; crashSpeed = world.speed;
       audio.crash('boom', first || view.crashAge > 1500);
     }
     audio.update(view.phase, tension);
-    if (!running && !crashed && !reduced) {
+    if (!running && !crashed) {
       // Ready stance: the skier rocks on their edges at the gate, and the first carve continues from this lean.
       rock += frameDt * 3.2;
       world.lean = Math.sin(rock) * 0.2;
     }
-    // Crash time after the hit-stop; reduced motion steps through held poses.
-    const age = crashed ? (reduced ? reducedCrashAge(view.crashAge / 1000) : impactAge(view.crashAge / 1000)) : 0;
+    // Crash time after the hit-stop.
+    const age = crashed ? (impactAge(view.crashAge / 1000)) : 0;
     // The still-in degen skis in from behind once the chair has collected the player.
     const since = (now - escapeAt) / 1000;
     // A crash hurries a late arrival into place before the yeti reaches for him.
-    const runnerLift = secured !== null && !reduced ? (1 - Math.max(ease((since - 0.5) / 1), crashed ? ease(age / 0.4) : 0)) * (skierY - field.y + 90) : 0;
+    const runnerLift = secured !== null ? (1 - Math.max(ease((since - 0.5) / 1), crashed ? ease(age / 0.4) : 0)) * (skierY - field.y + 90) : 0;
     if (running) {
       const npc = secured !== null;
       // He collects, bonks and lays tracks where he is drawn, not at the camera line.
@@ -247,12 +245,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     const slideLeft = crashSpeed / 8 - slid;
     previous = view.phase; lastElapsed = view.elapsed;
     const skierX = field.x + world.x * field.w;
-    const visualTime = reduced ? 0 : now;
+    const visualTime = now;
     const runnerY = skierY - runnerLift;
-    const hit = crashed && !reduced ? view.crashAge / 1000 : 9;
+    const hit = crashed ? view.crashAge / 1000 : 9;
     const punch = 0.1 * ease(hit / 0.04) * (1 - ease((hit - 0.3) / 0.35));
     const quakeAge = world.time - tremorAt;
-    const quake = running && !reduced ? tremorAmp * Math.max(0, 1 - quakeAge / 0.9) ** 2 : 0;
+    const quake = running ? tremorAmp * Math.max(0, 1 - quakeAge / 0.9) ** 2 : 0;
     const shake = (hit < 1 ? 4 * Math.exp(-6 * hit) : 0) + quake;
     const cashKey = running && staked && secured === null && !previousEnding;
     const eaten = crashed && secured === null && age >= 4.42;
@@ -367,7 +365,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (!skierDrawn) drawRunner();
     // Paper knees: a quarter of the bag arcs out of the backpack and is left behind on the slope.
-    if (!reduced) for (const spill of world.spills) {
+    for (const spill of world.spills) {
       const arc = Math.max(0, 240 * spill.age - 480 * spill.age * spill.age);
       ctx.save(); ctx.translate(field.x + (spill.x + spill.vx * spill.age) * field.w, skierY + ((spill.z - world.distance) - 40 - arc) * scale);
       ctx.scale(scale * 0.8, scale * 0.8); ctx.globalAlpha = 1 - ease((spill.age - 0.45) / 0.25);
@@ -376,15 +374,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (world.stumble > 0 && running && secured === null) text(ctx, 'REKT!', skierX, skierY - 80 * scale, 15, C.purple, 'center');
     if (secured !== null) {
-      const boarding = liftPose(reduced ? (since < 2.4 ? 0.9 : 3) : since, escapePose);
+      const boarding = liftPose(since, escapePose);
       // The chair drifts away from the side the still-in degen skis in on, so the two start apart.
       const liftX = field.x + (escapeX + (escapeX < 0.5 ? -0.12 : 0.12) * boarding.depart) * field.w;
       const liftY = skierY + boarding.chairY * scale;
       ctx.save(); ctx.translate(liftX, skierY); ctx.scale(scale, scale);
       drawLift(ctx, boarding.chairX, boarding.chairY, visualTime, escapeX > 0.6 ? -1 : 1);
       // Seated, the jeet sways with the chair, the poles carry on from the run's phase and the skis dangle a beat behind.
-      drawSkier(ctx, liftSway(visualTime) * boarding.seated, boarding.skierY, { lean: boarding.lean, jump: 0, time: world.time * 1000, stride: escapePose.stride + (reduced ? 0 : since * 5.5),
-        stumble: boarding.stumble, seated: boarding.seated, dangle: reduced ? 0 : 0.16 * Math.sin(visualTime / 440 - 1.1), shadow: false });
+      drawSkier(ctx, liftSway(visualTime) * boarding.seated, boarding.skierY, { lean: boarding.lean, jump: 0, time: world.time * 1000, stride: escapePose.stride + (since * 5.5),
+        stumble: boarding.stumble, seated: boarding.seated, dangle: 0.16 * Math.sin(visualTime / 440 - 1.1), shadow: false });
       ctx.restore();
       text(ctx, 'BAGS SECURED', liftX, liftY + 28 * scale, 13, C.purple, 'center');
     }
@@ -397,7 +395,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       captionReady = pose.captionReady;
       // The hole is created only after the authoritative phase changes to crashed.
       ctx.save(); ctx.translate(yetiX, holeY); ctx.scale(scale * YETI_SCALE, scale * YETI_SCALE);
-      const face = { mouth: pose.mouth, chew: pose.chew, time: reduced ? 0 : view.crashAge };
+      const face = { mouth: pose.mouth, chew: pose.chew, time: view.crashAge };
       const heldSkier = () => {
         if (!pose.skier.visible) return;
         ctx.save();
@@ -422,7 +420,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       // Foreground teeth and wrapping fingers keep the grip and the bite visible.
       if (pose.turn === 1 && (pose.skier.clipMouth || !pose.skier.visible)) drawYetiTeeth(ctx, 0, 0, face);
       drawYetiHands(ctx, 0, 0, pose.arms);
-      if (!reduced && age < 0.8) {
+      if (age < 0.8) {
         for (let i = 0; i < 10; i++) {
           const dx = (i - 4.5) * 19 * age;
           const dy = -Math.sin(Math.PI * age / 0.8) * (35 + i % 3 * 13);
@@ -445,7 +443,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // Long rounds keep changing: snow starts falling past 3× and the light fades into night skiing past 10×.
     const dusk = clamp((Math.log10(mult) - 1) / 2, 0, 1);
     if (dusk > 0) { ctx.fillStyle = `rgba(70, 52, 150, ${0.18 * dusk})`; ctx.fillRect(field.x, field.y, field.w, field.h); }
-    const flakes = reduced ? 0 : Math.round(70 * clamp((Math.log10(mult) - 0.5) / 2.5, 0, 1));
+    const flakes = Math.round(70 * clamp((Math.log10(mult) - 0.5) / 2.5, 0, 1));
     // The run's clock stops at the crash, so the snow keeps falling on crash time (held through the hit-stop).
     const snowTime = world.time + age;
     for (let i = 0; i < flakes; i++) {
@@ -482,7 +480,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       text(ctx, 'NEXT RUN OPEN • BETTING NOW', field.x + field.w / 2, field.y + 24, 14, C.ink, 'center', field.w - 80);
     } else if (crashed && view.crashAge >= 180) {
       // The payoff reads straight after the hit-stop; the feeding and the final caption are the encore.
-      const drop = reduced ? 0 : (1 - ease((view.crashAge - 180) / 160)) * 60;
+      const drop = (1 - ease((view.crashAge - 180) / 160)) * 60;
       const rugged = view.currentX100 <= 100 ? 'RUGGED AT THE GATE.' : `RUGGED AT ${formatX(view.currentX100)}.`;
       panel(ctx, field.x + 30, field.y + 8 - drop, field.w - 60, 50, C.pink);
       text(ctx, 'DEV WALLET: AWAKE', field.x + field.w / 2, field.y + 25 - drop, portrait ? 18 : 20, C.ink, 'center');

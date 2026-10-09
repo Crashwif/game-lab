@@ -1,7 +1,7 @@
 /** Elapsed-time presentation only: no result, stake or crash prediction enters this director. */
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["The launch is going well", "The manager wants a word", "Pack the emergency case", "Just a harmless photo op", "The receipts need sorting", "The PR folder gets thicker", "Rehearse the statement again"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -12,7 +12,7 @@ export function actAt(elapsed: number, reduced = false) {
   const ramp = Math.min(1, age / 5), release = Math.max(0, 1 - Math.abs(age - 5) / 5), calm = release * release * (3 - 2 * release);
   // Effort only moves the props (a calm beat mid-act, then renewed fuss); it never touches the round's tension.
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - calm) * .52);
-  return { stage, prev, age, effort, fresh: Math.min(1, age / .6), reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1) * effort, line: LINES[stage]! };
+  return { stage, prev, age, effort, fresh: Math.min(1, age / .6), reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1) * effort, line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** `alpha` fades every prop together, for the crash. */

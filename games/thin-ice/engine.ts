@@ -118,7 +118,7 @@ export function stepEngine(e: EngineState, drive: EngineDrive, dt: number): bool
   return spoke;
 }
 
-export function drawEngine(ctx: CanvasRenderingContext2D, e: EngineState, drive: EngineDrive, reduced: boolean): void {
+export function drawEngine(ctx: CanvasRenderingContext2D, e: EngineState, drive: EngineDrive): void {
   const bob = Math.sin(e.time * 2.3) * 3 + Math.sin(e.time * 5.1) * 1.2;
   const x = e.x.x;
   const y = e.y.x + bob;
@@ -134,18 +134,18 @@ export function drawEngine(ctx: CanvasRenderingContext2D, e: EngineState, drive:
   ctx.beginPath(); ctx.moveTo(-30, -6); ctx.lineTo(30, -6); ctx.stroke();
   ctx.fillStyle = 'rgba(200, 215, 235, 0.55)';
   for (const rx of [-30, 30]) {
-    const spin = reduced ? 0 : e.time * 40;
+    const spin = e.time * 40;
     ctx.beginPath(); ctx.ellipse(rx, -9, 16, 3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(rx - Math.cos(spin) * 14, -9 - Math.sin(spin) * 2); ctx.lineTo(rx + Math.cos(spin) * 14, -9 + Math.sin(spin) * 2); ctx.stroke();
   }
-  // Body: a dark box with the eye, a red light that runs faster the closer it is (steady under reduced motion).
+  // Body: a dark box with the eye, a red light that runs faster the closer it is.
   ctx.fillStyle = '#2b3442';
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(-22, -8, 44, 20, 5); ctx.fill(); ctx.stroke();
-  const blink = reduced ? 1 : 0.55 + 0.45 * Math.sin(e.blink);
+  const blink = 0.55 + 0.45 * Math.sin(e.blink);
   ctx.fillStyle = `rgba(255, 60, 60, ${0.35 + 0.65 * blink})`;
   ctx.beginPath(); ctx.arc(14, -12, 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#9fd3ff';
