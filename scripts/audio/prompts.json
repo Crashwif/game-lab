@@ -680,6 +680,29 @@
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds, not a short loop repeated. No voices, lyrics, spoken words or sampled speech. Continuous musical action, no silent intro or long fade. Arrangement: 0-25s establish the motif and groove; 25-50s introduce a counter-melody and rhythmic fills; 50-75s a fresh harmonic variation; 75-100s a lighter breakdown that keeps the pulse; 100-125s rebuild with a new lead variation; 125-150s a sustained energetic final section, musically return toward the opening for a gentle repeat beyond the full track. Keep clear space for game sound effects and avoid crash sounds or victory endings. Tense night-rooftop interrogation phonk at 96 BPM: a low detuned synth bass, a slow trap kick with sparse rim clicks, wind-like filtered noise swells, a cold plucked synth motif that keeps returning a semitone higher, distant siren-like pads and a hi-hat pattern that doubles as the arrangement climbs."
       }
+    },
+    "yes-men": {
+      "music": {
+        "prompt": "Satirical state-ceremony march at 112 BPM for a dictator's war room: pompous brass fanfares over a military snare, tuba oompah, glockenspiel flourishes, a creeping minor-key menace under the pomp, and an applause-like shaker that grows obsessive. Compose one complete original instrumental game score lasting exactly 150 seconds. Develop six distinct 25-second sections: introduce the motif, add a counter-melody, vary the harmony and percussion, simplify the texture while keeping the pulse, rebuild with a fresh lead variation, then return toward the opening for a seamless repeat after the full track. Leave room for game effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      },
+      "crash": {
+        "prompt": "A heavy mechanical button slammed, an air-raid klaxon winding up, a crowd gasping then applauding frantically, and a camera flash bulb popping",
+        "seconds": 3
+      },
+      "cashout": {
+        "prompt": "A wooden chair scraping back on a stone floor, a room gasping in unison, brisk footsteps and a heavy door closing with a cash register ka-ching",
+        "seconds": 2.5
+      },
+      "effects": {
+        "stomp": {
+          "prompt": "A small room of men rising from chairs into a standing ovation, feet and hands, short",
+          "seconds": 1.2
+        },
+        "camera": {
+          "prompt": "A vintage press camera flash bulb popping once, close",
+          "seconds": 0.6
+        }
+      }
     }
   }
 }
