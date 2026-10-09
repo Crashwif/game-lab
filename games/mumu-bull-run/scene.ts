@@ -27,8 +27,9 @@ function hud(c: CanvasRenderingContext2D, view: SceneView, r: Routine, caption: 
   text(c, view.phase === 'crashed' ? 'ROUND CRASHED' : 'ROUND MULTIPLIER', 927, 32, 12, '#b2c5a1', 'right');
   text(c, formatX(view.currentX100), 928, 67, 45, view.phase === 'crashed' ? RED : CREAM, 'right', 218);
   if (view.cashoutX100 !== null) {
-    box(c, 626, 101, 315, 34, GREEN, 4, 3);
-    text(c, `CASHED OUT ${formatX(view.cashoutX100)}`, 786, 120, 23, INK, 'center', 301);
+    // Tucked under the multiplier panel, clear of the arena's big board.
+    box(c, 779, 101, 163, 32, GREEN, 4, 3);
+    text(c, `CASHED OUT ${formatX(view.cashoutX100)}`, 860, 118, 18, INK, 'center', 150);
   }
   c.fillStyle = '#0c1b16ed'; c.fillRect(0, 503, 960, 37);
   text(c, caption, 480, 523, 27, view.cashoutX100 !== null ? GREEN : CREAM, 'center', 922);

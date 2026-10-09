@@ -3,6 +3,7 @@ import { drawFace } from './actor';
 import { box, burst, clamp, ease, GOLD, GREEN, INK, label, line, mono, PAPER, RED, shape } from './ink';
 
 const SKY = '#343c5c';
+const mix = (a: number, b: number, n: number): number => a + (b - a) * n;
 
 export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
   const t = input.reduced ? 0 : input.phase === 'waiting' || input.phase === 'betting' ? input.clock : input.elapsed;
@@ -30,6 +31,8 @@ export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, 
   for (let i = 0; i < 6; i += 1) line(c, [[30, 150 + i * 20], [220, 150 + i * 20 + Math.sin(t * 0.9 + i) * 5]], '#aba590', 9);
   c.restore();
   line(c, [[227, 135], [229, 356]], INK, 3);
+  // The wall socket the monitor's power cord reaches for.
+  box(c, 572, 412, 24, 32, PAPER, 3); box(c, 580, 420, 8, 4, INK, 1); box(c, 580, 432, 8, 4, INK, 1);
   box(c, 822, 172 + collapse * 40, 103, 100, PAPER, 4);
   label(c, 'HUMAN', 874, 194 + collapse * 40, 18, INK, 94, 'center');
   label(c, 'RESOURCES', 874, 217 + collapse * 40, 14, INK, 94, 'center');
@@ -134,29 +137,47 @@ function crt(c: CanvasRenderingContext2D, input: ActingInput, act: Act, x: numbe
   c.restore();
 }
 
+/** The power cord leaves the back of the monitor, drops behind the desk and reaches the wall socket, or the plug in a cashed-out hand. */
+function powerCord(c: CanvasRenderingContext2D, p: ActorPose, crtX: number, crtY: number): void {
+  c.beginPath(); c.moveTo(crtX + 88, crtY + 86);
+  if (p.exit > 0.75) {
+    c.bezierCurveTo(crtX + 118, crtY + 200, 640, 505, 470, 482);
+    c.bezierCurveTo(330, 463, 296, 421, 226, 350);
+  } else c.bezierCurveTo(crtX + 112, crtY + 190, 644, 489, 594, 440);
+  c.strokeStyle = INK; c.lineWidth = 5; c.lineCap = 'round'; c.stroke();
+}
+
+/** The keyboard's cable lies slack across the desk into the back of the monitor, and pulls straight when the machine tugs. */
+function keyboardCable(c: CanvasRenderingContext2D, p: ActorPose, act: Act, crtX: number, crtY: number): void {
+  const taut = act.index === 4 ? act.weight : 0;
+  const cos = Math.cos(p.keyboardAngle), sin = Math.sin(p.keyboardAngle);
+  const start = { x: p.keyboard.x + 70 * cos - 2 * sin, y: p.keyboard.y + 70 * sin + 2 * cos };
+  const end = { x: crtX + 104, y: crtY + 82 };
+  const c1 = { x: mix(start.x + 70, start.x + 66, taut), y: mix(start.y + 12, start.y - 10, taut) };
+  const c2 = { x: mix(crtX + 138, crtX + 86, taut), y: mix(crtY + 152, crtY - 10, taut) };
+  c.beginPath(); c.moveTo(start.x, start.y); c.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+  c.strokeStyle = INK; c.lineWidth = 5 + 6 * taut; c.lineCap = 'round'; c.stroke();
+  if (taut > 0) { c.globalAlpha = taut; c.strokeStyle = '#7c795c'; c.lineWidth = 6; c.stroke(); c.globalAlpha = 1; }
+}
+
 export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: Act, p: ActorPose): void {
   const dead = input.phase === 'crashed';
   const age = input.reduced && dead ? 4 : input.crashAge;
   const flip = dead ? ease((age - 0.24) / 0.55) : 0;
   const shake = input.reduced ? 0 : dead ? Math.sin(age * 40) * Math.exp(-age * 3) * 6 : act.impact * 5;
+  const crtX = 687 + shake * 0.7, crtY = 257 + shake;
   c.save(); c.translate(452, 410 + shake); c.rotate(-flip * 2.8); c.translate(-452, -410);
+  if (!dead) powerCord(c, p, crtX, crtY);
   shape(c, [[452, 414], [481, 413], [479, 513], [457, 513]], '#837155', 4);
   shape(c, [[793, 414], [821, 412], [815, 513], [793, 513]], '#837155', 4);
   shape(c, [[430, 395], [820, 388], [844, 419], [432, 428]], '#bc9b6e', 5);
   line(c, [[451, 410], [820, 403]], '#6e593f', 2);
+  if (!dead) crt(c, input, act, crtX, crtY, -0.025 + shake * 0.006);
+  c.restore();
+  // The keyboard is drawn in the actor's frame, so gripping hands land on it exactly; the cable follows it into the shaken monitor.
   if (!dead) {
     keyboard(c, p, act.clock, input.reduced);
-    crt(c, input, act, 687 + shake * 0.7, 257 + shake, -0.025 + shake * 0.006);
-  }
-  c.restore();
-  if (!dead) {
-    c.save();
-    c.beginPath(); c.moveTo(791, 339);
-    if (act.index === 4) c.bezierCurveTo(773, 247, p.keyboard.x + 130, p.keyboard.y - 10, p.keyboard.x + 64, p.keyboard.y);
-    else c.bezierCurveTo(866, 406, 685, 488 + shake * 3, 609, 494);
-    c.strokeStyle = INK; c.lineWidth = act.index === 4 ? 11 : 5; c.stroke();
-    if (act.index === 4) { c.strokeStyle = '#7c795c'; c.lineWidth = 6; c.stroke(); }
-    c.restore();
+    keyboardCable(c, p, act, crtX, crtY + shake);
   } else {
     // The monitor follows the desk contact, flies, hits the wall, and settles on the floor.
     const launch = clamp((age - 0.24) / 0.8);

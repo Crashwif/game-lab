@@ -50,11 +50,11 @@ export function label(ctx: CanvasRenderingContext2D, text: string, x: number, y:
   ctx.fillText(text, x, y, maxWidth);
 }
 
-export function mono(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size = 14, color = INK, maxWidth = 900): void {
+export function mono(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size = 14, color = INK, maxWidth = 900, align: CanvasTextAlign = 'left'): void {
   ctx.font = `700 ${size}px ui-monospace, "Courier New", monospace`;
   ctx.fillStyle = color;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
+  ctx.textAlign = align;
   ctx.fillText(text, x, y, maxWidth);
 }
 
