@@ -1,0 +1,10 @@
+{
+  "name": "Degen Anonymous",
+  "hook": "Clean for 12 days, until the chart moved",
+  "tagline": "A folding-chair circle at Degen Anonymous where every share is keyed to the round multiplier: the coffee urn fills with sponsor snacks, one member relapses live and everyone watches him open the exchange like a crash, and the big book of grievances fills with the room's top pumps. Cash out at your own share, or ride it to the group hug.",
+  "tags": ["Relapse on the curve", "Sponsor cup of snacks", "Big book of pumps"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 34 }
+}

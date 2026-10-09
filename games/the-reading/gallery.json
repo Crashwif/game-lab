@@ -1,0 +1,10 @@
+{
+  "name": "The Reading",
+  "hook": "Item three: the bags",
+  "tagline": "A lawyer reads a dead grandmother's estate to a family of relatives in a wood-panelled study, and the estate is a portfolio of bags whose values melt as the round multiplier climbs: the deer head, the service for twelve, the synthetic grandmother, the timeshare. Cash out to accept a bequest nobody else wants, or watch every kept item turn out to be collateral in a lawyer's filing.",
+  "tags": ["Inventory on the curve", "Synthetic grandmother", "Everything is collateral"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 34 }
+}
