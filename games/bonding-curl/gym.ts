@@ -289,7 +289,8 @@ export function drawGymBack(ctx: CanvasRenderingContext2D, g: Gym, dead: boolean
   ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
   memeLabel(ctx, 'DEGEN FITNESS', 480, 24, 18, '#ffe27a');
   // Posters.
-  for (const [px, lines] of [[22, ['PUMP IT', 'DUMP IT']], [846, ['NO PAIN', 'NO GAINZ']]] as const) {
+  // The right poster hangs clear of the phone overlay in the corner.
+  for (const [px, lines] of [[22, ['PUMP IT', 'DUMP IT']], [760, ['NO PAIN', 'NO GAINZ']]] as const) {
     ctx.fillStyle = '#14213d';
     ctx.beginPath(); ctx.roundRect(px, 60, 92, 120, 3); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     memeLabel(ctx, lines[0], px + 46, 86, 15, '#ffe27a');

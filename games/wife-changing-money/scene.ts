@@ -17,6 +17,7 @@ import {
   drawLight,
   drawMid,
   drawRoom,
+  drawSuitcase,
   drawVignette,
   type Kitchen,
   resetKitchen,
@@ -296,6 +297,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     const glow = trader.lid.x > 0.8 ? 'off' : kitchen.chartDead ? 'red' : 'green';
     drawRoom(ctx, kitchen, reduced ? 0 : time);
+    drawSuitcase(ctx, kitchen);
     drawLaptop(ctx, kitchen, trader.lid.x, time, fear);
     drawTrader(ctx, trader, glow, time, fear);
     drawMid(ctx, kitchen, multiplier, time, !isPortrait(ctx.canvas));
