@@ -191,7 +191,7 @@ export function drawRider(c:Ctx,r:Rider,fear:number,shades:boolean,b:Bull,far=fa
  else c.arc(0,-52,6,.3,Math.PI-.3);
  c.stroke();
  const h=r.cap;
- if(h){const p=local(r,h,rot);c.translate(p.x,p.y);c.rotate(h.a-rot)}else c.translate(0,-66+clamp(r.hat.x,-12,4));
+ if(h){const p=local(r,h,rot);c.translate(p.x,p.y);c.rotate(h.a-rot)}else c.translate(0,-66+clamp(r.hat.x,-6,4));
  c.fillStyle='#8b5a2b';
  c.beginPath();c.ellipse(0,0,24,6,0,0,TAU);c.fill();c.stroke();
  c.beginPath();c.roundRect(-13,-16,26,17,5);c.fill();c.stroke();

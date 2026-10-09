@@ -844,7 +844,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (ghost !== null && ghostFade.x > 0.02) drawGhost(ctx, ghost, cameraX, clamp(ghostFade.x, 0, 1), dt);
     // You are her while you have a bet on; a spectator just watches someone else's long.
-    if (you.x > 0.03) {
+    // Up on the shore the badge says whose exit it was, and her tag would only crowd it.
+    if (you.x > 0.03 && skater.mode !== 'shore' && skater.mode !== 'toShore') {
       const top = headTop(neck, skater.lean.x, place.scale);
       drawTag(ctx, 'YOU', top.x, top.y - 6 * place.scale, clamp(you.x, 0, 1.2) * place.scale, '#ffe27a');
     }

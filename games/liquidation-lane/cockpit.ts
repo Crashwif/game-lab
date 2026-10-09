@@ -166,7 +166,8 @@ function steeringWheel(ctx: CanvasRenderingContext2D, view: CockpitView): void {
 
   for (const side of [-1, 1]) {
     const hand = steeringContact(side, turn);
-    const root = { x: side < 0 ? 110 : 320, y: 600 };
+    // The right shoulder sits inboard so the forearm crosses the dash clear of the gear box label.
+    const root = { x: side < 0 ? 110 : 290, y: 600 };
     const dx = hand.x - root.x, dy = hand.y - root.y, d = Math.hypot(dx, dy);
     const along = (105 * 105 - 108 * 108 + d * d) / (2 * d);
     const bend = Math.sqrt(Math.max(0, 105 * 105 - along * along)) * side;

@@ -169,7 +169,7 @@ export function drawPanel(ctx: CanvasRenderingContext2D, panel: PanelState): voi
   const throb = panel.reduced || panel.crashed ? 1 : 0.65 + 0.35 * Math.sin(panel.time * 7);
   const susColour = panel.crashed ? '#ff4d6d' : `rgb(${Math.round(201 + (255 - 201) * hot)}, ${Math.round(247 - (247 - 77) * hot * throb)}, ${Math.round(107 - (107 - 109) * hot)})`;
   ctx.fillStyle = hot > 0.5 ? '#ffb3c1' : '#e9ecf6';
-  ctx.fillText(panel.crashed ? 'SUS: CONFIRMED' : `SUS: ${Math.round(panel.sus)}%`, x + 12, y + 116);
+  ctx.fillText(panel.crashed ? 'SUS: CONFIRMED' : `SUS: ${Math.round(panel.sus)}%`, x + 12, y + 116, 78);
   bar(ctx, x + 96, y + 107, w - 108, 10, panel.crashed ? 1 : panel.sus / 100, susColour);
   ctx.fillStyle = '#b9c3d6';
   ctx.font = `600 10px ${UI_FONT}`;

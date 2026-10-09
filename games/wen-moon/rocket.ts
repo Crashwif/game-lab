@@ -142,7 +142,7 @@ function stencil(ctx: CanvasRenderingContext2D, text: string, y: number, size: n
 /** The booster, nozzle at the origin: the dev's wallet, on the rocket and tumbling away. */
 function stage(ctx: CanvasRenderingContext2D): void {
   nozzle(ctx, 0); fin(ctx, -22, 0, -1, 26); fin(ctx, 22, 0, 1, 26); hull(ctx, -74, 0, 44);
-  stencil(ctx, 'DEV WALLET', -6, 11);
+  stencil(ctx, 'DEV WALLET', -2, 10);
 }
 
 export function drawRocket(ctx: CanvasRenderingContext2D, drive: RocketDrive): void {

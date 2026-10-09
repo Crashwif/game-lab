@@ -289,7 +289,7 @@ function enterMode(rig: AndyRig, mode: AndyMode, pose: Pose, drive: AndyDrive): 
     if (rig.can.held) {
       const grip = worldPoint(rig, pose.frontHand, drive.ground);
       const toss = mode === 'busted' ? 1 : 0.45;
-      rig.can = { held: false, x: grip.x, y: grip.y, vx: (60 + 40 * toss) * rig.facing.x, vy: -220 * toss - 40, angle: rig.tilt.x * rig.facing.x, spin: 7 * toss * rig.facing.x, rest: 0 };
+      rig.can = { held: false, x: grip.x, y: grip.y, vx: (20 + 20 * toss) * rig.facing.x, vy: -220 * toss - 40, angle: rig.tilt.x * rig.facing.x, spin: 7 * toss * rig.facing.x, rest: 0 };
       rig.events.drop = true;
     }
   }

@@ -316,7 +316,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     r.sprite(fe.point, eggScale * 2.6, [1, 0.78, 0.84, 0.36 + 0.2 * closeness], 2);
     r.sprite(fe.point, eggScale * 1.4, [1, 0.92, 0.82, 0.22], 1);
     r.flushSprites('additive', env.fogDensity * 0.25);
-    labels.push({ text: 'THE MOON', at: madd(fe.point, fe.up, eggScale + 1.4), colour: '#ffe27a', size: 20, far: true });
+    if (!crash.active) labels.push({ text: 'THE MOON', at: madd(fe.point, fe.up, eggScale + 1.4), colour: '#ffe27a', size: 20, far: true });
     drawWall(crash, r);
     r.end();
   }
