@@ -74,7 +74,7 @@ type Secured = { x100: number; payout: number | null };
 /** The multipliers that ring a milestone ding, the third onward an airhorn. The caption follows the lines instead. */
 const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22];
 /** After grace, the round keeps going: what they mutter with their heads down, keyed to how far past the exit it is. */
-const REGRET: [number, Who, string][] = [[1.5, 'rick', 'psst. the gravy is still 5G'], [2, 'niece', 'he’s still going, Grandma'], [3, 'gran', 'heads DOWN, Richard'], [10, 'rick', 'amen. and also: wake up']];
+const REGRET: [number, Who, string][] = [[1.5, 'rick', 'psst. the gravy is still 5G'], [2, 'niece', 'he’s still going, Grandma. it’s a thread'], [3, 'gran', 'heads DOWN, Richard. I voted. don’t ask'], [10, 'rick', 'amen. and also: wake up']];
 /** The wall's hit-stop and camera punch, then slow motion at a third speed. */
 const FREEZE_S = 0.15;
 const PUNCH_HOLD_S = 0.3;

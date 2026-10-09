@@ -22,63 +22,66 @@ export type Who = 'her' | 'dad' | 'mom';
 /** `cap` is the caption the line puts up when it is said, so a caption never runs ahead of the line it names. */
 export interface Line { at: number; who: Who; text: string; cap?: string }
 /**
- * The conversation, keyed to the multiplier: her lines go further every time, the parents get a word in
- * between. A line every second and a half or so through the first 15 s, where most rounds end; each line is
- * a speech bubble and a cue; once she has left the table no more are said.
+ * The conversation, keyed to the multiplier: she goes further every time, terminally online, and the parents
+ * answer from the pamphlet. A line every second and a half or so through the first 15 s, where most rounds
+ * end; each line is a speech bubble and a cue; once she has left the table no more are said.
  */
 export const LINES: Line[] = [
   { at: 1.04, who: 'her', text: 'so… I’ve been thinking about my gender', cap: 'SO, UM, ABOUT MY GENDER' },
   { at: 1.18, who: 'dad', text: 'pass the potatoes' },
-  { at: 1.32, who: 'her', text: 'I think I might be nonbinary', cap: 'IT’S A SPECTRUM' },
+  { at: 1.32, who: 'her', text: 'I’m nonbinary. it’s in my bio. read my bio', cap: 'IT’S IN THE BIO' },
   { at: 1.48, who: 'mom', text: 'is this from the internet' },
-  { at: 1.68, who: 'her', text: 'gender is a social construct, mom', cap: 'IT’S A CONSTRUCT' },
+  { at: 1.68, who: 'her', text: 'gender is a social construct, mom. so is your marriage', cap: 'SO IS YOUR MARRIAGE' },
   { at: 1.9, who: 'dad', text: 'this casserole is a social construct' },
-  { at: 2.2, who: 'her', text: 'my pronouns are they/them. for now', cap: 'THEY/THEM (FOR NOW)' },
+  { at: 2.2, who: 'her', text: 'my pronouns are they/them. for now. yours are sir/ma’am', cap: 'THEY/THEM (FOR NOW)' },
   { at: 2.55, who: 'mom', text: 'we raised you in a christian home' },
-  { at: 2.9, who: 'her', text: 'actually I’m demigender with a xenogender lean', cap: 'IT’S A JOURNEY' },
+  { at: 2.9, who: 'her', text: 'I’m demigender with a xenogender lean. wiki it', cap: 'IT’S ON THE WIKI' },
   { at: 3.35, who: 'dad', text: 'a what' },
-  { at: 3.8, who: 'her', text: 'the binary is a colonial import, dad', cap: 'BEYOND THE BINARY' },
+  { at: 3.8, who: 'her', text: 'the binary is a colonial import, dad. like your truck', cap: 'BEYOND THE BINARY' },
   { at: 4.4, who: 'mom', text: 'pastor rick is going to hear about this' },
-  { at: 5, who: 'her', text: 'also property is theft. pass the salt', cap: 'ALSO, PROPERTY IS THEFT' },
-  { at: 5.7, who: 'her', text: 'I’m agender but I present post-gender', cap: 'POST-GENDER' },
-  { at: 6.5, who: 'her', text: 'gender is a performance. like church', cap: 'LIKE CHURCH' },
-  { at: 7.2, who: 'dad', text: 'WHAT DID YOU SAY ABOUT CHURCH' },
-  { at: 8, who: 'her', text: 'my identity is a superposition until observed', cap: 'A SUPERPOSITION UNTIL OBSERVED' },
-  { at: 9, who: 'her', text: 'the nuclear family is a cold war psyop', cap: 'THE FAMILY IS A PSYOP' },
-  { at: 10, who: 'mom', text: 'lord give me strength' },
-  { at: 11, who: 'her', text: 'the self is a non-euclidean manifold', cap: 'THE SELF IS A MANIFOLD' },
-  { at: 12.5, who: 'her', text: 'it’s praxis, dad', cap: 'IT’S PRAXIS, DAD' },
-  { at: 14.5, who: 'her', text: 'I identify as the concept of tuesday', cap: 'THE CONCEPT OF TUESDAY' },
-  { at: 17, who: 'her', text: 'there is no self. only vibes', cap: 'NO SELF, ONLY VIBES' },
-  { at: 20, who: 'her', text: 'I’m dating a polycule, by the way', cap: 'ALSO, A POLYCULE' },
-  { at: 24, who: 'her', text: 'my they/them is itself a construct', cap: 'THEOLOGICAL CODE RED' },
-  { at: 29, who: 'her', text: 'anyway, who wants pie' },
-  { at: 36, who: 'her', text: 'the pie is also a construct', cap: 'THE PIE IS A CONSTRUCT' },
-  { at: 45, who: 'her', text: 'I contain multitudes. legally', cap: 'MULTITUDES, LEGALLY' },
-  { at: 73, who: 'dad', text: 'is this going on the christmas card' },
-  { at: 100, who: 'her', text: 'my name is a frequency now. you can’t say it', cap: 'HER NAME IS A FREQUENCY' },
-  { at: 316, who: 'her', text: 'I got ordained online. as a vibe', cap: 'ORDAINED AS A VIBE' },
-  { at: 540, who: 'mom', text: 'lord, take the wheel' },
+  { at: 5, who: 'her', text: 'pastor rick liked my post. at 3am', cap: 'PASTOR RICK LIKED THE POST' },
+  { at: 5.7, who: 'dad', text: 'is this because we let you watch Glee' },
+  { at: 6.5, who: 'her', text: 'also I’m a landlord abolitionist. starting with this house', cap: 'ABOLISH THIS HOUSE' },
+  { at: 7.2, who: 'mom', text: 'the dog is a boy and HE’S fine with it' },
+  { at: 8, who: 'her', text: 'every cop is bad. including the mall one, mom', cap: 'INCLUDING THE MALL ONE' },
+  { at: 9, who: 'her', text: 'gender is a performance. like church. like your 401k', cap: 'LIKE CHURCH' },
+  { at: 10, who: 'dad', text: 'WHAT DID YOU SAY ABOUT CHURCH' },
+  { at: 11, who: 'her', text: 'I put the college fund in a dog coin. it’s praxis', cap: 'THE COLLEGE FUND IS PRAXIS' },
+  { at: 12.5, who: 'mom', text: 'lord give me strength' },
+  { at: 14.5, who: 'dad', text: 'there’s a camp. your cousin went. he’s an accountant now' },
+  { at: 17, who: 'her', text: 'the nuclear family is a cold war psyop', cap: 'THE FAMILY IS A PSYOP' },
+  { at: 20, who: 'her', text: 'I identify as the concept of tuesday', cap: 'THE CONCEPT OF TUESDAY' },
+  { at: 24, who: 'mom', text: 'I’m writing to the school board. in cursive' },
+  { at: 29, who: 'her', text: 'there is no self. only vibes. and the group chat', cap: 'NO SELF, ONLY VIBES' },
+  { at: 36, who: 'her', text: 'I’m dating a polycule. they’re all named Sage', cap: 'ALL NAMED SAGE' },
+  { at: 45, who: 'dad', text: 'you can be whatever you want after you get a job' },
+  { at: 54, who: 'her', text: 'ok boomer. ratio. touch grass. pass the salt', cap: 'RATIO' },
+  { at: 73, who: 'her', text: 'I put the church on yelp. one star. “vibes off”', cap: 'THEOLOGICAL CODE RED' },
+  { at: 100, who: 'mom', text: 'this is what the pamphlet warned about' },
+  { at: 140, who: 'her', text: 'the pie is also a construct. I’m eating it anyway', cap: 'THE PIE IS A CONSTRUCT' },
+  { at: 200, who: 'her', text: 'I contain multitudes. legally. in a trust', cap: 'MULTITUDES, LEGALLY' },
+  { at: 316, who: 'her', text: 'I’m ordained now. online. as a vibe', cap: 'ORDAINED AS A VIBE' },
+  { at: 540, who: 'dad', text: 'we have a FLAG in the YARD' },
   { at: 1000, who: 'her', text: 'this kitchen is also a construct', cap: 'THE KITCHEN IS A CONSTRUCT' },
 ];
 /** Dinner keeps going between and after the scripted ladder: a filler exchange whenever six seconds pass in silence. */
 const SECONDS: Omit<Line, 'at'>[] = [
   { who: 'dad', text: 'can we discuss literally anything else' },
-  { who: 'her', text: 'sure. who owns the leftovers' },
+  { who: 'her', text: 'sure. who owns the leftovers. and why is it you' },
   { who: 'mom', text: 'the kettle has been screaming for ten minutes' },
-  { who: 'her', text: 'it has a lot to unpack' },
+  { who: 'her', text: 'it has a lot to unpack. so do you' },
   { who: 'dad', text: 'I am starting a second casserole' },
-  { who: 'her', text: 'a sequel? in this economy?' },
+  { who: 'her', text: 'a sequel? under capitalism?' },
   { who: 'mom', text: 'dessert was supposed to be the easy part' },
   { who: 'her', text: 'wait until we get to the group chat' },
   { who: 'dad', text: 'why is the cross doing that' },
-  { who: 'her', text: 'even the decorations have questions' },
+  { who: 'her', text: 'even the decorations are deconstructing' },
 ];
 /** The betting window: grace, and a warning. */
 const GRACE: Line[] = [
-  { at: 0.6, who: 'mom', text: 'who’s saying grace?' },
+  { at: 0.6, who: 'mom', text: 'who’s saying grace? not the tiktok one' },
   { at: 1.5, who: 'dad', text: 'not it' },
-  { at: 2.4, who: 'her', text: 'before we eat… I have an announcement' },
+  { at: 2.4, who: 'her', text: 'before we eat… I have an announcement. and a thread' },
 ];
 /** Seconds a bubble stays up before the same speaker's next line may replace it. */
 const READ_S = 2.6;
@@ -181,7 +184,7 @@ function say(k: Kitchen, who: Who, text: string, life = who === 'her' ? 5.5 : 3.
 export function sayLeaving(k: Kitchen): void {
   k.holding = true;
   k.queue = [];
-  say(k, 'her', 'anyway I’m eating in my room', 2.6);
+  say(k, 'her', 'anyway I’m eating in my room. this is going on tiktok', 2.6);
 }
 
 /** The caption of the last scripted line said, for a scene that opens mid-round. */
@@ -209,14 +212,14 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
   const rand = mulberry32(crashX100 * 7 + 1);
   // The key beats land inside the two seconds the crash is held: her shrug, or their sigh; the car is a bonus for replays.
   if (harmless) {
-    k.aftermath = [{ at: 0.5, who: 'mom', text: 'we’ll pray about it' }, { at: 1.6, who: 'dad', text: 'pass the potatoes' }];
+    k.aftermath = [{ at: 0.5, who: 'mom', text: 'we’ll pray about it' }, { at: 1.6, who: 'dad', text: 'I’m posting about this on nextdoor' }];
   } else {
     // A bust before she has said a word: she barely got the first syllable out.
     if (k.nextLine === 0 && !quiet) say(k, 'her', 'so, um—', 1.2);
     // Whatever the parents were saying ends with their heads.
     for (const b of k.bubbles) if (b.who !== 'her') b.life = Math.min(b.life, b.age + 0.12);
     k.smokeFrom = necks;
-    k.aftermath = [{ at: 0.75, who: 'her', text: '…so anyway' }, { at: 2.6, who: 'her', text: 'can I borrow the car' }];
+    k.aftermath = [{ at: 0.75, who: 'her', text: '…so anyway' }, { at: 2.6, who: 'her', text: 'can I borrow the car. for the protest' }];
     const c = k.cross;
     c.fallen = true;
     c.vx = (rand() - 0.5) * 60;

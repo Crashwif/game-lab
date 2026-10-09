@@ -68,7 +68,7 @@ type Secured = { x100: number; payout: number | null };
 /** The multipliers the ladder steps at: each is a milestone ding (the third onward an airhorn) and a step of her pronouns. */
 const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22, 40, 100, 300, 1000];
 /** The pronouns of the moment, which the HUD tracks as she takes it further. */
-const PRONOUNS = ['she/her', 'she/they', 'they/them', 'they/them (for now)', 'ze/zir', 'xe/xem', 'fae/faer', 'any/all', 'none/none', '∅/∅', '[REDACTED]', 'tuesday/tuesdays', 'vibe/vibes', 'pie/pies', 'multitudes', 'yes/and'];
+const PRONOUNS = ['she/her', 'she/they', 'they/them', 'they/them (for now)', 'ze/zir', 'xe/xem', 'fae/faer', 'any/all', 'none/none', '∅/∅', '[REDACTED]', 'tuesday/tuesdays', 'landlord/abolished', 'ratio/ratio', 'vibe/vibes', 'yes/and'];
 /** What happens at the table, captioned the moment it happens (between the captions her lines put up). */
 const BEATS = { pearls: 'MOM CLUTCHES THE PEARLS', cross: 'THE CROSS IS RATTLING', steam: 'STEAM FROM THE EARS', slam: 'DAD SLAMS THE TABLE', kettle: 'THE KETTLE JOINS IN', cracks: 'DAD’S HEAD IS CRACKING' } as const;
 /** His cracks fade in from a rage of 0.88; the caption waits until they are plain to see. */
@@ -93,7 +93,7 @@ function captionFor(view: SceneView, outcome: Outcome | null, secured: Secured |
   if (secured) {
     // Left the table with her plate: a good exit, and a little regret as the number keeps going without her.
     const r = view.currentX100 / secured.x100;
-    return r < 1.25 ? 'LEFT THE TABLE' : r < 1.6 ? 'FULL PLATE, NO REGRETS' : r < 2.5 ? 'SHE’S NOT LISTENING AT THE DOOR' : r < 5 ? 'OK, SHE’S LISTENING AT THE DOOR' : 'SHE HAD MORE TO SAY';
+    return r < 1.25 ? 'LEFT THE TABLE' : r < 1.6 ? 'FULL PLATE, NO REGRETS' : r < 2.5 ? 'SHE’S POSTING ABOUT IT' : r < 5 ? 'IT’S A THREAD NOW' : 'IT’S ON THE NEWS';
   }
   return beat || 'FAMILY MEETING';
 }

@@ -33,48 +33,56 @@ export type Who = 'rick' | 'dad' | 'niece' | 'echo' | 'gran' | 'dale';
 /** A line of the conversation; `cap` becomes the HUD caption when it is said, `film` brings the niece's phone up. */
 export interface Line { at: number; who: Who; text: string; price?: number; cap?: string; film?: boolean }
 /**
- * The conversation, keyed to the multiplier: Rick, the conspiracy uncle, goes further every time, the family gets
- * a word in, and the smart speaker on the sideboard mishears him and orders things. Once Grandma has said grace,
- * nobody speaks.
+ * The conversation, keyed to the multiplier: Rick, the conspiracy uncle with a dog coin, goes further every time,
+ * the family answers from the tote bag, and the smart speaker on the sideboard mishears him and orders things.
+ * Once Grandma has said grace, nobody speaks.
  */
 export const LINES: Line[] = [
-  { at: 1.04, who: 'rick', text: 'this turkey’s got hormones in it', cap: 'THIS TURKEY’S GOT HORMONES' },
+  { at: 1.04, who: 'rick', text: 'this turkey’s got hormones in it. that’s why it’s confused', cap: 'THIS TURKEY’S GOT HORMONES' },
   { at: 1.18, who: 'dad', text: 'it’s heritage, Rick. from the co-op' },
   { at: 1.32, who: 'rick', text: 'co-op. so it’s communist', cap: 'THE TURKEY IS COMMUNIST' },
-  { at: 1.48, who: 'niece', text: 'it’s a dead bird either way' },
-  { at: 1.68, who: 'rick', text: 'birds aren’t real, sweetheart', cap: 'BIRDS AREN’T REAL' },
+  { at: 1.48, who: 'niece', text: 'it’s a dead bird either way. like your podcast' },
+  { at: 1.68, who: 'rick', text: 'birds aren’t real, sweetheart. they replaced them in ’86', cap: 'BIRDS AREN’T REAL' },
   { at: 1.9, who: 'echo', text: 'ordering: 40 lb of birdseed', price: 38, cap: 'ALEXA IS ORDERING THINGS' },
-  { at: 2.2, who: 'rick', text: 'the moon landing was filmed in Ohio', cap: 'THE MOON LANDING WAS IN OHIO' },
-  { at: 2.55, who: 'dad', text: 'okay. let’s keep it civil', cap: 'KEEP IT CIVIL' },
+  { at: 2.2, who: 'rick', text: 'the moon landing was filmed in Ohio. the Ohio landing was real', cap: 'THE MOON LANDING WAS IN OHIO' },
+  { at: 2.55, who: 'dad', text: 'okay. let’s keep it civil. we did a land acknowledgment', cap: 'KEEP IT CIVIL' },
   { at: 2.9, who: 'rick', text: 'the gravy is 5G', cap: 'THE GRAVY IS 5G' },
   { at: 3.35, who: 'niece', text: 'I’m filming this', film: true, cap: 'SHE’S FILMING' },
-  { at: 3.8, who: 'rick', text: 'I did my own research. on the gravy', cap: 'HE DID HIS OWN RESEARCH' },
-  { at: 4.4, who: 'echo', text: 'ordering: Faraday cage, large', price: 219 },
-  { at: 5, who: 'rick', text: 'your Subaru listens to you. mine doesn’t', cap: 'THE SUBARU IS LISTENING' },
-  { at: 5.7, who: 'rick', text: 'the pilgrims were crypto', cap: 'THE PILGRIMS WERE CRYPTO' },
-  { at: 6.5, who: 'dad', text: 'RICK.', cap: 'RICK.' },
-  { at: 7.2, who: 'rick', text: 'chemtrails are why the pie’s dry', cap: 'CHEMTRAILS DRIED THE PIE' },
-  { at: 8, who: 'rick', text: 'the deep state took my gun. and my hair', cap: 'THE DEEP STATE TOOK HIS HAIR' },
-  { at: 9, who: 'niece', text: 'this is going on TikTok', cap: 'GOING ON TIKTOK' },
-  { at: 10, who: 'rick', text: 'the stuffing is a psyop', cap: 'THE STUFFING IS A PSYOP' },
+  { at: 3.8, who: 'rick', text: 'I did my own research. on the gravy. it’s a thread', cap: 'HE DID HIS OWN RESEARCH' },
+  { at: 4.4, who: 'dad', text: 'that’s a dog whistle, Rick' },
+  { at: 5, who: 'rick', text: 'Dale IS a dog, Kevin', cap: 'DALE IS A DOG, KEVIN' },
+  { at: 5.7, who: 'niece', text: 'uncle rick is a microaggression' },
+  { at: 6.5, who: 'rick', text: 'the pilgrims were crypto. $DALE is the new mayflower', cap: 'THE PILGRIMS WERE CRYPTO' },
+  { at: 7.2, who: 'dad', text: 'RICK.', cap: 'RICK.' },
+  { at: 8, who: 'echo', text: 'ordering: Faraday cage, large', price: 219 },
+  { at: 9, who: 'rick', text: 'chemtrails are why the pie’s dry', cap: 'CHEMTRAILS DRIED THE PIE' },
+  { at: 10, who: 'rick', text: 'the deep state took my gun. and my hair', cap: 'THE DEEP STATE TOOK HIS HAIR' },
   { at: 11, who: 'echo', text: 'ordering: 200 cans of beans, bunker size', price: 480, cap: 'ALEXA IS PREPPING' },
-  { at: 12.5, who: 'rick', text: 'wake up. the yams are in on it', cap: 'THE YAMS ARE IN ON IT' },
-  { at: 14.5, who: 'rick', text: 'Dale knows. Dale’s seen things', cap: 'DALE HAS SEEN THINGS' },
-  { at: 17, who: 'rick', text: 'I’m running for school board', cap: 'SCHOOL BOARD CANDIDATE' },
-  { at: 20, who: 'rick', text: 'the cranberry sauce is a hologram', cap: 'THE SAUCE IS A HOLOGRAM' },
-  { at: 24, who: 'rick', text: 'ask your dad what he did in 2008' },
-  { at: 29, who: 'rick', text: 'I’m just asking questions', cap: 'JUST ASKING QUESTIONS' },
-  { at: 36, who: 'rick', text: 'the questions are also asking questions', cap: 'FULL TINFOIL' },
-  { at: 45, who: 'echo', text: 'ordering: one (1) school board', price: 9999 },
+  { at: 12.5, who: 'niece', text: 'this is going on TikTok. and my thesis', cap: 'GOING ON TIKTOK' },
+  { at: 14.5, who: 'rick', text: 'the stuffing is a psyop. the oat milk made the cat gay', cap: 'THE STUFFING IS A PSYOP' },
+  { at: 17, who: 'dad', text: 'we’re doing a dry thanksgiving. in solidarity' },
+  { at: 20, who: 'rick', text: 'with WHO, Kevin', cap: 'WITH WHO, KEVIN' },
+  { at: 24, who: 'rick', text: 'wake up. the yams are in on it', cap: 'THE YAMS ARE IN ON IT' },
+  { at: 29, who: 'niece', text: 'I’m a communist, uncle rick. dad pays my phone' },
+  { at: 36, who: 'rick', text: 'Dale knows. Dale’s unvaxxed. Dale’s seen things', cap: 'DALE HAS SEEN THINGS' },
+  { at: 45, who: 'echo', text: 'ordering: horse paste, family size', price: 60 },
+  { at: 54, who: 'rick', text: 'I’m running for school board. on a platform of no', cap: 'SCHOOL BOARD CANDIDATE' },
+  { at: 73, who: 'dad', text: 'I have a podcast too, Rick. it’s about grief. and sourdough' },
+  { at: 100, who: 'rick', text: 'the cranberry sauce is a hologram', cap: 'THE SAUCE IS A HOLOGRAM' },
+  { at: 140, who: 'rick', text: 'ask your dad what he did in 2008' },
+  { at: 200, who: 'rick', text: 'I’m just asking questions', cap: 'JUST ASKING QUESTIONS' },
+  { at: 316, who: 'rick', text: 'the questions are also asking questions', cap: 'FULL TINFOIL' },
+  { at: 540, who: 'echo', text: 'ordering: one (1) school board', price: 9999 },
+  { at: 1000, who: 'rick', text: 'Dale’s running too. as a write-in', cap: 'DALE FOR SCHOOL BOARD' },
 ];
 const SECONDS: Omit<Line, 'at'>[] = [
   { who: 'dad', text: 'we have moved on to leftovers, Rick' },
   { who: 'rick', text: 'exactly. who decides what gets left over', cap: 'WHO DECIDES THE LEFTOVERS' },
   { who: 'echo', text: 'reordering: aluminum foil, industrial roll', price: 24 },
-  { who: 'niece', text: 'part two just passed part one' },
+  { who: 'niece', text: 'part two just passed part one. ratio' },
   { who: 'rick', text: 'the algorithm fears my potato research' },
   { who: 'dad', text: 'Dale is still in the truck' },
-  { who: 'rick', text: 'Dale is an independent journalist', cap: 'DALE IS A JOURNALIST' },
+  { who: 'rick', text: 'Dale is an independent journalist. with a substack', cap: 'DALE HAS A SUBSTACK' },
   { who: 'echo', text: 'ordering: dog podcast microphone', price: 49 },
   { who: 'niece', text: 'Grandma is pretending to be asleep' },
   { who: 'rick', text: 'the nap goes all the way to the top', cap: 'FULL TINFOIL' },
@@ -240,7 +248,7 @@ function schedule(r: Room, lines: Queued[]): void {
 export function sayGrace(r: Room): void {
   r.holding = true;
   say(r, 'gran', 'GRACE. NOW.', 4);
-  schedule(r, [{ at: 1.2, who: 'rick', text: 'yes ma’am' }]);
+  schedule(r, [{ at: 1.2, who: 'rick', text: 'yes ma’am. Dale, stand down' }]);
 }
 
 /**
@@ -262,7 +270,7 @@ export function crashRoom(r: Room, crashX100: number, quiet: boolean, harmless: 
     if (quiet) settleSpring(r.pie, 1);
   } else {
     // An instant bust cuts Rick off before his first theory.
-    schedule(r, [...(unsaid ? [{ at: 0, who: 'rick' as const, text: 'this turkey’s got hor—' }] : []), { at: 0.8, who: 'rick', text: 'DALE, NO' }, { at: 2.2, who: 'echo', text: 'playing: Free Bird' }, { at: 3.5, who: 'niece', text: 'got it' }]);
+    schedule(r, [...(unsaid ? [{ at: 0, who: 'rick' as const, text: 'this turkey’s got hor—' }] : []), { at: 0.8, who: 'rick', text: 'DALE, NO' }, { at: 2.2, who: 'echo', text: 'playing: Free Bird' }, { at: 3.5, who: 'niece', text: 'got it. posting' }]);
     r.truck.state = 'crashing';
     r.truck.lights = true;
     r.candle = false;
