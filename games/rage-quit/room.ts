@@ -3,9 +3,10 @@ import { drawFace } from './actor';
 import { box, burst, clamp, ease, GOLD, GREEN, INK, label, line, mono, PAPER, RED, shape } from './ink';
 
 const SKY = '#343c5c';
+const mix = (a: number, b: number, n: number): number => a + (b - a) * n;
 
 export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
-  const t = input.reduced ? 0 : input.phase === 'waiting' || input.phase === 'betting' ? input.clock : input.elapsed;
+  const t = input.phase === 'waiting' || input.phase === 'betting' ? input.clock : input.elapsed;
   const collapse = input.phase === 'crashed' ? ease((input.crashAge - 0.8) / 0.7) : 0;
   c.fillStyle = '#ddd2b6'; c.fillRect(0, 0, 960, 540);
   const wall = c.createLinearGradient(0, 95, 0, 452);
@@ -30,6 +31,8 @@ export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, 
   for (let i = 0; i < 6; i += 1) line(c, [[30, 150 + i * 20], [220, 150 + i * 20 + Math.sin(t * 0.9 + i) * 5]], '#aba590', 9);
   c.restore();
   line(c, [[227, 135], [229, 356]], INK, 3);
+  // The wall socket the monitor's power cord reaches for.
+  box(c, 572, 412, 24, 32, PAPER, 3); box(c, 580, 420, 8, 4, INK, 1); box(c, 580, 432, 8, 4, INK, 1);
   box(c, 822, 172 + collapse * 40, 103, 100, PAPER, 4);
   label(c, 'HUMAN', 874, 194 + collapse * 40, 18, INK, 94, 'center');
   label(c, 'RESOURCES', 874, 217 + collapse * 40, 14, INK, 94, 'center');
@@ -58,11 +61,11 @@ export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, 
   }
 }
 
-function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number, reduced: boolean): void {
+function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number): void {
   c.save(); c.translate(p.keyboard.x, p.keyboard.y); c.rotate(p.keyboardAngle);
   shape(c, [[-65, -12], [59, -16], [78, 8], [-76, 14]], PAPER, 4);
   for (let row = 0; row < 3; row += 1) for (let k = 0; k < 11; k += 1) {
-    const hot = !reduced && (Math.floor(time * 7) + row * 3) % 11 === k;
+    const hot = (Math.floor(time * 7) + row * 3) % 11 === k;
     c.fillStyle = hot ? RED : '#908574'; c.fillRect(-58 + k * 10 + row * 2, -8 + row * 6, 7, 4);
   }
   c.restore();
@@ -70,7 +73,7 @@ function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number, reduc
 
 function display(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
   const index = input.phase === 'running' || input.phase === 'crashed' ? act.index : -1;
-  const t = input.reduced ? 0 : act.clock;
+  const t = act.clock;
   c.save(); c.beginPath(); c.rect(-88, -76, 169, 129); c.clip();
   c.fillStyle = index === 2 ? '#e4c977' : index === 5 ? '#e99b81' : '#bbcc92'; c.fillRect(-88, -76, 169, 129);
   if (index === 1) {
@@ -134,29 +137,47 @@ function crt(c: CanvasRenderingContext2D, input: ActingInput, act: Act, x: numbe
   c.restore();
 }
 
+/** The power cord leaves the back of the monitor, drops behind the desk and reaches the wall socket, or the plug in a cashed-out hand. */
+function powerCord(c: CanvasRenderingContext2D, p: ActorPose, crtX: number, crtY: number): void {
+  c.beginPath(); c.moveTo(crtX + 88, crtY + 86);
+  if (p.exit > 0.75) {
+    c.bezierCurveTo(crtX + 118, crtY + 200, 640, 505, 470, 482);
+    c.bezierCurveTo(330, 463, 296, 421, 226, 350);
+  } else c.bezierCurveTo(crtX + 112, crtY + 190, 644, 489, 594, 440);
+  c.strokeStyle = INK; c.lineWidth = 5; c.lineCap = 'round'; c.stroke();
+}
+
+/** The keyboard's cable lies slack across the desk into the back of the monitor, and pulls straight when the machine tugs. */
+function keyboardCable(c: CanvasRenderingContext2D, p: ActorPose, act: Act, crtX: number, crtY: number): void {
+  const taut = act.index === 4 ? act.weight : 0;
+  const cos = Math.cos(p.keyboardAngle), sin = Math.sin(p.keyboardAngle);
+  const start = { x: p.keyboard.x + 70 * cos - 2 * sin, y: p.keyboard.y + 70 * sin + 2 * cos };
+  const end = { x: crtX + 104, y: crtY + 82 };
+  const c1 = { x: mix(start.x + 70, start.x + 66, taut), y: mix(start.y + 12, start.y - 10, taut) };
+  const c2 = { x: mix(crtX + 138, crtX + 86, taut), y: mix(crtY + 152, crtY - 10, taut) };
+  c.beginPath(); c.moveTo(start.x, start.y); c.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+  c.strokeStyle = INK; c.lineWidth = 5 + 6 * taut; c.lineCap = 'round'; c.stroke();
+  if (taut > 0) { c.globalAlpha = taut; c.strokeStyle = '#7c795c'; c.lineWidth = 6; c.stroke(); c.globalAlpha = 1; }
+}
+
 export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: Act, p: ActorPose): void {
   const dead = input.phase === 'crashed';
-  const age = input.reduced && dead ? 4 : input.crashAge;
+  const age = input.crashAge;
   const flip = dead ? ease((age - 0.24) / 0.55) : 0;
-  const shake = input.reduced ? 0 : dead ? Math.sin(age * 40) * Math.exp(-age * 3) * 6 : act.impact * 5;
+  const shake = dead ? Math.sin(age * 40) * Math.exp(-age * 3) * 6 : act.impact * 5;
+  const crtX = 687 + shake * 0.7, crtY = 257 + shake;
   c.save(); c.translate(452, 410 + shake); c.rotate(-flip * 2.8); c.translate(-452, -410);
+  if (!dead) powerCord(c, p, crtX, crtY);
   shape(c, [[452, 414], [481, 413], [479, 513], [457, 513]], '#837155', 4);
   shape(c, [[793, 414], [821, 412], [815, 513], [793, 513]], '#837155', 4);
   shape(c, [[430, 395], [820, 388], [844, 419], [432, 428]], '#bc9b6e', 5);
   line(c, [[451, 410], [820, 403]], '#6e593f', 2);
-  if (!dead) {
-    keyboard(c, p, act.clock, input.reduced);
-    crt(c, input, act, 687 + shake * 0.7, 257 + shake, -0.025 + shake * 0.006);
-  }
+  if (!dead) crt(c, input, act, crtX, crtY, -0.025 + shake * 0.006);
   c.restore();
+  // The keyboard is drawn in the actor's frame, so gripping hands land on it exactly; the cable follows it into the shaken monitor.
   if (!dead) {
-    c.save();
-    c.beginPath(); c.moveTo(791, 339);
-    if (act.index === 4) c.bezierCurveTo(773, 247, p.keyboard.x + 130, p.keyboard.y - 10, p.keyboard.x + 64, p.keyboard.y);
-    else c.bezierCurveTo(866, 406, 685, 488 + shake * 3, 609, 494);
-    c.strokeStyle = INK; c.lineWidth = act.index === 4 ? 11 : 5; c.stroke();
-    if (act.index === 4) { c.strokeStyle = '#7c795c'; c.lineWidth = 6; c.stroke(); }
-    c.restore();
+    keyboard(c, p, act.clock);
+    keyboardCable(c, p, act, crtX, crtY + shake);
   } else {
     // The monitor follows the desk contact, flies, hits the wall, and settles on the floor.
     const launch = clamp((age - 0.24) / 0.8);
@@ -166,7 +187,7 @@ export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: A
     const spin = -launch * 1.8 + fall * 2.02;
     crt(c, input, act, x, y, spin, age > 1.03);
     if (age > 1.03) {
-      const dust = input.reduced ? 4 : age - 1.03;
+      const dust = age - 1.03;
       for (let i = 0; i < 30; i += 1) {
         const a = i * 2.3999, speed = 60 + (i * 37 % 200);
         const u = Math.min(dust, 1.4);
@@ -180,15 +201,15 @@ export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: A
 }
 
 export function drawProps(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
-  const time = input.reduced ? 0 : act.clock;
+  const time = act.clock;
   const dead = input.phase === 'crashed';
-  const age = input.reduced && dead ? 4 : input.crashAge;
+  const age = input.crashAge;
   const tumble = dead ? ease((age - 0.63) / 0.9) : 0;
   // The plant is a horrified witness, with leaves trailing the pot's bounce.
-  c.save(); c.translate(886 - tumble * 21, 442 + (input.reduced ? 0 : act.impact * 8) + tumble * 36);
-  c.rotate(-tumble * 1.4 + (input.reduced ? 0 : act.impact * 0.06));
+  c.save(); c.translate(886 - tumble * 21, 442 + (act.impact * 8) + tumble * 36);
+  c.rotate(-tumble * 1.4 + (act.impact * 0.06));
   shape(c, [[-28, -40], [30, -40], [21, 17], [-21, 17]], '#bf4a36', 4);
-  const leaf = input.reduced ? 0 : Math.sin(time * 4 - 0.7) * 9 + act.impact * 15;
+  const leaf = Math.sin(time * 4 - 0.7) * 9 + act.impact * 15;
   line(c, [[0, -40], [leaf, -99], [leaf - 29, -113]], '#4b6146', 7);
   shape(c, [[leaf, -84], [leaf + 28, -122], [leaf + 38, -113], [leaf + 19, -89]], GREEN, 3);
   shape(c, [[leaf - 7, -103], [leaf - 54, -128], [leaf - 51, -107], [leaf - 18, -89]], GREEN, 3);
@@ -197,12 +218,10 @@ export function drawProps(c: CanvasRenderingContext2D, input: ActingInput, act: 
   // A printer ejects a whole bureaucracy when the updater gets involved.
   box(c, 767, 462, 112, 57, '#b5b4a0', 4); box(c, 780, 470, 86, 12, INK, 2);
   label(c, 'COPIUM', 823, 500, 15, INK, 96, 'center');
-  if (!dead && act.index === 3 && input.reduced) {
-    for (let i = 0; i < 4; i += 1) box(c, 746 + i * 3, 445 - i * 7, 101, 12, PAPER, 2);
-  }
-  if (!dead && act.index === 3 && !input.reduced) {
+
+  if (!dead && act.index === 3) {
     for (let i = 0; i < 8; i += 1) {
-      const u = input.reduced ? (i + 0.5) / 8 : (act.age * 0.36 + i / 8) % 1;
+      const u = (act.age * 0.36 + i / 8) % 1;
       const x = 817 - 360 * u + Math.sin(u * 9 + i) * 45;
       const y = 468 - Math.sin(u * Math.PI) * 298;
       c.save(); c.translate(x, y); c.rotate(Math.sin(u * 8 + i) * 0.5);
@@ -231,7 +250,7 @@ export function drawForeground(c: CanvasRenderingContext2D, input: ActingInput, 
     return;
   }
   if (input.phase === 'crashed') {
-    const age = input.reduced ? 4 : input.crashAge;
+    const age = input.crashAge;
     if (age < 1.1) {
       burst(c, 483, 188, 159, GOLD);
       label(c, 'FUCK THIS.', 483, 188, 42, INK, 258, 'center');
@@ -240,15 +259,15 @@ export function drawForeground(c: CanvasRenderingContext2D, input: ActingInput, 
       c.save(); c.translate(500, 151 - 170 * (1 - stamp)); c.rotate(-0.065);
       box(c, -198, -30, 396, 61, PAPER, 5);
       label(c, 'HAVE YOU TRIED CALMING DOWN?', 0, 1, 22, RED, 375, 'center'); c.restore();
-      const steam = input.reduced ? 0 : age;
+      const steam = age;
       for (let i = 0; i < 6; i += 1) {
-        const u = input.reduced ? i / 6 : (steam * 0.45 + i / 6) % 1;
+        const u = (steam * 0.45 + i / 6) % 1;
         c.globalAlpha = (1 - u) * 0.45;
         c.fillStyle = '#ede4d2'; c.beginPath(); c.ellipse(679 + Math.sin(u * 7 + i) * 31, 342 - u * 103, 17 + u * 23, 14 + u * 19, 0, 0, Math.PI * 2); c.fill();
       }
       c.globalAlpha = 1;
     }
-  } else if (input.phase === 'running' && !input.reduced && act.impact > 0.45 && [0, 7].includes(act.index)) {
+  } else if (input.phase === 'running' && act.impact > 0.45 && [0, 7].includes(act.index)) {
     c.save(); c.translate(532, 354); c.rotate(-0.16);
     label(c, act.index === 7 ? 'CALM!' : 'CLACK!', 0, 0, 25, RED, 145, 'center'); c.restore();
     for (let i = 0; i < 5; i += 1) line(c, [[499 + i * 15, 387], [493 + i * 18, 371 - (i % 2) * 9]], GOLD, 4);

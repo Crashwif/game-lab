@@ -31,11 +31,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the camera shake and roll, the wall throb, the streaks and the flashes. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   /** Releases the WebGL context and stops listening to it; a new scene can be created afterwards. */
@@ -103,8 +98,7 @@ function popFor(outcome: Outcome, crashX100: number): [string, string] {
   return outcome === 'rekt' ? ['RUGGED', '#ff4d6d'] : ['PULLED OUT', '#ffe27a'];
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Drum and bass down the tunnel; the crash is wet.
   const audio = pageAudio({ style: 'dnb', crash: 'splash' });
   let renderer: Renderer | null = null;
@@ -252,15 +246,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The camera: an orbit round your swimmer while the round loads, a chase cam once it runs.
     const racing = view.phase === 'running' || crash.active;
     stepSpring(orbit, racing ? 0 : 1, 3, 1, dt);
-    const currentSway = !reduced && view.elapsed > 45000 ? Math.sin(view.elapsed / 1000 * Math.PI / 18) * 0.45 : 0;
+    const currentSway = view.elapsed > 45000 ? Math.sin(view.elapsed / 1000 * Math.PI / 18) * 0.45 : 0;
     // Your swimmer, followed at half weight through the swerve into the bank so the portal stays in frame.
     const follow = pack.you.mode === 'race' ? 1 : pack.you.mode === 'bank' ? 0.5 : 0;
     const followX = follow * pack.you.x + (pack.you.mode === 'race' ? currentSway : 0);
     const followY = mix(-0.3, pack.you.y, follow);
     stepSpring(camX, followX, 2.4, 1, dt);
     stepSpring(camY, followY, 2.4, 1, dt);
-    // Reduced motion skips the yank back down the tunnel; the cut becomes a soft fade.
-    const back = reduced ? 0 : pullBack(crash);
+    // The crash yanks the camera back down the tunnel.
+    const back = pullBack(crash);
     const eyeS = pack.anchor - 4.6 - back;
     const chaseEye = borePoint(eyeS, camX.x * 0.7, camY.x * 0.7 + 1.45);
     const chaseTarget = borePoint(pack.anchor + 7 - back, camX.x * 0.35, camY.x * 0.35 + 0.1);
@@ -276,18 +270,18 @@ export function createScene(options: SceneOptions = {}): Scene {
     let target = lerp3(chaseTarget, orbitTarget, orbit.x);
     // Through the bank the lens turns half way to the portal, so the swerve, the spin and the zap play out in frame.
     if (pack.portal.active) target = lerp3(target, portalPoint(pack), 0.5 * smoothstep(0, 0.5, pack.portal.age) * (1 - smoothstep(1.9, 2.9, pack.portal.age)));
-    if (!reduced && crash.active && crash.age > IMPACT) {
+    if (crash.active && crash.age > IMPACT) {
       const k = Math.max(0, 1 - (crash.age - IMPACT) / 0.7);
       eye = add(eye, [Math.sin(time * 91) * 0.25 * k, Math.cos(time * 77) * 0.2 * k, 0]);
     }
-    // The flinch jolts the lens (clench is 0 under reduced motion).
+    // The flinch jolts the lens.
     if (clench > 0) eye = madd(eye, f.up, 0.12 * clench * Math.sin(flinchAge * 47));
     const forward = normalize(sub(target, eye));
     // Slow seeded gusts rather than one sine, nervier with the tension.
-    const roll = reduced ? 0 : 0.06 * gust(time * 1.6, 1) + 0.1 * tension * gust(time * 6, 4);
+    const roll = 0.06 * gust(time * 1.6, 1) + 0.1 * tension * gust(time * 6, 4);
     lookAt(viewMatrix, eye, target, rotateAbout(frameAt(eyeS).up, forward, roll));
     // The lens: wide on the launch and with the tension, punched in on the pile-up.
-    const kick = reduced ? 0 : 10 * Math.max(0, 1 - launchAge / 0.8) + 6 * tension - 5.5 * clamp(punch.x, 0, 1.2);
+    const kick = 10 * Math.max(0, 1 - launchAge / 0.8) + 6 * tension - 5.5 * clamp(punch.x, 0, 1.2);
     perspective(projMatrix, ((62 + kick) * Math.PI) / 180, W / H, 0.05, 420);
 
     // The egg: far and small at 1×, filling the bore the higher it goes.
@@ -302,13 +296,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     const closeness = clamp(1 - (distance - 16) / 240, 0, 1);
     const env = tunnelEnvironment(tension, fe.point, closeness, eye);
     r.begin(viewMatrix, projMatrix, eye, env, time);
-    const flash = crashFlash(crash) * (reduced ? 0.35 : 1) + (reduced ? 0 : 0.45 * Math.max(0, 1 - launchAge / 0.35));
-    r.drawTunnel({ s0: Math.floor((eyeS - 14) / RING_SPACING) * RING_SPACING, pulse: reduced ? 0.1 : 0.35 + 0.65 * tension + 1.6 * clench, beat, bulgeS: eggS, bulge: 1, flash, heat: 0.4 * tension + 0.25 * drive, squeeze: 0.08 * clench });
+    const flash = crashFlash(crash) * (1) + (0.45 * Math.max(0, 1 - launchAge / 0.35));
+    r.drawTunnel({ s0: Math.floor((eyeS - 14) / RING_SPACING) * RING_SPACING, pulse: 0.35 + 0.65 * tension + 1.6 * clench, beat, bulgeS: eggS, bulge: 1, flash, heat: 0.4 * tension + 0.25 * drive, squeeze: 0.08 * clench });
     const [ex, ey, ez] = basisFrom(rotateAbout(fe.tangent, fe.up, time * 0.12), fe.up);
     const eggPoint = madd(fe.point, fe.side, current * 0.55);
     putInstance(r.meshes.sphere, 0, eggPoint, ex, ey, ez, [eggScale, eggScale, eggScale], [1, 1, 1, 1], [0, 0, -1, 0], [1, 0, 0, 0]);
     r.drawLit(r.meshes.sphere, 1);
-    const drawn = drawPack(pack, r, eye, reduced, hat.x);
+    const drawn = drawPack(pack, r, eye, hat.x);
     labels.push(...pack.labels);
     // A spectator has no swimmer in the race: the one the camera follows is just an anon.
     const yours = hat.x > 0.5;
@@ -316,7 +310,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     r.sprite(fe.point, eggScale * 2.6, [1, 0.78, 0.84, 0.36 + 0.2 * closeness], 2);
     r.sprite(fe.point, eggScale * 1.4, [1, 0.92, 0.82, 0.22], 1);
     r.flushSprites('additive', env.fogDensity * 0.25);
-    labels.push({ text: 'THE MOON', at: madd(fe.point, fe.up, eggScale + 1.4), colour: '#ffe27a', size: 20, far: true });
+    if (!crash.active) labels.push({ text: 'THE MOON', at: madd(fe.point, fe.up, eggScale + 1.4), colour: '#ffe27a', size: 20, far: true });
     drawWall(crash, r);
     r.end();
   }
@@ -413,16 +407,16 @@ export function createScene(options: SceneOptions = {}): Scene {
       audio.fx('squeak', 0.35 + 0.3 * tension);
     }
     flinchAge += dt;
-    clench = reduced ? 0 : smoothstep(0, 0.06, flinchAge) * (1 - smoothstep(0.15, 0.75, flinchAge)) * (0.6 + 0.4 * tension);
-    stepSpring(hat, view.stake === null ? 0 : 1, 14, reduced ? 1 : 0.45, dt);
+    clench = smoothstep(0, 0.06, flinchAge) * (1 - smoothstep(0.15, 0.75, flinchAge)) * (0.6 + 0.4 * tension);
+    stepSpring(hat, view.stake === null ? 0 : 1, 14, 0.45, dt);
 
     stepPack(pack, { racing: running, multiplier, tension, crashed, stall: 0.55 * clench }, dt);
     const wasHit = crash.hit;
     stepCrash(crash, dt);
     if (!wasHit && crash.hit && crash.age < 1) {
-      // The pile-up: the thud, the freeze, the slow motion and the punch-in, all but the thud skipped under reduced motion.
+      // The pile-up: the thud, the freeze, the slow motion and the punch-in.
       audio.fx('thud', 1.2);
-      if (!reduced) {
+      {
         freeze = FREEZE_S;
         slow = SLOW_S;
         settleSpring(punch, 1);
@@ -503,7 +497,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       drawFallback(ctx, multiplier, running, crash.active ? crash.age : null, time, secured !== null, hat.x > 0.5);
     }
 
-    const whiteout = crashFlash(crash) * (reduced ? 0.35 : 1);
+    const whiteout = crashFlash(crash) * (1);
     if (whiteout > 0.01) {
       ctx.fillStyle = `rgba(255,250,252,${Math.min(1, whiteout)})`;
       ctx.fillRect(0, 0, W, H);
@@ -513,11 +507,11 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.fillRect(0, 0, W, H);
     }
     const beatGlow = Math.pow(Math.max(0, Math.sin(beat)), 6);
-    if (!outside(crash)) drawVignette(ctx, vig, reduced ? 0 : beatGlow);
+    if (!outside(crash)) drawVignette(ctx, vig, beatGlow);
     if (r) drawLabels(ctx, labels, r.viewProj);
     if (!outside(crash)) drawFeed(ctx, feed);
-    if (!outside(crash)) drawCard(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, king: running && pack.you.mode === 'race' && multiplier >= WAVES[5]!, replies: Math.floor(12 + 40 * Math.pow(Math.max(0, multiplier - 1), 1.3)), time, reduced });
-    if (frost > 0.01 && !reduced) {
+    if (!outside(crash)) drawCard(ctx, { multiplier: running ? multiplier : outcome ? crashX100 / 100 : 1, crashed: outcome !== null, king: running && pack.you.mode === 'race' && multiplier >= WAVES[5]!, replies: Math.floor(12 + 40 * Math.pow(Math.max(0, multiplier - 1), 1.3)), time });
+    if (frost > 0.01) {
       ctx.fillStyle = `rgba(160,240,255,${0.35 * frost})`;
       ctx.fillRect(0, 0, W, H);
     }
@@ -539,7 +533,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       memeText(ctx, stakeText, W / 2, y, 17, stakeColour, 'center');
       ctx.globalAlpha = 1;
     }
-    if (launchAge < 1.6 && running && !reduced) {
+    if (launchAge < 1.6 && running) {
       ctx.save();
       ctx.globalAlpha = clamp((1.6 - launchAge) / 0.4, 0, 1);
       ctx.translate(W / 2, H / 2 + 20);

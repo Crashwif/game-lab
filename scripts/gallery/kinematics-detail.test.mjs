@@ -35,7 +35,6 @@ test('Hello World carries position and velocity into the crash and settles late 
     const vOut = (circleBob({ ...view, crashAge: epsilon }) - before) / (epsilon / 1000);
     assert.ok(Math.abs(vIn - vOut) < 0.003, 'no velocity jump on impact');
     assert.ok(Math.abs(circleBob({ ...view, crashAge: 3000 })) < 1e-7);
-    assert.equal(circleBob(view, true), 0);
   }
 });
 
@@ -113,8 +112,4 @@ test('Liquidation Lane steering follows the visible bend and head inertia surviv
     scene.dispose();
   }
   assert.ok(Math.max(...outcomes) - Math.min(...outcomes) < 0.002, 'consistent inertia across refresh rates');
-  const reduced = createScene({ reducedMotion: true }), ctx = context();
-  for (let i = 0; i < 120; i++) reduced.draw(ctx, { phase: 'running', currentX100: 600, elapsed: i * 16, crashAge: 0, stake: null, cashoutX100: null, payout: null }, i * 16);
-  assert.equal(ctx.car.headRoll, 0); assert.equal(ctx.car.headPitch, 0);
-  reduced.dispose();
 });

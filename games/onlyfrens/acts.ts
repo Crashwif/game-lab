@@ -4,7 +4,7 @@
  */
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["The stream is live", "A knock behind the music", "Who moved the handle?", "Smile. Everything is fine.", "The hallway light comes on", "Someone checks the latch", "One more suspicious pause"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -12,7 +12,7 @@ export function actAt(elapsed: number, reduced = false) {
   if (seconds >= 170) stage = 1 + cycle % 6;
   const ramp = Math.min(1, age / 5), release = Math.max(0, 1 - Math.abs(age - 5) / 5);
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - release) * .52);
-  return { stage, age, effort, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** `alpha` fades the props out over the crash instead of cutting them. */

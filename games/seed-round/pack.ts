@@ -400,7 +400,7 @@ const NUCLEUS: [number, number, number][] = [[0.26, 0.08, 0], [-0.22, -0.06, 0.1
  * Fills the instance buffers and sprites for the race and collects the labels the HUD will draw. `hat` scales
  * your beanie: 0 for a spectator, whose swimmer is just another anon.
  */
-export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boolean, hat = 1): { you: Vec3 | null } {
+export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, hat = 1): { you: Vec3 | null } {
   const swimmers = renderer.meshes.swimmer;
   const labels: Label[] = [];
   let n = 0;
@@ -464,7 +464,7 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
       if (cap > 0.02) {
         const top = madd(p, by, 0.13 * k);
         putInstance(renderer.meshes.beanie, 0, madd(top, bz, 0.02 * k), bx, by, bz, [cap, cap, cap], PEARL, [0, 0, -1, 0.05]);
-        const turn = pack.time * (reduced ? 6 : 18);
+        const turn = pack.time * (18);
         const px = rotateAbout(bx, by, turn);
         const pz = cross(px, by);
         putInstance(renderer.meshes.propeller, 0, madd(top, by, 0.3 * cap), px, by, pz, [cap, cap, cap], PEARL, [0, 0, -1, 0.1]);
@@ -526,7 +526,7 @@ export function drawPack(pack: Pack, renderer: Renderer, eye: Vec3, reduced: boo
   renderer.drawLit(spheres, membranes, 'alpha', 'back');
 
   // Drifting motes, stretched into streaks at speed.
-  const streak = reduced ? 0 : pack.speed * 0.02;
+  const streak = pack.speed * 0.02;
   for (const mote of pack.motes) {
     const t = mote.tangent;
     streakVelocity[0] = t[0] * streak;

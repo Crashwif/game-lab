@@ -3,7 +3,7 @@ const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["A peaceful family dinner", "Pass the gravy. Slowly.", "Turn down the speaker", "A brief attempt at calm", "The window needs checking", "Another order arrives", "Everybody, just eat"];
 const ease = (t: number) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 /** `effort` is the props' own energy (a smooth lull, then renewed activity); it never touches the round's tension. */
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -11,7 +11,7 @@ export function actAt(elapsed: number, reduced = false) {
   if (seconds >= 170) stage = 1 + cycle % 6;
   const release = ease(age / 5) * (1 - ease((age - 5) / 5));
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - release) * .52);
-  return { stage, age, effort, reach: reduced ? 1 : ease(age / 5), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, reach: ease(age / 5), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** Draws the act's props at `alpha`, so the scene can fade them out on the crash or the cash-out. */

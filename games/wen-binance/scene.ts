@@ -23,11 +23,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the bass shake, the marquee flicker and the strobe. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -84,8 +79,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return multiplier < 100 ? 'WEN BINANCE' : 'SER, THIS IS A QUEUE';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // A club night; the crash is the DJ pulling the record.
   const audio = pageAudio({ style: 'club', crash: 'scratch' });
   const club: Club = createClub();
@@ -131,7 +125,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     panicQueue(queue, view.currentX100, false);
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       // A snap zoom on the doorway with the freeze, held for a beat.
@@ -206,7 +200,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         // A crash first drawn late (a hidden tab, a throttled frame) settles the line at the crash point, and a
         // cash-out first seen with the crash still takes your coin out of the line.
         if (quiet) { settleQueue(queue, multiplier); settleClub(club, queue.suits, multiplier); }
-        if (secured) { leaveQueue(queue, quiet, reduced); callTaxi(club, quiet); taxiCalled = true; }
+        if (secured) { leaveQueue(queue, quiet); callTaxi(club, quiet); taxiCalled = true; }
         if (quiet) {
           crashClub(club, view.currentX100, true);
           panicQueue(queue, view.currentX100, true);
@@ -243,14 +237,14 @@ export function createScene(options: SceneOptions = {}): Scene {
       fuse -= real;
       if (fuse < 0 && !club.crashed) burst(view);
     }
-    if (secured && running && queue.mode === 'queued') { leaveQueue(queue, false, reduced); callTaxi(club); jeetClub(club); }
+    if (secured && running && queue.mode === 'queued') { leaveQueue(queue, false); callTaxi(club); jeetClub(club); }
     if (club.taxi && !taxiCalled) { taxiCalled = true; audio.fx('engine', 0.7); }
     if (running) beatClock = view.elapsed / 1000 - beatAt;
 
-    stepClub(club, { running, tension, multiplier, reduced, beat: (beatClock * BPM) / 60 }, dt);
+    stepClub(club, { running, tension, multiplier, beat: (beatClock * BPM) / 60 }, dt);
     const wasOut = queue.mode === 'gone';
     const reached = stepQueue(queue, { running, multiplier, tension, kick: club.events.kick }, dt);
-    if (reached) { waveSuit(club, queue.suits); if (!reduced) shake = Math.max(shake, 0.15); audio.fx('whistle', 0.7); }
+    if (reached) { waveSuit(club, queue.suits); shake = Math.max(shake, 0.15); audio.fx('whistle', 0.7); }
     // The scene's own sounds: a suit through the door, the bouncer's head-shake, the doors cracking, a letter working
     // loose, letting go and hitting the pavement (clangs a few tenths apart at most), your coin's taxi door, the boos.
     const ev = club.events;
@@ -285,22 +279,22 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
-    const bass = reduced ? 0 : clamp(club.thump.x, 0, 1) * tension * (running ? 1 : 0);
+    const bass = clamp(club.thump.x, 0, 1) * tension * (running ? 1 : 0);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
     if (bass > 0.02) ctx.translate(0, Math.sin(time * 60) * 1.5 * bass);
-    if (!reduced && punch.x > 0.005) {
+    if (punch.x > 0.005) {
       // The camera punches in on the doorway as it bursts and eases back out.
       const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
-    drawClubBack(ctx, club, tension, reduced);
-    if (running && !outcome) drawLateCheckpoint(ctx, view.elapsed / 1000, reduced);
+    drawClubBack(ctx, club, tension);
+    if (running && !outcome) drawLateCheckpoint(ctx, view.elapsed / 1000);
     drawQueue(ctx, queue, tension, outcome !== null, outcome === 'called', view.stake !== null);
-    drawClubFront(ctx, club, reduced);
+    drawClubFront(ctx, club);
     if (outcome && pop.x > 0.02 && club.crashAge > 0.25) {
       ctx.save();
       ctx.translate(W / 2, 300);
@@ -312,7 +306,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
-    if (!reduced && cashFlash > 0.02) {
+    if (cashFlash > 0.02) {
       ctx.fillStyle = `rgba(124, 246, 124, ${0.22 * cashFlash})`;
       ctx.fillRect(0, 0, W, H);
     }

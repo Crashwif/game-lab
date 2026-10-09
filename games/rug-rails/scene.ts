@@ -33,11 +33,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the shake, the flash, the hit-stop, the punch-in, the spins, the ripple and the flicker. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose(): void;
@@ -100,8 +95,7 @@ const paperRun = (view: SceneView): boolean => view.stake === null && mode() !==
 /** Eases toward a target at `rate` per second, the same at any frame rate. */
 const ease = (from: number, to: number, rate: number, dt: number): number => from + (to - from) * (1 - Math.exp(-rate * dt));
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Drum and bass for a sprint; the crash is the rails going with a boom.
   const audio = pageAudio({ style: 'dnb', bpm: 168, tempoRise: 0.25, crash: 'boom', music: 0.6 });
   const canvas = document.querySelector('canvas')!;
@@ -201,7 +195,6 @@ export function createScene(options: SceneOptions = {}): Scene {
 
   /** Coins fly out of the bag: a spill, the Taxman's grab, or the whole bag into the void. */
   function spill(coins: number): void {
-    if (reduced && coins > 6) coins = 6;
     const n = Math.min(coins, 26);
     const rand = mulberry32(Math.floor(time * 1000) + coins);
     for (let i = 0; i < n; i += 1) {
@@ -259,7 +252,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       return;
     }
     shake = 0.5;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       if (!secured) punch = 0;
     }
@@ -425,7 +418,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         audio.fx('punch', 1);
         audio.fx('scream', 0.55);
         shake = Math.max(shake, 0.6);
-        flash = reduced ? 0.15 : 0.5;
+        flash = 0.5;
         say('REKT · BAG GONE', PINK);
       }
       if (e.audit) {
@@ -454,7 +447,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         tugClock -= 1;
         tugAge = 0;
         tugs += 1;
-        waveAmp = reduced ? 0 : 0.05 + 0.11 * tension;
+        waveAmp = 0.05 + 0.11 * tension;
         if (!secured) {
           audio.fx('creak', 0.35 + 0.5 * tension);
           if (tugs <= 2 && (!toast || toast.age > 0.8)) say(tugs === 1 ? 'WAS THAT THE RUG?' : 'DEV: JUST FIXING A WRINKLE', '#ffb3c8');
@@ -527,24 +520,24 @@ export function createScene(options: SceneOptions = {}): Scene {
     // ---- The picture ---------------------------------------------------------------------------------------
     // The void stays dark through any wait after the crash, until the fade to the next station.
     const dark = crashAge >= 0 ? smoothstep(0.2, 1.4, crashAge) : 0;
-    const track: TrackView = { seconds: running || crashed ? seconds : 0, time, distance: world.distance, tension, rugZ, dark, reduced, dev, tug, wave, waveAmp };
+    const track: TrackView = { seconds: running || crashed ? seconds : 0, time, distance: world.distance, tension, rugZ, dark, dev, tug, wave, waveAmp };
     ctx.save();
-    if (punch >= 0 && !reduced) {
+    if (punch >= 0) {
       // The punch-in: 10% on the frog from the frame the rails go, held through the hit-stop, then eased back.
       const zoom = 1 + PUNCH * smoothstep(0, 0.05, punch) * (1 - smoothstep(0.3, 0.65, punch));
       ctx.translate(frogScreen.x, frogScreen.y);
       ctx.scale(zoom, zoom);
       ctx.translate(-frogScreen.x, -frogScreen.y);
     }
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
-    else if (!reduced && running && !offRails) ctx.translate(Math.sin(time * 90) * 1.4 * speedK * speedK, 0);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    else if (running && !offRails) ctx.translate(Math.sin(time * 90) * 1.4 * speedK * speedK, 0);
     const fall = fallen ? clamp(fallAge / 1.2, 0, 1) : 0;
     // Standing at the station he breathes; the rug's ripple lifts him as it passes under his feet.
-    const breath = reduced ? 0 : (1 - smoothstep(0, 2, world.speed.x)) * (1 - hover.x) * 1.5 * (0.5 - 0.5 * Math.cos(time * Math.PI * 1.8));
+    const breath = (1 - smoothstep(0, 2, world.speed.x)) * (1 - hover.x) * 1.5 * (0.5 - 0.5 * Math.cos(time * Math.PI * 1.8));
     const bump = !fallen && r.h <= r.ground + 0.05 ? floorBump(track, RUNNER_Z) : 0;
     drawWorld(ctx, world, track, cam, () => {
       const x = mix(r.x.x, HOVER_X, hover.x);
-      const hoverBob = reduced ? 0 : Math.sin(time * 2.2) * 0.05;
+      const hoverBob = Math.sin(time * 2.2) * 0.05;
       const h = fallen ? fallH - fallAge * fallAge * 6 : mix(r.h + bump, HOVER_H + hoverBob, hover.x);
       if (h < -8) return;
       if (!fallen && hover.x < 0.5) {
@@ -559,7 +552,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.globalAlpha = 1 - 0.4 * ghost;
       drawFrog(ctx, {
         X: p.X, Y: p.Y, s: p.s, stride: r.stride, lean: r.x.v, air: !fallen && hover.x < 0.5 && r.h > r.ground + 0.05, vh: r.vh, slide: slideK.x,
-        stumble: r.stumble, down: r.down, audit: world.audit, bag: bagShown.x, drip, hover: hover.x, fall, magnet: world.magnet > 0, double: world.double > 0, time, reduced, breath, scare,
+        stumble: r.stumble, down: r.down, audit: world.audit, bag: bagShown.x, drip, hover: hover.x, fall, magnet: world.magnet > 0, double: world.double > 0, time, breath, scare,
       });
       ctx.restore();
     });
@@ -568,7 +561,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const platformZ = 4.6 - world.distance;
     if (platformZ > 0.9) {
       const p = project(2.35, platformZ, 0.42, cam);
-      drawTaxman(ctx, { X: p.X, Y: p.Y, k: (p.s * 0.85) / 170, heat: 1, reachTo: null, grab: 0, idle: true, fall: 0, time, reduced, fist: smoothstep(0.02, 0.6, world.distance) });
+      drawTaxman(ctx, { X: p.X, Y: p.Y, k: (p.s * 0.85) / 170, heat: 1, reachTo: null, grab: 0, idle: true, fall: 0, time, fist: smoothstep(0.02, 0.6, world.distance) });
     }
     stepSpring(taxX, frogScreen.x - 130 * frogScreen.k, 7, 1, first ? 1 : dt);
     // He lags a swerve away from him, but a swerve toward him never runs the frog through him.
@@ -578,12 +571,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (heat > 0.02 && (!fallen || fallAge < 1.5)) {
       const grab = world.audit >= 0 ? clamp(world.audit / 1.2, 0, 1) : 0;
       const drop = fallen ? fallAge * fallAge * 900 : 0;
-      drawTaxman(ctx, { X: taxX.x, Y: H + 175 - heat * 265 + drop, k: 1.25 * frogScreen.k, heat, reachTo: grab > 0 && grab < 1 ? { x: frogScreen.x, y: frogScreen.y } : null, grab, idle: false, fall, time, reduced, cycle: taxPhase });
+      drawTaxman(ctx, { X: taxX.x, Y: H + 175 - heat * 265 + drop, k: 1.25 * frogScreen.k, heat, reachTo: grab > 0 && grab < 1 ? { x: frogScreen.x, y: frogScreen.y } : null, grab, idle: false, fall, time, cycle: taxPhase });
     }
     for (const p of spray) {
       ctx.globalAlpha = clamp(1.6 - p.age * 1.2, 0, 1);
       ctx.beginPath();
-      ctx.ellipse(p.x, p.y, p.r, p.r * (reduced ? 1 : Math.abs(Math.cos(p.age * 14 + p.r))), 0, 0, Math.PI * 2);
+      ctx.ellipse(p.x, p.y, p.r, p.r * (Math.abs(Math.cos(p.age * 14 + p.r))), 0, 0, Math.PI * 2);
       ctx.fillStyle = p.colour;
       ctx.fill();
     }

@@ -40,11 +40,13 @@ function leg(c: CanvasRenderingContext2D, p: BullPose, hipX: number, phase: numb
 
 function head(c: CanvasRenderingContext2D, p: BullPose): void {
   c.save(); c.translate(61, -25); c.rotate(p.head);
+  // Both ears sit behind the skull: the far one flicks out past the back horn, the near one pokes out under the near horn.
   oval(c, -1, -18, 18, 9, CREAM, 4, -0.4);
   poly(c, [[9, -30], [-16, -58], [-21, -89], [-9, -77], [-6, -59], [23, -47]], GOLD, 4);
+  oval(c, 96, -12, 17, 9, CREAM, 4, 0.5);
+  oval(c, 100, -11, 9, 4, '#efb9a3', 0, 0.5);
   c.beginPath(); c.moveTo(2, -35); c.bezierCurveTo(15, -65, 57, -67, 72, -36); c.bezierCurveTo(91, -1, 63, 33, 25, 24); c.bezierCurveTo(-8, 19, -9, -13, 2, -35); c.closePath(); shape(c, '#fff9df', 5);
   poly(c, [[51, -41], [82, -48], [111, -36], [126, -56], [119, -25], [94, -20], [68, -22]], GOLD, 4);
-  oval(c, 64, -35, 16, 9, '#cbd2ae', 3, 0.14);
   const angry = p.face === 'charge', panic = p.face === 'panic', victory = p.face === 'victory';
   if (victory) {
     box(c, 18, -34, 46, 21, INK, 5, 2);
@@ -67,7 +69,7 @@ function head(c: CanvasRenderingContext2D, p: BullPose): void {
     c.strokeStyle = CREAM; c.lineWidth = 3; c.beginPath(); c.moveTo(30, 17); c.quadraticCurveTo(53, 38 - p.snort * 4, 75, 15); c.stroke();
     box(c, 58, 21, 10, 7, CREAM, 1, 0);
   }
-  if (p.snort > 0 && !p.reduced) {
+  if (p.snort > 0) {
     for (let i = 0; i < 4; i += 1) {
       const u = ((p.time * 3.6 + i * 0.23) % 1);
       c.globalAlpha = (1 - u) * p.snort * 0.85;
@@ -90,14 +92,14 @@ export function bull(c: CanvasRenderingContext2D, p: BullPose): void {
   leg(c, p, -62, 0.08, true);
   leg(c, p, 60, 0.66, true);
   c.save(); c.translate(0, BODY_Y + p.body); c.rotate(p.pitch);
-  const tailWave = p.reduced ? 0 : (p.gait === 'run' ? Math.sin(p.stride * TAU - 2.2) * 17 : Math.sin(p.time * 7 - 1.3) * 12);
+  const tailWave = (p.gait === 'run' ? Math.sin(p.stride * TAU - 2.2) * 17 : Math.sin(p.time * 7 - 1.3) * 12);
   c.strokeStyle = INK; c.lineWidth = 7; c.beginPath(); c.moveTo(-83, -12); c.bezierCurveTo(-145, -14 + tailWave, -117, -84 - tailWave * 0.5, -161, -62 + tailWave); c.stroke();
   oval(c, -161, -62 + tailWave, 12, 6, INK, 0, -0.5);
   c.beginPath(); c.moveTo(-91, -28); c.bezierCurveTo(-114, 3, -82, 50, -38, 47); c.bezierCurveTo(9, 54, 72, 38, 85, 8); c.bezierCurveTo(108, -27, 46, -81, 12, -63); c.bezierCurveTo(-19, -45, -64, -49, -91, -28); c.closePath(); shape(c, '#fff8df', 5);
   c.beginPath(); c.moveTo(-82, 18); c.bezierCurveTo(-29, 44, 33, 35, 79, -1); c.bezierCurveTo(66, 53, -50, 69, -82, 18); shape(c, '#c1ceb2', 0);
   line(c, [[-62, -27], [-39, -39], [-12, -39]], '#ffffff', 7);
   text(c, 'MUMU', -21, 1, 23, '#6c8c68', 'center', 89);
-  const drag = p.reduced ? 0 : (p.gait === 'run' ? Math.sin(p.stride * TAU - 2.6) * 11 : Math.sin(p.time * 4) * 4);
+  const drag = (p.gait === 'run' ? Math.sin(p.stride * TAU - 2.6) * 11 : Math.sin(p.time * 4) * 4);
   poly(c, [[58, -22], [15, -40], [-32, -28 + drag], [-58, -43 + drag], [-46, -14 + drag], [-26, -17 + drag], [25, -22], [57, -4]], GREEN, 3);
   poly(c, [[54, -5], [13, -6], [-30, 9 + drag * 0.5], [-44, -7 + drag], [-21, -14 + drag], [48, -19]], '#0e935e', 3);
   head(c, p);

@@ -94,7 +94,7 @@ export function settleQueue(q: Queue, multiplier: number): void {
 }
 
 /** Your coin steps out of the line toward the taxi. `quiet` puts him by the taxi already, for an exit that already happened. */
-export function leaveQueue(q: Queue, quiet = false, reduced = false): void {
+export function leaveQueue(q: Queue, quiet = false): void {
   if (q.mode !== 'queued') return;
   q.exitFrom = coinX(q, YOU);
   if (quiet) {
@@ -111,8 +111,8 @@ export function leaveQueue(q: Queue, quiet = false, reduced = false): void {
   const [front, back] = (q.pointers = jeerers(q));
   q.bubbles = [{ index: front!, text: 'paper hands!!', age: 0, life: 1.9, loud: true }];
   if (back! > YOU) q.bubbles.push({ index: back!, text: 'JEET!', age: -0.25, life: 1.65, loud: true });
-  // Confetti over your coin: the one who left with the bag. Capped, and skipped under reduced motion.
-  if (reduced) return;
+  // Confetti over your coin: the one who left with the bag. Capped.
+
   const rng = mulberry32(42);
   const x = coinX(q, YOU);
   for (let i = 0; i < 36; i += 1) q.confetti.push({ x: x + (rng() - 0.5) * 30, y: GROUND - 110, vx: (rng() - 0.5) * 320, vy: -160 - rng() * 220, age: 0, life: 1 + rng() * 0.8, colour: ['#7cf67c', '#ffe27a', '#ffffff', '#ff5d9e'][i % 4]!, size: 2.5 + rng() * 3.5 });

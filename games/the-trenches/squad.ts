@@ -82,7 +82,6 @@ export interface Squad {
    * climbed on screen (the scroll leaves that part out). */
   scroll: number;
   climb: number;
-  reduced: boolean;
   whistle: Spring;
   whistled: boolean;
   /** The field phone: the ring, the next call (round seconds), the calls so far, and the order on the line (its tier and its line in it). */
@@ -127,7 +126,7 @@ function makeFrog(i: number): Frog {
 
 export function createSquad(): Squad {
   return {
-    act: 0, effort: 0, time: 0, tension: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), scroll: 0, climb: 0, reduced: false, whistle: spring(0), whistled: false,
+    act: 0, effort: 0, time: 0, tension: 0, frogs: Array.from({ length: COUNT }, (_, i) => makeFrog(i)), over: spring(0), scroll: 0, climb: 0, whistle: spring(0), whistled: false,
     ring: spring(0), ringAge: 9, callAt: 0, calls: 0, tier: -1, order: 0, bubble: '', bubbleAge: 9, shout: '', shoutAge: 9, dead: false, deadAge: 0, early: false, muster: 0,
     flag: spring(0), flagDown: 0, glareNext: 0, glareAge: 9, glares: 0, days: 1, flip: spring(0), sargeSway: 0, sarge: spring(0), flecks: [], stepNext: 0,
     events: { whistle: false, step: false, land: false, phone: false, clang: false, glare: false, flip: false },
@@ -259,7 +258,7 @@ function stance(s: Squad, f: Frog, progress: number, tension: number): Place & P
   if (f.mode === 'marching') {
     const at = marchPosition(f, progress, s.tension);
     // A planted foot slides back as far as the ground under it scrolls during the stance, as the pace comes in.
-    const reach = s.reduced ? 0 : 0.3 * STRIDE * mudRate(at.y) / at.scale * f.pace;
+    const reach = 0.3 * STRIDE * mudRate(at.y) / at.scale * f.pace;
     return { ...at, stride: f.phase, squash: f.squash.x + actSquash(s), expression: tension > 0.62 ? 'shock' : tension > 0.25 ? 'grit' : 'hype', helmetLift: smoothstep(0.55, 0.75, tension) * Math.max(0, Math.sin(s.time * 12 + f.seed)) * 0.4, reach, mud: marchMud(s, tension), phone, time: s.time };
   }
   // Waiting: a weight shift over planted feet (the new squad climbs in at the muster), then the crouch and the vault.
@@ -317,7 +316,7 @@ export function killSquad(s: Squad, quiet: boolean, progress = 0): void {
   }
 }
 
-export interface SquadDrive { seconds?: number; running: boolean; tension: number; multiplier: number; progress: number; reduced: boolean }
+export interface SquadDrive { seconds?: number; running: boolean; tension: number; multiplier: number; progress: number; }
 
 export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
   const e = s.events;
@@ -347,11 +346,11 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
   // The mud slows the march a little; nothing here lowers the tension.
   const cadence = marchCadence(drive.tension) * (1 - (act.act === 2 ? 0.25 : 0) * s.effort);
   stepSpring(s.over, drive.running && s.frogs.some((f) => f.mode === 'marching') ? 1 : 0, 12, 1, dt);
-  s.reduced = drive.reduced;
+
   // The field scrolls by the ground the squad walks less what it visibly climbs up the field, so a planted foot keeps
-  // pace with the mud under it. It never runs backward, and it stays still under reduced motion.
+  // pace with the mud under it. It never runs backward.
   const climb = (mudRate(FIELD_Y) - mudRate(mix(FIELD_Y, FAR_Y, clamp(drive.progress, 0, 1)))) / 1.8;
-  if (!drive.reduced) s.scroll += Math.max(0, dt * s.over.x * cadence * STRIDE - Math.max(0, climb - s.climb));
+  s.scroll += Math.max(0, dt * s.over.x * cadence * STRIDE - Math.max(0, climb - s.climb));
   s.climb = climb;
   const ease = 1 - Math.exp(-10 * dt);
   s.frogs.forEach((f, i) => {
@@ -388,8 +387,8 @@ export function stepSquad(s: Squad, drive: SquadDrive, dt: number): void {
         f.squash.v += 8;
         f.clang.v += 14;
         e.clang = true;
-        // Mud and a little cash fly up from the landing (capped; none under reduced motion).
-        if (!drive.reduced && s.flecks.length < 40) {
+        // Mud and a little cash fly up from the landing (capped).
+        if (s.flecks.length < 40) {
           for (let k = 0; k < 26; k += 1) {
             const a = -Math.PI / 2 + (noise(k * 1.7 + 0.3) - 0.5) * 1.6;
             const v = 90 + noise(k * 2.9 + 0.7) * 170;
@@ -717,7 +716,7 @@ function drawOne(ctx: CanvasRenderingContext2D, s: Squad, f: Frog, progress: num
   } else {
     const rest = restOf(f);
     drawFrog(ctx, rest.x, rest.y, rest.scale, { stride: 0.5, squash: f.squash.x, expression: 'dead', spin: Math.PI / 2, fall: 1 });
-    if (yours && enlisted) kia(ctx, f.x + 10);
+    if (yours && enlisted) kia(ctx, f.x - 30, TRENCH_FLOOR + 36);
   }
 }
 

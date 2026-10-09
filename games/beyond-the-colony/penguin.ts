@@ -5,8 +5,7 @@ export type Mood = 'bored' | 'defiant' | 'panic' | 'smug' | 'cosmic' | 'dazed';
 export interface PenguinPose {
   x: number; y: number; time: number; gait: number; walk: boolean;
   angle: number; crouch: number; stretch: number; airborne: boolean;
-  arm: number; head: number; mood: Mood; scarf: number; scale: number;
-  reduced: boolean; aura?: number; paper?: boolean; look?: number;
+  arm: number; head: number; mood: Mood; scarf: number; scale: number; aura?: number; paper?: boolean; look?: number;
 }
 
 interface Foot extends Point { tilt: number }
@@ -39,11 +38,11 @@ function flipper(c: CanvasRenderingContext2D, x: number, y: number, angle: numbe
 
 /** All joints inherit the pelvis transform; the head and scarf trail each large change in pose. */
 export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
-  const time = p.reduced ? 0 : p.time;
-  const gait = p.reduced ? 0 : p.gait;
-  const waddle = p.walk && !p.reduced ? Math.sin(gait * TAU) * .105 : 0;
-  const bob = p.walk && !p.airborne && !p.reduced ? -Math.abs(Math.sin(gait * TAU)) * 7 : 0;
-  const breath = p.reduced ? 0 : Math.sin(time * 2.3) * 2.6;
+  const time = p.time;
+  const gait = p.gait;
+  const waddle = p.walk ? Math.sin(gait * TAU) * .105 : 0;
+  const bob = p.walk && !p.airborne ? -Math.abs(Math.sin(gait * TAU)) * 7 : 0;
+  const breath = Math.sin(time * 2.3) * 2.6;
   const squash = 1 + p.crouch * .22;
   c.save(); c.translate(p.x, p.y);
   if (!p.airborne && Math.abs(p.angle) < .4) ellipse(c, 0, 5, 61 * p.scale, 9, 'rgba(0,21,35,.27)');
@@ -76,7 +75,7 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   ellipse(c, 0, 0, 43, 44, '#102e40', -.08, 3);
   ellipse(c, -9, 4, 21, 29, WHITE, -.15);
   ellipse(c, 23, 5, 21, 29, WHITE, .2);
-  const blink = !p.reduced && Math.sin(time * 1.77) > .994;
+  const blink = Math.sin(time * 1.77) > .994;
   const panic = p.mood === 'panic';
   const bored = p.mood === 'bored' || p.mood === 'smug';
   const gaze = p.look ?? 1;
@@ -99,16 +98,17 @@ export function penguin(c: CanvasRenderingContext2D, p: PenguinPose): void {
   c.restore();
 
   // A travelling wave follows the scarf down its length, behind the moving neck.
+  // The collar wraps the neck under the chin, clear of the beak above it.
   const wind = p.scarf;
   const scarf: [number, number][] = [];
   for (let i = 0; i < 9; i += 1) {
     const u = i / 8;
-    scarf.push([-10 - u * (95 + wind * 33), -123 + u * 19 + Math.sin(time * 11 - u * 5) * u * (6 + wind * 8)]);
+    scarf.push([-10 - u * (95 + wind * 33), -110 + u * 19 + Math.sin(time * 11 - u * 5) * u * (6 + wind * 8)]);
   }
   for (let i = 8; i >= 0; i -= 1) { const u = i / 8; const [x, y] = scarf[i]!; scarf.push([x + 4, y + 15 - u * 5]); }
   polygon(c, scarf, p.mood === 'cosmic' ? GOLD : CORAL, 3);
-  box(c, -30, -126, 76, 18, p.mood === 'cosmic' ? GOLD : CORAL, 7, 3);
-  ellipse(c, -20, -117, 12, 11, p.mood === 'cosmic' ? '#ffe9ad' : '#f69a7d', 0, 2);
+  box(c, -30, -113, 76, 18, p.mood === 'cosmic' ? GOLD : CORAL, 7, 3);
+  ellipse(c, -20, -104, 12, 11, p.mood === 'cosmic' ? '#ffe9ad' : '#f69a7d', 0, 2);
   flipper(c, -33, -114, wing + (p.airborne ? 1.3 : .15), true);
   if (p.paper) {
     c.save(); c.translate(-69, -50); c.rotate(-.4 + wing * .3); box(c, -18, -28, 45, 56, WHITE, 1, 2);

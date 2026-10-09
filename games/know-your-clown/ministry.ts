@@ -2,7 +2,7 @@ import { C, bolt, box, hatch, label, line, mono, oval } from './ink';
 import { HIT, PEANUT, allocationAt, ease, joltAt, mix, stampReach, type Direction } from './direction';
 
 export interface MinistryView {
-  d: Direction; time: number; reduced: boolean; running: boolean; crash: number | null; escaped: boolean;
+  d: Direction; time: number; running: boolean; crash: number | null; escaped: boolean;
   /** Smoothed 0–1: the machinery parks after the crash's hit-stop and unparks for the next applicant. */
   park: number;
   /** Smoothed 0–1: applicant props fade once he has left; the exit door fades with it. */
@@ -25,7 +25,7 @@ function textLines(c: CanvasRenderingContext2D, text: string, x: number, y: numb
 }
 
 export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { d, reduced, crash } = v;
+  const { d, crash } = v;
   const wall = c.createLinearGradient(0, 80, 0, 470);
   wall.addColorStop(0, '#ebe0c3'); wall.addColorStop(.75, '#dccca8'); wall.addColorStop(1, '#b9b89c');
   c.fillStyle = wall; c.fillRect(0, 0, 960, 540);
@@ -52,7 +52,7 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
   oval(c, 525, 449, 165, 13, '#19343b26', C.ink, 0);
   box(c, 281, 437, 463, 30, 12, C.ink, C.ink, 2);
   box(c, 288, 437, 449, 13, 6, '#728985', C.ink, 1);
-  const belt = reduced ? 0 : v.belt % 28;
+  const belt = v.belt % 28;
   c.save(); c.beginPath(); c.rect(291, 438, 443, 11); c.clip();
   for (let i = -1; i < 20; i++) line(c, [291 + i * 28 + belt, 438, 284 + i * 28 + belt, 449], '#3d5454', 2);
   c.restore();
@@ -62,7 +62,7 @@ export function drawBackdrop(c: CanvasRenderingContext2D, v: MinistryView): void
 }
 
 export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { d, reduced, time, crash, park } = v;
+  const { d, time, crash, park } = v;
   box(c, 324, 125, 376, 307, 65, '#142e351c', C.ink, 0);
   box(c, 331, 119, 362, 308, 63, C.ink, C.ink, 3);
   const bg = c.createLinearGradient(0, 129, 0, 428);
@@ -80,7 +80,7 @@ export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
   for (const x of [356, 669]) { box(c, x, 190, 5, 209, 2, glow, glow, 0); }
   // A smooth travelling scan sheet, never a flashing full-screen overlay.
   if (park < .99) {
-    const scanY = reduced ? 283 : 220 + (Math.sin(time * 1.8) * .5 + .5) * 179;
+    const scanY = 220 + (Math.sin(time * 1.8) * .5 + .5) * 179;
     c.save(); c.globalAlpha *= 1 - park; c.beginPath(); c.roundRect(359, 170, 309, 251, 25); c.clip();
     const g = c.createLinearGradient(0, scanY - 38, 0, scanY + 2);
     g.addColorStop(0, '#75d9c000'); g.addColorStop(1, '#75d9c04d');
@@ -93,8 +93,8 @@ export function drawBay(c: CanvasRenderingContext2D, v: MinistryView): void {
   oval(c, 511, 159, 54, 33, C.brass, '#d3c99d', 2);
   oval(c, 511, 157, 39, 27, '#173d40', C.ink, 3);
   // The iris settles on the applicant at the crash; it narrows to a slit as dread rises and flares on a crate twitch.
-  const look = reduced ? 0 : Math.sin(time * .9) * 8 * (1 - park);
-  const jolt = v.running && !reduced ? joltAt(d.seconds).age : 9;
+  const look = Math.sin(time * .9) * 8 * (1 - park);
+  const jolt = v.running ? joltAt(d.seconds).age : 9;
   oval(c, 511 + look, 157, 24, 22, crash !== null ? C.red : jolt < .35 ? C.coral : '#76c1a5', C.ink, 2);
   oval(c, 511 + look, 157, (12 + Math.sin(d.action * Math.PI) * 3) * (1 - .45 * ease((d.dread - .3) / .5)), 17, C.ink, C.ink, 0);
   oval(c, 506 + look, 151, 5, 5, C.cream, C.cream, 0);
@@ -143,7 +143,7 @@ function drawDesk(c: CanvasRenderingContext2D, d: Direction): void {
 }
 
 export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): void {
-  const { crash, time, reduced, d, escaped } = v;
+  const { crash, time, d, escaped } = v;
   box(c, 739, 168, 189, 274, 24, '#16323825', C.ink, 0);
   box(c, 733, 159, 185, 277, 22, '#f1bd75', C.ink, 3);
   box(c, 742, 167, 166, 253, 17, '#ffe0a3', C.brass, 1.5);
@@ -158,7 +158,7 @@ export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): voi
   // The peanut is always visible: the absurd reward is legible before a short round ends.
   oval(c, 825, 290, 55, 42, '#cf9658', C.ink, 2);
   oval(c, 825, 287, 49, 36, '#213c3c', '#eacc8e', 3);
-  const bob = reduced ? 0 : Math.sin(time * 1.7) * 2;
+  const bob = Math.sin(time * 1.7) * 2;
   if (crash === null || crash < PEANUT || escaped) drawPeanut(c, 825, 288 + bob, 1.2, -.28);
   c.beginPath(); c.ellipse(807, 273, 10, 5, -.5, 0, Math.PI * 2); c.fillStyle = '#fff8dc24'; c.fill();
   box(c, 772, 342, 108, 15, 5, C.ink, C.ink, 2);
@@ -168,12 +168,12 @@ export function drawDispenser(c: CanvasRenderingContext2D, v: MinistryView): voi
   mono(c, 'LIFE-CHANGING.', 825, 426, 11, C.ink, 'center');
   if (crash !== null && crash >= PEANUT && !escaped) {
     const age = crash - PEANUT;
-    const fall = reduced ? 1 : ease(age / .4);
+    const fall = ease(age / .4);
     const bounce = age > .4 ? Math.exp(-(age - .4) * 5) * Math.abs(Math.sin((age - .4) * 15)) * 12 : 0;
-    drawPeanut(c, mix(825, 815, fall), mix(351, 385, fall) - (reduced ? 0 : bounce), .74, fall * .6);
+    drawPeanut(c, mix(825, 815, fall), mix(351, 385, fall) - (bounce), .74, fall * .6);
     // The receipt stamps in beside the crate with the peanut.
-    const pop = reduced ? 1 : 1 + .18 * (1 - ease(age / .2));
-    c.save(); c.globalAlpha *= reduced ? 1 : ease(age / .08); c.translate(684, 389); c.rotate(reduced ? -.05 : -.05 * ease(age / .35)); c.scale(pop, pop);
+    const pop = 1 + .18 * (1 - ease(age / .2));
+    c.save(); c.globalAlpha *= ease(age / .08); c.translate(684, 389); c.rotate(-.05 * ease(age / .35)); c.scale(pop, pop);
     box(c, -70, -51, 140, 99, 3, C.cream, C.ink, 2);
     mono(c, 'FINAL ALLOCATION', 0, -30, 11, C.ink, 'center');
     label(c, '1', -13, 17, 51, C.ink, 'right');
@@ -229,18 +229,18 @@ export function drawArm(c: CanvasRenderingContext2D, base: [number, number], elb
 }
 
 export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, front: boolean): void {
-  const { d, reduced, time, park, gone } = v;
-  const motion = reduced ? 0 : Math.sin(d.action * Math.PI * 2);
-  const inspect = reduced ? .5 : Math.sin(Math.PI * d.action) ** 2;
+  const { d, time, park, gone } = v;
+  const motion = Math.sin(d.action * Math.PI * 2);
+  const inspect = Math.sin(Math.PI * d.action) ** 2;
   // After a crash the arms fold against the bay and the props fade; after a cash-out they keep scanning the empty booth.
   const fade = 1 - Math.max(park, front ? gone : 0);
   if (!front) {
     if (fade > .01) {
       c.save(); c.globalAlpha *= fade;
-      if (d.stage === 3) drawAncestry(c, time, reduced);
+      if (d.stage === 3) drawAncestry(c, time);
       if (d.stage === 4) {
         for (let i = 0; i < 4; i++) {
-          const on = i === Math.floor((reduced ? 0 : time * 1.6) % 4);
+          const on = i === Math.floor((time * 1.6) % 4);
           box(c, 407 + i * 49, 414, 42, 17, 4, on ? C.lime : '#739d8b', C.ink, 1.5);
           label(c, ['←', '↑', '↓', '→'][i]!, 428 + i * 49, 427, 15, C.ink, 'center');
         }
@@ -248,7 +248,7 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
       if (d.stage >= 5) {
         const count = d.stage === 7 ? 7 : 4;
         for (let i = 0; i < count; i++) {
-          const a = (reduced ? 0 : time * .35) + i * Math.PI * 2 / count;
+          const a = (time * .35) + i * Math.PI * 2 / count;
           const x = 511 + Math.cos(a) * 137; const y = 274 + Math.sin(a) * 76;
           if (Math.sin(a) > .1) continue;
           oval(c, x, y, 15, 9, C.cream, C.ink, 2); oval(c, x + Math.sin(a) * 2, y, 6, 7, C.red, C.ink, 1);
@@ -265,9 +265,9 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
   if (fade <= .01) return;
   c.save(); c.globalAlpha *= fade;
   // Stages 0–2 each end their first cycle with the stamp arm landing a label on the applicant; it fades out as the ancestry arrives.
-  const retire = d.serial <= 2 ? 1 : d.serial === 3 && !reduced ? 1 - ease(d.age / .5) : 0;
+  const retire = d.serial <= 2 ? 1 : d.serial === 3 ? 1 - ease(d.age / .5) : 0;
   if (retire > 0) {
-    const reach = reduced ? 0 : stampReach(d);
+    const reach = stampReach(d);
     const [x, y] = STAMP_TARGETS[Math.min(2, d.stage)]!;
     // At rest the arm hangs high on its wall mount, clear of the dental index.
     c.save(); c.globalAlpha *= retire;
@@ -296,7 +296,7 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
   }
   if (d.stage === 4) {
     for (let i = 0; i < 3; i++) {
-      const y = 255 + i * 42; const x = 600 + (reduced ? 0 : Math.sin(time * 2 + i) * 6);
+      const y = 255 + i * 42; const x = 600 + (Math.sin(time * 2 + i) * 6);
       oval(c, x, y, 19, 19, i === Math.floor(time / 1.8) % 3 ? C.lime : C.cream, C.ink, 2);
       label(c, ['↑', '←', '↓'][i]!, x, y + 7, 23, C.ink, 'center');
     }
@@ -312,7 +312,7 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
     mono(c, 'VIBES ONLY', 617, 349, 8, C.cream, 'center');
   }
   if (d.stage === 6) {
-    const y = 252 - (reduced ? 12 : Math.sin(d.action * Math.PI) * 23);
+    const y = 252 - (Math.sin(d.action * Math.PI) * 23);
     c.save(); c.globalAlpha *= .67;
     c.beginPath(); c.moveTo(592, y + 55); c.bezierCurveTo(574, y + 12, 605, y - 15, 623, y); c.bezierCurveTo(639, y + 14, 637, y + 41, 651, y + 55);
     c.lineTo(637, y + 49); c.lineTo(626, y + 58); c.lineTo(614, y + 50); c.lineTo(605, y + 60); c.closePath();
@@ -333,11 +333,11 @@ export function drawProcedure(c: CanvasRenderingContext2D, v: MinistryView, fron
 /** Where the stamp face meets each label: the hoodie hem, the right shoulder, the ID badge. */
 const STAMP_TARGETS: [number, number][] = [[514, 334], [531, 284], [521, 308]];
 
-function drawAncestry(c: CanvasRenderingContext2D, time: number, reduced: boolean): void {
+function drawAncestry(c: CanvasRenderingContext2D, time: number): void {
   const y0 = 225; const positions = [[414, y0], [605, y0], [386, y0 + 66], [632, y0 + 66], [511, y0 + 129]];
   for (const [x, y] of positions) line(c, [x!, y!, x!, 371, 511, 371], '#dce4b879', 2);
   for (let i = 0; i < positions.length; i++) {
-    const [x, y] = positions[i]!; c.save(); c.translate(x!, y! + (reduced ? 0 : Math.sin(time + i) * 2)); c.rotate((i % 2 ? 1 : -1) * .07);
+    const [x, y] = positions[i]!; c.save(); c.translate(x!, y! + (Math.sin(time + i) * 2)); c.rotate((i % 2 ? 1 : -1) * .07);
     box(c, -21, -25, 42, 47, 2, C.cream, C.brass, 3);
     oval(c, 0, -6, 12, 13, i % 2 ? '#cab58e' : '#bead98', C.ink, 1);
     line(c, [-6, -8, -2, -8], C.ink, 2); line(c, [3, -8, 7, -8], C.ink, 2);
@@ -375,13 +375,13 @@ export function drawCrate(c: CanvasRenderingContext2D, wall: number, front: numb
 }
 
 /** Crash packing on the crash clock, continuous with the crate's pre-crash wall height. */
-export function drawPacking(c: CanvasRenderingContext2D, age: number, reduced: boolean, wall: number, empty: boolean): void {
+export function drawPacking(c: CanvasRenderingContext2D, age: number, wall: number, empty: boolean): void {
   const collect = empty ? 0 : ease((age - .3) / .6);
   if (collect > 0 && collect < 1) {
     for (let i = 0; i < 14; i++) {
       const a = i * 2.399; const r = (1 - collect) * (65 + i * 4);
       const x = 512 + Math.cos(a + collect * 4) * r; const y = 345 + Math.sin(a + collect * 4) * r * .55;
-      c.save(); c.translate(x, y); c.rotate(reduced ? 0 : a + collect * 6);
+      c.save(); c.translate(x, y); c.rotate(a + collect * 6);
       box(c, -11, -7, 23, 15, 1, i % 2 ? C.cream : C.mint, C.ink, 1); line(c, [-6, -2, 6, -2], C.ink, 1); c.restore();
     }
   }

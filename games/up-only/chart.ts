@@ -18,7 +18,6 @@ export interface ChartView {
   rugX: number;
   /** How far the crash has gone, 0 to 1: the floor breaks and the night goes red. */
   dark: number;
-  reduced: boolean;
   /** The round's multiplier as the room shows it (the crash point once crashed): the curve and the moon. */
   multiplier?: number;
   /** Seconds since the rug pull reached the launchpad, or -1 while it stands. */
@@ -68,14 +67,14 @@ function backdrop(ctx: CanvasRenderingContext2D, view: ChartView): void {
   for (let i = 0; i < 60; i += 1) {
     const x = ((noise(i * 7.3) * 1400 - view.distance * 0.05) % 1000 + 1000) % 1000 - 20;
     const y = noise(i * 3.1) * 300;
-    const tw = view.reduced ? 0.7 : 0.45 + 0.55 * Math.abs(Math.sin(view.time * 2 + i));
+    const tw = 0.45 + 0.55 * Math.abs(Math.sin(view.time * 2 + i));
     ellipse(ctx, x, y, 1.1, 1.1, `rgba(255, 255, 255, ${0.6 * tw})`);
   }
   // Weather fronts and a satellite pass behind the course; their silhouettes cannot hide gap edges. Both come and
   // go with the act's effort, which is zero where one act hands over to the next.
   if (act.act > 0) {
     ctx.save(); ctx.globalAlpha = .24 * act.effort;
-    const drift = view.reduced ? 0 : view.time * (act.act === 2 ? 9 : 3);
+    const drift = view.time * (act.act === 2 ? 9 : 3);
     for (let i = 0; i < 4; i += 1) {
       const x = ((i * 310 + drift) % 1250) - 150;
       ellipse(ctx, x, 290 + i % 2 * 32, 110, 15, act.act === 3 ? '#75d3bb' : '#afc4ed');
@@ -186,7 +185,7 @@ function resistance(ctx: CanvasRenderingContext2D, view: ChartView): void {
 }
 
 /** The launchpad the round leaves from, scrolling away with the chart; a rug that reaches it splits it in two. */
-export function launchpad(ctx: CanvasRenderingContext2D, x: number, time: number, broke = -1, reduced = false): void {
+export function launchpad(ctx: CanvasRenderingContext2D, x: number, time: number, broke = -1): void {
   if (x < -240 || broke > 1.6) return;
   const t = Math.max(0, broke);
   for (const side of broke >= 0 ? [-1, 1] : [0]) {
@@ -195,7 +194,7 @@ export function launchpad(ctx: CanvasRenderingContext2D, x: number, time: number
       // Each half hinges at its outer end and drops, the GM sign going with the right one.
       ctx.globalAlpha = clamp(1.6 - t, 0, 1);
       ctx.translate(x + side * 100, FLOOR - 24 + 700 * t * t);
-      if (!reduced) ctx.rotate(-side * (0.9 * t + 0.25 * Math.min(1, t * 6)));
+      ctx.rotate(-side * (0.9 * t + 0.25 * Math.min(1, t * 6)));
       ctx.translate(-x - side * 100, -FLOOR + 24);
       ctx.beginPath();
       ctx.rect(side < 0 ? x - 140 : x - 2, 0, 142 + (side > 0 ? 60 : 0), H);
@@ -234,7 +233,7 @@ function candleBody(ctx: CanvasRenderingContext2D, x: number, top: number, botto
   }
 }
 
-function candle(ctx: CanvasRenderingContext2D, c: Candle, view: ChartView): void {
+function candle(ctx: CanvasRenderingContext2D, c: Candle): void {
   const top = c.gapY - c.gapH / 2;
   const bottom = c.gapY + c.gapH / 2;
   // Slogans, not prices: the round's number is the curve behind them and the multiplier in the corner.
@@ -260,7 +259,7 @@ function candle(ctx: CanvasRenderingContext2D, c: Candle, view: ChartView): void
     ctx.save();
     ctx.globalAlpha = clamp(1.4 - t, 0, 1);
     ctx.translate(c.x, 0);
-    ctx.rotate((noise(c.seed) - 0.5) * t * 0.8 * (view.reduced ? 0 : 1));
+    ctx.rotate((noise(c.seed) - 0.5) * t * 0.8 * (1));
     candleBody(ctx, 0, CEILING + drop, top + drop, RED, RED_DARK, 'RUGGED');
     candleBody(ctx, 0, bottom + drop, FLOOR + drop, RED, RED_DARK, 'RUGGED');
     ctx.restore();
@@ -299,7 +298,7 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, view: ChartView): void
     ctx.restore();
     return;
   }
-  const spin = view.reduced ? 1 : Math.cos(view.time * 4 + p.seed * 9);
+  const spin = Math.cos(view.time * 4 + p.seed * 9);
   switch (p.kind) {
     case 'cope':
     case 'wagmi': {
@@ -334,7 +333,7 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, view: ChartView): void
       ellipse(ctx, x - 2.5, y + 2, 1.5, 2, '#1f5a14');
       ellipse(ctx, x + 2.5, y + 2, 1.5, 2, '#1f5a14');
       line(ctx, [[x - 3, y + 8], [x + 3, y + 8]], '#1f5a14', 1.5);
-      for (const dx of [-10, 9]) ellipse(ctx, x + dx, y + 18 + (view.reduced ? 0 : ((view.time * 0.6 + p.seed) % 1) * 6), 2, 3, '#8be26b');
+      for (const dx of [-10, 9]) ellipse(ctx, x + dx, y + 18 + (((view.time * 0.6 + p.seed) % 1) * 6), 2, 3, '#8be26b');
       text(ctx, 'HONEYPOT', x, y - 28, 9, '#8be26b', 'center');
       break;
     }
@@ -349,7 +348,7 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, view: ChartView): void
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(-0.6);
-      poly(ctx, [[-8, 16], [0, 30 + (view.reduced ? 0 : Math.sin(view.time * 9) * 5)], [8, 16]], '#ffaf42');
+      poly(ctx, [[-8, 16], [0, 30 + (Math.sin(view.time * 9) * 5)], [8, 16]], '#ffaf42');
       poly(ctx, [[-9, 17], [-8, -10], [0, -24], [8, -10], [9, 17]], '#e5e3d6', '#3d314f', 2);
       ellipse(ctx, 0, -5, 4, 6, PINK);
       ctx.restore();
@@ -362,16 +361,16 @@ function pickup(ctx: CanvasRenderingContext2D, p: Pickup, view: ChartView): void
 // ---- The FUD and the rug pull ----------------------------------------------------------------------------
 
 /** The storm behind the shiba: closer as the heat rises, bigger as the round runs, a bolt when it strikes. */
-export function drawFud(ctx: CanvasRenderingContext2D, x: number, y: number, heat: number, strike: number, time: number, reduced: boolean, size = 1): void {
+export function drawFud(ctx: CanvasRenderingContext2D, x: number, y: number, heat: number, strike: number, time: number, size = 1): void {
   if (heat <= 0.02) return;
   ctx.save();
   ctx.globalAlpha = clamp(heat * 3.5, 0, 1);
-  ctx.translate(x, y + (reduced ? 0 : Math.sin(time * 1.7) * 6));
+  ctx.translate(x, y + (Math.sin(time * 1.7) * 6));
   ctx.scale(size, size);
   const dark = heat > 0.7 ? '#2a2334' : '#3d3a52';
   for (const [dx, dy, r] of [[-40, 10, 28], [-5, -8, 36], [35, 6, 30], [10, 18, 26], [-30, 22, 22]] as const) ellipse(ctx, dx, dy, r, r * 0.8, dark, '#1a1626', 2);
   memeText(ctx, 'FUD', 0, 4, 26, heat > 0.7 ? PINK : '#c9c2e6', 'center');
-  if (strike >= 0 && strike < 0.45 && !reduced) {
+  if (strike >= 0 && strike < 0.45) {
     const k = 1 - strike / 0.45;
     ctx.globalAlpha = k;
     line(ctx, [[20, 30], [50, 80], [30, 85], [70, 150]], '#fff8b0', 5);
@@ -407,8 +406,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, w: ChartWorld, view: Ch
   backdrop(ctx, view);
   resistance(ctx, view);
   support(ctx, view);
-  launchpad(ctx, padX, view.time, view.padBreak, view.reduced);
-  for (const c of w.candles) if (c.x > -CANDLE_W && c.x < W + CANDLE_W) candle(ctx, c, view);
+  launchpad(ctx, padX, view.time, view.padBreak);
+  for (const c of w.candles) if (c.x > -CANDLE_W && c.x < W + CANDLE_W) candle(ctx, c);
   for (const p of w.pickups) if (!p.taken && p.x > -40 && p.x < W + 40) pickup(ctx, p, view);
   drawBird();
   for (const p of w.pickups) if (p.taken) pickup(ctx, p, view);

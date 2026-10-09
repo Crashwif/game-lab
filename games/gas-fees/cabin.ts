@@ -45,16 +45,14 @@ export interface Cabin {
   flip: Spring;
   /** The methane readout as displayed, smoothed toward the number's. */
   ppm: number;
-  /** 1, or 0 under reduced motion: the readout's flashing. */
-  motion: number;
   events: { canaryDrop: boolean };
 }
 
 /** Methane at the number: 400 × the multiplier squared, so the alarms go at 1.58×, 2.5×, 3.54× and 4.74×, amber from 2.24× and red from 3.54×; it keeps counting in thousands after that. */
 export const ppmFor = (multiplier: number): number => 400 * Math.max(1, multiplier) ** 2;
 
-export function createCabin(motion = 1): Cabin {
-  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0, canary: { woozy: spring(0), phase: 0, dropped: false, fall: spring(0), swing: spring(0) }, flip: spring(0), ppm: 400, motion, events: { canaryDrop: false } };
+export function createCabin(): Cabin {
+  return { time: 0, bounce: spring(0), doors: spring(1), scroll: 0, speed: spring(0), ding: spring(0), gassed: false, gasAge: 0, gasOrigin: { x: 480, y: 380 }, puffs: [], drips: [], light: 1, haze: 0, canary: { woozy: spring(0), phase: 0, dropped: false, fall: spring(0), swing: spring(0) }, flip: spring(0), ppm: 400, events: { canaryDrop: false } };
 }
 
 export function resetCabin(c: Cabin): void {
@@ -90,7 +88,7 @@ export function settleCabin(c: Cabin, running: boolean, tension: number, multipl
   c.ppm = ppmFor(multiplier);
 }
 
-export interface CabinDrive { running: boolean; tension: number; multiplier: number; doorsOpen: boolean; arrived: boolean; reduced: boolean; surge: number }
+export interface CabinDrive { running: boolean; tension: number; multiplier: number; doorsOpen: boolean; arrived: boolean; surge: number }
 
 export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
   c.time += dt;
@@ -114,7 +112,7 @@ export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
   c.ppm += (ppmTarget - c.ppm) * (1 - Math.exp(-dt * (c.gassed ? 6 : 3)));
   if (c.gassed) {
     c.gasAge += dt;
-    const flick = c.gasAge < 1.1 && !drive.reduced ? (noise(Math.floor(c.time * 30)) > 0.55 ? 0.25 : 1) : 0.55;
+    const flick = c.gasAge < 1.1 ? (noise(Math.floor(c.time * 30)) > 0.55 ? 0.25 : 1) : 0.55;
     c.light += (flick - c.light) * (1 - Math.exp(-dt * 30));
     const drag = Math.exp(-1.4 * dt);
     for (const p of c.puffs) {
@@ -131,7 +129,7 @@ export function stepCabin(c: Cabin, drive: CabinDrive, dt: number): void {
     if (!k.dropped && c.gasAge > 0.42) { k.dropped = true; c.events.canaryDrop = true; k.swing.v += 1.5; }
   } else {
     // From 5× the light starts to go, more often the longer the round runs.
-    const flicker = drive.running && drive.tension > 0.8 && !drive.reduced && noise(Math.floor(c.time * 24)) > 0.82 - 0.14 * drive.surge ? 0.45 : 1;
+    const flicker = drive.running && drive.tension > 0.8 && noise(Math.floor(c.time * 24)) > 0.82 - 0.14 * drive.surge ? 0.45 : 1;
     c.light += (flicker - c.light) * (1 - Math.exp(-dt * 40));
   }
   stepSpring(k.fall, k.dropped ? 1 : 0, 16, 0.3, dt);
@@ -284,7 +282,7 @@ function drawPPM(ctx: CanvasRenderingContext2D, c: Cabin): void {
   const ppm = Math.round(c.ppm);
   const level = ppm >= 5000 ? 2 : ppm >= 2000 ? 1 : 0;
   const colour = ['#7cf67c', '#ffb703', '#ff4d6d'][level]!;
-  const flash = c.gassed && c.motion > 0 && Math.floor(c.time * 4) % 2 === 0;
+  const flash = c.gassed && Math.floor(c.time * 4) % 2 === 0;
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.fillStyle = flash ? '#3a0f18' : '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;

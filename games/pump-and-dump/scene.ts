@@ -25,11 +25,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the hit-stop, the slow motion and the camera punch. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -86,7 +81,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 }
 
 /** The NATTY OR NOT poll on the phone: NOT wins more of it the higher the bar goes, and all of it once it comes down. */
-function drawPoll(ctx: CanvasRenderingContext2D, not: number, live: boolean, time: number, reduced: boolean): void {
+function drawPoll(ctx: CanvasRenderingContext2D, not: number, live: boolean, time: number): void {
   ctx.save();
   ctx.translate(PHONE.x, PHONE.y);
   ctx.textBaseline = 'alphabetic';
@@ -103,7 +98,7 @@ function drawPoll(ctx: CanvasRenderingContext2D, not: number, live: boolean, tim
   }
   ctx.textAlign = 'center'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
   if (!live || not > 0.985) {
-    const k = reduced ? 1 : 0.55 + 0.45 * Math.abs(Math.sin(time * 4));
+    const k = 0.55 + 0.45 * Math.abs(Math.sin(time * 4));
     ctx.fillStyle = `rgba(255, 120, 140, ${k})`;
     ctx.fillText('SEC WATCHING', 38, 130);
   } else if (not > 0.6) {
@@ -113,8 +108,7 @@ function drawPoll(ctx: CanvasRenderingContext2D, not: number, live: boolean, tim
   ctx.restore();
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'hardstyle', crash: 'slam' });
   const gym: Gym = createGym();
   const bench: Bench = createBench();
@@ -168,7 +162,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   function impact(): void {
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       settleSpring(punch, 1);
@@ -251,11 +245,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepBench(bench, { running, multiplier, growth, tension, seconds: view.elapsed / 1000 }, dt);
     stepGym(gym, { running, tension, multiplier, growth, elapsed: view.elapsed, cracks: 0 }, dt);
     if (bench.events.impact) impact();
-    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); heckleAt = Math.max(heckleAt, time + 1.6); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }
+    if (bench.events.plate) { heckle(gym, HECKLES[bench.nextPlate % HECKLES.length]!, bench.nextPlate % 3 === 0); heckleAt = Math.max(heckleAt, time + 1.6); shake = Math.max(shake, 0.2); audio.fx('clang', 0.7); }
     if (running) audio.milestone(PLATE_AT.filter((p) => multiplier >= p).length);
-    if (bench.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.05 + 0.2 * tension); audio.fx('chuff', 0.35 + 0.5 * tension); }
+    if (bench.events.rep && running) { shake = Math.max(shake, 0.05 + 0.2 * tension); audio.fx('chuff', 0.35 + 0.5 * tension); }
     // The fake-out stall: the bar creaks and the shot shudders while he grinds it.
-    if (bench.events.stall) { if (!reduced) shake = Math.max(shake, 0.12 + 0.2 * tension); audio.fx('creak', 0.35 + 0.35 * tension); }
+    if (bench.events.stall) { shake = Math.max(shake, 0.12 + 0.2 * tension); audio.fx('creak', 0.35 + 0.35 * tension); }
     // A heartbeat that quickens with the load, until the player takes profits.
     if (running && !secured && tension > 0.2 && time >= pulseAt) { pulseAt = time + mix(1.4, 0.35, tension); audio.fx('heartbeat', 0.25 + 0.3 * tension); }
     if (bench.events.racked) {
@@ -289,8 +283,8 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     const head = benchHead();
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the bar landing and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1);
       ctx.translate(head.x, head.y);
@@ -317,7 +311,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (flash > 0.01) { ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * flash})`; ctx.fillRect(0, 0, 960, 540); }
     if (fade > 0) fade = Math.max(0, fade - real / 0.35);
     drawPhoneOverlay(ctx, gym, !outcome);
-    drawPoll(ctx, clamp(natty.x, 0, 1), !outcome, time, reduced);
+    drawPoll(ctx, clamp(natty.x, 0, 1), !outcome, time);
 
     if (caption) {
       ctx.save();

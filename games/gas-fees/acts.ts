@@ -1,7 +1,7 @@
 /** Elapsed-time presentation only: no result, stake or crash prediction enters this director, and its props never ease the tension. */
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["One floor at a time", "Try the ventilation", "The wall fan wakes up", "A moment of fresh air", "The vent is rattling", "Try the emergency button", "Everyone holds their breath"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -13,7 +13,7 @@ export function actAt(elapsed: number, reduced = false) {
   const effort = stage === 0 ? 1 : Math.min(1, .30 + .03 * stage + (1 - release) * .52);
   const draught = Math.min(1, Math.max(0, (.85 - effort) / .52));
   // The pulse runs on the round's clock, so a new act does not jerk the fan or the slats back to zero.
-  return { stage, age, effort, draught, pulse: reduced ? 0 : Math.sin(seconds * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, draught, pulse: Math.sin(seconds * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** Which props an act shows; the scene eases each toward this, so nothing pops in or out, and fades them all at a crash or a cashout. */

@@ -61,10 +61,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions {
-  /** Drops the shake, the head jitter, the hit-stop and the camera punch. */
-  reducedMotion?: boolean;
-}
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 type Outcome = 'rekt' | 'called' | 'spectator';
@@ -101,9 +97,9 @@ function captionFor(view: SceneView, outcome: Outcome | null, secured: Secured |
   return beat || 'FAMILY MEETING';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("FAMILY MEETING", [205, 150, 545, 360], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Dinner muzak with an organ under it that tightens with the multiplier; the crash is a boom.
   const audio = pageAudio({ style: 'elevator', crash: 'boom' });
   const kitchen: Kitchen = createKitchen();
@@ -177,13 +173,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     pop.v = 16;
     if (harmless) {
-      shake = reduced ? 0 : 0.15;
+      shake = 0.15;
       audio.crash('thud');
       audio.fx('hiss', 0.8);
       return;
     }
     shake = 1;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       punch.x = 1;
@@ -208,7 +204,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // 1 - 1/x: 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×, 0.9 at 10×, so the first 15 s, where most rounds end, carry the
     // build; the slow log driver keeps long rounds changing (0.33 at 10×, 0.67 at 100×, 1 at 1000×). The acts only
     // bring props: they never cool the table down.
@@ -259,17 +255,17 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
 
-    stepKitchen(kitchen, { running, betting: view.phase === 'betting', multiplier, tension, time, reduced }, dt);
+    stepKitchen(kitchen, { running, betting: view.phase === 'betting', multiplier, tension, time }, dt);
     // The flash fades on the real clock, so the hit-stop holds on the burst rather than on a white screen.
     kitchen.flash = Math.max(0, kitchen.flash - (real - dt) * 4);
     const kev = kitchen.events;
     const herLine = kev.line?.who === 'her';
     const said: Record<Who, number> = { her: Infinity, dad: Infinity, mom: Infinity };
     for (const b of kitchen.bubbles) if (b.age < b.life) said[b.who] = Math.min(said[b.who], b.age);
-    const fev = stepParents(parents, { running, tension, time, reduced, herLine: herLine && !kitchen.crashed, left: secured !== null, said, long }, dt);
+    const fev = stepParents(parents, { running, tension, time, herLine: herLine && !kitchen.crashed, left: secured !== null, said, long }, dt);
     const waiting = view.phase === 'betting' || view.phase === 'waiting';
-    const dev = stepDaughter(daughter, { speaking: said.her < 1.6, tension, time, crashT: kitchen.crashT, rekt: kitchen.crashed && !kitchen.harmless, waiting, reduced }, dt);
-    if (fev.slam && !reduced) shake = Math.max(shake, 0.3);
+    const dev = stepDaughter(daughter, { speaking: said.her < 1.6, tension, time, crashT: kitchen.crashT, rekt: kitchen.crashed && !kitchen.harmless, waiting }, dt);
+    if (fev.slam) shake = Math.max(shake, 0.3);
     if (dev.camera) kitchen.flash = Math.max(kitchen.flash, 0.5);
     if (!fresh && !muted) {
       // Every event is a cue: a bubble, the fist, a gasp, the ears, the cross, the kettle, the pieces, the door, the picture.
@@ -318,7 +314,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (pulseClock >= mix(1.4, 0.35, tension)) {
         pulseClock = 0;
         if (!fresh && !muted) audio.fx('heartbeat', 0.2 + 0.3 * tension);
-        if (!reduced) bpPop.v = 20;
+        bpPop.v = 20;
       }
     } else pulseClock = 0;
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
@@ -337,9 +333,9 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
 
     ctx.save();
-    const simmer = running && !reduced && !kitchen.crashed && !secured ? tension * tension * 1.5 : 0;
-    if (!reduced && (shake > 0 || simmer > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + simmer), Math.cos(time * 70) * 5 * shake);
-    if (!reduced && punch.x > 0.005) {
+    const simmer = running && !kitchen.crashed && !secured ? tension * tension * 1.5 : 0;
+    if ((shake > 0 || simmer > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + simmer), Math.cos(time * 70) * 5 * shake);
+    if (punch.x > 0.005) {
       const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
       ctx.scale(k, k);
@@ -347,15 +343,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     drawRoom(ctx, kitchen, time);
     for (const p of parents) drawChairBack(ctx, p.x);
-    for (const p of parents) drawParent(ctx, p, time, reduced);
+    for (const p of parents) drawParent(ctx, p, time);
     drawTable(ctx, kitchen, time);
     if (actFade > 0.01) {
       // A new act's props come in over half a second while the last act's go out.
       const fade = clamp(act.age / 0.5, 0, 1);
-      if (act.stage > 0 && fade < 1) drawAct(ctx, actAt(view.elapsed - act.age * 1000 - 1, reduced), actFade * (1 - fade));
+      if (act.stage > 0 && fade < 1) drawAct(ctx, actAt(view.elapsed - act.age * 1000 - 1), actFade * (1 - fade));
       drawAct(ctx, act, actFade * fade);
     }
-    drawDaughter(ctx, daughter, time, tension, reduced);
+    drawDaughter(ctx, daughter, time, tension);
     drawDaughterChair(ctx);
     if (!isPortrait(ctx.canvas)) drawBubbles(ctx, kitchen);
     drawAir(ctx, kitchen);

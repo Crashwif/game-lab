@@ -504,7 +504,7 @@ function drawPug(ctx: CanvasRenderingContext2D, mood: Mood, faint: number, time:
 }
 
 /** Draws one passenger in rider space: feet at the origin, facing the viewer. */
-export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX: number, time: number, reduced = false): void {
+export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX: number, time: number): void {
   const s = depthScale(p.depth);
   ctx.save();
   ctx.translate(p.x, depthFloor(p.depth));
@@ -512,7 +512,7 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
   ctx.lineJoin = 'round';
   ctx.fillStyle = 'rgba(20, 24, 30, 0.18)';
   ctx.beginPath(); ctx.ellipse(0, 2, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
-  if (!reduced) {
+  {
     // Nobody stands frozen: a slow sway about the soles and a breath, each their own pace, growing into a fidget as the air goes.
     const amp = 1 + 2 * p.fidget;
     ctx.rotate((Math.sin(time * (0.6 + 0.4 * noise(p.seed)) + p.seed) * 1.5 * amp) / 190);
@@ -761,13 +761,13 @@ export function drawPassenger(ctx: CanvasRenderingContext2D, p: Passenger, gazeX
 export interface SuitView { head: Point; visible: boolean }
 
 /** The suit in rider space, with the trembling, the clench, the buckle, the colour and the cheeks. */
-export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number, reduced = false): SuitView {
+export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number): SuitView {
   const scale = depthScale(s.depth);
   const holding = s.mode === 'holding';
   const t = s.strain;
   // A tremble from the first floor that hardens with the strain, and eases out with his hold instead of stopping dead.
   // It shakes him from the hips up; his soles stay planted.
-  const tremble = reduced ? 0 : (0.8 + 2.4 * t) * s.hold;
+  const tremble = (0.8 + 2.4 * t) * s.hold;
   const shake = { x: Math.sin(time * 47) * tremble, y: Math.cos(time * 53) * tremble * 0.4 };
   const x = s.x;
   const y = depthFloor(s.depth);
@@ -778,9 +778,9 @@ export function drawSuit(ctx: CanvasRenderingContext2D, s: Suit, time: number, r
   ctx.fillStyle = 'rgba(20, 24, 30, 0.18)';
   ctx.beginPath(); ctx.ellipse(0, 2, 30, 7, 0, 0, Math.PI * 2); ctx.fill();
   // The clench: a squeeze about the soles, once a second at first and two and a half by the end.
-  if (!reduced) { const q = 0.03 * s.hold * (0.35 + 0.65 * t) * Math.max(0, Math.sin(s.clench)) ** 2; ctx.scale(1 + q, 1 - q); }
+  { const q = 0.03 * s.hold * (0.35 + 0.65 * t) * Math.max(0, Math.sin(s.clench)) ** 2; ctx.scale(1 + q, 1 - q); }
   // He steps only on his way out; standing, holding or letting go, his feet stay where they are.
-  const walking = s.mode === 'leaving' && !reduced;
+  const walking = s.mode === 'leaving';
   // Knees together, feet apart and hips down as he strains; the upper body sinks further, over the tops of his legs.
   drawLegs(ctx, '#3a3f4f', t, walking ? s.stride / scale : 0, 1, walking ? Math.sin(Math.PI * clamp(s.modeAge / .9, 0, 1)) : 0, 'in');
   ctx.translate(shake.x, 14 * t + shake.y);

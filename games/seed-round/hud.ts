@@ -83,7 +83,7 @@ function crown(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): 
   ctx.stroke();
 }
 
-export interface CardState { multiplier: number; crashed: boolean; king: boolean; replies: number; time: number; reduced: boolean }
+export interface CardState { multiplier: number; crashed: boolean; king: boolean; replies: number; time: number; }
 
 /** The top holder's share of the supply: 42% at the launch, 69% by 2×, and on toward all of it. */
 export const topHolder = (m: number): number => Math.min(96, 42 + 27 * Math.log2(Math.max(1, m)));
@@ -144,7 +144,7 @@ export function drawCard(ctx: CanvasRenderingContext2D, card: CardState): void {
   const progress = card.crashed ? 0 : clamp(Math.log(card.multiplier) / Math.log(GRADUATION), 0, 1);
   const graduated = progress >= 1;
   // The curve trembles as graduation nears: the wind-up before whatever comes next.
-  const tremble = !card.reduced && !card.crashed && !graduated ? clamp((progress - 0.75) / 0.25, 0, 1) * 1.5 * Math.sin(card.time * 42) : 0;
+  const tremble = !card.crashed && !graduated ? clamp((progress - 0.75) / 0.25, 0, 1) * 1.5 * Math.sin(card.time * 42) : 0;
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.beginPath();
   ctx.roundRect(x + 12, y + 54, w - 24, 10, 5);
@@ -159,7 +159,7 @@ export function drawCard(ctx: CanvasRenderingContext2D, card: CardState): void {
   // The top holder's bar: green until it is most of the supply, then it throbs red.
   const share = card.crashed ? 100 : topHolder(card.multiplier);
   const hot = clamp((share - 60) / 20, 0, 1);
-  const throb = card.reduced || card.crashed ? 1 : 0.7 + 0.3 * Math.sin(card.time * 6);
+  const throb = card.crashed ? 1 : 0.7 + 0.3 * Math.sin(card.time * 6);
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.beginPath();
   ctx.roundRect(x + 12, y + 86, w - 24, 8, 4);

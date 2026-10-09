@@ -40,7 +40,6 @@ canvas{background:#e9dec3}
 .controls{border-top:2px solid #304c50}
 
 main{position:relative}
-.inspection-transcript{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media(max-width:600px) and (min-height:500px){
   .stage{position:relative;aspect-ratio:540/752;overflow:hidden}
   /* Oversampling preserves portrait detail with the shell’s 16:9 backing store. */

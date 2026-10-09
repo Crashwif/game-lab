@@ -21,7 +21,6 @@ export interface CockpitView {
   wreck: number;
   cashout: number | null;
   running: boolean;
-  reduced: boolean;
   /** 0 to 1: the SEC lights in the mirror, the LIQ PRICE sensor blink and the phone buzz. */
   cops: number;
   pulse: number;
@@ -74,9 +73,9 @@ function mirror(ctx: CanvasRenderingContext2D, view: CockpitView): void {
   ctx.fillStyle = glass; ctx.fillRect(618, 48, 272, 100);
   poly(ctx, [[690, 141], [737, 80], [779, 80], [826, 141]], '#303445');
   line(ctx, [[752, 88], [742, 140]], '#c8bdbc', 2); line(ctx, [[771, 88], [783, 140]], '#c8bdbc', 2);
-  // The cops fade in and get closer; their lights alternate, or glow steadily under reduced motion.
+  // The cops fade in and get closer; their lights alternate.
   if (view.cops > 0) {
-    const blink = view.reduced ? 0 : Math.sin(view.time * 8) * 0.2, r = 16 + view.tension * 12;
+    const blink = Math.sin(view.time * 8) * 0.2, r = 16 + view.tension * 12;
     ctx.globalAlpha = view.cops * (0.55 + blink); ellipse(ctx, 639, 108, r * 1.25, r, PINK);
     ctx.globalAlpha = view.cops * (0.55 - blink); ellipse(ctx, 865, 108, r * 1.25, r, CYAN);
     ctx.globalAlpha = view.cops;
@@ -166,7 +165,8 @@ function steeringWheel(ctx: CanvasRenderingContext2D, view: CockpitView): void {
 
   for (const side of [-1, 1]) {
     const hand = steeringContact(side, turn);
-    const root = { x: side < 0 ? 110 : 320, y: 600 };
+    // The right shoulder sits inboard so the forearm crosses the dash clear of the gear box label.
+    const root = { x: side < 0 ? 110 : 290, y: 600 };
     const dx = hand.x - root.x, dy = hand.y - root.y, d = Math.hypot(dx, dy);
     const along = (105 * 105 - 108 * 108 + d * d) / (2 * d);
     const bend = Math.sqrt(Math.max(0, 105 * 105 - along * along)) * side;
@@ -183,7 +183,7 @@ function steeringWheel(ctx: CanvasRenderingContext2D, view: CockpitView): void {
 }
 
 function phone(ctx: CanvasRenderingContext2D, view: CockpitView): void {
-  ctx.save(); ctx.translate(785, 412); ctx.rotate(0.08 + (view.reduced ? 0 : Math.sin(view.time * 70) * 0.03 * view.ring));
+  ctx.save(); ctx.translate(785, 412); ctx.rotate(0.08 + (Math.sin(view.time * 70) * 0.03 * view.ring));
   panel(ctx, -7, -10, 119, 167, '#060b13', '#717878', 13);
   panel(ctx, 0, 0, 105, 149, '#172431', '#273c45', 8);
   panel(ctx, 35, 3, 35, 5, '#05090e', undefined, 3);
@@ -249,7 +249,7 @@ export function drawDamage(ctx: CanvasRenderingContext2D, view: CockpitView): vo
   }
   ctx.restore();
   // The airbag fires just after the impact, overshoots, and deflates as the wreck is towed.
-  const bag = smoothstep(0.46, 0.66, age) * (view.reduced ? 1 : 1 + 0.1 * Math.sin(Math.PI * clamp((age - 0.56) / 0.4, 0, 1))) * (0.55 + 0.45 * view.wreck);
+  const bag = smoothstep(0.46, 0.66, age) * (1 + 0.1 * Math.sin(Math.PI * clamp((age - 0.56) / 0.4, 0, 1))) * (0.55 + 0.45 * view.wreck);
   if (bag > 0) {
     ctx.save(); ctx.globalAlpha = Math.min(1, view.wreck * 1.5); ctx.translate(255, 474); ctx.scale(bag, bag);
     const airbag = ctx.createRadialGradient(-40, -40, 2, 0, 0, 180);

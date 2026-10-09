@@ -44,17 +44,6 @@ export function jacketGrip(skier: SkierPose, side: -1 | 1): Point {
   return { x: skier.torso.x + Math.cos(skier.angle) * x, y: skier.torso.y + Math.sin(skier.angle) * x };
 }
 
-/** The reduced-motion version tells the same story in held poses, without camera or limb sweeps. */
-export function reducedCrashAge(age: number): number {
-  if (age < 0.4) return 0;
-  if (age < 1.3) return 1.2;
-  if (age < 2.15) return 1.75;
-  if (age < 2.35) return 2.25;
-  if (age < 3.4) return 3.2;
-  if (age < 4.4) return 3.85;
-  return ENDING_SECONDS;
-}
-
 /** Hit-stop: hold the impact frame, then catch up within a second so every later beat keeps its time. */
 export function impactAge(age: number): number {
   return age <= HIT_STOP ? 0 : age - HIT_STOP * (1 - smooth(age - HIT_STOP));

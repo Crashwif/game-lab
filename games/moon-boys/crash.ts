@@ -108,7 +108,7 @@ const turned = (angle: number): [Vec3, Vec3, Vec3] => [rotateAbout([1, 0, 0], [0
 const ID: [Vec3, Vec3, Vec3] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
 /** Draws the soundstage and adds its labels. */
-export function drawStudio(crash: Crash, renderer: Renderer, time: number, labels: Label[], reduced: boolean): void {
+export function drawStudio(crash: Crash, renderer: Renderer, time: number, labels: Label[]): void {
   const r = renderer;
   const m = r.meshes;
   const t = crash.age;
@@ -230,7 +230,7 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
   if (flagUp > 0) {
     const pole = 3.4 * flagUp;
     box([fallenMoon[0], fallenMoon[1] + pole / 2, fallenMoon[2]], [0.06, pole, 0.06], [0.75, 0.75, 0.8, 1]);
-    putInstance(m.flag, 0, [fallenMoon[0] + 0.03, fallenMoon[1] + pole - 0.55, fallenMoon[2]], ID[0], ID[1], ID[2], [1.2 * flagUp, 1.05 * flagUp, 1], [1, 1, 1, 1], [-1, 0, reduced ? 0 : 0.28, 0]);
+    putInstance(m.flag, 0, [fallenMoon[0] + 0.03, fallenMoon[1] + pole - 0.55, fallenMoon[2]], ID[0], ID[1], ID[2], [1.2 * flagUp, 1.05 * flagUp, 1], [1, 1, 1, 1], [-1, 0, 0.28, 0]);
     r.drawLit(m.flag, 1, 'opaque', 'none');
     if (flagUp > 0.9) labels.push({ text: 'CTO · THE MOON IS OURS NOW', at: [fallenMoon[0], fallenMoon[1] + pole + 0.9, fallenMoon[2]], colour: '#86efac', size: 17, far: true });
   }
@@ -310,7 +310,7 @@ export function drawStudio(crash: Crash, renderer: Renderer, time: number, label
   putInstance(m.bird, 0, [6.5, 8.45, -12], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0.9, 0.9, 0.9]);
   r.drawLit(m.bird, 1);
   // Smoke off the wreck.
-  for (let i = 0; i < (reduced ? 4 : 9); i += 1) {
+  for (let i = 0; i < (9); i += 1) {
     const age = ((time * 0.5 + i * 0.37) % 1.8);
     r.sprite(add(wreckAt, [Math.sin(i * 2.3) * 0.4, age * 1.6, Math.cos(i * 1.7) * 0.4]), 0.35 + age * 0.9, [0.6, 0.6, 0.64, 0.25 * (1 - age / 1.8)], 0);
   }

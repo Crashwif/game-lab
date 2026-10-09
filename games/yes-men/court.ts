@@ -117,7 +117,6 @@ export interface RoomDrive {
   multiplier: number;
   tension: number;
   time: number;
-  reduced: boolean;
   /** The player has walked out: their thoughts stop, the agenda goes on without them. */
   left: boolean;
 }
@@ -444,7 +443,7 @@ const star = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number): v
   ctx.closePath();
 };
 
-function drawFlag(ctx: CanvasRenderingContext2D, x: number, time: number, reduced: boolean): void {
+function drawFlag(ctx: CanvasRenderingContext2D, x: number, time: number): void {
   ctx.save();
   ink(ctx, 3);
   ctx.strokeStyle = '#b9933a';
@@ -457,7 +456,7 @@ function drawFlag(ctx: CanvasRenderingContext2D, x: number, time: number, reduce
   ctx.arc(x, 40, 6, 0, Math.PI * 2);
   ctx.fill();
   // The cloth hangs from the pole and breathes a little in the vent's draught.
-  const sway = reduced ? 0 : Math.sin(time * 1.3 + x) * 3;
+  const sway = Math.sin(time * 1.3 + x) * 3;
   ctx.fillStyle = '#b2232f';
   ink(ctx, 2.5);
   ctx.beginPath();
@@ -480,7 +479,7 @@ function drawFlag(ctx: CanvasRenderingContext2D, x: number, time: number, reduce
 }
 
 /** The walls, the cornice, the portrait that grows behind his chair, the flags, the signs, the door and the floor. */
-export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
+export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number): void {
   const red = clamp(r.red.x, 0, 1);
   // Walls: crimson under a gold cornice, dark wainscot, then the floor and a carpet to the player's chair.
   ctx.fillStyle = red > 0.01 ? `rgb(${Math.round(mix(94, 140, red))}, ${Math.round(mix(28, 18, red))}, ${Math.round(mix(40, 24, red))})` : '#5e1c28';
@@ -505,8 +504,8 @@ export function drawRoom(ctx: CanvasRenderingContext2D, r: Room, time: number, r
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  drawFlag(ctx, 128, time, reduced);
-  drawFlag(ctx, 770, time, reduced);
+  drawFlag(ctx, 128, time);
+  drawFlag(ctx, 770, time);
 
   // The portrait: a gold frame around his face, which grows behind his chair as the room agrees.
   const grow = clamp(r.portrait.x, 0, 1.1);
@@ -999,10 +998,10 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, r: Room, at: { x: numbe
 }
 
 /** The red light at the crash, over everything in the room, under the photo. */
-export function drawRedLight(ctx: CanvasRenderingContext2D, r: Room, time: number, reduced: boolean): void {
+export function drawRedLight(ctx: CanvasRenderingContext2D, r: Room, time: number): void {
   const red = clamp(r.red.x, 0, 1);
   if (red <= 0.01) return;
-  const pulse = reduced ? 1 : 0.85 + 0.15 * Math.sin(time * 9);
+  const pulse = 0.85 + 0.15 * Math.sin(time * 9);
   ctx.fillStyle = `rgba(190, 20, 40, ${0.22 * red * pulse})`;
   ctx.fillRect(0, 0, 960, 540);
 }

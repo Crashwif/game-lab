@@ -76,7 +76,7 @@ test('I Got Hacked holds every completed excuse for at least 1.8 seconds at maxi
   const m = createMansion(); let changes = 0, seen = null;
   for (let frame = 0; frame < 1200; frame++) {
     const priorAge = m.excuseAge, prior = m.excuse;
-    stepMansion(m, { running: true, tension: 1, multiplier: 1000, reduced: false }, 1 / 60);
+    stepMansion(m, { running: true, tension: 1, multiplier: 1000 }, 1 / 60);
     if (m.events.excuse) {
       if (seen !== null) assert.ok(priorAge >= EXCUSES[prior].length * .028 + 1.8 - 1 / 60, `${EXCUSES[prior]} was readable`);
       changes++; seen = m.excuse;
@@ -99,6 +99,5 @@ for (const game of games) test(`${game} has distinct physical late acts and inte
   assert.equal(new Set(commands).size, 4, 'actual drawn geometry changes, not only captions');
   for (const at of [32, 52, 75, 100, 125, 145]) {
     assert.ok(actAt((at + 5) * 1000).effort < actAt((at + 12) * 1000).effort - .2, 'calming beat precedes renewed effort');
-    assert.equal(actAt((at + 5) * 1000, true).pulse, 0, 'reduced motion removes prop oscillation');
   }
 });

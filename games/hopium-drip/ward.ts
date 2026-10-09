@@ -238,7 +238,7 @@ function walkTo(s: Spring, target: number, top: number, accel: number, dt: numbe
   if (Math.abs(target - s.x) < 0.5 && Math.abs(s.v) < 8) settleSpring(s, target);
 }
 
-export interface WardDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
+export interface WardDrive { running: boolean; tension: number; multiplier: number; }
 
 export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   const e = w.events;
@@ -271,7 +271,7 @@ export function stepWard(w: Ward, drive: WardDrive, dt: number): void {
   stepSpring(w.doctorLean, dead ? 1 : drive.running ? 0.5 * t : 0, 5, 0.8, dt);
   stepSpring(w.doctorPen, 0, 10, 0.4, dt);
   stepSpring(w.wilt, drive.running || w.dead ? wiltAt(t) + (w.dead ? 1 : 0) : w.wilt.x, 2, 1, dt);
-  if ((drive.running || w.dead) && !drive.reduced && w.wilt.x > .3) {
+  if ((drive.running || w.dead) && w.wilt.x > .3) {
     for (let tick = Math.floor(previousTime * 6 + 1e-9) + 1; tick <= Math.floor((w.time + 1e-9) * 6); tick++) {
       if (noise(tick * 1.7) <= .85 - .3 * w.wilt.x || w.petals.length >= 24) continue;
       w.petals.push({ x: 560 + noise(tick * 9) * 30, y: 236, vx: (noise(tick * 5) - .5) * 20, vy: 10, rot: noise(tick) * 6, age: 0 });
@@ -998,11 +998,11 @@ function drawPatient(ctx: CanvasRenderingContext2D, w: Ward, tension: number): v
 }
 
 /** The whole ward, clipped to its frame. */
-export function drawWard(ctx: CanvasRenderingContext2D, w: Ward, tension: number, reduced: boolean): void {
+export function drawWard(ctx: CanvasRenderingContext2D, w: Ward, tension: number): void {
   ctx.save();
   ctx.beginPath(); ctx.rect(WARD.x, WARD.y, WARD.w, WARD.h); ctx.clip();
   // Wall, dado rail, floor; the lights flicker at the crash.
-  const flicker = w.dead && !reduced && w.deadAge < 1.2 ? (noise(Math.floor(w.time * 24)) > 0.5 ? 1 : 0.7) : 1;
+  const flicker = w.dead && w.deadAge < 1.2 ? (noise(Math.floor(w.time * 24)) > 0.5 ? 1 : 0.7) : 1;
   ctx.fillStyle = `rgb(${Math.round(214 * flicker)}, ${Math.round(232 * flicker)}, ${Math.round(228 * flicker)})`;
   ctx.fillRect(0, 0, WARD.w, WARD.h);
   ctx.fillStyle = `rgb(${Math.round(150 * flicker)}, ${Math.round(196 * flicker)}, ${Math.round(186 * flicker)})`;
@@ -1086,7 +1086,7 @@ export function drawWard(ctx: CanvasRenderingContext2D, w: Ward, tension: number
   if (paddles.length === 2) {
     ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round';
     for (const p of paddles) { ctx.beginPath(); ctx.moveTo(w.cartX.x - 10, 386); ctx.quadraticCurveTo((p.x + w.cartX.x) / 2, 430 + Math.sin(w.time * 3) * 6, p.x, p.y); ctx.stroke(); }
-    if (w.zapAge < 0.22 && !reduced) {
+    if (w.zapAge < 0.22) {
       const k = 1 - w.zapAge / 0.22;
       ctx.strokeStyle = `rgba(255, 226, 122, ${k})`; ctx.lineWidth = 3; ctx.lineJoin = 'miter';
       const [a, b] = paddles as [Point, Point];

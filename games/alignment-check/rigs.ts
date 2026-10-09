@@ -216,7 +216,6 @@ export interface CrewDrive {
   rung: number;
   tension: number;
   time: number;
-  reduced: boolean;
     wind: number;
   said: Line[];
   talking: { suspect: boolean; lead: boolean; heavy: boolean };
@@ -639,7 +638,7 @@ export function settleCrashed(c: Crew, seed: number, harmless: boolean, aftermat
   solveAll(c, 0, false);
 }
 function solveAll(c: Crew, tension: number, escaped: boolean): void {
-  const drive: CrewDrive = { phase: 'running', running: true, multiplier: 1, rung: c.rung, tension, time: 0, reduced: true, wind: 0.2, said: [], talking: { suspect: false, lead: false, heavy: false }, escaped, escapeT: escaped ? 10 : -1, crashT: c.thrown ? 99 : -1, aftermathT: c.thrown ? 99 : -1, harmlessT: c.harmless ? 10 : -1, overtime: -1, actStage: 0 };
+  const drive: CrewDrive = { phase: 'running', running: true, multiplier: 1, rung: c.rung, tension, time: 0, wind: 0.2, said: [], talking: { suspect: false, lead: false, heavy: false }, escaped, escapeT: escaped ? 10 : -1, crashT: c.thrown ? 99 : -1, aftermathT: c.thrown ? 99 : -1, harmlessT: c.harmless ? 10 : -1, overtime: -1, actStage: 0 };
   c.suspect.escapeT = drive.escapeT;
   solveSuspect(c, drive);
   solveMilitia(c.heavy, c, drive);
@@ -783,7 +782,7 @@ function drawHand(ctx: CanvasRenderingContext2D, h: Joint, r: number, open: numb
 }
 function drawHeadband(ctx: CanvasRenderingContext2D, r: number, dir: number, wind: number, time: number, seed: number): void {
   const y = -r * 0.45;
-  // The unmistakable sign: green field, the
+  // The unmistakable sign: green field, one line of white script, knotted at the back.
   const bw = r * 2.04;
   const bx = -r * 1.02;
   rr(ctx, bx, y - 5, bw, 10, 2, HEADBAND);
@@ -938,7 +937,7 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
   const mixP = (a: Pose, cc: Pose, w: number) => mixPose(b, x, feetY, 1, a, cc, w);
   const hang = J(6, b.upper + b.lower - 8);
   let p = basePose(b, lead ? mix(30, 52, heat) : 40 + 10 * heat);
-  p.pelvisX = drive.reduced ? 0 : lead ? 3 * Math.sin((t * TAU) / 9) : 4 * Math.sin(t * TAU * 0.2);
+  p.pelvisX = lead ? 3 * Math.sin((t * TAU) / 9) : 4 * Math.sin(t * TAU * 0.2);
   p.spine = (lead ? 0.244 : 0.14) * heat;
   p.chest = 0.02 * Math.sin(t * TAU * 0.25);
   p.head = clamp(m.kick.x, -3, 3) * 0.04 + (lead ? 0 : 0.17 * heat);
@@ -1017,7 +1016,8 @@ function solveMilitia(m: Militia, c: Crew, drive: CrewDrive): void {
   m.open = p.open;
 }
 
-export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number, reduced: boolean): void {
+/** One militia rig from its solved skeleton. */
+export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number): void {
   const b = BUILDS[m.kind];
   const sk = m.sk;
   const lead = m.kind === 'lead';
@@ -1029,11 +1029,8 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   const jab = clamp(m.jab.x / 0.3, 0, 1);
   const jabbing = lead && jab > 0.3 && !c.thrown;
   ctx.save();
-  if (!reduced) ctx.translate((noise(Math.floor(time * 40) + m.seed) - 0.5) * 4 * heat * heat, 0);
-  // The far arm first, darkened, with its hand so both sit behind the legs and the torso.
-  strokeLimb(ctx, sk.shoulders[0], sk.elbows[0], sk.hands[0], b.limb, lead ? '#060606' : '#0a0a0a');
-  drawHand(ctx, sk.hands[0], b.limb * 0.6, m.open[0], handColour(0), jabbing && c.rung >= 7 ? pointAt(0) : undefined);
-  // The far leg a shade darker than the near so the stance reads in depth.
+  ctx.translate((noise(Math.floor(time * 40) + m.seed) - 0.5) * 4 * heat * heat, 0);
+  strokeLimb(ctx, sk.shoulders[0], sk.elbows[0], sk.hands[0], b.limb, sleeve);
   for (const i of [0, 1] as const) {
     strokeLimb(ctx, sk.hips[i], sk.knees[i], sk.feet[i], b.limb + 2, i ? OLIVE : '#0e130e');
     ell(ctx, sk.feet[i].x + 5, sk.feet[i].y - 3, lead ? 13 : 16, 6, i ? '#2a2a30' : '#20242a');
@@ -1042,7 +1039,7 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   const [hp0, hp1] = sk.hips;
   poly(ctx, [J(sh0.x - 6, sh0.y - 6), J(sh1.x + 6, sh1.y - 6), J(hp1.x + 6, hp1.y + 6), J(hp0.x - 6, hp0.y + 6)], OLIVE);
   poly(ctx, [J(sh0.x + 2, sh0.y - 2), J(sh1.x - 2, sh1.y - 2), J(hp1.x + 1, hp1.y), J(hp0.x - 1, hp0.y)], VEST, 2);
-  // The chest patch: green, the white script
+  // The chest patch: green with the same white script, stitched on the vest.
   {
     const cx = (sh0.x + sh1.x) / 2 + 3;
     const cy = (sh0.y + hp0.y) / 2 - 4;
@@ -1077,7 +1074,7 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
     ctx.lineWidth = w;
     seg(ctx, sk.chest.x, sk.chest.y + 4, sk.neck.x, sk.neck.y - 4);
   }
-  drawMilitiaHead(ctx, m, c, time, reduced, skin);
+  drawMilitiaHead(ctx, m, c, time, skin);
   strokeLimb(ctx, sh1, sk.elbows[1], sk.hands[1], b.limb, sleeve);
   // The near hand last, over the near arm; held objects (the board, the coin, the torch) with it.
   if (m.clipboard === 'hand') drawClipboard(ctx, lead ? J(sk.hands[0].x + 2, sk.hands[0].y - 4) : sk.hands[1], c.lead.strokes, lead && m.pen === 'hand');
@@ -1089,7 +1086,8 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   }
   ctx.restore();
 }
-function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number, reduced: boolean, skin: string): void {
+
+function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, time: number, skin: string): void {
   const lead = m.kind === 'lead';
   const heat = clamp(m.heat.x, 0, 1);
   const r = BUILDS[m.kind].headR;
@@ -1251,9 +1249,9 @@ function solveSuspect(c: Crew, drive: CrewDrive): void {
   let p = basePose(b, 22);
   p.spine = mix(0.14, -0.1, conf);
   p.chest = mix(0.04, -0.06, conf) + 0.015 * Math.sin(t * TAU * 0.25);
-  p.head = mix(0.17, -0.14, conf) + (drive.reduced ? 0 : slowNoise(t, 0.5, 5) * 0.07);
-  p.pelvisX = (drive.reduced ? 0 : 5 * Math.sin((t * TAU) / 11)) - 3 * (1 - conf);
-  if (conf > 0.25 && !drive.reduced && s.mode === 'roof') p.pelvisY += Math.abs(Math.sin(s.bounce)) * 3 * smoothstep(0.25, 0.4, conf);
+  p.head = mix(0.17, -0.14, conf) + (slowNoise(t, 0.5, 5) * 0.07);
+  p.pelvisX = (5 * Math.sin((t * TAU) / 11)) - 3 * (1 - conf);
+  if (conf > 0.25 && s.mode === 'roof') p.pelvisY += Math.abs(Math.sin(s.bounce)) * 3 * smoothstep(0.25, 0.4, conf);
   const phoneOut = s.phone === 'hand' || s.phone === 'live' || s.phone === 'down';
   const ph: 0 | 1 = s.phone === 'down' ? 0 : 1;
   const fh: 0 | 1 = ph === 1 ? 0 : 1;
@@ -1377,7 +1375,8 @@ function drawPhone(ctx: CanvasRenderingContext2D, s: Suspect, h: Joint, angle: n
   }
   ctx.restore();
 }
-function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton, rot: number, time: number, reduced: boolean, flap: Joint | null, collar: [Joint, Joint] | null): void {
+
+function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton, rot: number, time: number, flap: Joint | null, collar: [Joint, Joint] | null): void {
   const b = BUILDS.suspect;
   const r = b.headR;
   const pointAt = (i: 0 | 1) => Math.atan2(sk.hands[i].y - sk.elbows[i].y, sk.hands[i].x - sk.elbows[i].x);
@@ -1397,8 +1396,10 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
     strokeLimb(ctx, k, midJ(k, f), f, b.limb - 2, i ? SKIN : '#e3bd9a');
     ctx.save();
     ctx.translate(f.x, f.y);
-    ctx.rotate(Math.atan2(f.y - k.y, f.x - k.x) - Math.PI / 2);
-    ell(ctx, 0, -6, 6, 4.5, i ? '#f4f4f0' : '#dedcd2', 1.5);
+    // A planted croc lies flat on the gravel whatever the knee does; it turns with the shin only once the foot lifts.
+    const lifted = Math.min(1, Math.abs(f.y - s.feetY) / 10);
+    ctx.rotate((Math.atan2(f.y - k.y, f.x - k.x) - Math.PI / 2) * lifted);
+    ell(ctx, 0, -6, 6, 4.5, '#f4f4f0', 1.5);
     if (s.crocs[i]) {
       ell(ctx, -4, -1, 12, 5, i ? CROC : '#7fbd49');
       seg(ctx, 6, -5, 9, -1);
@@ -1413,7 +1414,7 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
   if (flap) pts.push(J(hem1.x + flap.x * 0.6, hem1.y + flap.y * 0.6), J(hem0.x + flap.x, hem0.y + flap.y));
   pts.push(hem0);
   poly(ctx, pts, '#f5f2ee');
-  // The rainbow tee: six bands clipped to th
+  // The rainbow tee: six bands clipped to the hoodie's open front.
   ctx.save();
   ctx.beginPath();
   pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
@@ -1435,7 +1436,7 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
     ctx.lineWidth = w;
     seg(ctx, sk.chest.x, sk.chest.y + 4, neck.x, neck.y - 2);
   }
-  drawSuspectHead(ctx, s, sk, rot, time, reduced);
+  drawSuspectHead(ctx, s, sk, rot, time);
   ctx.strokeStyle = '#f4f4f0';
   ctx.lineWidth = 1.5;
   ctx.lineCap = 'round';
@@ -1452,7 +1453,8 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
   if (fh === 1 && s.mode === 'roof' && s.aside.x > 0.3) disc(ctx, sk.hands[1].x, sk.hands[1].y, 4, SKIN);
   if (ph === 1 && s.phone !== 'pocket' && s.phone !== 'loose') drawPhone(ctx, s, J(sk.hands[1].x - 2, sk.hands[1].y - 8), s.phone === 'down' ? pointAt(0) + Math.PI / 2 : rot + 0.15, time);
 }
-function drawSuspectHead(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton, rot: number, time: number, reduced: boolean): void {
+
+function drawSuspectHead(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton, rot: number, time: number): void {
   const r = BUILDS.suspect.headR;
   const conf = clamp(s.confidence.x, 0, 1);
   const face = s.face;
@@ -1513,7 +1515,7 @@ function drawSuspectHead(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton
   }
   disc(ctx, ex - r * 0.2, r * 0.1, r * 0.14, SKIN);
   const my = r * 0.46;
-  const flap = reduced ? 0 : clamp(s.talk, 0, 1) * Math.abs(Math.sin(time * 8 * TAU));
+  const flap = clamp(s.talk, 0, 1) * Math.abs(Math.sin(time * 8 * TAU));
   if (flap > 0.15) ell(ctx, ex - r * 0.05, my, r * 0.2 + 2, 2 + 4 * flap, '#5a1a1a', 2.5);
   else {
     ink(ctx, 2.5);
@@ -1542,7 +1544,8 @@ function drawSuspectHead(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skeleton
   ctx.restore();
 }
 
-export function drawSuspect(ctx: CanvasRenderingContext2D, c: Crew, time: number, reduced: boolean): void {
+/** The suspect on the roof or running; nothing once gone or thrown. */
+export function drawSuspect(ctx: CanvasRenderingContext2D, c: Crew, time: number): void {
   const s = c.suspect;
   if (s.mode === 'gone' || s.mode === 'thrown') return;
   const sq = 1 + 0.18 * clamp(s.squash.x, -0.5, 1);
@@ -1550,7 +1553,7 @@ export function drawSuspect(ctx: CanvasRenderingContext2D, c: Crew, time: number
   ctx.translate(s.x, s.feetY);
   ctx.scale(1 / sq, sq);
   ctx.translate(-s.x, -s.feetY);
-  drawSuspectFigure(ctx, s, s.sk, 0, time, reduced, null, null);
+  drawSuspectFigure(ctx, s, s.sk, 0, time, null, null);
   ctx.restore();
 }
 
@@ -1564,6 +1567,6 @@ export function drawThrown(ctx: CanvasRenderingContext2D, c: Crew, time: number)
   const fl = 10 + Math.min(14, speed * 0.01);
   const flap = !held && speed > 1 ? J((-th.vx / speed) * fl, (-th.vy / speed) * fl) : null;
   const hh = c.heavy.sk.hands;
-  drawSuspectFigure(ctx, s, s.sk, th.rot, time, false, flap, held ? [J(hh[0].x, hh[0].y + 4), J(hh[1].x, hh[1].y + 4)] : null);
+  drawSuspectFigure(ctx, s, s.sk, th.rot, time, flap, held ? [J(hh[0].x, hh[0].y + 4), J(hh[1].x, hh[1].y + 4)] : null);
   ctx.restore();
 }

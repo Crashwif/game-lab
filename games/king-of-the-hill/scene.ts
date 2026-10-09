@@ -29,11 +29,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake and twinkle. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -216,8 +211,7 @@ function drawTag(ctx: CanvasRenderingContext2D, at: Point, text: string, fill: s
   ctx.restore();
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'eurodance', crash: 'slam' });
   const coin: CoinState = createCoin();
   const ape: ApeState = createApe();
@@ -282,7 +276,7 @@ export function createScene(options: SceneOptions = {}): Scene {
   /** The coin reaches whoever is still on the hill: the flattening, with its hit-stop, punch-in and thud. */
   function flatten(): void {
     shake = 1;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       settleSpring(punch, 0.5);
@@ -502,7 +496,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       audio.fx('yeet', 0.9);
     }
     jeetFlash = Math.max(0, jeetFlash - dt / 1.2);
-    if (coin.events.bump && !reduced) shake = Math.max(shake, 0.18);
+    if (coin.events.bump) shake = Math.max(shake, 0.18);
     stepDev(dev, tension, running, dt);
     if (dev.events.notch && running) audio.fx('creak', 0.4 + 0.08 * dev.notches);
     if (dev.events.click && running) audio.fx('ratchet', 0.4);
@@ -595,10 +589,10 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(tag, tagWorld ? 1 : 0, 14, tagWorld ? 0.45 : 1, real);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
     const crewMid = crewXs[1]!;
     const focus: Point = ape.mode === 'pancake' ? { x: ape.pancakeX, y: heightAt(ape.pancakeX) } : { x: crewMid, y: heightAt(crewMid) };
-    if (!reduced && punch.x > 0.005) {
+    if (punch.x > 0.005) {
       // The camera punches in on the pancake, holds, and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       const at = toScreen(camera, focus);
@@ -606,7 +600,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.scale(k, k);
       ctx.translate(-at.x, -at.y);
     }
-    drawSky(ctx, camera, time, growth, reduced);
+    drawSky(ctx, camera, time, growth);
     drawAirdrop(ctx, airdrop, camera);
     drawHill(ctx, camera);
     if (lambo.mode !== 'none') drawLambo(ctx, camera, lambo.x, lambo.wheel, lambo.loaded);
@@ -614,7 +608,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (ape.mode !== 'dodge') drawApe(ctx, camera, ape, anchor);
     drawCoin(ctx, camera, coin, TICKER);
     // The dive toward the camera passes in front of the coin.
-    if (ape.mode === 'dodge') drawApe(ctx, camera, ape, anchor, reduced);
+    if (ape.mode === 'dodge') drawApe(ctx, camera, ape, anchor);
     for (const c of confetti) {
       const p = toScreen(camera, { x: c.x, y: c.y });
       ctx.save();
@@ -630,11 +624,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     const on = running || fuse >= 0 || coin.crashed;
     stepSpring(cloud.x, cloudAt(tension, on).x, 1.6, 0.8, dt);
     stepSpring(cloud.y, cloudAt(tension, on).y, 1.6, 0.8, dt);
-    drawDev(ctx, dev, cloud.x.x, cloud.y.x, cloudAt(tension, on).s, tension, reduced);
+    drawDev(ctx, dev, cloud.x.x, cloud.y.x, cloudAt(tension, on).s, tension);
     // YOU over the player's ape, ANON for a spectator.
     if (tagAt && tag.x > 0.02) {
       const p = toScreen(camera, tagAt);
-      drawTag(ctx, { x: p.x, y: p.y - 30 + (reduced ? 0 : Math.sin(time * 3) * 2) }, tagText, tagText === 'YOU' ? '#ffe27a' : '#d7dde4', clamp(tag.x, 0, 1.3));
+      drawTag(ctx, { x: p.x, y: p.y - 30 + (Math.sin(time * 3) * 2) }, tagText, tagText === 'YOU' ? '#ffe27a' : '#d7dde4', clamp(tag.x, 0, 1.3));
     }
     if (jeetFlash > 0) {
       const p = toScreen(camera, pose.centre);

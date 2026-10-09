@@ -185,7 +185,7 @@ function freshKitchen(): Kitchen {
     harmless: false,
     crashed: false,
     crashT: 0,
-    suitX: 786,
+    suitX: 640,
     suitV: 0,
     suitLid: spring(0.08),
     rolling: false,
@@ -234,8 +234,6 @@ export interface KitchenDrive {
   fear: number;
   time: number;
   traderGone: boolean;
-  /** The reduced fixture holds the loose magnets and cursor still and keeps the stair light steady. */
-  reduced: boolean;
   /** He is upstairs (or never left): a harmless crash may bring her down to check. */
   traderUp?: boolean;
 }
@@ -489,7 +487,7 @@ export function stepKitchen(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const flick = live && m >= FLICKER_AT && m < FLICKER_AT + 0.08 ? (m - FLICKER_AT) / 0.08 : -1;
   const lit = (drive.running && !k.crashed && m >= LIGHT_AT) || k.peek > 0.25 || k.wifeMode === 'down' || k.wifeMode === 'floor' || k.wifeMode === 'wait' || (k.wifeMode === 'check' && k.wifeGoal > 0);
   if (flick >= 0) {
-    k.light.x = drive.reduced || flick < 0.18 || (flick > 0.34 && flick < 0.8) ? 0.85 : 0.06;
+    k.light.x = flick < 0.18 || (flick > 0.34 && flick < 0.8) ? 0.85 : 0.06;
     k.light.v = 0;
   } else stepSpring(k.light, lit ? 1 : 0, 7, 0.85, dt);
 
@@ -705,7 +703,7 @@ function stepFridge(k: Kitchen, drive: KitchenDrive, dt: number): void {
     const t = slotTarget(l);
     if (drive.running && !k.crashed) l.loose = looseness(l, drive.fear);
     let rot = t.rot + l.loose * (l.ch === 'W' ? -0.4 : 0.3);
-    if (l.loose > 0.5 && !drive.reduced && !k.crashed) rot += (noise(Math.floor(drive.time * 14) + l.slot * 9) - 0.5) * 0.16 * l.loose;
+    if (l.loose > 0.5 && !k.crashed) rot += (noise(Math.floor(drive.time * 14) + l.slot * 9) - 0.5) * 0.16 * l.loose;
     stepSpring(l.sx, t.x, 9, 0.55, dt);
     stepSpring(l.sy, t.y, 9, 0.55, dt);
     stepSpring(l.sr, rot, 6, 0.4, dt);
@@ -727,7 +725,7 @@ function stepCursor(k: Kitchen, drive: KitchenDrive, dt: number): void {
     const hover = approach * (0.8 + 0.2 * Math.sin(k.hover));
     let tx = mix(CURSOR_HOME.x, SELL_CENTRE.x, hover);
     let ty = mix(CURSOR_HOME.y, SELL_CENTRE.y, hover);
-    if (approach > 0.5 && !drive.reduced) {
+    if (approach > 0.5) {
       tx += (noise(Math.floor(drive.time * 23)) - 0.5) * 7 * approach;
       ty += (noise(Math.floor(drive.time * 19) + 5) - 0.5) * 6 * approach;
     }
@@ -742,8 +740,8 @@ function stepCursor(k: Kitchen, drive: KitchenDrive, dt: number): void {
       k.sellFlash = 1;
     }
   } else if (k.sell === 'dead' && k.crashT < 3) {
-    const jx = drive.reduced ? 0 : (noise(Math.floor(drive.time * 30)) - 0.5) * 5;
-    const jy = drive.reduced ? 0 : (noise(Math.floor(drive.time * 26) + 3) - 0.5) * 4;
+    const jx = (noise(Math.floor(drive.time * 30)) - 0.5) * 5;
+    const jy = (noise(Math.floor(drive.time * 26) + 3) - 0.5) * 4;
     stepSpring(k.cursor.x, SELL_CENTRE.x + 6 + jx, 14, 0.6, dt);
     stepSpring(k.cursor.y, SELL_CENTRE.y + 4 + jy, 14, 0.6, dt);
     k.clickPulse = (k.clickPulse + dt * 5) % 1;
@@ -1251,7 +1249,8 @@ export function drawMid(ctx: CanvasRenderingContext2D, k: Kitchen, multiplier: n
   });
 }
 
-function drawSuitcase(ctx: CanvasRenderingContext2D, k: Kitchen): void {
+/** The suitcase meter, on the floor beside the stair foot; the room draws it before anyone walks past or climbs. */
+export function drawSuitcase(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   const fill = clamp(k.meter.x, 0, 1);
   ctx.save();
   ctx.translate(k.suitX, 392);
@@ -1331,13 +1330,12 @@ function drawDog(ctx: CanvasRenderingContext2D, x: number): void {
 
 export function drawFront(ctx: CanvasRenderingContext2D, k: Kitchen): void {
   if (k.wifeMode !== 'asleep' && k.wifeMode !== 'wait' && k.wifeAlpha > 0.02) {
-    // On the stairs, behind the suitcase at their foot. She leans into each drop and stands up straight on the floor.
+    // On the stairs, clear of the suitcase beside their foot. She leans into each drop and stands up straight on the floor.
     const feet = wifeFeet(k);
     ctx.globalAlpha = k.wifeAlpha;
     drawWife(ctx, feet.x, feet.y, k.harmless ? 'soft' : 'angry', !k.ring.dropped, k.squash, k.wifeLean, k.fling);
     ctx.globalAlpha = 1;
   }
-  drawSuitcase(ctx, k);
   if (k.rolling && k.dogX < 980) drawDog(ctx, k.dogX);
   if (k.ring.dropped) {
     ctx.save();

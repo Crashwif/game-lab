@@ -28,11 +28,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the light flicker, the readout's flashing, the hit-stop and the punch-in. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -88,11 +83,11 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'PRIORITY FEE: MAXIMUM';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("GAS FEES", [190, 82, 580, 425], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   const audio = pageAudio({ style: 'elevator', crash: 'trombone' });
-  const cabin: Cabin = createCabin(reduced ? 0 : 1);
+  const cabin: Cabin = createCabin();
   const crowd: Crowd = createCrowd();
   const suit: Suit = createSuit();
   const pop = spring(0);
@@ -144,7 +139,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // The strain: a third of the way at 1.5×, half at 2×, two thirds at 3×, 0.9 at 10×. `surge` is the slow, logarithmic
     // driver past that (0 at 3×, 1 at 1000×), so a long round keeps changing. The acts never ease either.
     const tension = clamp(1 - 1 / multiplier, 0, 1);
@@ -190,7 +185,7 @@ export function createScene(options: SceneOptions = {}): Scene {
           shake = 1;
           pop.v = 16;
           punchAt = origin;
-          if (!reduced) {
+          {
             freeze = FREEZE_S;
             slow = SLOW_S;
             punchHold = FREEZE_S + PUNCH_HOLD_S;
@@ -231,8 +226,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const justLeft = !wasLeaving && suit.mode === 'leaving';
     const suitDoors = suit.mode === 'leaving' || (suit.mode === 'gone' && suit.modeAge < 1.3);
     const doorsOpen = !running && !crashed ? true : crowd.doorTimer > 0 || suitDoors;
-    stepCabin(cabin, { running, tension, multiplier, doorsOpen, arrived: crowd.events.arrived !== null || justLeft, reduced, surge }, dt);
-    if ((crowd.events.arrived || justLeft) && !reduced) shake = Math.max(shake, 0.25);
+    stepCabin(cabin, { running, tension, multiplier, doorsOpen, arrived: crowd.events.arrived !== null || justLeft, surge }, dt);
+    if ((crowd.events.arrived || justLeft)) shake = Math.max(shake, 0.25);
     // Cues from the cabin's own events: the bell, the cable, the readout's alarm, the release and its aftermath.
     if (crowd.events.arrived) audio.fx('bell', 0.8);
     if (justLeft) { audio.fx('bell', 1); audio.fx('door', 0.8); }
@@ -241,7 +236,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (notch > notches) {
         audio.fx('creak', 0.4 + 0.5 * tension);
         // The cable gives a little: the cabin sags on it and the cage rocks. A fake-out, keyed to the number only.
-        if (!reduced) { cabin.bounce.v += 30 + 20 * tension; cabin.canary.swing.v += 0.9; }
+        { cabin.bounce.v += 30 + 20 * tension; cabin.canary.swing.v += 0.9; }
       }
       notches = Math.max(notches, notch);
       const alarm = PPM_ALARMS.filter((a) => ppmFor(multiplier) >= a).length;
@@ -268,7 +263,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const ease = 1 - Math.exp(-dt / 0.35);
     for (const key of Object.keys(target) as (keyof ActProps)[]) actShow[key] += (target[key] - actShow[key]) * ease;
     if (actOn) draught += (act.draught - draught) * (1 - Math.exp(-dt / 0.4));
-    if (!reduced) actSpin = (actSpin + dt * (1.5 + 9 * draught) * actShow.fan) % (Math.PI * 2);
+    actSpin = (actSpin + dt * (1.5 + 9 * draught) * actShow.fan) % (Math.PI * 2);
     const nextCaption = captionFor(view, multiplier, outcome, secured);
     if (nextCaption !== caption) {
       caption = nextCaption;
@@ -278,8 +273,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the culprit and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(punchAt.x, punchAt.y);
@@ -291,16 +286,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     // Whoever is still in the lobby: arriving passengers and the suit once he is out.
     ctx.save();
     ctx.translate(0, cabin.bounce.x);
-    for (const p of crowd.list) if (p.depth > 1) drawPassenger(ctx, p, suit.x, time, reduced);
-    if (suit.depth > 1) drawSuit(ctx, suit, reduced ? 0 : time, reduced);
+    for (const p of crowd.list) if (p.depth > 1) drawPassenger(ctx, p, suit.x, time);
+    if (suit.depth > 1) drawSuit(ctx, suit, time);
     ctx.restore();
     const yourFloor = secured !== null && suitDoors;
     const indicator = crashed ? 'DUMPED' : yourFloor ? 'YOUR FLOOR' : running ? `${multiplier.toFixed(2)}× UP` : 'GOING UP?';
     drawDoors(ctx, cabin, indicator, crashed, persons(crowd) - (suit.mode === 'gone' ? 1 : 0), MAX_PERSONS, yourFloor);
     ctx.save();
     ctx.translate(0, cabin.bounce.x);
-    const inside = crowd.list.filter((p) => p.depth <= 1).map((p) => ({ depth: p.depth, draw: () => drawPassenger(ctx, p, suit.x, time, reduced) }));
-    if (suit.depth <= 1) inside.push({ depth: suit.depth, draw: () => { drawSuit(ctx, suit, reduced ? 0 : time, reduced); } });
+    const inside = crowd.list.filter((p) => p.depth <= 1).map((p) => ({ depth: p.depth, draw: () => drawPassenger(ctx, p, suit.x, time) }));
+    if (suit.depth <= 1) inside.push({ depth: suit.depth, draw: () => { drawSuit(ctx, suit, time); } });
     inside.sort((a, b) => b.depth - a.depth);
     for (const r of inside) r.draw();
     ctx.restore();

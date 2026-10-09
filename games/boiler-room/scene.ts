@@ -29,8 +29,6 @@ export interface SceneView {
 }
 
 export interface SceneOptions {
-  /** Drops the screen shake and vibration and softens the blow-out whiteout. */
-  reducedMotion?: boolean;
   /** The sound to play; by default the page's own, which the Sound button turns on. */
   sound?: Sound;
 }
@@ -223,7 +221,6 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
 }
 
 export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
   const audio = pageAudio({ style: 'techno', crash: 'boom', music: 0.55 });
   const sound = options.sound ?? pageSound(audio);
   const engine: EngineState = createEngine();
@@ -265,7 +262,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     let wdt = dt;
     if (impact >= 0) {
       impact += dt;
-      if (!reduced) wdt = impact < FREEZE ? 0 : dt * mix(0.3, 1, smoothstep(FREEZE, FREEZE + SLOW, impact));
+      wdt = impact < FREEZE ? 0 : dt * mix(0.3, 1, smoothstep(FREEZE, FREEZE + SLOW, impact));
     }
     time += dt;
     if (view.phase === 'running') time = view.elapsed / 1000;
@@ -334,13 +331,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (engine.events.reversal) sound.chuff(running ? 0.4 + engine.pressure : 0.25);
     if (engine.events.leak >= 0) {
       sound.ping();
-      if (!reduced) shake = Math.max(shake, 0.25);
+      shake = Math.max(shake, 0.25);
     }
     if (engine.events.scare) {
       // A fake-out keyed to the multiplier: the boiler groans and he flinches, then it settles.
       audio.fx('creak', 0.9);
       startle(stoker);
-      if (!reduced) shake = Math.max(shake, 0.3);
+      shake = Math.max(shake, 0.3);
     }
     // His pace picks up with the tension, and a little more as long rounds keep doubling.
     const rate = running ? 0.5 + 0.85 * tension + 0.25 * (1 - Math.exp(-growth / 4)) : 0;
@@ -348,7 +345,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepStoker(stoker, { rate, fear: fusing ? 1 : fear, pressure: engine.pressure }, wdt);
     if (stoker.events.slam) {
       audio.fx('clang', 0.8);
-      if (!reduced) shake = Math.max(shake, 0.4);
+      shake = Math.max(shake, 0.4);
     }
     if (stoker.events.land) audio.fx('thud', 0.6);
     if (stoker.events.throw) {
@@ -374,12 +371,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(captionPop, 0, 12, 0.35, dt);
     if (shake > 0) shake = Math.max(0, shake - dt / 0.6);
     // The flash peaks inside the hit-stop and clears within about a second, so the aftermath reads.
-    // Reduced motion keeps the blow-out cue but softens it: a lower peak and a slower rise.
-    const rise = reduced ? 0.5 : 0.08;
-    const white = impact < 0 ? 0 : (reduced ? 0.3 : 0.7) * smoothstep(0, rise, impact) * Math.exp(-Math.max(0, impact - rise) / 0.5);
+    // The blow-out flashes sharply, then fades.
+    const rise = 0.08;
+    const white = impact < 0 ? 0 : (0.7) * smoothstep(0, rise, impact) * Math.exp(-Math.max(0, impact - rise) / 0.5);
     // A low rumble from the start of every round that grows with the pressure; the fuse shakes the whole room.
-    const vibration = reduced || engine.blown ? 0 : fusing ? 4 : running ? 0.6 + 3 * engine.pressure * engine.pressure : 0;
-    const punch = reduced || impact < 0 ? 0 : smoothstep(0, 0.03, impact) * (1 - smoothstep(0.3, 0.75, impact));
+    const vibration = engine.blown ? 0 : fusing ? 4 : running ? 0.6 + 3 * engine.pressure * engine.pressure : 0;
+    const punch = impact < 0 ? 0 : smoothstep(0, 0.03, impact) * (1 - smoothstep(0.3, 0.75, impact));
 
     ctx.save();
     if (punch > 0) {
@@ -387,7 +384,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.scale(1 + 0.1 * punch, 1 + 0.1 * punch);
       ctx.translate(-PUNCH.x, -PUNCH.y);
     }
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 10 * shake * shake, Math.cos(time * 117) * 7 * shake * shake);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 10 * shake * shake, Math.cos(time * 117) * 7 * shake * shake);
     if (vibration > 0) ctx.translate(Math.sin(time * 80) * vibration, Math.cos(time * 95) * vibration * 0.6);
     drawRoom(ctx, engine, time);
     drawParticles(ctx, ps, 0);

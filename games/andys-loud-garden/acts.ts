@@ -4,7 +4,7 @@
  */
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ["Just a little water", "A windbreaker at the fence", "Support stakes going in", "Listen. Did that stop?", "Someone peers over the fence", "The tallest branch leans", "Still watching the garden"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -14,7 +14,7 @@ export function actAt(elapsed: number, reduced = false) {
   const ramp = Math.min(1, age / 5), dip = 1 - Math.min(1, Math.abs(age - 5) / 5), release = dip * dip * (3 - 2 * dip);
   // Smooth at both ends: full effort as an act starts, the breather at five seconds, full effort again by ten.
   const effort = stage === 0 ? 1 : 1 - (.7 - .03 * stage) * release;
-  return { stage, prev, age, effort, reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), fade: reduced ? 1 : Math.min(1, age / .6), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, prev, age, effort, reach: ramp * ramp * (3 - 2 * ramp), fade: Math.min(1, age / .6), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 const PROPS = (s: number) => ({ peek: s === 1 || s === 4 || s === 6, stakes: s >= 2, mist: s === 3 || s === 6 });

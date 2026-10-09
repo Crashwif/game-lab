@@ -229,7 +229,7 @@ export function frameApe(camera: Camera, a: ApeState, anchor: ApeAnchor): Camera
   return { x: clamp(camera.x, maxX - 390, minX + 390), y: clamp(camera.y, maxY - 205, minY + 195) };
 }
 
-export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState, anchor: ApeAnchor, reduced = false): void {
+export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState, anchor: ApeAnchor): void {
   if (a.mode === 'gone') return;
   const S = (p: Point): Point => toScreen(cam, p);
   ctx.save();
@@ -271,11 +271,9 @@ export function drawApe(ctx: CanvasRenderingContext2D, cam: Camera, a: ApeState,
     return;
   }
   if (a.mode === 'dodge') {
-    // The dive: he grows toward the camera, rolls back and drops out of the bottom of the picture (under reduced
-    // motion he just fades out where he stands).
+    // The dive: he grows toward the camera, rolls back and drops out of the bottom of the picture.
     const k = smoothstep(0, DODGE_S, a.modeAge);
-    if (reduced) ctx.globalAlpha = 1 - k;
-    else {
+    {
       const g = S(apeFooting(a, anchor).hip);
       ctx.translate(g.x - 60 * k, g.y + 420 * k * k); ctx.rotate(-0.9 * k); ctx.scale(1 + 0.8 * k, 1 + 0.8 * k); ctx.translate(-g.x, -g.y);
     }

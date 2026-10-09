@@ -10,7 +10,6 @@ export interface ActingInput {
   heat: number;
   safe: boolean;
   exitAge: number;
-  reduced: boolean;
 }
 
 const TITLES = [
@@ -34,7 +33,6 @@ export interface Act {
   impact: number;
   stroke: number;
   otherStroke: number;
-  reduced: boolean;
 }
 
 /** A heavy hand has a slow wind-up, fast contact, recoil and a deliberate recovery. */
@@ -58,11 +56,10 @@ export function actAt(input: ActingInput): Act {
   return {
     index, number, age, weight,
     caption: TITLES[index][Math.floor(number / TITLES.length) % 4],
-    clock: input.reduced ? Math.floor(clock / 1.2) * 1.2 : clock,
-    impact: input.reduced || !running ? 0 : Math.exp(-after * 18) * Math.cos(after * 29),
-    stroke: input.reduced ? 0.32 : fistLift(beats),
-    otherStroke: input.reduced ? 0.65 : fistLift(beats + 0.5),
-    reduced: input.reduced,
+    clock: clock,
+    impact: !running ? 0 : Math.exp(-after * 18) * Math.cos(after * 29),
+    stroke: fistLift(beats),
+    otherStroke: fistLift(beats + 0.5),
   };
 }
 
@@ -105,10 +102,10 @@ export interface ActorPose {
 }
 
 export function actorAt(input: ActingInput, act: Act): ActorPose {
-  const { reduced, phase, safe } = input;
+  const { phase, safe } = input;
   const running = phase === 'running' || phase === 'crashed';
   const t = act.clock;
-  const motion = reduced ? 0 : 1;
+  const motion = 1;
   const breath = Math.sin(t * 2.6) * 5 * motion;
   const knock = act.impact * 9;
   let hip: Point = { x: 318, y: 427 + (running ? act.stroke * 12 : breath) };
@@ -127,7 +124,7 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
   let rude = false;
   const w = act.weight;
   if (!running) {
-    const sip = reduced ? 0 : Math.max(0, Math.sin(t * 1.25));
+    const sip = Math.max(0, Math.sin(t * 1.25));
     rightHand = { x: 420 - 54 * sip, y: 385 - 103 * sip };
     leftHand = { x: 239 + Math.sin(t * 1.8) * 20 * motion, y: 383 };
     mouth = sip * 0.3;
@@ -174,7 +171,7 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
     mouth = 0.95;
     eye = 1.55;
   } else if (act.index === 6) {
-    const almost = reduced ? 0.7 : Math.sin(Math.PI * clamp((act.age - 0.7) / 4.5)) ** 2;
+    const almost = Math.sin(Math.PI * clamp((act.age - 0.7) / 4.5)) ** 2;
     const tip = almost * w;
     hip = blend(hip, { x: 280, y: 424 }, tip);
     shoulder = blend(shoulder, { x: 242, y: 328 }, tip);
@@ -186,7 +183,7 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
     mouth = 1;
     eye = 1.7;
   } else if (act.index === 7) {
-    const cope = reduced ? 1 : Math.sin(Math.PI * clamp(act.age / 3.2)) ** 2;
+    const cope = Math.sin(Math.PI * clamp(act.age / 3.2)) ** 2;
     shoulder = blend(shoulder, { x: 319, y: 320 - 17 * cope }, cope * w);
     head = blend(head, { x: 304, y: 212 - 17 * cope }, cope * w);
     leftHand = blend(leftHand, { x: 420, y: 287 }, cope * w);
@@ -194,7 +191,7 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
     mouth = mix(mouth, 0.06, cope);
     eye = mix(eye, 0.12, cope);
   }
-  const exit = safe ? (reduced ? 1 : ease(input.exitAge / 1.3)) : 0;
+  const exit = safe ? (ease(input.exitAge / 1.3)) : 0;
   if (safe) {
     const wheel = Math.sin(clamp(input.exitAge / 1.3) * Math.PI) * 25 * motion;
     hip = blend(hip, { x: 124, y: 413 - wheel }, exit);
@@ -211,7 +208,7 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
   }
   let collapsed = 0;
   if (phase === 'crashed' && !safe) {
-    const age = reduced ? 4 : input.crashAge;
+    const age = input.crashAge;
     const windup = ease(age / 0.26);
     const launch = ease((age - 0.26) / 0.23);
     collapsed = ease((age - 0.55) / 0.95);
@@ -236,5 +233,5 @@ export function actorAt(input: ActingInput, act: Act): ActorPose {
   let leftStyle: HandStyle = rude ? 'rude' : fists ? 'fist' : 'open';
   let rightStyle: HandStyle = fists ? 'fist' : 'open';
   if (phase === 'crashed' && !safe) leftStyle = rightStyle = collapsed < 0.5 ? 'fist' : 'open';
-  return { hip, shoulder, head, headAngle, headSquash: reduced ? 0 : running ? act.impact * 0.09 : breath * 0.005, leftHand, rightHand, leftFoot, rightFoot, keyboard, keyboardAngle, mouth, eye, calm: safe, collapsed, exit, magnifier, rude, leftStyle, rightStyle };
+  return { hip, shoulder, head, headAngle, headSquash: running ? act.impact * 0.09 : breath * 0.005, leftHand, rightHand, leftFoot, rightFoot, keyboard, keyboardAngle, mouth, eye, calm: safe, collapsed, exit, magnifier, rude, leftStyle, rightStyle };
 }

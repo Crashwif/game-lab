@@ -45,7 +45,6 @@ export interface LeaderDrive {
   crashed: boolean;
   photo: boolean;
   time: number;
-  reduced: boolean;
 }
 
 const prideFor = (tension: number, multiplier: number): number => clamp(smoothstep(0.05, 0.9, tension) + 0.25 * depth(multiplier), 0, 1.15);
@@ -252,7 +251,7 @@ export const STAMP_HAND = { x: 412, y: 318 } as const;
 export const BUTTON_HAND_REST = { x: 556, y: 328 } as const;
 export const BUTTON_HAND_OVER = { x: 492, y: 306 } as const;
 
-export function drawLeader(ctx: CanvasRenderingContext2D, l: Leader, medals: number, time: number, reduced: boolean): void {
+export function drawLeader(ctx: CanvasRenderingContext2D, l: Leader, medals: number, time: number): void {
   const pride = clamp(l.pride.x, 0, 1.15);
   const puff = 1 + 0.12 * pride;
   const raise = clamp(l.raise.x, 0, 1);
@@ -326,7 +325,7 @@ export function drawLeader(ctx: CanvasRenderingContext2D, l: Leader, medals: num
   // button, trembling as it gets close, and slams it at the crash. For the photo both go up in a V.
   const lift = l.stampT < 0.2 ? Math.sin((l.stampT / 0.2) * Math.PI) : l.stampT < 0.5 ? 0 : 0;
   const stampHand = { x: STAMP_HAND.x - LEADER.x, y: STAMP_HAND.y - LEADER.y - 26 * lift };
-  const tremble = !reduced && l.hover.x > 0.55 && slam < 0.5 ? (l.hover.x - 0.55) * 8 : 0;
+  const tremble = l.hover.x > 0.55 && slam < 0.5 ? (l.hover.x - 0.55) * 8 : 0;
   const bx = mix(BUTTON_HAND_REST.x, BUTTON_HAND_OVER.x, clamp(l.hover.x, 0, 1)) - LEADER.x + Math.sin(time * 37) * tremble;
   const by = mix(BUTTON_HAND_REST.y, BUTTON_HAND_OVER.y, clamp(l.hover.x, 0, 1)) - LEADER.y + Math.cos(time * 41) * tremble * 0.6;
   const buttonHand = { x: mix(bx, 6, slam), y: mix(by, 52, slam) };
@@ -345,7 +344,7 @@ export function drawLeader(ctx: CanvasRenderingContext2D, l: Leader, medals: num
     ctx.restore();
   }
   // The head, nodding slowly as he holds court and tipping back as he swells.
-  const bob = reduced ? 0 : Math.sin(time * 1.4) * 1.5;
+  const bob = Math.sin(time * 1.4) * 1.5;
   drawLeaderFace(ctx, 0, -2 + bob - 4 * pride, 1, { mouth: l.mouth, glint: pride, grin: pride, speaking: l.mouth > 0, blink: l.blink });
   ctx.restore();
 }
@@ -408,7 +407,6 @@ export interface MenDrive {
   tension: number;
   multiplier: number;
   time: number;
-  reduced: boolean;
   /** A decree landed this frame. */
   decree: boolean;
   /** Who has the newest bubble and how old it is; how old each minister's own newest bubble is. */
@@ -650,7 +648,7 @@ export function yesManDepth(m: YesMan): number {
 }
 
 /** The minister at his seat (or wherever the escort has him), facing the table. */
-export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: number, reduced: boolean): void {
+export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: number): void {
   const seat = SEATS[m.seat]!;
   const side = seat.side;
   const zeal = clamp(m.zeal.x, 0, 1.05);
@@ -696,8 +694,8 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
   }
   const guards = m.escort === 'escorted' ? clamp(m.escortT / 0.5, 0, 1) : 0;
   const noticed = m.escort === 'noticed';
-  const bob = reduced ? 0 : Math.sin(m.nod) * (2 + 4 * zeal) * (1 - kneel);
-  const kick = reduced ? 0 : clamp(m.kick.x, -1, 1) * 4;
+  const bob = Math.sin(m.nod) * (2 + 4 * zeal) * (1 - kneel);
+  const kick = clamp(m.kick.x, -1, 1) * 4;
 
   ctx.save();
   ctx.translate(x, y);
@@ -717,17 +715,17 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
     ctx.stroke();
     ctx.translate(0, -26);
   } else {
-    // Seated, then up for the ovation, then down on the knees.
-    ctx.translate(0, -26 * stand + 16 * kneel - kick);
+    // Seated, then up for the ovation with the feet on the floor beside the chair's, then down on the knees.
+    ctx.translate(0, -14 * stand + 16 * kneel - kick);
     if (stand > 0.05) {
       ctx.strokeStyle = INK;
       ctx.lineWidth = 8;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(-5, -4);
-      ctx.lineTo(-5, 26 * stand);
+      ctx.lineTo(-5, 58 * stand);
       ctx.moveTo(5, -4);
-      ctx.lineTo(5, 26 * stand);
+      ctx.lineTo(5, 58 * stand);
       ctx.stroke();
     }
     if (kneel > 0.05) {
@@ -778,7 +776,7 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
     sleeve(ctx, side * 12, -30, hx, -26 + gap, side * 6, m.suit, 9);
     hand(ctx, hx, -38 - gap, 5);
     hand(ctx, hx, -26 + gap, 5);
-    if (gap < 2.5 && !reduced) {
+    if (gap < 2.5) {
       ctx.strokeStyle = '#fff3a0';
       ctx.lineWidth = 2;
       for (const a of [-0.8, 0, 0.8]) {
@@ -814,7 +812,7 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
   // The head, nodding about the neck, bowed on the knees.
   ctx.save();
   ctx.translate(0, -54);
-  const nod = reduced ? 0 : Math.sin(m.nod) * (0.06 + 0.22 * zeal) * (1 - kneel);
+  const nod = Math.sin(m.nod) * (0.06 + 0.22 * zeal) * (1 - kneel);
   ctx.rotate(side * (nod + 0.5 * kneel + (noticed ? -0.15 : 0)));
   profileHead(ctx, facing, { hair: m.hair, mouth: m.mouth, blink: m.blink, look: m.look, zeal: noticed ? 1 : zeal, tears: clamp(m.tears.x, 0, 1) });
   ctx.fillStyle = 'rgba(150, 210, 255, 0.9)';
@@ -990,8 +988,8 @@ function drawWalker(ctx: CanvasRenderingContext2D, x: number, y: number, s: numb
 }
 
 /** The floating tag over whoever is in the player's seat: YOU, or NEW. */
-export function drawTag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, time: number, reduced: boolean, colour = '#ff2d4a'): void {
-  const bob = reduced ? 0 : Math.sin(time * 3) * 3;
+export function drawTag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, time: number, colour = '#ff2d4a'): void {
+  const bob = Math.sin(time * 3) * 3;
   ctx.save();
   ctx.translate(x, y + bob);
   box(ctx, -26, -34, 52, 24, 5, colour, 2.5);
@@ -1013,18 +1011,18 @@ export function drawTag(ctx: CanvasRenderingContext2D, x: number, y: number, tex
 }
 
 /** The figure in (or leaving, or coming to) the player's chair. Seated it is seen from behind. */
-export function drawPlayer(ctx: CanvasRenderingContext2D, p: Player, time: number, reduced: boolean): void {
+export function drawPlayer(ctx: CanvasRenderingContext2D, p: Player, time: number): void {
   if (p.mode === 'gone') return;
   if (p.mode === 'walking' || p.mode === 'arriving') {
     const at = playerAt(p);
-    drawWalker(ctx, at.x, at.y + 12, at.s, p.mode === 'walking' ? 1 : -1, reduced ? 0 : time * 10, p.hair);
-    drawTag(ctx, at.x, at.y - 120 * at.s, p.tag, time, reduced, p.tag === 'YOU' ? '#ff2d4a' : '#e0b64a');
+    drawWalker(ctx, at.x, at.y + 12, at.s, p.mode === 'walking' ? 1 : -1, time * 10, p.hair);
+    drawTag(ctx, at.x, at.y - 120 * at.s, p.tag, time, p.tag === 'YOU' ? '#ff2d4a' : '#e0b64a');
     return;
   }
   const rise = p.mode === 'standing' ? ease(p.t / 0.6) * 40 : 0;
   const hunch = clamp(p.hunch.x, 0, 1);
   const slump = clamp(p.slump.x, 0, 1);
-  const breathe = reduced ? 0 : Math.sin(time * (1.2 + 2 * hunch)) * (1 + 2 * hunch);
+  const breathe = Math.sin(time * (1.2 + 2 * hunch)) * (1 + 2 * hunch);
   ctx.save();
   ctx.translate(YOU.x, YOU.y - rise);
   // From behind: the shoulders rise and the head sinks between them as it gets worse.
@@ -1081,10 +1079,10 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, p: Player, time: numbe
 }
 
 /** The tag over whoever sits in the player's chair, drawn last so nothing in the air hides it. */
-export function drawSeatTag(ctx: CanvasRenderingContext2D, p: Player, time: number, reduced: boolean): void {
+export function drawSeatTag(ctx: CanvasRenderingContext2D, p: Player, time: number): void {
   if (p.mode !== 'seated' && p.mode !== 'standing') return;
   const rise = p.mode === 'standing' ? ease(p.t / 0.6) * 40 : 0;
   const hunch = clamp(p.hunch.x, 0, 1);
   const sy = -58 - 8 * hunch + 6 * clamp(p.slump.x, 0, 1);
-  drawTag(ctx, YOU.x, YOU.y - rise + sy - 80 + 8 * hunch, p.tag, time, reduced, p.tag === 'YOU' ? '#ff2d4a' : '#e0b64a');
+  drawTag(ctx, YOU.x, YOU.y - rise + sy - 80 + 8 * hunch, p.tag, time, p.tag === 'YOU' ? '#ff2d4a' : '#e0b64a');
 }

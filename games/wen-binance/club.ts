@@ -316,7 +316,7 @@ export function crashClub(c: Club, seed: number, quiet: boolean): void {
 }
 
 /** `beat` counts beats of the score (128 BPM) on the scene's clock; `tension` is the scene's 1 - 1/x. */
-export interface ClubDrive { running: boolean; tension: number; multiplier: number; reduced: boolean; beat: number }
+export interface ClubDrive { running: boolean; tension: number; multiplier: number; beat: number }
 
 export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
   c.time += dt;
@@ -338,7 +338,7 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
   stepSpring(c.flinch, 0, 9, 0.4, dt);
   if (c.rattle > 0) c.rattle = Math.max(0, c.rattle - dt / 0.3);
   if (c.jeet > 0) c.jeet = Math.max(0, c.jeet - dt / 1.6);
-  if (!drive.reduced) c.chase += dt * (3 + 8 * t);
+  c.chase += dt * (3 + 8 * t);
   // The handles rattle as if the doors were finally opening. They are not.
   if (drive.running && !c.crashed && c.fakes < FAKEOUTS.length && m >= FAKEOUTS[c.fakes]!) { c.fakes += 1; c.rattle = 2; c.events.fake = true; }
   // The sign: letters work loose with the hype, swing on the bass and drop; after the crash, all of them.
@@ -412,7 +412,7 @@ export function stepClub(c: Club, drive: ClubDrive, dt: number): void {
     // Marquee flicker between LISTING SOON, LISTING (from 1.43x) and DELISTING (from 2.2x).
     const slot = Math.floor(c.time * 6);
     const n = noise(slot * 2.3);
-    c.flicker = drive.reduced || !drive.running ? 0 : t > 0.55 && n > 1 - 0.35 * (t - 0.55) / 0.45 ? 2 : t > 0.3 && n > 0.85 ? 1 : 0;
+    c.flicker = !drive.running ? 0 : t > 0.55 && n > 1 - 0.35 * (t - 0.55) / 0.45 ? 2 : t > 0.3 && n > 0.85 ? 1 : 0;
   }
   if (c.taxi) stepSpring(c.taxiX, KERB, 3.2, 0.85, dt);
   else settleSpring(c.taxiX, W + 260);
@@ -663,8 +663,7 @@ function drawTaxi(ctx: CanvasRenderingContext2D, x: number, time: number, moving
 }
 
 /** The building, the marquee, the doors and what is behind them, the bouncer. */
-export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: number, reduced: boolean): void {
-
+export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: number): void {
   const thump = clamp(c.thump.x, 0, 1);
   // Night sky and the brick front.
   const sky = ctx.createLinearGradient(0, 0, 0, 220);
@@ -678,7 +677,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.fillStyle = '#1f1a33';
   ctx.fillRect(0, 60, W, 12);
   // Neon glow that pulses with the beat.
-  const glow = reduced ? 0.4 : 0.25 + 0.5 * thump;
+  const glow = 0.25 + 0.5 * thump;
   const neon = ctx.createRadialGradient(DOOR.x + DOOR.w / 2, 140, 20, DOOR.x + DOOR.w / 2, 140, 520);
   neon.addColorStop(0, `rgba(255, 70, 200, ${0.35 * glow + 0.1})`);
   neon.addColorStop(1, 'rgba(255, 70, 200, 0)');
@@ -696,9 +695,9 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.restore();
   ctx.save();
   ctx.translate(330, 130);
-  // It flashes red and rattles on its tape as your coin walks out on the line (lit steadily under reduced motion).
-  const jeet = c.jeet > 0 && (reduced || Math.floor(c.jeet * 14) % 2 === 0) ? 1 : 0;
-  ctx.rotate(0.06 + (reduced ? 0 : 0.05 * c.jeet * Math.sin(c.time * 30)));
+  // It flashes red and rattles on its tape as your coin walks out on the line.
+  const jeet = c.jeet > 0 && (Math.floor(c.jeet * 14) % 2 === 0) ? 1 : 0;
+  ctx.rotate(0.06 + (0.05 * c.jeet * Math.sin(c.time * 30)));
   ctx.scale(1 + 0.08 * c.jeet, 1 + 0.08 * c.jeet);
   ctx.fillStyle = jeet ? '#ff4d6d' : '#e7e7ef'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-50, -40); ctx.lineTo(50, -40); ctx.lineTo(50, 10); ctx.lineTo(20, 40); ctx.lineTo(-20, 20); ctx.lineTo(-50, 36); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -707,17 +706,17 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   // The marquee.
   const mq = MARQUEE;
   ctx.save();
-  ctx.translate(0, thump * (reduced ? 0 : 2));
+  ctx.translate(0, thump * (2));
   ctx.fillStyle = '#12101f'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.roundRect(mq.x, mq.y, mq.w, mq.h, 10); ctx.fill(); ctx.stroke();
   const bulbs = 22;
   for (let i = 0; i < bulbs; i += 1) {
-    const on = reduced ? i % 2 === 0 : (i + Math.floor(c.chase)) % 3 !== 0;
+    const on = (i + Math.floor(c.chase)) % 3 !== 0;
     ctx.fillStyle = on ? '#ffe27a' : '#5a5040';
     for (const y of [mq.y + 8, mq.y + mq.h - 8]) { ctx.beginPath(); ctx.arc(mq.x + 12 + (i * (mq.w - 24)) / (bulbs - 1), y, 4, 0, Math.PI * 2); ctx.fill(); }
   }
   memeSmall(ctx, 'THE EXCHANGE', mq.x + mq.w / 2, mq.y + 44, 34, '#ff5d9e');
-  drawSign(ctx, c, reduced);
+  drawSign(ctx, c);
   ctx.restore();
   // Hype meter under the marquee.
   ctx.fillStyle = '#12101f'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -753,7 +752,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
       const a = c.time * (1.5 + i * 0.4) + i;
       const lx = DOOR.x + DOOR.w / 2 + Math.sin(a) * 50;
       const beam = ctx.createRadialGradient(lx, DOOR.y + 40, 4, lx, DOOR.y + 40, 130);
-      const on = reduced ? 0.5 : 0.35 + 0.5 * thump;
+      const on = 0.35 + 0.5 * thump;
       beam.addColorStop(0, `hsla(${hues[i]}, 90%, 60%, ${on})`); beam.addColorStop(1, 'hsla(0,0%,0%,0)');
       ctx.fillStyle = beam; ctx.fillRect(DOOR.x, DOOR.y, DOOR.w, DOOR.h);
     }
@@ -808,7 +807,7 @@ export function drawClubBack(ctx: CanvasRenderingContext2D, c: Club, tension: nu
   ctx.restore();
   // The doors themselves, ajar by `doors`, jittering with the bass.
   const open = clamp(c.doors.x, 0, 1);
-  const jitter = reduced ? 0 : Math.sin(c.time * 40) * (1.5 * thump + 4 * Math.min(1, c.rattle)) * (1 - open);
+  const jitter = Math.sin(c.time * 40) * (1.5 * thump + 4 * Math.min(1, c.rattle)) * (1 - open);
   for (const side of [0, 1]) {
     const hinge = side === 0 ? DOOR.x : DOOR.x + DOOR.w;
     const dir = side === 0 ? 1 : -1;
@@ -875,11 +874,11 @@ function glyph(ctx: CanvasRenderingContext2D, ch: string, x: number, y: number, 
 }
 
 /** The sign, letter by letter: lit, flickering, hanging loose, or gone; DELISTED once the crash has cleared it. */
-function drawSign(ctx: CanvasRenderingContext2D, c: Club, reduced: boolean): void {
+function drawSign(ctx: CanvasRenderingContext2D, c: Club): void {
   const cx = MARQUEE.x + MARQUEE.w / 2;
   if (c.crashed && c.crashAge > DELISTED_AT) {
-    // It stutters on for half a second, unless motion is reduced.
-    const on = reduced || c.crashAge > DELISTED_AT + 0.5 || Math.floor(c.crashAge * 12) % 3 !== 0;
+    // It stutters on for half a second.
+    const on = c.crashAge > DELISTED_AT + 0.5 || Math.floor(c.crashAge * 12) % 3 !== 0;
     memeSmall(ctx, 'DELISTED', cx, SIGN_Y, SIGN_SIZE, on ? '#ff4d6d' : '#5a2030');
     return;
   }
@@ -989,7 +988,7 @@ function drawScalper(ctx: CanvasRenderingContext2D, c: Club): void {
 }
 
 /** Suits walking along the front, the taxi, the strobe: drawn over the queue. */
-export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club, reduced: boolean): void {
+export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club): void {
   for (const s of c.suits) {
     // Arrivals cut across the front of the line and step up to the doorway; leavers step down out of it at a run.
     if (s.entering) { if (s.depth === 0) drawSuit(ctx, s.x, GROUND + 52 - 48 * smoothstep(BOUNCER_X - 20, DOOR.x + DOOR.w / 2, s.x), s.walked, false, s.seed, 0.66); }
@@ -997,14 +996,14 @@ export function drawClubFront(ctx: CanvasRenderingContext2D, c: Club, reduced: b
   }
   drawScalper(ctx, c);
   if (c.taxi || c.taxiX.x < W + 200) drawTaxi(ctx, c.taxiX.x, c.time, Math.abs(c.taxiX.v) > 8);
-  if (c.strobe > 0 && !reduced && Math.floor(c.time * 18) % 2 === 0) { ctx.fillStyle = `rgba(255,255,255,${0.35 * c.strobe})`; ctx.fillRect(0, 0, W, H); }
+  if (c.strobe > 0 && Math.floor(c.time * 18) % 2 === 0) { ctx.fillStyle = `rgba(255,255,255,${0.35 * c.strobe})`; ctx.fillRect(0, 0, W, H); }
 }
 
 /** Repeated admission checks provide anticipation and relief after the original suit waves. */
-export function drawLateCheckpoint(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean): void {
+export function drawLateCheckpoint(ctx: CanvasRenderingContext2D, seconds: number): void {
   if (seconds < 45) return;
   const phase = (seconds - 45) % 18 / 18;
-  const open = reduced ? 0.35 : Math.pow(Math.max(0, Math.sin(phase * Math.PI * 2)), 2);
+  const open = Math.pow(Math.max(0, Math.sin(phase * Math.PI * 2)), 2);
   ctx.save(); ctx.translate(DOOR.x - 46, DOOR.y + DOOR.h - 34);
   ctx.strokeStyle = '#ffe27a'; ctx.lineWidth = 6; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-92 * (1 - open), -72 * open); ctx.stroke();

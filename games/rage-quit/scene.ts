@@ -14,15 +14,13 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose?(): void;
 }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion ?? false;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'hardstyle', crash: 'slam', bpm: 138, tempoRise: 0.12, music: 0.55 });
   let previousPhase: SceneView['phase'] | null = null;
   let previousCashout: number | null = null;
@@ -46,8 +44,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const heat = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 8);
     const input: ActingInput = {
       phase: view.phase, elapsed: Math.max(0, view.elapsed) / 1000,
-      crashAge: dead && reduced ? 4 : Math.max(0, view.crashAge) / 1000 * 1.55, clock: now / 1000,
-      heat, safe, exitAge: Math.max(0, (now - exitAt) / 1000), reduced,
+      crashAge: Math.max(0, view.crashAge) / 1000 * 1.55, clock: now / 1000,
+      heat, safe, exitAge: Math.max(0, (now - exitAt) / 1000),
     };
     const act = actAt(input);
     const p = actorAt(input, act);
@@ -71,7 +69,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     c.save();
     c.lineJoin = 'round'; c.lineCap = 'round';
     c.save();
-    if (!reduced) {
+    {
       const kick = dead ? Math.exp(-input.crashAge * 2.3) * 13 : running && !safe ? act.impact * 2 : 0;
       c.translate(Math.sin(input.crashAge * 57) * kick, dead ? Math.cos(input.crashAge * 41) * kick : kick);
     }
@@ -88,7 +86,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       label(c, 'RAGE QUIT', 22, 22, 22, RED, 227);
       label(c, caption, 23, 60, 27, PAPER, 683);
       label(c, formatX(view.currentX100), 940, 43, 51, dead ? GOLD : PAPER, 231, 'right');
-      mono(c, dead ? 'ROUND CRASHED' : running ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN ROUND' : 'WAITING', 934 - 200, 77, 12, PAPER, 201);
+      mono(c, dead ? 'ROUND CRASHED' : running ? 'ROUND RUNNING' : view.phase === 'betting' ? 'JOIN ROUND' : 'WAITING', 938, 77, 12, PAPER, 201, 'right');
       if (safe) {
         box(c, 338, 473, 387, 45, GREEN, 4);
         label(c, `CASH-OUT CONFIRMED · ${formatX(view.cashoutX100!)}`, 531, 496, 21, INK, 367, 'center');

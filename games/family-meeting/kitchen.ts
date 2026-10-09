@@ -168,7 +168,6 @@ export interface KitchenDrive {
   multiplier: number;
   tension: number;
   time: number;
-  reduced: boolean;
 }
 
 function say(k: Kitchen, who: Who, text: string, life = who === 'her' ? 5.5 : 3.2): void {
@@ -213,6 +212,8 @@ export function crashKitchen(k: Kitchen, crashX100: number, quiet: boolean, harm
   } else {
     // A bust before she has said a word: she barely got the first syllable out.
     if (k.nextLine === 0 && !quiet) say(k, 'her', 'so, um—', 1.2);
+    // Whatever the parents were saying ends with their heads.
+    for (const b of k.bubbles) if (b.who !== 'her') b.life = Math.min(b.life, b.age + 0.12);
     k.smokeFrom = necks;
     k.aftermath = [{ at: 0.75, who: 'her', text: '…so anyway' }, { at: 2.6, who: 'her', text: 'can I borrow the car' }];
     const c = k.cross;
@@ -343,7 +344,7 @@ function stepCross(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const c = k.cross;
   if (!c.fallen) {
     const rattle = drive.running && !k.crashed && !k.holding ? rattleAt(drive.tension) : 0;
-    const target = drive.reduced ? 0 : (noise(Math.floor(drive.time * 17)) - 0.5) * 0.5 * rattle;
+    const target = (noise(Math.floor(drive.time * 17)) - 0.5) * 0.5 * rattle;
     stepSpring(c.angle, target, 14, 0.3, dt);
     if (rattle > 0.1) {
       k.creakClock += dt;
@@ -399,7 +400,7 @@ function stepKettle(k: Kitchen, drive: KitchenDrive, dt: number): void {
   const was = t.whistle;
   t.whistle += clamp(target - t.whistle, -dt * 1.2, dt * 0.9);
   if (was < 0.25 && t.whistle >= 0.25) k.events.whistle = true;
-  stepSpring(t.lid, t.whistle > 0.45 && !drive.reduced ? (noise(Math.floor(drive.time * 24)) - 0.5) * 3 * t.whistle : 0, 20, 0.4, dt);
+  stepSpring(t.lid, t.whistle > 0.45 ? (noise(Math.floor(drive.time * 24)) - 0.5) * 3 * t.whistle : 0, 20, 0.4, dt);
   t.puffClock += dt * (0.5 + 9 * t.whistle);
   const rand = mulberry32(Math.floor(drive.time * 60) + 11);
   while (t.puffClock > 1 && t.whistle > 0.05) {

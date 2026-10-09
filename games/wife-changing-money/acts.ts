@@ -1,7 +1,7 @@
 /** Elapsed-time presentation only: no result, stake or crash prediction enters this director. */
 const STARTS = [0, 32, 52, 75, 100, 125, 145, 170] as const;
 const LINES = ["Keep the keyboard quiet", "A light under the door", "The cat finds the alarm", "Nobody move", "The stair light comes on", "A mug starts to slide", "Listen before typing"];
-export function actAt(elapsed: number, reduced = false) {
+export function actAt(elapsed: number) {
   const seconds = Math.max(0, elapsed / 1000);
   let stage = 0; for (let i = 1; i < STARTS.length - 1; i++) if (seconds >= STARTS[i]!) stage = i;
   const cycle = seconds >= 170 ? Math.floor((seconds - 170) / 24) : 0;
@@ -12,7 +12,7 @@ export function actAt(elapsed: number, reduced = false) {
   // Effort only poses him (a listening beat mid-act). It starts and ends each act at 1 and never touches the tension.
   const effort = stage === 0 ? 1 : 1 - release * (.7 - .03 * stage);
   // Each act's props fade in over its first second and out over its last, so a change of act never pops.
-  return { stage, age, effort, show: Math.max(0, Math.min(1, age, left)), reach: reduced ? 1 : ramp * ramp * (3 - 2 * ramp), pulse: reduced ? 0 : Math.sin(age * 2.1), line: LINES[stage]! };
+  return { stage, age, effort, show: Math.max(0, Math.min(1, age, left)), reach: ramp * ramp * (3 - 2 * ramp), pulse: Math.sin(age * 2.1), line: LINES[stage]! };
 }
 export type Act = ReturnType<typeof actAt>;
 /** `fade` runs the props out over a crash or a cash-out instead of cutting them. */

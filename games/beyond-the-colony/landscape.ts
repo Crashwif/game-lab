@@ -1,7 +1,7 @@
 import { clamp, fract, noise, TAU } from './motion';
 import { box, ellipse, GOLD, INK, JADE, line, polygon, WHITE, words } from './drawing';
 
-export function sky(c: CanvasRenderingContext2D, time: number, chapter: number, reduced: boolean): void {
+export function sky(c: CanvasRenderingContext2D, time: number, chapter: number): void {
   const bg = c.createLinearGradient(0, 0, 0, 540);
   bg.addColorStop(0, '#041a2a'); bg.addColorStop(.58, chapter >= 2 ? '#224757' : '#175366'); bg.addColorStop(1, '#689da6');
   c.fillStyle = bg; c.fillRect(0, 0, 960, 540);
@@ -21,7 +21,7 @@ export function sky(c: CanvasRenderingContext2D, time: number, chapter: number, 
   c.fillStyle = moon; c.fillRect(615, 89, 128, 128); ellipse(c, 679, 153, 18, 18, '#e0ead0'); ellipse(c, 686, 148, 16, 16, '#173b46');
   for (let layer = 0; layer < 3; layer += 1) {
     const base = 360 + layer * 40;
-    const shift = reduced ? 0 : (time * (7 + layer * 8)) % 170;
+    const shift = (time * (7 + layer * 8)) % 170;
     const peaks: [number, number][] = [[-200, base]];
     for (let i = -2; i < 8; i += 1) {
       const x = i * 170 - shift; const top = base - 80 - noise(i + layer * 13) * 110;
@@ -44,22 +44,37 @@ export function sky(c: CanvasRenderingContext2D, time: number, chapter: number, 
   }
 }
 
-export function floes(c: CanvasRenderingContext2D, travel: number, time: number, sag: number, crash: number | null, reduced: boolean): void {
+export interface FloeFrame { x: number; y: number; angle: number; drop: number; broken: number }
+/** The floe under a world x: its top centre, and how far it has tilted and dropped since the crash. */
+export function floeUnder(x: number, travel: number, sag: number, crash: number | null): FloeFrame {
+  const scroll = ((travel % 240) + 240) % 240;
+  return floeFrame(Math.floor((x + scroll) / 240), scroll, sag, crash);
+}
+function floeFrame(i: number, scroll: number, sag: number, crash: number | null): FloeFrame {
+  const x = i * 240 - scroll;
+  const delay = Math.abs(x + 120 - 460) / 930;
+  const broken = crash === null ? 0 : clamp((crash - .15 - delay) / .7);
+  const dip = Math.exp(-Math.pow((x + 120 - 450) / 250, 2)) * sag;
+  return { x: x + 120, y: 429 + dip, angle: broken * (i % 2 ? -.38 : .35), drop: broken * (170 + (i % 3 + 3) * 35), broken };
+}
+/** Puts the context into a floe's frame, so whatever stands on it tilts and falls with it; world coordinates still apply. */
+export function rideFloe(c: CanvasRenderingContext2D, floe: FloeFrame): void {
+  c.translate(floe.x, floe.y); c.rotate(floe.angle); c.translate(-floe.x, floe.drop - 429);
+}
+
+export function floes(c: CanvasRenderingContext2D, travel: number, time: number, sag: number, crash: number | null): void {
   const scroll = ((travel % 240) + 240) % 240;
   for (let i = -1; i < 6; i += 1) {
-    const x = i * 240 - scroll;
-    const delay = Math.abs(x + 120 - 460) / 930;
-    const broken = crash === null ? 0 : reduced ? 1 : clamp((crash - .15 - delay) / .7);
-    const dip = Math.exp(-Math.pow((x + 120 - 450) / 250, 2)) * sag;
-    c.save(); c.translate(x + 120, 429 + dip);
-    c.rotate(broken * (i % 2 ? -.38 : .35)); c.translate(0, broken * (170 + (i % 3 + 3) * 35));
+    const { x: centre, y, angle, drop, broken } = floeFrame(i, scroll, sag, crash);
+    c.save(); c.translate(centre, y);
+    c.rotate(angle); c.translate(0, drop);
     polygon(c, [[-126, 0], [124, -2], [120, 47], [62, 112], [-53, 97], [-123, 47]], '#296c85', 3);
     polygon(c, [[-126, 0], [-17, 13], [-53, 97], [-123, 47]], '#458f9f');
     polygon(c, [[-14, 13], [124, -2], [120, 47], [62, 112]], '#184e6d');
     polygon(c, [[-128, 0], [-110, -13], [-15, -8], [74, -15], [126, -3], [120, 14], [1, 18], [-124, 11]], '#d8efdf');
     polygon(c, [[-128, 0], [-110, -13], [-15, -8], [74, -15], [126, -3], [6, 5]], '#f3fae9');
     for (let j = 0; j < 5; j += 1) line(c, [[-95 + j * 42, 25], [-84 + j * 43, 48 + (j % 2) * 19]], '#72bac5', 2);
-    const breathe = reduced ? .35 : .4 + .35 * Math.sin(time * 2.1 + i * 1.8);
+    const breathe = .4 + .35 * Math.sin(time * 2.1 + i * 1.8);
     line(c, [[98, -3], [94, 7], [105, 19], [90, 41]], `rgba(4,38,59,${breathe + broken * .3})`, 2 + broken * 3);
     if (broken > 0) line(c, [[-48, 0], [-16, 12], [-29, 32], [4, 58]], INK, 4);
     c.restore();
@@ -96,8 +111,8 @@ export function slideSpray(c: CanvasRenderingContext2D, x: number, y: number, ti
   c.globalAlpha = 1;
 }
 
-export function avalanche(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
-  if (reduced || age < .18 || age > 1.4) return;
+export function avalanche(c: CanvasRenderingContext2D, age: number): void {
+  if (age < .18 || age > 1.4) return;
   const t = age;
   const lead = 1030 - Math.max(0, t - .18) * 1830;
   c.save(); c.globalAlpha = 1 - clamp((t - 1.05) / .35);
@@ -114,8 +129,8 @@ export function avalanche(c: CanvasRenderingContext2D, age: number, reduced: boo
   c.restore();
 }
 
-export function office(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
-  const q = reduced ? 1 : clamp((age - .87) / .23);
+export function office(c: CanvasRenderingContext2D, age: number): void {
+  const q = clamp((age - .87) / .23);
   if (q <= 0) return;
   c.save(); c.translate(0, (1 - q) * 380);
   polygon(c, [[185, 468], [225, 293], [707, 289], [763, 473]], '#25505c', 4);
@@ -133,13 +148,13 @@ export function office(c: CanvasRenderingContext2D, age: number, reduced: boolea
   c.restore();
 }
 
-export function cloudSeat(c: CanvasRenderingContext2D, x: number, y: number, time: number, reduced: boolean): void {
+export function cloudSeat(c: CanvasRenderingContext2D, x: number, y: number, time: number): void {
   ellipse(c, x, y + 5, 150, 28, '#9ac6c6');
   for (let i = 0; i < 6; i += 1) ellipse(c, x - 112 + i * 43, y, 40, 27 + i % 2 * 9, WHITE);
   box(c, x - 40, y - 56, 102, 55, '#d67c6f', 10, 3); box(c, x - 64, y - 23, 125, 21, '#eeac87', 7, 3);
   line(c, [[x + 99, y], [x + 99, y - 140]], '#eecca6', 5);
   polygon(c, [[x + 14, y - 121], [x + 96, y - 180], [x + 189, y - 121]], '#ee8a73', 3);
   polygon(c, [[x + 96, y - 180], [x + 96, y - 119], [x + 47, y - 121]], '#f5c99a', 2);
-  const bob = reduced ? 0 : Math.sin(time * 2) * 2;
+  const bob = Math.sin(time * 2) * 2;
   box(c, x + 110, y - 29 + bob, 17, 28, '#f4dfbb', 3, 2); line(c, [[x + 119, y - 30 + bob], [x + 131, y - 45 + bob]], JADE, 3);
 }

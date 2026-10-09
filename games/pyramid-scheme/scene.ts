@@ -9,7 +9,6 @@ export interface SceneView {
   currentX100: number; elapsed: number; crashAge: number;
   stake: number | null; cashoutX100: number | null; payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(c: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
@@ -66,8 +65,7 @@ function drawRoom(c: CanvasRenderingContext2D, top: { x: number; y: number }, te
   c.fillRect(0, STAGE, 960, 8);
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'casino', crash: 'crowd' });
   const shown = spring(1), pop = spring(), badge = spring();
   let last: number | null = null;
@@ -109,7 +107,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (quiet) { settleBodies(bodies); pop.x = 1; founderX = -200; audio.crash('crowd', true); return; }
     shake = 1;
     pop.v = 14;
-    if (!reduced) { freeze = FREEZE_S; slow = SLOW_S; }
+    { freeze = FREEZE_S; slow = SLOW_S; }
     audio.crash('crowd');
     audio.fx('thud', 1);
   }
@@ -127,13 +125,13 @@ export function createScene(options: SceneOptions = {}): Scene {
     const running = view.phase === 'running', crashed = view.phase === 'crashed', fresh = previous === null;
     count += dt * (3 + 9 * tension);
     if (running) {
-      poseSeconds = reduced ? 0 : view.elapsed / 1000;
+      poseSeconds = view.elapsed / 1000;
       // A buckle on a quickening beat: a fake-out, never the crash.
       const b = beat;
       beat += dt / (2.6 - 1.4 * tension);
       if (Math.floor(beat) > Math.floor(b) && tension > .45 && rows > 1 && !secured) audio.fx('creak', .2 + .6 * tension);
       const u = beat % 1;
-      sag = reduced ? 0 : (4 + 6 * tension) * Math.min(1, u * 12) * Math.exp(-6 * u);
+      sag = (4 + 6 * tension) * Math.min(1, u * 12) * Math.exp(-6 * u);
     }
     if (fresh) {
       rows = running || crashed ? rowsFor(multiplier) : 1;
@@ -169,7 +167,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     shake = Math.max(0, shake - dt * 2);
 
     c.save();
-    if (!reduced) {
+    {
       const z = 1 + .1 * shake;
       c.translate(CENTRE * (1 - z) + Math.sin(time * 90) * (8 * shake + sag * .25), 380 * (1 - z) + Math.cos(time * 70) * 5 * shake + sag * .3);
       c.scale(z, z);
@@ -182,7 +180,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     memeText(c, '$PONZI', LECTERN_X, STAGE - 34, 16, '#f4d1b0', 60);
     if (rows > 3) {
       // From the fourth row (2.46×), recruits stroll in from the wings to beg beside the pyramid, then back out.
-      const cycle = (time - joined[3]) / 20, walk = reduced ? .4 : Math.sin(cycle * Math.PI) ** 2;
+      const cycle = (time - joined[3]) / 20, walk = Math.sin(cycle * Math.PI) ** 2;
       for (const side of [-1, 1]) {
         const x = 480 + side * (540 - 300 * walk);
         drawFigure(c, x, STAGE, 50, 0, time + side, { strain: .3, shirt: shirtFor(Math.floor(cycle), side + 1), arms: walk < .6 ? 'down' : 'flail', feet: recruitFeet(x, 50, -side) });
@@ -198,8 +196,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       // Crouch, an exact arc, a landing squash and dust.
       const { y, h, land } = jump, age = jump.age += dt, t = Math.max(0, Math.min(age, land) - .12), x = jump.x + 260 * t, fly = y - 340 * t + 450 * t * t, down = age >= land, s = age - land;
       if (down && s < dt) audio.fx('thud', .5);
-      const crouch = 6 * Math.sin(Math.PI * Math.min(1, age / .16)), free = smoothstep(.12, .4, age), squash = down && !reduced ? .85 + .15 * smoothstep(0, .15, s) : 1;
-      if (down && s < .4 && !reduced) { c.fillStyle = `rgba(255,240,220,${.8 - s * 2})`; c.beginPath(); c.ellipse(x, STAGE - 3, 16 + 90 * s, 3 + 8 * s, 0, 0, 7); c.fill(); }
+      const crouch = 6 * Math.sin(Math.PI * Math.min(1, age / .16)), free = smoothstep(.12, .4, age), squash = down ? .85 + .15 * smoothstep(0, .15, s) : 1;
+      if (down && s < .4) { c.fillStyle = `rgba(255,240,220,${.8 - s * 2})`; c.beginPath(); c.ellipse(x, STAGE - 3, 16 + 90 * s, 3 + 8 * s, 0, 0, 7); c.fill(); }
       c.save();
       c.translate(x, fly + crouch);
       c.scale(2 - squash, squash);

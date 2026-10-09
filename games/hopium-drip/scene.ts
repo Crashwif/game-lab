@@ -28,11 +28,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the monitor flicker, the pulse flashes, the shock's flash, the hit-stop and the punch-in. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -87,9 +82,9 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'HE IS THE CHART NOW';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("HOPIUM DRIP", [100, 125, 525, 360], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Hospital muzak that races with the heart rate; the crash is the long beep.
   const audio = pageAudio({ style: 'hospital', crash: 'flatline' });
   const ward: Ward = createWard();
@@ -146,7 +141,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     time += dt;
     whiteout = Math.max(0, whiteout - real / 0.08);
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // Tension sweeps a third by 1.5×, half by 2× and two thirds by 3×; the acts never lower it.
     const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
@@ -215,7 +210,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (reached) {
       const label = ward.label;
       dose(ward, monitor.doseIndex);
-      if (!reduced) shake = Math.max(shake, 0.15);
+      shake = Math.max(shake, 0.15);
       audio.fx('beep', 0.6 + 0.08 * Math.min(9, monitor.doseIndex));
       if (ward.label !== label || ward.refill === 1) audio.fx('glug', 1);
     }
@@ -227,7 +222,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         audio.fx('heartbeat', 0.4 + 0.6 * tension);
       }
     }
-    stepWard(ward, { running, tension, multiplier, reduced }, dt);
+    stepWard(ward, { running, tension, multiplier }, dt);
     monitor.charge = ward.paddles.x;
     const events = ward.events;
     if (running && events.hi) audio.fx('pop', 0.4);
@@ -246,7 +241,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       shockMonitor(monitor);
       audio.fx('zap', 1);
       shake = Math.max(shake, 0.7);
-      if (!reduced) {
+      {
         freeze = FREEZE_S;
         slow = SLOW_S;
         whiteout = 1;
@@ -271,15 +266,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the bed and eases back out.
       const k = 1 + 0.1 * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
-    drawWard(ctx, ward, tension, reduced);
+    drawWard(ctx, ward, tension);
     // The act props fade in with each act and out at the crash or the cash-out instead of popping.
     const acting = running && view.cashoutX100 === null && act.stage > 0;
     if (acting) { shownAct = act; shownStart = view.elapsed - act.age * 1000; }
@@ -289,7 +284,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.save();
       if (into < 1) {
         ctx.globalAlpha = actFade * (1 - into);
-        drawAct(ctx, actAt(shownStart - 1, reduced));
+        drawAct(ctx, actAt(shownStart - 1));
       }
       ctx.globalAlpha = actFade * into;
       drawAct(ctx, shownAct);
@@ -300,7 +295,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.save();
       // A dodged rug sits under the discharge badge.
       const called = outcome === 'called';
-      ctx.translate(WARD.w / 2, called ? 156 : 128);
+      ctx.translate(WARD.w / 2, called ? 176 : 128);
       ctx.rotate(-0.06);
       const k = clamp(pop.x, 0, 1.3);
       ctx.scale(k, k);
@@ -317,7 +312,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.fillRect(WARD.x, WARD.y, WARD.w, WARD.h);
     }
     // Discharged, his vitals stop where he unplugged, like the bag; the chart in the header pumps on.
-    drawMonitor(ctx, monitor, multiplier, secured ? tensionAt(secured.x100 / 100) : tension, reduced, view.stake !== null);
+    drawMonitor(ctx, monitor, multiplier, secured ? tensionAt(secured.x100 / 100) : tension, view.stake !== null);
     if (wipe >= 0) {
       ctx.fillStyle = `rgba(6, 10, 14, ${wipe < WIPE_DOWN ? wipe / WIPE_DOWN : 1 - (wipe - WIPE_DOWN) / WIPE_UP})`;
       ctx.fillRect(WARD.x, WARD.y, WARD.w + PANEL.w, WARD.h);
@@ -335,7 +330,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && badge.x > 0.02) {
       const text = `${secured.payout !== null ? `+${secured.payout} · ` : ''}${(secured.x100 / 100).toFixed(2)}× DISCHARGED`;
       ctx.save();
-      ctx.translate(WARD.w / 2, 100 + Math.sin(time * 2) * 3);
+      // In the gap under the ward sign, above the poster's text.
+      ctx.translate(WARD.w / 2, 116 + Math.sin(time * 2) * 2);
       ctx.rotate(-0.02);
       const k = clamp(badge.x, 0, 1.3);
       ctx.scale(k, k);

@@ -3,7 +3,6 @@ import{pageAudio}from'./audio';
 import{clamp,mix,smoothstep,spring,stepSpring}from'./motion';
 import{type Ctx,type Dust,type Rider,FLOOR,INK,RAIL,blob,createBull,createRider,drawBull,drawDust,drawRider,endurance,limb,puff,stepBull,stepDust,stepRider,throwRider,vault}from'./bull';
 export interface SceneView{phase:'waiting'|'betting'|'running'|'crashed';currentX100:number;elapsed:number;crashAge:number;stake:number|null;cashoutX100:number|null;payout:number|null}
-export interface SceneOptions{reducedMotion?:boolean}
 export interface Scene{draw(c:Ctx,view:SceneView,now:number):void}
 type Outcome='rekt'|'called'|'bucked';
 type Secured={x100:number;payout:number|null;at:number};
@@ -33,14 +32,14 @@ function captionFor(view:SceneView,rung:number,outcome:Outcome|null,secured:Secu
  return view.elapsed>=HORN&&view.elapsed<9500?'QUALIFIED RIDE':act?['','THE LEFT RAIL IS TOO CLOSE','CATCH YOUR BREATH','HE IS COMING BACK','ONE HAND. STILL HOLDING.'][act]!:CAPTIONS[rung]!;
 }
 // Heads bob on an integrated phase; after the horn the stands rise, arms up. Seat 15 is the bear's.
-function drawArena(c:Ctx,bob:number,cheer:number,stand:number,gate:number,reduced:boolean,close:boolean):void{
+function drawArena(c:Ctx,bob:number,cheer:number,stand:number,gate:number,close:boolean):void{
  c.fillStyle='#5a2a1a';
  c.fillRect(0,0,960,300);
  if(!close)memeText(c,'DEGEN RODEO · TONIGHT: $BULL vs GRAVITY',480,150,22,'#f4d1b0','center',700);
  c.strokeStyle=INK;c.lineWidth=3;
  for(const[row,y,n,s]of[[0,278,22,1],[1,250,25,.82]]as const)for(let i=0;i<n;i++){
   if(!row&&i==15)continue;
-  const x=20+(i+.5)*920/n,cy=y-12*s*stand+(reduced?0:Math.sin(bob+i*1.3+row)*(1.5+7*cheer));
+  const x=20+(i+.5)*920/n,cy=y-12*s*stand+(Math.sin(bob+i*1.3+row)*(1.5+7*cheer));
   if(stand>.05){c.beginPath();for(const k of[-1,1]){c.moveTo(x+7*k*s,cy+12*s);c.lineTo(x+(7+6*stand)*k*s,cy-(4+14*stand)*s)}c.stroke()}
   c.fillStyle=['#f4d1b0','#8d5524','#e0ac69','#c68642'][i%4]!;
   c.beginPath();c.arc(x,cy,11*s,0,7);c.fill();c.stroke();
@@ -91,8 +90,8 @@ function drawClown(c:Ctx,peek:number,run:number):void{
  c.restore();
 }
 
-export function createScene(options:SceneOptions={}):Scene{
- const reduced=!!options.reducedMotion,audio=pageAudio({style:'phonk',crash:'thud'}),bull=createBull(),gate=spring(0),peek=spring(0),pop=spring(0),badge=spring(0),stand=spring(0),up=spring(0);
+export function createScene():Scene{
+ const audio=pageAudio({style:'phonk',crash:'thud'}),bull=createBull(),gate=spring(0),peek=spring(0),pop=spring(0),badge=spring(0),stand=spring(0),up=spring(0);
  let rider=createRider(),gone:Rider|null=null,dust:Dust[]=[],last:number|null=null,previous:SceneView['phase']|null=null,time=0,age=0,bob=0,cheer=0,bear=0,punch=0,rung=0,shake=0,freeze=0,slow=0,run=0,horn=false,muted=false,outcome:Outcome|null=null,secured:Secured|null=null;
  function reset():void{
   gone=rider;
@@ -107,7 +106,7 @@ export function createScene(options:SceneOptions={}):Scene{
   if(rider.mode=='riding')throwRider(rider,bull,view.currentX100,quiet);
   if(quiet){pop.x=1;run=400;muted=true;return audio.crash('thud',true)}
   shake=1;pop.v=14;
-  if(!reduced){freeze=.15;slow=.3;punch=1}
+  {freeze=.15;slow=.3;punch=1}
   audio.crash(secured?'crowd':'thud');
   if(!secured)audio.fx('scream',.8);
  }
@@ -145,11 +144,11 @@ export function createScene(options:SceneOptions={}):Scene{
    if(!fresh&&!secured){audio.fx('buzz',.8);audio.fx('cheer',.7)}
   }
   stepSpring(gate,on||bull.x.x>150?1:0,6,.6,dt);
-  stepBull(bull,{running,tension,loose:crashed,seconds:reduced?0:view.elapsed/1e3},dt);
+  stepBull(bull,{running,tension,loose:crashed,seconds:view.elapsed/1e3},dt);
   if(bull.landed&&!fresh){
    puff(dust,bull.x.x+40,FLOOR,5);
    puff(dust,bull.x.x-50,FLOOR,5);
-   if(running&&!reduced)shake=Math.max(shake,.25*tension);
+   if(running)shake=Math.max(shake,.25*tension);
    if(!muted)audio.fx('stomp',.25+.75*tension);
   }
   if(stepRider(rider,bull,fear,dt,dust)&&!muted)audio.fx('thud',rider.mode=='fence'?.4:1);
@@ -170,13 +169,13 @@ export function createScene(options:SceneOptions={}):Scene{
   punch=Math.max(0,punch-real/.6);
 
   c.save();
-  if(!reduced&&shake>0)c.translate(Math.sin(time*90)*8*shake,Math.cos(time*70)*5*shake);
+  if(shake>0)c.translate(Math.sin(time*90)*8*shake,Math.cos(time*70)*5*shake);
   if(punch>0){
    // Hit-stop punch-in: 10% on the rider, held 0.3 s, then eased out.
    const z=1+.1*smoothstep(0,.5,punch),x=clamp(rider.x,200,760),y=rider.y-40;
    c.translate(x,y);c.scale(z,z);c.translate(-x,-y);
   }
-  drawArena(c,bob,cheer,stand.x,170*gate.x-(on?0:bull.hop*.6),reduced,close);
+  drawArena(c,bob,cheer,stand.x,170*gate.x-(on?0:bull.hop*.6),close);
   drawBear(c,BEAR_X+30*bear,mix(274-22*up.x,FLOOR-52,bear)-380*bear*(1-bear),up.x);
   if(!run)drawClown(c,peek.x,0);
   c.fillStyle='#b91c1c';

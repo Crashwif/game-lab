@@ -26,11 +26,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the punch-in at the post, the party bounce and the champagne particles. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -96,9 +91,9 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'I WAS NEVER HERE';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("I GOT HACKED", [95, 35, 385, 290], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Celebrity pool party trap; the crash is the post going out, so it gets the sad trombone.
   const audio = pageAudio({ style: 'trap', crash: 'trombone' });
   const mansion: Mansion = createMansion();
@@ -135,7 +130,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×: the window most rounds end in escalates all the way. Nothing lowers it.
     const tension = tensionAt(multiplier);
     const running = view.phase === 'running';
@@ -170,7 +165,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         const quiet = view.crashAge > 1500;
         outcome = view.stake === null ? 'ended' : secured ? 'called' : 'rekt';
         // A cash-out first seen with the crash still walks your fan out, or places them gone if the crash is old.
-        if (secured) leaveParty(party, quiet, reduced);
+        if (secured) leaveParty(party, quiet);
         endMansion(mansion, view.currentX100, quiet);
         drainParty(party, view.currentX100, quiet);
         if (quiet) { pop.x = 1; drained = true; audio.crash('trombone', true); }
@@ -179,7 +174,7 @@ export function createScene(options: SceneOptions = {}): Scene {
           shake = 1;
           pop.v = 16;
           hitStop = 0;
-          if (!reduced) phonePunch.v = 10;
+          phonePunch.v = 10;
           audio.crash('trombone');
           audio.fx('gasp', 0.9);
         }
@@ -204,7 +199,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       previous = view.phase;
     }
-    if (secured && running) leaveParty(party, false, reduced);
+    if (secured && running) leaveParty(party, false);
 
     // The hit-stop: the world freezes as the post lands, then comes back up to speed; the shake and the HUD keep time.
     let worldDt = dt;
@@ -213,25 +208,25 @@ export function createScene(options: SceneOptions = {}): Scene {
       worldDt = dt * (hitStop < FREEZE ? 0 : mix(0.3, 1, smoothstep(FREEZE, FREEZE + SLOW, hitStop)));
       if (hitStop > PUNCH.hold + PUNCH.out) hitStop = -1;
     }
-    const zoom = !reduced && hitStop >= 0 ? PUNCH.zoom * (1 - smoothstep(PUNCH.hold, PUNCH.hold + PUNCH.out, hitStop)) : 0;
+    const zoom = hitStop >= 0 ? PUNCH.zoom * (1 - smoothstep(PUNCH.hold, PUNCH.hold + PUNCH.out, hitStop)) : 0;
     // The round's pulse: his phone buzzing every 1.4 s at 1×, 0.88 s by 2×; heard only while your stake is in.
     if (running) {
       pulse += dt / mix(1.4, 0.35, tension);
       if (pulse >= 1) {
         pulse -= Math.floor(pulse);
         if (view.cashoutX100 === null) audio.fx('buzz', 0.2 + 0.25 * tension);
-        if (!reduced) mansion.buzz = 1;
+        mansion.buzz = 1;
       }
     }
     actFade = clamp(actFade + (running ? dt : -dt) / 0.4, 0, 1);
 
-    const reached = stepParty(party, { running, multiplier, tension, reduced }, worldDt);
+    const reached = stepParty(party, { running, multiplier, tension }, worldDt);
     if (reached) {
       celebrate(mansion, party.popIndex);
-      if (!reduced) shake = Math.max(shake, 0.15);
+      shake = Math.max(shake, 0.15);
       audio.fx('pop', 0.7 + 0.25 * (party.popIndex % 3));
     }
-    stepMansion(mansion, { running, tension, multiplier, reduced }, worldDt);
+    stepMansion(mansion, { running, tension, multiplier }, worldDt);
     // The sounds of the scene's own events: the draft's excuse flipping, the drone's flash, a drive on the grill, the
     // yacht's engine starting, the pool's drain; the milestone stingers follow the champagne pops.
     if (mansion.events.excuse) audio.fx('tick', 0.5);
@@ -256,14 +251,13 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     ctx.save();
     if (zoom > 0) { ctx.translate(PUNCH.x, PUNCH.y); ctx.scale(1 + zoom, 1 + zoom); ctx.translate(-PUNCH.x, -PUNCH.y); }
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
-    drawMansion(ctx, mansion, tension, reduced);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    drawMansion(ctx, mansion, tension);
     if (actFade > 0.01) drawAct(ctx, act, actFade);
-    drawDrone(ctx, mansion, reduced);
-    drawParty(ctx, party, tension, view.stake !== null, reduced);
-    drawBarbecue(ctx, mansion, reduced);
-    drawPhone(ctx, mansion, multiplier, 1 + 0.12 * clamp(phonePunch.x, -0.5, 1.2), reduced);
-    drawTicker(ctx, party, multiplier);
+    drawDrone(ctx, mansion);
+    drawParty(ctx, party, tension, view.stake !== null);
+    drawBarbecue(ctx, mansion);
+    drawPhone(ctx, mansion, multiplier, 1 + 0.12 * clamp(phonePunch.x, -0.5, 1.2));
     if (outcome && pop.x > 0.02 && mansion.endAge > 0.4) {
       ctx.save();
       ctx.translate(STAGE.w / 2, 330);
@@ -275,12 +269,14 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.restore();
     }
     ctx.restore();
-    // The drone's flash and the green of an exit wash the whole picture; neither under reduced motion.
-    if (!reduced && mansion.drone.flash > 0.02) {
+    // The ticker is chrome, outside the punch-in, so its count never leaves the picture.
+    drawTicker(ctx, party, multiplier);
+    // The drone's flash and the green of an exit wash the whole picture.
+    if (mansion.drone.flash > 0.02) {
       ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * mansion.drone.flash * mansion.drone.flash})`;
       ctx.fillRect(0, 0, STAGE.w, STAGE.h);
     }
-    if (!reduced && cashFlash > 0.02) {
+    if (cashFlash > 0.02) {
       ctx.fillStyle = `rgba(124, 246, 124, ${0.22 * cashFlash})`;
       ctx.fillRect(0, 0, STAGE.w, STAGE.h);
     }

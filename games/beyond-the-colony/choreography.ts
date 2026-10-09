@@ -3,28 +3,28 @@ import type { PenguinPose } from './penguin';
 
 export interface Performance { pose: PenguinPose; travel: number; sag: number; gale: number; landAge: number; spray: number; act: Act }
 /** Follow-through comes from the pose a moment earlier: the head lags a fast body turn and the scarf streams with speed. */
-export function perform(seconds: number, active: boolean, idleTime: number, reduced: boolean): Performance {
-  const now = poseAt(seconds, active, idleTime, reduced);
-  if (reduced) return now;
+export function perform(seconds: number, active: boolean, idleTime: number): Performance {
+  const now = poseAt(seconds, active, idleTime);
+
   const lag = .07;
-  const before = poseAt(Math.max(0, seconds - lag), active, idleTime - lag, reduced).pose;
+  const before = poseAt(Math.max(0, seconds - lag), active, idleTime - lag).pose;
   const p = now.pose;
   p.head -= clamp(turn(before.angle, p.angle) * 2.5, -.45, .45);
   p.scarf = Math.max(p.scarf, clamp(Math.abs(p.x - before.x) / lag / 420, 0, 1.6));
   return now;
 }
-function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boolean): Performance {
+function poseAt(seconds: number, active: boolean, idleTime: number): Performance {
   const act = actAt(seconds);
   const a = act.age;
   // Each scene pauses for the confrontation, then the camera catches up during the recovery.
   const localRoute = a < 1.1 ? a : a < 2.7 ? 1.1 : a - 1.6;
   const route = act.index * 5.4 + localRoute;
   const walk = active && (a < 1.1 || a >= 2.7);
-  const time = reduced ? 0 : active ? seconds : idleTime;
+  const time = active ? seconds : idleTime;
   const p: PenguinPose = {
-    x: 437, y: 426, time, gait: route * 1.5, walk: walk && !reduced, angle: 0,
+    x: 437, y: 426, time, gait: route * 1.5, walk: walk, angle: 0,
     crouch: 0, stretch: 0, airborne: false, arm: 0, head: 0, mood: 'defiant',
-    scarf: .4, scale: 1.12, reduced, look: 1,
+    scarf: .4, scale: 1.12, look: 1,
   };
   let landAge = -1;
   let sag = 0;
@@ -32,11 +32,11 @@ function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boo
   let spray = 0;
   if (!active) {
     p.walk = false; p.gait = 0; p.mood = 'bored';
-    p.angle = reduced ? -.05 : Math.sin(time * 1.8) * .065;
-    p.arm = reduced ? .1 : .25 + Math.sin(time * 2.6) * .32;
-    p.head = reduced ? -.3 : Math.sin(time * 1.1) * .8;
-    p.look = reduced ? -1 : Math.sin(time * .8) > .2 ? -1 : 1;
-    p.crouch = reduced ? .1 : .12 + Math.sin(time * 2) * .1;
+    p.angle = Math.sin(time * 1.8) * .065;
+    p.arm = .25 + Math.sin(time * 2.6) * .32;
+    p.head = Math.sin(time * 1.1) * .8;
+    p.look = Math.sin(time * .8) > .2 ? -1 : 1;
+    p.crouch = .12 + Math.sin(time * 2) * .1;
     return { pose: p, travel: 0, sag: 0, gale, landAge, spray, act };
   }
   const leap = (start: number, end: number, height: number, forward: number, spin = 0): void => {
@@ -91,18 +91,18 @@ function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boo
     }
     case 4: {
       const gust = windowAt(a, .6, 5.8, .65);
-      p.x -= gust * (79 + (reduced ? 0 : Math.sin(seconds * 5) * 17));
+      p.x -= gust * (79 + (Math.sin(seconds * 5) * 17));
       p.angle = gust * .59; p.crouch = gust * .5; p.scarf = gust * 2.2;
-      p.arm = gust * (reduced ? 1.1 : .8 + Math.sin(seconds * 9) * .7);
+      p.arm = gust * (.8 + Math.sin(seconds * 9) * .7);
       p.head = -gust * .7; p.mood = 'panic'; gale = .3 + gust * 1.6;
       leap(5.7, 6.5, 48, 47); if (a > 6.5) p.x += 47 * (1 - between(6.5, 7, a)); landAge = a - 6.5; break;
     }
     case 5: {
       const god = windowAt(a, 1.55, 5.8, 1.0);
       p.crouch = windowAt(a, .8, 1.8, .35) * 1.0;
-      p.y -= god * (75 + (reduced ? 0 : Math.sin(seconds * 3) * 13));
+      p.y -= god * (75 + (Math.sin(seconds * 3) * 13));
       p.x += god * 27; p.arm = god * 1.8; p.walk = walk && god < .15; p.airborne = god > .05;
-      p.angle = reduced ? 0 : Math.sin(seconds * 3.1) * .14 * god;
+      p.angle = Math.sin(seconds * 3.1) * .14 * god;
       p.mood = god > .15 ? 'cosmic' : 'defiant'; p.scale += god * .11; p.scarf = 1.5; p.aura = god;
       landAge = a - 5.8; break;
     }
@@ -116,7 +116,7 @@ function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boo
     }
     case 7: {
       p.mood = 'panic'; p.look = -1; p.head = -.7;
-      p.arm = .5 + (reduced ? 0 : Math.sin(seconds * 12) * .8); p.scarf = 2;
+      p.arm = .5 + (Math.sin(seconds * 12) * .8); p.scarf = 2;
       p.crouch = windowAt(a, 2.8, 3.35, .2) * .9;
       leap(3.3, 4.7, 84, -67, -TAU);
       if (a > 4.7) { p.x -= 67 * (1 - between(4.7, 6.2, a)); p.angle = -TAU; p.mood = 'dazed'; }
@@ -128,12 +128,6 @@ function poseAt(seconds: number, active: boolean, idleTime: number, reduced: boo
     p.head += recoil(landAge, .35); sag += Math.max(0, recoil(landAge, 10));
   }
   p.y += sag;
-  if (reduced) {
-    p.x = 437; p.y = 426; p.angle = act.kind === 1 ? 1.15 : act.kind === 4 ? .3 : 0;
-    if (act.kind === 1) p.y += 15;
-    p.crouch = act.kind === 6 ? .45 : 0; p.arm = act.kind === 5 ? 1.6 : .6; p.walk = false;
-    p.airborne = false; p.stretch = 0; p.scale = 1.12; p.gait = 0; p.time = 0;
-    sag = 0; landAge = -1; spray = 0;
-  }
-  return { pose: p, travel: reduced ? act.index * 810 : route * 150, sag, gale, landAge, spray, act };
+
+  return { pose: p, travel: route * 150, sag, gale, landAge, spray, act };
 }
