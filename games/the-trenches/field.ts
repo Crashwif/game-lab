@@ -110,7 +110,10 @@ export function nuke(f: Field, seed: number, quiet: boolean): void {
   }
 }
 
-export interface FieldDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
+export interface FieldDrive { running: boolean; tension: number; multiplier: number; reduced: boolean
+  /** Wall-clock step, for effects that must not slow with the hit-stop. */
+  real?: number;
+}
 
 export function stepField(f: Field, drive: FieldDrive, dt: number): void {
   const e = f.events;
@@ -122,7 +125,7 @@ export function stepField(f: Field, drive: FieldDrive, dt: number): void {
     const was = f.nukeAge;
     f.nukeAge += dt;
     if (was <= 0.15 && f.nukeAge > 0.15) e.flung = true;
-    f.flash = Math.max(0, f.flash - dt / 0.7);
+    f.flash = Math.max(0, f.flash - (drive.real ?? dt) / 0.45);
     for (const h of f.helmets) {
       if (h.landed) continue;
       h.vy += 420 * dt;
@@ -406,18 +409,20 @@ export function drawNukeFront(ctx: CanvasRenderingContext2D, f: Field, reduced: 
 }
 
 /** Advancing field details under the squad: mud, cover and discarded kit return in bounded chapters. `alpha` fades them out at the nuke. */
-export function drawAdvance(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean, alpha = 1): void {
+export function drawAdvance(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean, alpha = 1, tension = 0, time = 0): void {
   const act = endurance(seconds); if (!act.act || alpha <= 0) return;
+  // Each prop appears on the ridge and comes down the field toward the squad as the chapter advances.
+  const ground = (x: number): number => ridgeY(x, tension, time);
   const age = seconds - 42 - act.cycle * 26;
   const drift = reduced ? 55 : Math.min(120, age * 5);
   ctx.save();
   ctx.globalAlpha = alpha;
   if (act.act === 2 || act.act === 4) {
     ctx.fillStyle = act.act === 2 ? '#453926' : '#58613b';
-    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(210 + i * 130, 285 + drift * .65, 45, 10 + act.effort * 5, 0, 0, Math.PI * 2); ctx.fill(); }
+    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(210 + i * 130, ground(210 + i * 130) + 12 + drift * .65, 45, 10 + act.effort * 5, 0, 0, Math.PI * 2); ctx.fill(); }
   } else {
     for (const x of [86, 800]) {
-      const y = 265 + drift;
+      const y = ground(x + 40) + 10 + drift;
       ctx.fillStyle = '#a58e5f'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
       for (let j = 0; j < 3; j++) { ctx.beginPath(); ctx.roundRect(x + j * 22, y - j % 2 * 9, 35, 16, 7); ctx.fill(); ctx.stroke(); }
       if (act.act === 3) {

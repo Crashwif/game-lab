@@ -717,7 +717,7 @@ function drawOne(ctx: CanvasRenderingContext2D, s: Squad, f: Frog, progress: num
   } else {
     const rest = restOf(f);
     drawFrog(ctx, rest.x, rest.y, rest.scale, { stride: 0.5, squash: f.squash.x, expression: 'dead', spin: Math.PI / 2, fall: 1 });
-    if (yours && enlisted) kia(ctx, f.x + 10);
+    if (yours && enlisted) kia(ctx, f.x - 30, TRENCH_FLOOR + 36);
   }
 }
 
