@@ -1,7 +1,4 @@
-/**
- * Motion toolkit: exact damped springs, easing, deterministic noise and a seeded generator. Everything
- * is frame-rate independent: pass the real `dt` in seconds.
- */
+/** Motion toolkit: exact damped springs, easing, deterministic noise and a seeded generator. Everything */
 
 export const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
 export const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -25,10 +22,7 @@ export interface Spring {
 
 export const spring = (x = 0): Spring => ({ x, v: 0 });
 
-/**
- * Moves a damped spring toward `target` by `dt` seconds with the closed-form solution of the oscillator, exact
- * for any step. `omega` is the angular frequency in rad/s; `zeta` the damping ratio (below 1 overshoots and rings).
- */
+/** Moves a damped spring toward `target` by `dt` seconds with the closed-form solution of the oscillator, exact */
 export function stepSpring(s: Spring, target: number, omega: number, zeta: number, dt: number): Spring {
   if (dt <= 0) return s;
   const x0 = s.x - target;

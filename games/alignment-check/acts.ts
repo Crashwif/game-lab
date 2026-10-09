@@ -1,10 +1,5 @@
-/**
- * Elapsed-time presentation acts in Family Meeting's actAt shape (nothing here reads the outcome): 32 s a pigeon lands
- * on the heavy, 52 s a drone lowers a bubble tea, 75 s the pizza guy, 100 s the radio crackles, 125 s the lieutenant
- * sits, 145 s his headband blows off; from 170 s stages 1..6 recur every 24 s with the effort dip.
- */
+/** Elapsed-time presentation acts; nothing here reads the outcome. */
 import { mix, smoothstep } from './motion';
-
 const STARTS = [0, 32, 52, 75, 100, 125, 145] as const;
 const LINES = ['Simple question.', 'A pigeon lands on the heavy', 'A drone delivers a bubble tea', 'The pizza guy finds the roof', 'HQ crackles, nobody answers', 'The lieutenant takes a seat', 'The headband blows off'];
 export function actAt(elapsed: number, reduced = false) {
@@ -23,12 +18,10 @@ export function actAt(elapsed: number, reduced = false) {
 export type Act = ReturnType<typeof actAt>;
 /** World px anchors; the suspect's head and hand when known. */
 export interface ActAnchors { heavyHead: { x: number; y: number }; leadX: number; time: number; suspectHead?: { x: number; y: number } | null; suspectHand?: { x: number; y: number } | null }
-
 const INK = '#202432';
 const SKIN = '#f1c9a5';
 const BAND = '#2f8f3a';
 const TAU = Math.PI * 2;
-
 /** World-space act props, drawn after the rigs; nothing is written on any of them. */
 export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): void {
   if (!a.stage) return;
@@ -52,7 +45,6 @@ export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): vo
     for (let i = 0; i < 4; i++) dot(x - 4 + i * 2.6, y + 18 - (i % 2) * 2.5, 1.5, '#3a2a2a');
     box(x - 9, y - 3, 18, 4, '#d8c9b4', 1);
   };
-
   // 1+: the pigeon on the heavy's head.
   if (a.stage >= 1) {
     let away = 0;
@@ -173,7 +165,7 @@ export function drawAct(c: CanvasRenderingContext2D, a: Act, at: ActAnchors): vo
     box(-27, -55, 43, 7, '#7a7e88', 2);
     c.restore();
   }
-  // 6: the headband blows off, is caught and retied (the rig hides its own for 3 s). Plain green.
+  // 6: the headband blows off, is caught and retied (the rig hides its own for 3 s).
   if (a.stage === 6 && age < 3) {
     const hx = at.leadX + 2;
     const hy = 275;
