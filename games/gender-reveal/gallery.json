@@ -1,10 +1,10 @@
 {
   "name": "Gender Reveal",
   "hook": "Either way, WAGMI",
-  "tagline": "A backyard reveal party for a token launch: a grandmother general runs the programme with a clipboard and a walkie-talkie, the cake front-runs the colour, a piñata nobody claims ticks in morse, and the family group chat scrolls the round multiplier on the garage door. Cash out for the last slice of cake, or stay for the reveal box, which has never once contained a baby.",
+  "tagline": "A backyard reveal party for a token launch: Destiny's mother Sheila runs the programme by megaphone and clipboard, the cake front-runs the colour, a piñata nobody claims ticks faster as the round gets older, two grandmothers hold one plate hostage, and the family group chat on the garage door decays into question marks. Cash out and your plus-one leaves through the side gate with the last slice; stay for the reveal box, which holds a phone, a fog machine and receipts for everyone.",
   "tags": ["Cake front-running", "Unclaimed piñata", "Dev over the fence"],
   "renderer": "Canvas 2D",
   "licence": "open",
   "royaltyBps": 0,
-  "poster": { "seconds": 34 }
+  "poster": { "seconds": 41 }
 }
