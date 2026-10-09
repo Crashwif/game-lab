@@ -8,7 +8,7 @@ import { directionAt, multiplierLabel } from '../../games/know-your-clown/direct
 
 let compiledScene;
 
-async function sceneHarness(options = {}) {
+async function sceneHarness() {
   compiledScene ??= build({
     entryPoints: [fileURLToPath(new URL('../../games/know-your-clown/scene.ts', import.meta.url))],
     bundle: true,
@@ -35,7 +35,7 @@ async function sceneHarness(options = {}) {
     },
   };
   runInNewContext((await compiledScene).outputFiles[0].text, context);
-  const scene = context.KycScene.createScene(options);
+  const scene = context.KycScene.createScene();
   const gradient = () => ({ addColorStop() {} });
   const canvas = new Proxy({
     canvas: { width: 960, height: 540 },
@@ -197,15 +197,5 @@ test('the next KYC betting phase clears an accepted exit before an instant crash
   assert.match(crashed, /CLAIM REJECTED/);
   assert.match(crashed, /IDENTITY EXPORTED/);
   assert.doesNotMatch(crashed, /PRIVACY INTACT|CLAIM ABANDONED|CASHED OUT/);
-  assert.deepEqual(game.events, [{ type: 'crash', name: 'slam', quiet: false }]);
-});
-
-test('reduced-motion KYC crashes present the packed aftermath immediately', async () => {
-  const game = await sceneHarness({ reducedMotion: true });
-  game.draw({ phase: 'running', elapsed: 150_000 }, 1_000);
-  const crashed = game.draw({ phase: 'crashed', elapsed: 150_000, crashAge: 0 }, 1_016);
-  assert.match(crashed, /HANDLE WITHOUT CARE/);
-  assert.match(crashed, /\bSOLD\b/);
-  assert.match(crashed, /CLAIM REJECTED/);
   assert.deepEqual(game.events, [{ type: 'crash', name: 'slam', quiet: false }]);
 });

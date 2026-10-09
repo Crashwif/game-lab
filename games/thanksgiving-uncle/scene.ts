@@ -67,10 +67,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions {
-  /** Drops the shake, the head jitter, the flashing lights, the hit-stop and the camera punch. */
-  reducedMotion?: boolean;
-}
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 type Outcome = 'rekt' | 'called' | 'spectator';
@@ -103,9 +99,9 @@ function captionFor(view: SceneView, room: Room, outcome: Outcome | null, secure
   return room.caption || 'PASS THE GRAVY';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("THANKSGIVING UNCLE", [175, 140, 620, 395], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Dad's dinner playlist, warm and dusty, which tightens with the multiplier; the crash is a boom.
   const audio = pageAudio({ style: 'lofi', crash: 'boom' });
   const room: Room = createRoom();
@@ -179,7 +175,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       return;
     }
     shake = 1;
-    if (!reduced) {
+    {
       // Freeze on the impact with the camera punched in, hold it, then the debris flies slow.
       freeze = FREEZE_S;
       slow = SLOW_S;
@@ -205,7 +201,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // 1 − 1/x: 0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×, 0.9 at 10×, so the 1×–3× window escalates. Nothing lowers it.
     const tension = 1 - 1 / multiplier;
     const running = view.phase === 'running';
@@ -251,7 +247,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
 
-    stepRoom(room, { running, multiplier, tension, time, reduced }, dt);
+    stepRoom(room, { running, multiplier, tension, time }, dt);
     if (secured && running && !room.crashed) {
       // The round keeps pumping after grace: a regret ladder, muttered with heads down.
       const past = view.currentX100 / secured.x100;
@@ -265,8 +261,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const wrecked = room.crashed && !room.harmless;
     const newest = room.bubbles.at(-1);
     const said = (who: Who): number => room.bubbles.reduce((age, b) => (b.who === who ? Math.min(age, b.age) : age), 9);
-    const fev = stepFamily(family, { running, tension, time, reduced, rickLine: rickLine && !room.crashed, grace: secured !== null, wrecked, filming: room.filming, talker: newest?.who ?? null, talkAge: newest?.age ?? 9, said }, dt);
-    stepGran(gran, secured !== null, dt, reduced);
+    const fev = stepFamily(family, { running, tension, time, rickLine: rickLine && !room.crashed, grace: secured !== null, wrecked, filming: room.filming, talker: newest?.who ?? null, talkAge: newest?.age ?? 9, said }, dt);
+    stepGran(gran, secured !== null, dt);
     const speaking = room.bubbles.some((b) => b.who === 'rick' && b.age < 1.6);
     stepRick(rick, { speaking, tension, time }, dt);
     if (!fresh && !muted) {
@@ -312,30 +308,30 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
 
     ctx.save();
-    const rumble = running && !reduced && !room.crashed && !secured ? room.truck.agitation * room.truck.agitation * 1.5 : 0;
-    if (!reduced && (shake > 0 || rumble > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + rumble), Math.cos(time * 70) * 5 * shake);
-    if (!reduced && punch.x > 0.005) {
+    const rumble = running && !room.crashed && !secured ? room.truck.agitation * room.truck.agitation * 1.5 : 0;
+    if ((shake > 0 || rumble > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + rumble), Math.cos(time * 70) * 5 * shake);
+    if (punch.x > 0.005) {
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
       ctx.scale(k, k);
       ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
     }
-    drawRoom(ctx, room, time, reduced);
+    drawRoom(ctx, room, time);
     for (const r of family) drawChairBack(ctx, r.x);
-    for (const r of family) drawRelative(ctx, r, time, reduced);
+    for (const r of family) drawRelative(ctx, r, time);
     drawGran(ctx, gran, time);
     drawTable(ctx, room, time);
     drawAct(ctx, act, actFade);
-    drawTruckInRoom(ctx, room, time, reduced);
+    drawTruckInRoom(ctx, room, time);
     ctx.save();
     const pull = room.rug.x;
     if (pull > 0.001) {
       // Rick and his chair ride the rug toward the truck, rocking on its yank.
       ctx.translate(RICK_X + 50 * pull, RICK_FEET);
-      if (!reduced) ctx.rotate(clamp(-0.03 * room.rug.v, -0.18, 0.18));
+      ctx.rotate(clamp(-0.03 * room.rug.v, -0.18, 0.18));
       ctx.translate(-RICK_X, -RICK_FEET);
     }
-    drawRick(ctx, rick, time, reduced);
+    drawRick(ctx, rick, time);
     drawRickChair(ctx);
     ctx.restore();
     if (!isPortrait(ctx.canvas)) drawBubbles(ctx, room);

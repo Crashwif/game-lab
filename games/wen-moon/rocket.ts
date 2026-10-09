@@ -13,7 +13,7 @@ export function createPod(alt: number, wobble: number, climb: number, angularVel
   const angle = spring(wobble); angle.v = angularVelocity;
   return { x: 159 * Math.sin(wobble), h: alt + 159 * Math.cos(wobble), vx: -170 + 159 * Math.cos(wobble) * angularVelocity, vy: climb + 60 - 159 * Math.sin(wobble) * angularVelocity, chute: spring(0), age: 0, angle };
 }
-export function stepPod(p: Pod, dt: number, reduced: boolean): void {
+export function stepPod(p: Pod, dt: number): void {
   const steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps;
   for (let i = 0; i < steps; i++) {
     p.age += h; stepSpring(p.chute, p.age > 0.55 ? 1 : 0, 10, 0.75, h);
@@ -22,7 +22,7 @@ export function stepPod(p: Pod, dt: number, reduced: boolean): void {
     p.vy += (-gravity + (-55 - p.vy) * drag) * h;
     p.vx *= Math.exp(-(0.3 + open * 1.2) * h);
     p.x += p.vx * h; p.h += p.vy * h;
-    stepSpring(p.angle, -p.vx * 0.0015 * open * (reduced ? 0.25 : 1), 5, 0.55, h);
+    stepSpring(p.angle, -p.vx * 0.0015 * open * (1), 5, 0.55, h);
   }
 }
 export function podRig(open: number) {
@@ -55,7 +55,7 @@ export function shape(ctx: CanvasRenderingContext2D, points: number[][], fill: s
 const STARS = Array.from({ length: 60 }, (_, i) => ({ x: noise(i * 3.1) * 960, y: noise(i * 7.7) * 420, r: 0.6 + noise(i * 1.3) * 1.4, k: 1 + noise(i * 5.9) * 3 }));
 const CLOUDS = Array.from({ length: 9 }, (_, i) => ({ x: 60 + noise(i * 2.3) * 840, h: 140 + i * 105 + noise(i) * 60, w: 60 + noise(i * 4.7) * 90 }));
 
-export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, time: number, reduced: boolean, frameY = 0): void {
+export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, time: number, frameY = 0): void {
   const { scroll } = camera(alt);
   const space = smoothstep(250, 1500, alt);
   const sky = ctx.createLinearGradient(0, -frameY, 0, 540 - frameY);
@@ -64,14 +64,14 @@ export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, time: numb
   ctx.fillStyle = sky;
   ctx.fillRect(0, -frameY, 960, 540);
   for (const [i, s] of STARS.entries()) {
-    ctx.globalAlpha = space * (reduced ? 0.8 : 0.7 + 0.3 * Math.sin(time * s.k + i));
+    ctx.globalAlpha = space * (0.7 + 0.3 * Math.sin(time * s.k + i));
     disc(ctx, s.x, (s.y + scroll * 0.02) % 540, s.r, '#ffffff');
   }
   ctx.globalAlpha = 1;
   // Satellites from 16×, debris fields from 32×; both leave with the camera.
   if (alt > 2080) {
-    const lift = Math.min(0, alt - 2600), pass = reduced ? 0.25 : (time % 18) / 18;
-    ctx.save(); ctx.translate(-100 + pass * 1160, 330 + lift + Math.sin(pass * Math.PI * 2) * 80); ctx.rotate(reduced ? 0.2 : time * 0.25);
+    const lift = Math.min(0, alt - 2600), pass = (time % 18) / 18;
+    ctx.save(); ctx.translate(-100 + pass * 1160, 330 + lift + Math.sin(pass * Math.PI * 2) * 80); ctx.rotate(time * 0.25);
     ctx.fillStyle = '#477bac'; ctx.fillRect(-66, -16, 48, 32); ctx.fillRect(18, -16, 48, 32);
     ctx.strokeStyle = '#92c7f5'; ctx.lineWidth = 2;
     for (const x of [-66, -50, -34, 18, 34, 50]) ctx.strokeRect(x, -16, 16, 32);
@@ -82,7 +82,7 @@ export function drawWorld(ctx: CanvasRenderingContext2D, alt: number, time: numb
     for (let i = 0; i < 4; i++) {
       const x = 480 + side * (200 + Math.sin(run * Math.PI) * 110) + i * 36;
       const y = lift - 60 - i * 55 + run * 840;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(reduced ? 0.3 : time * 0.3 + i);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(time * 0.3 + i);
       ctx.fillStyle = cycle % 3 === 0 ? '#8490a5' : '#516f9f';
       ctx.fillRect(-12 - i * 2, -6, 24 + i * 4, 13); ctx.restore();
     }

@@ -43,11 +43,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the hit-stop and the punch-in; the clock flicker is left as a steady colon. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -105,9 +100,9 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'SHE BROUGHT KYLE';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("WIFE CHANGING MONEY", [260, 240, 460, 270], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   // Lo-fi beats to lose the house to. The crash is the slam of her hand on the table.
   const audio = pageAudio({ style: 'lofi', crash: 'slam' });
   const kitchen: Kitchen = createKitchen();
@@ -153,7 +148,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     pop.v = 16;
     if (harmless) {
       // He is already upstairs: she checks the kitchen and goes back up. A soft beat, no slam.
-      shake = reduced ? 0 : 0.2;
+      shake = 0.2;
       audio.crash('thud');
       return;
     }
@@ -161,7 +156,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     joltTrader(trader);
     punch.v = 10;
     punchHold = PUNCH_HOLD_S;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
     }
@@ -180,9 +175,9 @@ export function createScene(options: SceneOptions = {}): Scene {
       slow -= real;
       dt = real * SLOW_RATE;
     }
-    time += reduced ? dt * 0.25 : dt;
+    time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // 1-1/x sweeps the 1x-3x window that most rounds live in (0.33 at 1.5x, 0.5 at 2x, 0.67 at 3x). The acts never
     // lower it; long rounds keep changing through the acts, the overtime texts and her peeks.
     const tension = 1 - 1 / multiplier;
@@ -235,11 +230,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (secured && running && !kitchen.crashed && trader.mode === 'hunch') holdMeter(kitchen);
 
     const listening = running && secured === null && act.stage > 0 && act.effort < .6;
-    stepTrader(trader, { running, fear, leaving: secured !== null, time, listening, hurry: kitchen.crashed, pace: reduced ? 0.25 : 1 }, dt);
+    stepTrader(trader, { running, fear, leaving: secured !== null, time, listening, hurry: kitchen.crashed }, dt);
     if (fresh) trader.hush = listening || trader.mode === 'caught' ? 1 : 0;
-    stepKitchen(kitchen, { running, multiplier, fear, time, traderGone: trader.mode !== 'hunch' && trader.mode !== 'caught', reduced, traderUp: trader.mode === 'upstairs' }, dt);
+    stepKitchen(kitchen, { running, multiplier, fear, time, traderGone: trader.mode !== 'hunch' && trader.mode !== 'caught', traderUp: trader.mode === 'upstairs' }, dt);
     const ev = kitchen.events;
-    if (ev.thump && !reduced) shake = Math.max(shake, 0.28);
+    if (ev.thump) shake = Math.max(shake, 0.28);
     // He reacts at the desk: a look down at her texts, a jump and a glance at the stairs on a thump, the elbow on the mug.
     if (ev.her) cueTrader(trader, 'text');
     if (ev.thump) cueTrader(trader, ev.flicker ? 'flicker' : 'thump');
@@ -287,8 +282,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     cut = Math.max(0, cut - real / 0.35);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 8 * shake, Math.cos(time * 70) * 5 * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 90) * 8 * shake, Math.cos(time * 70) * 5 * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the man caught at the laptop, holds, and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
@@ -296,7 +291,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
     }
     const glow = trader.lid.x > 0.8 ? 'off' : kitchen.chartDead ? 'red' : 'green';
-    drawRoom(ctx, kitchen, reduced ? 0 : time);
+    drawRoom(ctx, kitchen, time);
     drawSuitcase(ctx, kitchen);
     drawLaptop(ctx, kitchen, trader.lid.x, time, fear);
     drawTrader(ctx, trader, glow, time, fear);

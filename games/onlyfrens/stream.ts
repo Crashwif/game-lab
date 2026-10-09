@@ -142,7 +142,7 @@ export function endStream(s: Stream, seed: number, quiet: boolean): void {
 }
 
 export interface StreamDrive {
-  running: boolean; tension: number; multiplier: number; reduced: boolean;
+  running: boolean; tension: number; multiplier: number;
   /** Seconds the round has been running: the handle fake-outs are keyed to it, never to the outcome. */
   elapsed?: number;
   /** Seconds since the latest knock (the one at 6 s, or an act's), negative before it. */
@@ -160,11 +160,11 @@ const tryHandle = (t: number): number => t < 0 || t > .5 ? 0 : smoothstep(0, .08
 /** Two knuckle raps, each a damped sideways jolt of the door. */
 const knockAt = (t: number): number => RAPS.reduce((sum, at) => t < at || t > at + .6 ? sum : sum + Math.exp(-(t - at) * 16) * Math.sin((t - at) * 70), 0);
 /** Her idle: two incommensurate sways, so it never reads as one metronome. */
-const queenSway = (s: Stream, reduced: boolean): number => reduced ? 0 : Math.sin(s.time * 1.4) * 4 + Math.sin(s.time * .53 + 1) * 1.5;
+const queenSway = (s: Stream): number => Math.sin(s.time * 1.4) * 4 + Math.sin(s.time * .53 + 1) * 1.5;
 
 export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
-  s.hold = s.ended && !drive.reduced && s.endAge > 0.72 && s.endAge < 0.9;
+  s.hold = s.ended && s.endAge > 0.72 && s.endAge < 0.9;
   const sdt = s.hold ? 0 : dt;
   const previousTime = s.time;
   s.time += sdt;
@@ -193,9 +193,9 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   // She flinches at a knock (only as it lands, not on a late frame) and looks round at the door.
   if ((s.knockAge < 0 || s.knockAge > knockAge) && knockAge >= 0 && knockAge < 0.1) s.shock.v += 6;
   s.knockAge = knockAge;
-  s.knock = drive.reduced ? 0 : 2.6 * knockAt(knockAge);
-  // Anticipation: the door rattles in its frame while the handle works, from about 2.5×, harder through long rounds. Not under reduced motion.
-  s.rattle = live && !drive.reduced ? Math.sin(s.time * 38) * 2.2 * smoothstep(.5, .7, tension) * clamp(s.handle.x, 0, 1) * (1 + .6 * deep) : 0;
+  s.knock = 2.6 * knockAt(knockAge);
+  // Anticipation: the door rattles in its frame while the handle works, from about 2.5×, harder through long rounds.
+  s.rattle = live ? Math.sin(s.time * 38) * 2.2 * smoothstep(.5, .7, tension) * clamp(s.handle.x, 0, 1) * (1 + .6 * deep) : 0;
   stepSpring(s.shadow, live ? shadowAt(tension, deep) : 0, 3, 0.9, sdt);
   s.shiftPhase += sdt * (.6 + .8 * deep);
   // Her eyes flick to the door from about 1.3×, oftener as it climbs, and whenever the handle moves.
@@ -205,8 +205,8 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
   stepSpring(s.glance, s.ended ? 1 : Math.max(glanceOn, heard, drive.attention ?? 0, live ? clamp(s.handle.x * 1.6, 0, 1) : 0), 8, 0.8, sdt);
   // She leans in toward the camera as the number climbs; her head follows the sway and the bounce a beat late.
   stepSpring(s.lean, live ? tension : 0, 3, 0.9, sdt);
-  stepSpring(s.headX, queenSway(s, drive.reduced), 6, 0.5, sdt);
-  stepSpring(s.headY, drive.reduced ? 0 : -clamp(s.bounce.x, -1, 1.5) * 12, 6, 0.5, sdt);
+  stepSpring(s.headX, queenSway(s), 6, 0.5, sdt);
+  stepSpring(s.headY, -clamp(s.bounce.x, -1, 1.5) * 12, 6, 0.5, sdt);
   const blinking = s.time > s.blinkAt && s.time < s.blinkAt + 0.12;
   if (s.time >= s.blinkAt + 0.12) s.blinkAt = s.time + 2 + 3 * noise(s.blinkAt);
   stepSpring(s.eyeOpen, blinking ? 0.08 : s.kiss.x > 0.4 ? 0.2 : 1, 24, 0.9, sdt);
@@ -214,7 +214,7 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
     s.endAge += dt;
     stepSpring(s.boyfriendX, BF_AT, 4, 0.9, sdt);
     stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, sdt);
-  } else if (drive.running && !drive.reduced && tension > .2) {
+  } else if (drive.running && tension > .2) {
     for (let tick = Math.floor(previousTime * 8 + 1e-9) + 1; tick <= Math.floor((s.time + 1e-9) * 8); tick++) {
       if (noise(tick) <= .7 - .3 * tension || s.hearts.length >= 40) continue;
       const born = tick / 8;
@@ -227,8 +227,8 @@ export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
 }
 
 /** The push-in on the doorway as he walks through, held through the freeze frame; the cut to static ends it. */
-export function revealZoom(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): void {
-  if (!s.ended || reduced || s.endAge >= 0.9) return;
+export function revealZoom(ctx: CanvasRenderingContext2D, s: Stream): void {
+  if (!s.ended || s.endAge >= 0.9) return;
   const k = 1 + 0.1 * smoothstep(0.05, 0.45, s.endAge);
   ctx.translate(DOOR.x + DOOR.w / 2, 230); ctx.scale(k, k); ctx.translate(-(DOOR.x + DOOR.w / 2), -230);
 }
@@ -313,12 +313,12 @@ function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, 
 }
 
 /** Gigachad in the doorway, carrying the bag. */
-function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, speed: number, reduced: boolean): void {
+function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, speed: number): void {
   ctx.save();
   ctx.translate(x, footY);
   ctx.scale(0.86, 0.86);
   ctx.lineJoin = 'round';
-  const weight = reduced ? 0 : clamp(Math.abs(speed) / 80, 0, 1);
+  const weight = clamp(Math.abs(speed) / 80, 0, 1);
   for (const side of [-1, 1]) {
     const step = stepFoot((BF_FROM - x) / .86, 72, side > 0 ? .5 : 0, 14);
     const hip = { x: side * 12, y: -80 };
@@ -353,7 +353,7 @@ function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, 
 }
 
 /** The door's frosted pane: the hallway light behind it, and whoever is gathering on the other side. */
-function drawPane(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): void {
+function drawPane(ctx: CanvasRenderingContext2D, s: Stream): void {
   const pane = { x: DOOR.x + 16, y: DOOR.y + 20, w: DOOR.w - 32, h: 110 };
   ctx.save();
   ctx.fillStyle = '#8a7096';
@@ -366,7 +366,7 @@ function drawPane(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): v
   if (shadow > 0.02) {
     // Closer to the glass as it darkens; shifting his weight, and leaning toward the handle when he works it.
     const k = 0.8 + 0.3 * shadow;
-    const cx = pane.x + pane.w / 2 + (reduced ? 0 : Math.sin(s.shiftPhase) * 5) + 7 * clamp(s.handle.x, 0, 1);
+    const cx = pane.x + pane.w / 2 + (Math.sin(s.shiftPhase) * 5) + 7 * clamp(s.handle.x, 0, 1);
     const top = pane.y + 50 - 22 * k;
     for (let i = 2; i >= 0; i -= 1) {
       const blur = 1 + i * 0.07;
@@ -381,13 +381,13 @@ function drawPane(ctx: CanvasRenderingContext2D, s: Stream, reduced: boolean): v
 }
 
 /** The whole video feed, clipped to its frame. */
-export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean, multiplier: number): void {
+export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, multiplier: number): void {
   ctx.save();
   ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
   // Room: dark wall lit by LED strips that pulse with the hype, and flash green for an accepted exit.
-  const pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(s.ledPhase);
+  const pulse = 0.5 + 0.5 * Math.sin(s.ledPhase);
   ctx.save();
-  revealZoom(ctx, s, reduced);
+  revealZoom(ctx, s);
   ctx.fillStyle = '#2a1f3d';
   ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
   const led = ctx.createLinearGradient(0, 0, VIDEO.w, 0);
@@ -430,7 +430,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
     // He steps in from the hallway, so he shows only inside the doorway.
     ctx.save();
     ctx.beginPath(); ctx.rect(door.x, door.y, door.w, door.h); ctx.clip();
-    drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.boyfriendX.v, reduced);
+    drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.boyfriendX.v);
     ctx.restore();
     // The leaf swings on its hinge from its full width, so the first frame of the reveal does not jump. Its pane, its
     // panel and its handle go round with it, foreshortened: `on` maps a point of the closed door onto the leaf.
@@ -447,7 +447,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
     for (const [width, colour] of [[9, INK], [5, '#ffe27a']] as const) { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(...on(door.w - 20, 150)); ctx.lineTo(...on(door.w - 22 - 20 * Math.cos(turn), 150 + 20 * Math.sin(turn))); ctx.stroke(); }
   } else {
     ctx.beginPath(); ctx.roundRect(door.x, door.y, door.w, door.h, 3); ctx.fill(); ctx.stroke();
-    drawPane(ctx, s, reduced);
+    drawPane(ctx, s);
     ctx.strokeStyle = 'rgba(28, 31, 38, 0.4)'; ctx.lineWidth = 2;
     ctx.strokeRect(door.x + 16, door.y + 160, door.w - 32, 110);
     // The handle, on the latch side: pressed down as it turns.
@@ -493,7 +493,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
   ctx.beginPath(); ctx.arc(80, 300, 44, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = INK; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(80, 344); ctx.lineTo(80, 440); ctx.stroke();
-  drawQueen(ctx, s, tension, reduced);
+  drawQueen(ctx, s, tension);
   for (const h of s.hearts) { ctx.globalAlpha = 1 - h.age / h.life; heart(ctx, h.x, h.y, h.size, '#ff4d6d'); }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -504,7 +504,7 @@ export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: nu
       ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
     }
     const k = smoothstep(0.9, 1.6, s.endAge);
-    if (s.endAge > 0.9 && s.endAge < 1.6 && !reduced) {
+    if (s.endAge > 0.9 && s.endAge < 1.6) {
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       for (let i = 0; i < 400; i += 1) { const n = i * 7.1 + Math.floor(s.time * 30); ctx.fillRect(noise(n) * VIDEO.w, noise(n * 1.3) * VIDEO.h, 3, 2); }
@@ -546,13 +546,13 @@ function sleeve(ctx: CanvasRenderingContext2D, a: Point, b: Point, side: number,
 }
 
 /** The queen at her desk: hoodie, cat ears, big eyes, the wave and the kiss, the glance at the door. */
-function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number, reduced: boolean): void {
-  const bounce = reduced ? 0 : clamp(s.bounce.x, -1, 1.5);
-  const sway = queenSway(s, reduced);
+function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): void {
+  const bounce = clamp(s.bounce.x, -1, 1.5);
+  const sway = queenSway(s);
   const shock = clamp(s.shock.x, 0, 1);
   // Leaning in toward the camera (lower and a touch bigger), breathing, with her hands kept planted on the desk.
   const lean = clamp(s.lean.x, 0, 1);
-  const breath = reduced ? 0 : Math.sin(s.time * 1.1);
+  const breath = Math.sin(s.time * 1.1);
   const kx = (1 + 0.06 * lean) * (1 + 0.005 * breath), ky = (1 + 0.06 * lean) * (1 + 0.015 * breath);
   const base = 372 - bounce * 12 + 12 * lean;
   ctx.save();

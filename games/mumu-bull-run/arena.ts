@@ -4,14 +4,14 @@ import { bear } from './rig';
 
 const SPONSORS = ['TRUST ME BRO RESEARCH', 'BEARS HAVE A PODCAST NOW', 'MY THESIS IS STILL VALID', 'COPIUM IS A LIFESTYLE', 'ALL OPINIONS. NO REFUNDS.'];
 /** `roar` lifts the crowd to its feet after each contact; the big board keeps the running score. */
-export function arena(c: CanvasRenderingContext2D, time: number, lap: number, reduced: boolean, roar = 0, sign = 'MUMU BULL RUN'): void {
+export function arena(c: CanvasRenderingContext2D, time: number, lap: number, roar = 0, sign = 'MUMU BULL RUN'): void {
   const gradient = c.createLinearGradient(0, 0, 0, 540);
   gradient.addColorStop(0, '#11291f'); gradient.addColorStop(0.58, '#306b48'); gradient.addColorStop(1, '#b2ad64');
   c.fillStyle = gradient; c.fillRect(-15, -15, 990, 570);
   c.save(); c.globalAlpha = 0.22;
   for (let i = 0; i < 7; i += 1) {
     const pivot = i * 175 - 50;
-    const sway = reduced ? 0 : Math.sin(time * 0.29 + i) * 83;
+    const sway = Math.sin(time * 0.29 + i) * 83;
     poly(c, [[pivot, 9], [pivot + sway - 130, 330], [pivot + sway + 130, 330]], i % 2 ? '#a8ff9a' : '#ffe990', 0);
   }
   c.restore();
@@ -21,7 +21,7 @@ export function arena(c: CanvasRenderingContext2D, time: number, lap: number, re
     const y = 160 + row * 43;
     for (let i = 0; i < 29; i += 1) {
       const x = i * 36 + row * 14 - 36;
-      const cheer = reduced ? (i % 3 === 0 ? 1 : 0) : clamp(0.5 + 0.5 * Math.sin(time * (2.6 + i % 3 * 0.4) + i * 1.4) + roar * 0.8);
+      const cheer = clamp(0.5 + 0.5 * Math.sin(time * (2.6 + i % 3 * 0.4) + i * 1.4) + roar * 0.8);
       const cy = y + Math.abs(i - 14) * 1.5 - cheer * 7 - roar * (8 + i % 3 * 5);
       const skin = [CREAM, '#bb945f', '#84b383', '#ad9abb'][i % 4]!;
       line(c, [[x - 7, cy + 18], [x - 15, cy + 10 - cheer * 16], [x - 19, cy + 3 - cheer * 23]], skin, 4);
@@ -51,14 +51,14 @@ export function arena(c: CanvasRenderingContext2D, time: number, lap: number, re
   }
 }
 
-export function track(c: CanvasRenderingContext2D, time: number, crashed: boolean, age: number, reduced: boolean): void {
+export function track(c: CanvasRenderingContext2D, time: number, crashed: boolean, age: number): void {
   const size = 180;
-  const scroll = reduced ? 0 : (time * 252) % size;
+  const scroll = (time * 252) % size;
   for (let i = -1; i < 7; i += 1) {
     const x = i * size - scroll;
     const y = floorAt(x);
     const nearTrap = Math.abs(x + size / 2 - 403) < 280;
-    const fall = crashed && nearTrap ? reduced ? 1 : ease((age - 0.18 - Math.abs(x - 360) * 0.0005) / 0.8) : 0;
+    const fall = crashed && nearTrap ? ease((age - 0.18 - Math.abs(x - 360) * 0.0005) / 0.8) : 0;
     c.save(); c.translate(x, y);
     c.translate(0, fall * 115); c.rotate(fall * (i % 2 ? 0.55 : -0.65));
     poly(c, [[-2, 0], [size + 2, -size * 0.047], [size + 2, 43], [-2, 53]], '#264d36', 4);
@@ -69,7 +69,7 @@ export function track(c: CanvasRenderingContext2D, time: number, crashed: boolea
     c.restore();
   }
   if (crashed) {
-    const open = reduced ? 1 : ease((age - 0.18) / 0.55);
+    const open = ease((age - 0.18) / 0.55);
     oval(c, 410, 469, 145 * open, 30 * open, '#10140f', 5);
     if (open > 0.8) { text(c, 'TERMS UPDATED', 411, 473, 21, RED, 'center', 257); }
   }
@@ -84,9 +84,9 @@ export function dust(c: CanvasRenderingContext2D, time: number, x: number, y: nu
   c.globalAlpha = 1;
 }
 
-export function impact(c: CanvasRenderingContext2D, x: number, y: number, age: number, reduced: boolean, word = 'BONK!'): void {
+export function impact(c: CanvasRenderingContext2D, x: number, y: number, age: number, word = 'BONK!'): void {
   if (age < 0 || age > 0.58) return;
-  if (reduced) { text(c, word, x, y - 65, 41, GOLD, 'center', 230, true); return; }
+
   const u = clamp(age / 0.58);
   c.save(); c.globalAlpha = 1 - ease(u);
   c.translate(x, y - 63); c.rotate(-0.13); c.scale(0.7 + Math.sin(u * Math.PI) * 0.5, 0.7 + Math.sin(u * Math.PI) * 0.5);
@@ -95,9 +95,9 @@ export function impact(c: CanvasRenderingContext2D, x: number, y: number, age: n
   c.beginPath(); c.ellipse(x, y + 14, 23 + u * 145, 4 + u * 23, 0, 0, TAU); c.stroke(); c.restore();
 }
 
-export function crashStamp(c: CanvasRenderingContext2D, age: number, reduced: boolean): void {
-  const down = reduced ? 1 : ease(age / 0.29);
-  const rebound = reduced ? 0 : Math.sin(clamp((age - 0.29) / 0.66) * Math.PI) * 23 * Math.exp(-Math.max(0, age - 0.29));
+export function crashStamp(c: CanvasRenderingContext2D, age: number): void {
+  const down = ease(age / 0.29);
+  const rebound = Math.sin(clamp((age - 0.29) / 0.66) * Math.PI) * 23 * Math.exp(-Math.max(0, age - 0.29));
   const y = mix(-220, 386, down) - rebound;
   c.save(); c.translate(387, y); c.rotate(-0.065);
   box(c, -35, -286, 70, 210, '#94805b', 10, 5);
@@ -111,10 +111,10 @@ export function crashStamp(c: CanvasRenderingContext2D, age: number, reduced: bo
 }
 
 /** A support desk turns the wreck into a lasting scene, complete with hold music and paperwork. */
-export function supportDesk(c: CanvasRenderingContext2D, age: number, reduced: boolean, front: boolean): void {
-  const entry = reduced ? 1 : ease((age - 0.65) / 0.9);
+export function supportDesk(c: CanvasRenderingContext2D, age: number, front: boolean): void {
+  const entry = ease((age - 0.65) / 0.9);
   const x = mix(1110, 701, entry), y = 466;
-  const time = reduced ? 0 : age;
+  const time = age;
   if (!front) {
     box(c, x - 146, 238, 290, 243, '#7e8375', 7, 5);
     box(c, x - 136, 251, 270, 171, '#c2ba95', 2, 3);
@@ -134,18 +134,18 @@ export function supportDesk(c: CanvasRenderingContext2D, age: number, reduced: b
   c.save(); c.translate(x + 95, 390); c.rotate(Math.sin(time * 15) * 0.045);
   box(c, -22, -8, 44, 11, INK, 5, 2); c.restore();
   for (let i = 0; i < 4; i += 1) {
-    const u = reduced ? i / 4 : frac(age * 0.14 + i / 4);
+    const u = frac(age * 0.14 + i / 4);
     c.save(); c.translate(x - 133 + u * 17, 410 + u * 80); c.rotate(u * 0.2);
     box(c, -15, -6, 30, 42, CREAM, 0, 1); line(c, [[-9, 2], [9, 2], [-9, 9], [7, 9]], '#657464', 1); c.restore();
   }
 }
 
-export function parade(c: CanvasRenderingContext2D, time: number, progress: number, reduced: boolean, front: boolean): void {
+export function parade(c: CanvasRenderingContext2D, time: number, progress: number, front: boolean): void {
   const x = mix(1100, 750, ease(progress));
-  const bob = reduced ? 0 : Math.sin(time * 7) * 4;
+  const bob = Math.sin(time * 7) * 4;
   if (!front) {
     for (const [bx, offset] of [[x - 93, 0], [x + 74, 2]] as const) {
-      bear(c, { x: bx, y: 496, scale: 0.58, time: reduced ? 0 : time + offset, panic: reduced ? 0 : 0.45, gesture: 1, suit: '#607396' });
+      bear(c, { x: bx, y: 496, scale: 0.58, time: time + offset, panic: 0.45, gesture: 1, suit: '#607396' });
     }
     box(c, x - 140, 403 + bob, 261, 30, GOLD, 7, 4);
     poly(c, [[x - 124, 405 + bob], [x - 116, 343 + bob], [x - 84, 369 + bob], [x - 53, 338 + bob], [x - 38, 405 + bob]], '#b89b44', 4);
@@ -153,7 +153,7 @@ export function parade(c: CanvasRenderingContext2D, time: number, progress: numb
   }
   box(c, x - 143, 420 + bob, 267, 49, '#163728', 6, 4);
   text(c, 'LEFT THE CHAT', x - 10, 445 + bob, 31, GREEN, 'center', 245);
-  if (!reduced && progress >= 1) {
+  if (progress >= 1) {
     for (let i = 0; i < 18; i += 1) {
       const u = frac(time * 0.29 + i / 18);
       const cx = x - 146 + grain(i + 33) * 276 + Math.sin(time * 2 + i) * 18;

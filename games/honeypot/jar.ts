@@ -129,8 +129,8 @@ export function settleJar(j: JarState, multiplier: number, tension: number): voi
   j.band = Math.floor(honeyLevel(multiplier) * 10);
 }
 
-/** `reduced` holds the lid still at a tilt that follows the tension and slows the drips. */
-export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; reduced: boolean; }
+/** The lid tilts with tension while the honey drips. */
+export interface JarDrive { running: boolean; multiplier: number; tension: number; pulling: boolean; pawX: number; pawY: number; }
 
 export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
   j.events = { glug: false, seated: false, tax: false, jolt: false };
@@ -151,7 +151,7 @@ export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
   const jolts = lidJolts(drive.multiplier);
   if (drive.running && !j.crashed && jolts > j.jolts) {
     j.events.jolt = true;
-    if (!drive.reduced) {
+    {
       j.dip = 1;
       j.rush = 1;
       j.squash.v += 0.9;
@@ -161,8 +161,7 @@ export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
   j.dip *= Math.exp(-2.6 * dt);
   j.rush *= Math.exp(-3.5 * dt);
   // The lid is drawn turned by angle * (1 - shut), so the still tilt straightens as the crash screws it down.
-  if (drive.reduced) j.angle = drive.tension;
-  else {
+  {
     if (!j.crashed && drive.running) j.angle += dt * (0.5 + drive.tension * 7 + j.rush * 12);
     if (j.crashed) j.angle += dt * 14 * (1 - j.shut.x);
   }
@@ -175,7 +174,7 @@ export function stepJar(j: JarState, drive: JarDrive, dt: number): void {
     if (drive.running) j.events.tax = true;
   }
   j.taxFlash = Math.max(0, j.taxFlash - dt * 1.6);
-  j.drip += dt * (0.4 + drive.tension) * (drive.reduced ? 0.2 : 1);
+  j.drip += dt * (0.4 + drive.tension) * (1);
   if (drive.pulling) {
     j.strings.push({ x: drive.pawX, y: drive.pawY, life: 0.45, age: 0 });
     if (j.strings.length > 18) j.strings.shift();

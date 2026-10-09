@@ -26,11 +26,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the LED pulse, the door rattle, the freeze frame and the static. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -79,9 +74,9 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'WHOSE SHADOW IS THAT';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("ONLYFRENS", [110, 90, 435, 350], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   const audio = pageAudio({ style: 'synthwave', crash: 'static' });
   const stream: Stream = createStream();
   const chat: Chat = createChat();
@@ -142,7 +137,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     last = now;
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     // Tension sweeps the 1×–3× window where most rounds end (0.33 at 1.5×, 0.5 at 2×, 0.67 at 3×); `deep` keeps long
     // rounds changing after that. The act director never lowers either.
     const tension = 1 - 1 / multiplier;
@@ -199,14 +194,14 @@ export function createScene(options: SceneOptions = {}): Scene {
     audio.update(view.phase, tension);
 
     const reached = stepChat(chat, { running, multiplier, tension }, dt);
-    if (reached) { celebrate(stream, chat.goalIndex); if (!reduced) shake = Math.max(shake, 0.2); audio.fx('kaching', 0.8); }
+    if (reached) { celebrate(stream, chat.goalIndex); shake = Math.max(shake, 0.2); audio.fx('kaching', 0.8); }
     if (running) audio.milestone(GOALS.filter((g) => multiplier >= g).length);
     // Tips register, never more than a couple a second however fast the chat runs.
     if (running && chat.events.tip && time > tipSoundAt) { tipSoundAt = time + 0.45; audio.fx('notify', 0.45 + 0.3 * tension); }
     // Someone knocks at 6 s, and again as the knocking acts begin (the ones with knock marks by the door).
     const knockAge = act.stage === 1 || act.stage === 4 || act.stage === 6 ? act.age : view.elapsed / 1000 - 6;
     // Between acts she watches the door: `effort` drives her glance, never the tension.
-    stepStream(stream, { running, tension, multiplier, reduced, elapsed: view.elapsed / 1000, knockAge, deep, attention: act.stage > 0 ? smoothstep(0.75, 0.55, act.effort) : 0 }, dt);
+    stepStream(stream, { running, tension, multiplier, elapsed: view.elapsed / 1000, knockAge, deep, attention: act.stage > 0 ? smoothstep(0.75, 0.55, act.effort) : 0 }, dt);
     // Two raps, each heard once as it lands (never on a late or resumed frame); a thud's strength is its pitch, so 1.4 is knuckles on wood.
     if (running && !gap && !first) for (const at of RAPS) if (knockAge >= at && knockAge < at + 0.25 && (lastKnock < at || lastKnock > knockAge)) audio.fx('thud', 1.4);
     lastKnock = knockAge;
@@ -239,12 +234,12 @@ export function createScene(options: SceneOptions = {}): Scene {
 
     const viewers = Math.round(420 + 300 * (Math.pow(multiplier, 1.5) - 1));
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
-    drawStream(ctx, stream, tension, reduced, multiplier);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 6 * shake * shake, Math.cos(time * 117) * 4 * shake * shake);
+    drawStream(ctx, stream, tension, multiplier);
     if (actFade > 0.01) {
       ctx.save();
       ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
-      revealZoom(ctx, stream, reduced);
+      revealZoom(ctx, stream);
       drawAct(ctx, act, actFade);
       ctx.restore();
     }

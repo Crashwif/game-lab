@@ -91,7 +91,7 @@ export function snapWires(world: World): void {
   world.wires = 1;
 }
 
-export function stepWorld(world: World, multiplier: number, running: boolean, dt: number, reduced: boolean): void {
+export function stepWorld(world: World, multiplier: number, running: boolean, dt: number): void {
   world.events = [];
   const r = world.random;
   if (running) {
@@ -125,7 +125,7 @@ export function stepWorld(world: World, multiplier: number, running: boolean, dt
   if (world.glove.active && world.glove.age > 1.55 && world.glove.age - dt <= 1.55) world.push.v += 6;
   if (world.snapped) world.snapAge += dt;
   // Sweat from the moon's temple once it is sweating.
-  if (running && multiplier >= SWEAT_AT && !reduced && r() < dt * 3) world.sweat.push({ x: 0.3 + r() * 0.35, y: -0.42 - r() * 0.2, vy: 0, age: 0 });
+  if (running && multiplier >= SWEAT_AT && r() < dt * 3) world.sweat.push({ x: 0.3 + r() * 0.35, y: -0.42 - r() * 0.2, vy: 0, age: 0 });
   for (const drop of world.sweat) { drop.age += dt; drop.vy += dt * 0.5; drop.y += drop.vy * dt; }
   world.sweat = world.sweat.filter((d) => d.age < 2.2);
 }
@@ -305,11 +305,11 @@ export function drawCameraGags(world: World, r: Renderer, cam: Camera, time: num
 }
 
 /** The wires above the nose: a faint glint from 1.6×, plain by 4.2×; at the crash one snaps and both hang where the nose let go. */
-export function drawWires(world: World, r: Renderer, nose: Vec3, time: number, labels: Label[], reduced: boolean): void {
+export function drawWires(world: World, r: Renderer, nose: Vec3, time: number, labels: Label[]): void {
   if (world.wires <= 0.01) return;
   const m = r.meshes;
   let boxes = 0;
-  const glint = reduced ? 0.6 : 0.5 + 0.5 * Math.max(0, Math.sin(time * 2.6)) ** 6;
+  const glint = 0.5 + 0.5 * Math.max(0, Math.sin(time * 2.6)) ** 6;
   const tint: [number, number, number, number] = [0.92, 0.93, 0.98, world.wires * (0.55 + 0.45 * glint)];
   if (world.snapped) world.anchor ??= nose;
   const at = world.anchor ?? nose, t = world.snapAge;

@@ -56,18 +56,16 @@ export interface Sniper {
   fidgets: number;
   /** 0..1 long-round strain (10× to 1000×): a shakier hold. */
   strain: number;
-  /** Drops the bush shake and the tremble for reduced motion. */
-  reduced: boolean;
   /** The draw thresholds crossed this step (for a ratchet sound). */
   events: { notch: boolean; up: boolean };
   notches: number;
   rustles: number;
 }
 
-export function createSniper(reduced = false): Sniper {
+export function createSniper(): Sniper {
   return {
     rise: spring(0), draw: spring(0), snap: spring(0), aim: spring(Math.PI), rustle: spring(0), flight: -1, from: { ...CHEEK }, to: { ...CHEEK_WORLD },
-    fired: false, tongue: spring(0), time: 0, lurk: 1.2, fidgets: 0, strain: 0, reduced, events: { notch: false, up: false }, notches: 0, rustles: 0,
+    fired: false, tongue: spring(0), time: 0, lurk: 1.2, fidgets: 0, strain: 0, events: { notch: false, up: false }, notches: 0, rustles: 0,
   };
 }
 
@@ -207,7 +205,7 @@ function blob(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 }
 
 /** How far the leaves are pushed aside: a little for the back of the bush, more for the front. */
-const shake = (s: Sniper): number => (s.reduced ? 0 : 5 * s.rustle.x);
+const shake = (s: Sniper): number => (5 * s.rustle.x);
 
 /** The back of the bush: drawn before the intern. */
 export function drawBushBack(ctx: CanvasRenderingContext2D, s: Sniper): void {
@@ -237,7 +235,7 @@ function arm(ctx: CanvasRenderingContext2D, root: Point, end: Point, side: numbe
 export function drawSniper(ctx: CanvasRenderingContext2D, s: Sniper): void {
   const rise = clamp(s.rise.x, 0, 1.1);
   if (rise > 0.02) {
-    const tremble = s.fired || s.reduced ? 0 : s.draw.x * s.draw.x * (1 + 0.6 * s.strain);
+    const tremble = s.fired ? 0 : s.draw.x * s.draw.x * (1 + 0.6 * s.strain);
     const jx = (noise(Math.floor(s.time * 31)) - 0.5) * 5 * tremble;
     const jy = (noise(Math.floor(s.time * 29) + 7) - 0.5) * 4 * tremble;
     ctx.save();

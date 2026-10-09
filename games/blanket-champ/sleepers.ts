@@ -16,7 +16,7 @@ export interface SleeperPose {
   drive?: number;
   finished: boolean;
   rest: number;
-  /** 0..1: how hard the champ shakes near the top (already 0 under reduced motion). */
+  /** 0..1: how hard the champ shakes near the top. */
   tremble: number;
   multiplier: number;
   /** The partner: her phone (0 down, 1 up), an eye-roll envelope and what it is about, and a yawn. */

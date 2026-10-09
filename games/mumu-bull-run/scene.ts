@@ -15,7 +15,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(c: CanvasRenderingContext2D, view: SceneView, now: number): void }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 
@@ -35,8 +34,7 @@ function hud(c: CanvasRenderingContext2D, view: SceneView, r: Routine, caption: 
   text(c, caption, 480, 523, 27, view.cashoutX100 !== null ? GREEN : CREAM, 'center', 922);
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'phonk', bpm: 145, tempoRise: 0.12, crash: 'slam', music: 0.74 });
   let previousPhase: SceneView['phase'] | null = null;
   let previousElapsed = 0;
@@ -63,8 +61,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const idleTime = Math.max(0, (now - idleStarted) / 1000);
     if (reset) { exitAt = null; exitFrom = null; settledClockOffset = 0; lastStep = -1; previousCashout = null; }
     if (crashed && previousPhase === 'running') settledClockOffset = Math.max(0, previousElapsed - seconds);
-    const r = routineAt(seconds, reduced);
-    const basePose = idle ? idlePose(idleTime, reduced) : runningPose(seconds, reduced, r);
+    const r = routineAt(seconds);
+    const basePose = idle ? idlePose(idleTime) : runningPose(seconds, r);
     if (secured && previousCashout === null) {
       exitAt = fresh || crashed ? seconds - 2 : seconds;
       exitFrom = { ...basePose };
@@ -95,26 +93,26 @@ export function createScene(options: SceneOptions = {}): Scene {
     lastIdle = idleStomp;
 
     const clock = idle ? idleTime : seconds + (crashed ? age + settledClockOffset : 0);
-    const motion = reduced ? 0 : clock;
-    const exit = secured ? reduced ? 1 : ease((clock - (exitAt ?? clock - 2)) / 1.1) : 0;
+    const motion = clock;
+    const exit = secured ? ease((clock - (exitAt ?? clock - 2)) / 1.1) : 0;
     let pose = basePose;
     if (secured) {
       const from = exitFrom ?? basePose;
       pose = {
-        ...from, x: mix(from.x, 737, exit), y: mix(from.y, 409, exit) - (reduced ? 0 : Math.sin(exit * Math.PI) * 81),
-        scale: mix(from.scale, 0.79, exit), body: -4, pitch: -0.04 + (reduced ? 0 : Math.sin(motion * 5) * 0.035),
-        head: reduced ? -0.13 : -0.14 + Math.sin(motion * 4) * 0.11,
+        ...from, x: mix(from.x, 737, exit), y: mix(from.y, 409, exit) - (Math.sin(exit * Math.PI) * 81),
+        scale: mix(from.scale, 0.79, exit), body: -4, pitch: -0.04 + (Math.sin(motion * 5) * 0.035),
+        head: -0.14 + Math.sin(motion * 4) * 0.11,
         stride: 0, gait: exit < 1 ? 'air' : 'idle', tuck: 0.7, face: 'victory', snort: 0,
-        rear: exit === 1 ? reduced ? 0.6 : 0.45 + Math.sin(motion * 4) * 0.3 : 0,
+        rear: exit === 1 ? 0.45 + Math.sin(motion * 4) * 0.3 : 0,
         time: motion,
       };
     } else if (crashed) {
-      const launch = reduced ? 1 : ease((age - 0.23) / 1.03);
-      const flight = reduced ? 0 : Math.sin(launch * Math.PI);
+      const launch = ease((age - 0.23) / 1.03);
+      const flight = Math.sin(launch * Math.PI);
       pose = {
         ...basePose, x: mix(basePose.x, 655, launch), y: mix(basePose.y, 453, launch) - flight * 63,
         scale: mix(basePose.scale, 0.81, launch), body: -5,
-        pitch: flight * -0.6, head: launch >= 1 ? 0.08 + (reduced ? 0 : Math.sin(age * 4) * 0.075) : -0.2,
+        pitch: flight * -0.6, head: launch >= 1 ? 0.08 + (Math.sin(age * 4) * 0.075) : -0.2,
         stride: 0, gait: launch >= 1 ? 'sit' : 'air', tuck: 0.8, face: launch >= 1 ? 'support' : 'panic', snort: 0, rear: 0,
         time: motion,
       };
@@ -126,31 +124,31 @@ export function createScene(options: SceneOptions = {}): Scene {
     const drawWorld = (ctx: CanvasRenderingContext2D, close = false): void => {
       ctx.save();
       const contactAge = r.age - CONTACT;
-      const kick = reduced || secured ? 0 : crashed ? Math.exp(-age * 7) : running && contactAge >= 0 && contactAge < 0.35 ? Math.exp(-contactAge * 12) * 0.45 : 0;
+      const kick = secured ? 0 : crashed ? Math.exp(-age * 7) : running && contactAge >= 0 && contactAge < 0.35 ? Math.exp(-contactAge * 12) * 0.45 : 0;
       if (kick > 0.005) {
         ctx.translate(430, 300); ctx.scale(1 + kick * 0.025, 1 + kick * 0.025); ctx.translate(-430, -300);
         ctx.translate(Math.sin(clock * 83) * kick * 6, Math.cos(clock * 67) * kick * 3);
       }
       const sign = secured ? 'MUMU LEFT · BEARS SEETHE' : crashed ? 'BEARS 1 · MUMU 0' : idle ? 'MUMU BULL RUN' : `BEARS 0 · MUMU ${r.index + (r.age >= CONTACT ? 1 : 0)}`;
-      arena(ctx, motion, r.lap, reduced, running && !secured && !reduced ? pulse(r.age, CONTACT, CONTACT + 0.8) : 0, sign);
-      track(ctx, reduced ? 0 : idle ? idleTime * 0.04 : seconds, crashed, age, reduced);
-      if (idle) idleBear(ctx, idleTime, reduced);
-      else if (!crashed) drawAct(ctx, r, reduced ? 0 : seconds, reduced);
+      arena(ctx, motion, r.lap, running && !secured ? pulse(r.age, CONTACT, CONTACT + 0.8) : 0, sign);
+      track(ctx, idle ? idleTime * 0.04 : seconds, crashed, age);
+      if (idle) idleBear(ctx, idleTime);
+      else if (!crashed) drawAct(ctx, r, seconds);
       if (crashed) {
-        crashStamp(ctx, age, reduced);
-        if (!secured) supportDesk(ctx, age, reduced, false);
+        crashStamp(ctx, age);
+        if (!secured) supportDesk(ctx, age, false);
       }
-      if (secured) parade(ctx, motion, exit, reduced, false);
-      if (!reduced && !secured && !crashed) dust(ctx, motion, pose.x, floorAt(pose.x), idle ? 0.35 : 0.85);
+      if (secured) parade(ctx, motion, exit, false);
+      if (!secured && !crashed) dust(ctx, motion, pose.x, floorAt(pose.x), idle ? 0.35 : 0.85);
       bull(ctx, pose);
-      if (secured) parade(ctx, motion, exit, reduced, true);
+      if (secured) parade(ctx, motion, exit, true);
       if (crashed && !secured) {
-        supportDesk(ctx, age, reduced, true);
-        impact(ctx, 417, 437, age - 0.23, reduced, 'AGREED!');
+        supportDesk(ctx, age, true);
+        impact(ctx, 417, 437, age - 0.23, 'AGREED!');
         if (age >= 1.27) bubble(ctx, 670, 186, 'PLEASE HOLD. FOREVER.', 306, CREAM);
       }
-      if (running && !secured) impact(ctx, 534, floorAt(534) - 14, contactAge, reduced, r.kind === 2 ? 'MISS!' : r.kind === 5 ? 'NOPE!' : r.kind === 1 ? 'RATIO!' : 'BONK!');
-      if (idle && !reduced) impact(ctx, pose.x + 83, floorAt(pose.x + 83), idleTime % 7.2 - 3.55, false, 'STILL HERE!');
+      if (running && !secured) impact(ctx, 534, floorAt(534) - 14, contactAge, r.kind === 2 ? 'MISS!' : r.kind === 5 ? 'NOPE!' : r.kind === 1 ? 'RATIO!' : 'BONK!');
+      if (idle) impact(ctx, pose.x + 83, floorAt(pose.x + 83), idleTime % 7.2 - 3.55, 'STILL HERE!');
       ctx.restore();
       if (!close) hud(ctx, view, r, caption);
     };

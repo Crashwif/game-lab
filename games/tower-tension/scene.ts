@@ -27,11 +27,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, flicker and twinkle. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -123,7 +118,7 @@ function worldTransform(ctx: CanvasRenderingContext2D, camY: number, scale: numb
   ctx.translate(-camX, -layerCam);
 }
 
-function drawSky(ctx: CanvasRenderingContext2D, camY: number, scale: number, time: number, stars: Star[], reduced: boolean): void {
+function drawSky(ctx: CanvasRenderingContext2D, camY: number, scale: number, time: number, stars: Star[]): void {
   const altitudeAt = (sy: number): number => GROUND_Y - (camY + (sy - H / 2) / scale);
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   for (const f of [0, 0.25, 0.5, 0.75, 1]) sky.addColorStop(f, skyColour(altitudeAt(f * H)));
@@ -134,7 +129,7 @@ function drawSky(ctx: CanvasRenderingContext2D, camY: number, scale: number, tim
   worldTransform(ctx, camY, scale, 0.45);
   ctx.fillStyle = '#ffffff';
   for (const s of stars) {
-    const a = smoothstep(450, 1100, GROUND_Y - s.y) * (reduced ? 0.8 : 0.5 + 0.5 * Math.sin(time * s.k + s.x));
+    const a = smoothstep(450, 1100, GROUND_Y - s.y) * (0.5 + 0.5 * Math.sin(time * s.k + s.x));
     if (a < 0.03) continue;
     ctx.globalAlpha = a;
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
@@ -276,8 +271,7 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
   ctx.restore();
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'trap', crash: 'boom' });
   const tower: TowerState = createTower();
   const crane: CraneState = createCrane();
@@ -379,7 +373,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       shake = 1;
       pop.v = 16;
       jolt(crane, 2.5 * tower.rod.dir);
-      if (!reduced) {
+      {
         freeze = FREEZE_S;
         slow = SLOW_S;
         punchHold = FREEZE_S + PUNCH_S;
@@ -550,7 +544,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       }
       if (crane.events.release) {
         landFloor(tower, crane.drop.offset, crane.drop.velocity);
-        if (!reduced) shake = Math.max(shake, 0.22);
+        shake = Math.max(shake, 0.22);
         jolt(crane, 0.9 + 1.6 * tension);
         audio.fx('thud', 0.6 + 0.5 * tension);
         // Every floor that lands is a unit sold: the front of the queue goes in.
@@ -570,7 +564,7 @@ export function createScene(options: SceneOptions = {}): Scene {
         const dir = topOffset(tower) >= 0 ? 1 : -1;
         lurch(tower, dir, 45 + 45 * tension);
         jolt(crane, 1.2 * dir);
-        if (!reduced) shake = Math.max(shake, 0.4);
+        shake = Math.max(shake, 0.4);
         audio.fx('creak', 1.1);
         audio.fx('gasp', 0.5);
         const text = worker.mode === 'top' ? 'PROBABLY NOTHING' : worker.mode === 'safe' ? 'GLAD I SOLD' : '';
@@ -659,8 +653,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const s = cam.scale.x;
     const camY = cam.y.x;
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the tipping stack and eases back out.
       const k = 1 + 0.1 * clamp(punch.x, 0, 1.2);
       const px = W / 2 + (TOWER_X - cam.x.x) * s;
@@ -669,7 +663,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.scale(k, k);
       ctx.translate(-px, -py);
     }
-    drawSky(ctx, camY, s, time, stars, reduced);
+    drawSky(ctx, camY, s, time, stars);
     drawSkyline(ctx, camY, s, far, 0.35, 'rgba(95, 125, 175, 0.45)');
     drawClouds(ctx, camY, s, clouds, time);
     drawSkyline(ctx, camY, s, near, 0.6, 'rgba(48, 70, 118, 0.72)');

@@ -113,7 +113,7 @@ export function drawFace(c: CanvasRenderingContext2D, x: number, y: number, scal
 
 export function drawActorBack(c: CanvasRenderingContext2D, p: ActorPose, input: ActingInput, act: Act): void {
   const chairTilt = p.calm ? -0.2 : act.index === 6 ? -0.5 * act.weight : -0.04 + act.impact * 0.045;
-  c.save(); c.translate(p.hip.x - 32, p.hip.y + 9); c.rotate(input.reduced ? 0 : chairTilt);
+  c.save(); c.translate(p.hip.x - 32, p.hip.y + 9); c.rotate(chairTilt);
   box(c, -67, -139, 92, 124, '#58636c', 5);
   box(c, -74, -28, 134, 22, '#767f84', 5);
   line(c, [[-10, -9], [-10, 45]], INK, 12);
@@ -137,7 +137,7 @@ export function drawActorBack(c: CanvasRenderingContext2D, p: ActorPose, input: 
   label(c, p.calm ? 'AFK' : 'GM', 0, 0, 29, PAPER, 75, 'center'); c.restore();
   stroke(c, p.shoulder, { x: p.head.x, y: p.head.y + 43 }, 37, INK);
   stroke(c, p.shoulder, { x: p.head.x, y: p.head.y + 43 }, 27, SKIN);
-  drawFace(c, p.head.x, p.head.y, 1.2, p.headAngle, p.mouth, p.eye, input.heat, p.calm, input.reduced ? 0 : act.clock, p.headSquash);
+  drawFace(c, p.head.x, p.head.y, 1.2, p.headAngle, p.mouth, p.eye, input.heat, p.calm, act.clock, p.headSquash);
   const angle = p.leftStyle === 'fist' ? handAngle(left.elbow, left.end, -0.1) : -0.1;
   hand(c, left.end, angle, p.leftStyle, strikeSquash(act, left.end, p.leftStyle));
 }
@@ -154,7 +154,7 @@ export function drawActorFront(c: CanvasRenderingContext2D, p: ActorPose, input:
     c.beginPath(); c.arc(4, -64, 34, 0, Math.PI * 2); c.fillStyle = 'rgba(166,222,237,.4)'; c.fill(); c.strokeStyle = INK; c.lineWidth = 7; c.stroke();
     line(c, [[-10, -82], [13, -57]], PAPER, 6); c.restore();
   } else if (p.calm || (input.phase !== 'running' && input.phase !== 'crashed')) {
-    mug(c, h.x + 6, h.y - 10, input.reduced ? 0 : act.clock, p.calm);
+    mug(c, h.x + 6, h.y - 10, act.clock, p.calm);
   }
   if (p.calm) {
     c.save(); c.translate(224, 457);

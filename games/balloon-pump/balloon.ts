@@ -36,7 +36,7 @@ export interface BalloonDrive {
   stretch: number;
   /** A gulp of air arrived from the hose this step. */
   inflow: boolean;
-  /** 0..1 a fine shiver of the overstretched rubber in very long rounds (0 for reduced motion). */
+  /** 0..1 a fine shiver of the overstretched rubber in very long rounds. */
   shiver?: number;
 }
 

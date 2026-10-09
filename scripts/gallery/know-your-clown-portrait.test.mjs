@@ -14,9 +14,9 @@ async function harness() {
       b.onLoad({ filter: /.*/, namespace: 'test-audio' }, () => ({ contents: 'export const pageAudio = () => globalThis.audio;' }));
     } }],
   });
-  const audioEvents = [], labels = [], transcript = { textContent: '' };
+  const audioEvents = [], labels = [];
   const globals = {
-    Path2D: class {}, document: { querySelector: () => transcript },
+    Path2D: class {},
     audio: { update() {}, fx(name) { audioEvents.push(name); }, cashout() { audioEvents.push('cashout'); }, crash(_, quiet) { audioEvents.push(quiet ? 'quiet-crash' : 'crash'); } },
   };
   runInNewContext((await bundle).outputFiles[0].text, globals);
@@ -25,7 +25,7 @@ async function harness() {
   const context = new Proxy({ canvas, fillText(text) { labels.push(text); }, measureText: text => ({ width: text.length * 12 }),
     createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }),
   }, { get: (object, key) => key in object ? object[key] : () => {} });
-  return { canvas, audioEvents, transcript, draw(patch, now) {
+  return { canvas, audioEvents, draw(patch, now) {
     labels.length = 0;
     scene.draw(context, { phase: 'running', elapsed: 80_000, currentX100: 12000, crashAge: 0, stake: 50, cashoutX100: null, payout: null, ...patch }, now);
     return labels.join(' ');
@@ -36,8 +36,9 @@ test('rotating the KYC composition preserves an accepted exit through the room c
   const h = await harness();
   h.draw({}, 1000);
   h.draw({ elapsed: 80_100, cashoutX100: 12000 }, 1100);
-  assert.match(h.draw({ elapsed: 81_500 }, 2500), /EXIT \/ NO DATA REQUIRED/);
-  assert.match(h.transcript.textContent, /Cashed out at 120.00×/);
+  const escaped = h.draw({ elapsed: 81_500 }, 2500);
+  assert.match(escaped, /EXIT \/ NO DATA REQUIRED/);
+  assert.match(escaped, /120.00×/);
   h.canvas.clientHeight = 211;
   assert.match(h.draw({ phase: 'crashed', crashAge: 0 }, 2600), /PRIVACY INTACT/);
   h.canvas.clientHeight = 522;

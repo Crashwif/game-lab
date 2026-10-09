@@ -32,11 +32,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the shake, the flash, the hit-stop, the spins and the flicker. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   dispose(): void;
@@ -104,8 +99,7 @@ let live: { world: World; elapsed: number; wall: number; banked: number | null }
 const mode = () => document.documentElement.dataset.mode ?? 'standalone';
 const seedFor = (): number => (mode() === 'replay' ? 3 : (Date.now() ^ Math.imul(rounds + 1, 2654435761)) >>> 0);
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Chiptune for a flap game; the crash is the sad trombone every chart deserves.
   const audio = pageAudio({ style: 'chiptune', bpm: 150, tempoRise: 0.3, crash: 'trombone', music: 0.55 });
   const canvas = document.querySelector('canvas')!;
@@ -203,7 +197,6 @@ export function createScene(options: SceneOptions = {}): Scene {
 
   /** Coins fly out of the bag: a clip, the FUD's strike, or the whole bag through the floor. */
   function spill(coins: number): void {
-    if (reduced && coins > 6) coins = 6;
     const n = Math.min(coins, 26);
     const rand = mulberry32(Math.floor(time * 1000) + coins);
     for (let i = 0; i < n; i += 1) {
@@ -252,7 +245,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // Impact: a hit-stop and a punch-in held on him, then the edge sweeps in. He startles; a jeet stretches, smug.
     shake = 0.5;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       punchAge = 0;
     }
@@ -419,7 +412,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       if (e.fud) {
         audio.fx('zap', 1);
         audio.fx('boom', 0.4);
-        flash = reduced ? 0.15 : 0.5;
+        flash = 0.5;
         say('STRUCK BY FUD · BAG GONE', PINK);
       }
       if (e.spill > 0) spill(e.spill);
@@ -497,8 +490,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     const fakeX = fakeAge >= 0 ? fakeEdge(fakeAge) : Infinity;
     const inRound = running || crashed;
     const chart: ChartView = {
-      seconds: inRound ? view.elapsed / 1000 : 0, time, distance: world.distance, tension, rugX: Number.isFinite(rugX) ? rugX : fakeX, dark, reduced,
-      multiplier: inRound ? multiplier : 1, padBreak, fake: !Number.isFinite(rugX) && fakeAge >= 0,
+      seconds: inRound ? view.elapsed / 1000 : 0, time, distance: world.distance, tension, rugX: Number.isFinite(rugX) ? rugX : fakeX, dark, multiplier: inRound ? multiplier : 1, padBreak, fake: !Number.isFinite(rugX) && fakeAge >= 0,
     };
     ctx.save();
     if (punchAge >= 0 && punchAge < 0.7) {
@@ -507,22 +499,22 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.scale(z, z);
       ctx.translate(-birdScreen.x, -birdScreen.y);
     }
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
-    else if (!reduced && running && !off) ctx.translate(0, Math.sin(time * 90) * 1.2 * speedK * speedK);
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 9 * shake * shake, Math.cos(time * 117) * 6 * shake * shake);
+    else if (running && !off) ctx.translate(0, Math.sin(time * 90) * 1.2 * speedK * speedK);
     const fall = fallen ? clamp(fallAge / 1.2, 0, 1) : 0;
     // The jet comes in from the right under the height he is holding, then carries him to the berth.
     const jetIn = { x: mix(W + 220, BIRD_X + 4, clamp(jet.x, 0, 1)), y: hoverY + 50 };
-    const jetAt = { x: mix(jetIn.x, BERTH.x, berth.x), y: mix(jetIn.y, BERTH.y, berth.x) + (reduced ? 0 : Math.sin(time * 1.8) * 6 * berth.x) };
+    const jetAt = { x: mix(jetIn.x, BERTH.x, berth.x), y: mix(jetIn.y, BERTH.y, berth.x) + (Math.sin(time * 1.8) * 6 * berth.x) };
     const birdAt = fallen ? { x: BIRD_X - 60 * fall, y: fallY + fallV * fallAge + 0.5 * GRAVITY * fallAge * fallAge } : { x: mix(BIRD_X, jetAt.x - 4, boarding), y: mix(b.y, jetAt.y - 50, boarding) };
     birdScreen = birdAt;
     drawChart(ctx, world, chart, BIRD_X - world.distance, () => {
-      if (secured && jet.x > 0.02) drawJet(ctx, { x: jetAt.x, y: jetAt.y, time, bank: -0.08 * (1 - berth.x) - 0.04 * berth.x, reduced });
+      if (secured && jet.x > 0.02) drawJet(ctx, { x: jetAt.x, y: jetAt.y, time, bank: -0.08 * (1 - berth.x) - 0.04 * berth.x });
       if (birdAt.y > H + 80) return;
       // A spectator flies a paper trader: a see-through shiba with a label, so the stake reads at a glance.
       ctx.globalAlpha = 1 - 0.4 * ghost;
       drawShiba(ctx, {
         x: birdAt.x, y: birdAt.y, tilt: b.tilt.x * (1 - boarding), flapAge: b.flapAge, wingMotion: { beat: b.wing.x, lag: b.wingLag.x, feather: b.feather.x }, perched: boarding, idle, squash: squash.x, shock,
-        stun: b.stun, bag: bagShown.x, drip, rocket: world.rocket > 0 && !off, magnet: world.magnet > 0 && !off, fall, struck: world.fud >= 0 ? clamp(1 - world.fud / 0.5, 0, 1) : 0, time, reduced,
+        stun: b.stun, bag: bagShown.x, drip, rocket: world.rocket > 0 && !off, magnet: world.magnet > 0 && !off, fall, struck: world.fud >= 0 ? clamp(1 - world.fud / 0.5, 0, 1) : 0, time,
       });
       ctx.globalAlpha = 1;
       if (ghost * (1 - fall) > 0.05) text(ctx, 'PAPER TRADING', birdAt.x + 6, birdAt.y + 48, 9, `rgba(95, 242, 230, ${0.9 * ghost * (1 - fall)})`, 'center', 160, MONO);
@@ -532,11 +524,11 @@ export function createScene(options: SceneOptions = {}): Scene {
     const calm = inRound ? (secured ? 1 - clamp(jet.x, 0, 1) : 1) : 0;
     const fud = Math.max(world.heat, 0.5 * smoothstep(0.15, 0.5, tension) * calm);
     fudY += (clamp(b.y - 20, 214, FLOOR - 120) - fudY) * (first ? 1 : 1 - Math.exp(-4 * dt));
-    if (!fallen || fallAge < 1.5) drawFud(ctx, mix(-40, 100, fud), fudY + (fallen ? fallAge * fallAge * 600 : 0), fud, world.fud, time, reduced, 0.8 + 0.5 * smoothstep(0.15, 0.75, tension) * calm);
+    if (!fallen || fallAge < 1.5) drawFud(ctx, mix(-40, 100, fud), fudY + (fallen ? fallAge * fallAge * 600 : 0), fud, world.fud, time, 0.8 + 0.5 * smoothstep(0.15, 0.75, tension) * calm);
     for (const p of spray) {
       ctx.globalAlpha = clamp(1.6 - p.age * 1.2, 0, 1);
       ctx.beginPath();
-      ctx.ellipse(p.x, p.y, p.r, p.r * (reduced ? 1 : Math.abs(Math.cos(p.age * 14 + p.r))), 0, 0, Math.PI * 2);
+      ctx.ellipse(p.x, p.y, p.r, p.r * (Math.abs(Math.cos(p.age * 14 + p.r))), 0, 0, Math.PI * 2);
       ctx.fillStyle = p.colour;
       ctx.fill();
     }

@@ -110,7 +110,7 @@ export function nuke(f: Field, seed: number, quiet: boolean): void {
   }
 }
 
-export interface FieldDrive { running: boolean; tension: number; multiplier: number; reduced: boolean
+export interface FieldDrive { running: boolean; tension: number; multiplier: number;
   /** Wall-clock step, for effects that must not slow with the hit-stop. */
   real?: number;
 }
@@ -185,7 +185,7 @@ function cloud(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c
 }
 
 /** Sky, bursts, the moon that grows with the multiplier. */
-export function drawSky(ctx: CanvasRenderingContext2D, f: Field, tension: number, multiplier: number, reduced: boolean): void {
+export function drawSky(ctx: CanvasRenderingContext2D, f: Field, tension: number, multiplier: number): void {
   const g = ctx.createLinearGradient(0, 0, 0, RIDGE_Y + 40);
   const heat = f.nuked ? smoothstep(0, 1.5, f.nukeAge) : 0;
   const late = lateFor(multiplier);
@@ -210,7 +210,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, f: Field, tension: number
   }
   for (const b of f.bursts) {
     const k = b.age / b.life;
-    if (b.streak && k < 0.35 && !reduced) {
+    if (b.streak && k < 0.35) {
       ctx.strokeStyle = 'rgba(255, 240, 200, 0.7)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(b.x - 90 * (1 - k / 0.35), b.y - 160 * (1 - k / 0.35)); ctx.lineTo(b.x, b.y); ctx.stroke();
       continue;
@@ -221,7 +221,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, f: Field, tension: number
     ctx.beginPath();
     for (let i = 0; i < 9; i += 1) { const a = i * Math.PI * 2 / 9; const rr = r * (0.8 + 0.3 * noise(b.x + i)); ctx.lineTo(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr); }
     ctx.closePath(); ctx.fill();
-    if (k < 0.25 && !reduced) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.35, 0, Math.PI * 2); ctx.fill(); }
+    if (k < 0.25) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.35, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
 }
@@ -365,7 +365,7 @@ export function drawGround(ctx: CanvasRenderingContext2D, f: Field, tension: num
 }
 
 /** The mushroom cloud on the ridge, drawn between the ground and the squad. */
-export function drawCloud(ctx: CanvasRenderingContext2D, f: Field, tension: number, reduced: boolean): void {
+export function drawCloud(ctx: CanvasRenderingContext2D, f: Field, tension: number): void {
   if (!f.nuked) return;
   const a = f.nukeAge;
   const rise = smoothstep(0, 2.4, a);
@@ -374,7 +374,7 @@ export function drawCloud(ctx: CanvasRenderingContext2D, f: Field, tension: numb
   ctx.save();
   ctx.translate(cx, base);
   ctx.rotate(f.cloudTilt * rise);
-  const wob = reduced ? 0 : Math.sin(f.time * 2.3) * 6 * f.cloudWobble;
+  const wob = Math.sin(f.time * 2.3) * 6 * f.cloudWobble;
   // Stem.
   const stemH = 40 + 170 * rise;
   const stemW = 26 + 34 * rise;
@@ -397,7 +397,7 @@ export function drawCloud(ctx: CanvasRenderingContext2D, f: Field, tension: numb
 }
 
 /** The helmet rain and the flash, drawn on top of everything. */
-export function drawNukeFront(ctx: CanvasRenderingContext2D, f: Field, reduced: boolean): void {
+export function drawNukeFront(ctx: CanvasRenderingContext2D, f: Field): void {
   if (!f.nuked) return;
   for (const h of f.helmets) {
     ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(h.rot);
@@ -405,16 +405,16 @@ export function drawNukeFront(ctx: CanvasRenderingContext2D, f: Field, reduced: 
     ctx.beginPath(); ctx.ellipse(0, 0, 16, 11, 0, Math.PI, Math.PI * 2); ctx.lineTo(20, 0); ctx.lineTo(-20, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
-  if (f.flash > 0 && !reduced) { ctx.fillStyle = `rgba(255, 250, 230, ${f.flash * f.flash})`; ctx.fillRect(0, 0, W, H); }
+  if (f.flash > 0) { ctx.fillStyle = `rgba(255, 250, 230, ${f.flash * f.flash})`; ctx.fillRect(0, 0, W, H); }
 }
 
 /** Advancing field details under the squad: mud, cover and discarded kit return in bounded chapters. `alpha` fades them out at the nuke. */
-export function drawAdvance(ctx: CanvasRenderingContext2D, seconds: number, reduced: boolean, alpha = 1, tension = 0, time = 0): void {
+export function drawAdvance(ctx: CanvasRenderingContext2D, seconds: number, alpha = 1, tension = 0, time = 0): void {
   const act = endurance(seconds); if (!act.act || alpha <= 0) return;
   // Each prop appears on the ridge and comes down the field toward the squad as the chapter advances.
   const ground = (x: number): number => ridgeY(x, tension, time);
   const age = seconds - 42 - act.cycle * 26;
-  const drift = reduced ? 55 : Math.min(120, age * 5);
+  const drift = Math.min(120, age * 5);
   ctx.save();
   ctx.globalAlpha = alpha;
   if (act.act === 2 || act.act === 4) {

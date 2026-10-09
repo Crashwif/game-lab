@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ARM_LENGTH, ENDING_SECONDS, YETI_SCALE, jacketGrip, reducedCrashAge, solveArm, yetiPose } from './yeti-rig.ts';
+import { ARM_LENGTH, ENDING_SECONDS, YETI_SCALE, jacketGrip, solveArm, yetiPose } from './yeti-rig.ts';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const near = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-8, `${label}: ${actual} != ${expected}`);
@@ -108,33 +108,6 @@ test('the yeti emerges, closes its hands, turns to face us, then visibly hoists 
       assert.ok(distance(start.wrist, arm.wrist) * YETI_SCALE >= 40,
         'each hand makes a clearly visible reaching gesture after emergence');
     }
-  }
-});
-
-test('reduced motion preserves emergence, grab, profile, front hold, lift, feeding and settled poses', () => {
-  const ages = [0.2, 0.8, 1.7, 2.2, 2.8, 3.8, 4.8];
-  const reducedAges = ages.map(reducedCrashAge);
-  assert.ok(reducedAges.every((age, i) => i === 0 || age > reducedAges[i - 1]), 'story poses progress in order');
-  for (const options of placements) {
-    const [pop, grab, profile, facing, lifted, feeding, settled] = reducedAges.map(age => yetiPose(age, options));
-    assert.equal(pop.rise, 0);
-    assert.equal(grab.rise, 1);
-    assert.equal(grab.turn, 0);
-    assert.ok(grab.arms.every(arm => arm.grip === 1));
-    assert.ok(profile.turn > 0.35 && profile.turn < 0.65);
-    assert.equal(facing.turn, 1);
-    assert.equal(facing.skier.behind, false);
-    assert.ok((facing.skier.torso.y - lifted.skier.torso.y) * YETI_SCALE >= 45);
-    assert.equal(lifted.skier.visible, true);
-    assert.equal(lifted.skier.clipMouth, false);
-    assert.equal(feeding.skier.visible, true);
-    assert.equal(feeding.skier.clipMouth, true);
-    assert.ok(feeding.skier.torso.y > lifted.skier.torso.y);
-    assert.equal(settled.skier.visible, false);
-    assert.equal(settled.captionReady, true);
-  }
-  for (const [start, end] of [[0, 0.39], [0.4, 1.29], [1.3, 2.14], [2.15, 2.34], [2.35, 3.39], [3.4, 4.39], [4.4, 10]]) {
-    assert.equal(reducedCrashAge(start), reducedCrashAge(end), 'each reduced-motion story pose is held without sweeping');
   }
 });
 

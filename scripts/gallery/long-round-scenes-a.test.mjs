@@ -94,13 +94,13 @@ test('Wife Changing Money continues its text exchange and caps the stored conver
   m.settleKitchen(k, 100_000, 1, null);
   let lateTexts = 0;
   endurance(({ seconds, dt }) => {
-    m.stepKitchen(k, { running: true, multiplier: 100_000, fear: 1, time: seconds, traderGone: false, reduced: false }, dt);
+    m.stepKitchen(k, { running: true, multiplier: 100_000, fear: 1, time: seconds, traderGone: false }, dt);
     if (seconds > 120 && k.events.text) lateTexts++;
     assert(k.bubbles.length <= 6);
   });
   assert(lateTexts >= 7);
   for (let i = 0; i < 600; i++) {
-    m.stepKitchen(k, { running: true, multiplier: 100_000, fear: 1, time: 180 + i / 60, traderGone: true, reduced: false }, 1 / 60);
+    m.stepKitchen(k, { running: true, multiplier: 100_000, fear: 1, time: 180 + i / 60, traderGone: true }, 1 / 60);
     assert.equal(k.events.text, false);
   }
   m.resetKitchen(k);

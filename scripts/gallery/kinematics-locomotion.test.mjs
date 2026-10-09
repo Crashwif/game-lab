@@ -129,7 +129,7 @@ test('The Trenches captures drawn marching scale and squash before either exit',
 
 test('Rug Rails solves two fixed legs above stable track contacts under bob, lean and hover', async () => {
   const api = await load('rug-rails/runner');
-  for (let n = 0; n < 60; n++) { const p = { X: 100, Y: 300, s: 130 / .7, stride: n / 60, lean: .8, air: false, vh: 0, slide: .2, stumble: .2, down: 0, audit: -1, bag: 0, drip: new Set(), hover: n / 60, fall: 0, magnet: false, double: false, time: n / 60, reduced: false };
+  for (let n = 0; n < 60; n++) { const p = { X: 100, Y: 300, s: 130 / .7, stride: n / 60, lean: .8, air: false, vh: 0, slide: .2, stumble: .2, down: 0, audit: -1, bag: 0, drip: new Set(), hover: n / 60, fall: 0, magnet: false, double: false, time: n / 60 };
     const legs = api.runnerLegs(p).legs, c = canvas(); api.drawFrog(c, p);
     for (const leg of legs) { const point = a => ({ x: a[0], y: a[1] }); near(distance(point(leg.hip), point(leg.knee)), 30); near(distance(point(leg.knee), point(leg.foot)), 30); assert.ok(hasPoint(c, 'lineTo', { x: p.X + leg.contact.x, y: p.Y + leg.contact.y })); }
   }
@@ -154,7 +154,7 @@ test('Up Only keeps visible wing joints continuous during a repeated gameplay fl
   for (let n = 0; n < 12; n++) api.stepWorld(w, 0, drive, .01);
   const motion = () => ({ beat: w.bird.wing.x, lag: w.bird.wingLag.x, feather: w.bird.feather.x });
   const before = art.wingJoints(w.bird.flapAge, motion()); api.stepWorld(w, 1, drive, 0); const after = art.wingJoints(w.bird.flapAge, motion()); assert.deepEqual(after, before); assert.equal(w.bird.vy, -470);
-  const c = canvas(); art.drawShiba(c, { x: 0, y: 0, tilt: 0, flapAge: w.bird.flapAge, wingMotion: motion(), stun: 0, bag: 0, drip: new Set(), rocket: false, magnet: false, fall: 0, struck: 0, time: 0, reduced: false }); assert.ok(hasPoint(c, 'lineTo', { x: after.wrist.x + 2, y: after.wrist.y - 12 }));
+  const c = canvas(); art.drawShiba(c, { x: 0, y: 0, tilt: 0, flapAge: w.bird.flapAge, wingMotion: motion(), stun: 0, bag: 0, drip: new Set(), rocket: false, magnet: false, fall: 0, struck: 0, time: 0 }); assert.ok(hasPoint(c, 'lineTo', { x: after.wrist.x + 2, y: after.wrist.y - 12 }));
 });
 
 test('King support constraints survive the actual 180-second endurance curve at 30/60/120 Hz', async () => {

@@ -29,9 +29,9 @@ test('Moon cashout inherits actual motion and remains independent of a later cra
     const a = sample(t - h), b = sample(t), c = sample(t + h);
     for (let i = 0; i < 3; i++) close((b[i] - a[i]) / h, (c[i] - b[i]) / h, 0.002);
   }
-  m.stepRocket(r, { racing: false, multiplier: 3.5, tension: 0, crashed: true }, 0, false);
+  m.stepRocket(r, { racing: false, multiplier: 3.5, tension: 0, crashed: true }, 0);
   assert.ok(r.events.includes('bailed'));
-  m.stepRocket(r, { racing: false, multiplier: 3.5, tension: 0, crashed: true }, 0, false);
+  m.stepRocket(r, { racing: false, multiplier: 3.5, tension: 0, crashed: true }, 0);
   assert.ok(!r.events.includes('bailed'));
 });
 
@@ -39,10 +39,10 @@ test('Moon stagger snapshots at actual release; detached stages preserve their f
   const m = await game('moon-boys/rocket'), r = m.createRocket();
   r.random = () => 0.5; m.killRocket(r);
   const holder = r.holders[0]; assert.equal(holder.frame, undefined);
-  m.stepRocket(r, { racing: false, multiplier: 1, tension: 0, crashed: true }, 0.3, false);
+  m.stepRocket(r, { racing: false, multiplier: 1, tension: 0, crashed: true }, 0.3);
   assert.equal(holder.age, 0);
   close(length3(holder.from, m.toWorld(m.rocketFrame(r), Math.sin(holder.theta) * (0.85 + 0.44 * holder.size), holder.y, Math.cos(holder.theta) * (0.85 + 0.44 * holder.size))), 0);
-  const launch = m.createRocket(); m.stepRocket(launch, { racing: true, multiplier: 1.4, tension: 0.3, crashed: false }, 1 / 60, false);
+  const launch = m.createRocket(); m.stepRocket(launch, { racing: true, multiplier: 1.4, tension: 0.3, crashed: false }, 1 / 60);
   const saved = structuredClone(launch.boosters.frame), pose = m.stagePose(launch.boosters, [1, 0, 0]);
   launch.alt += 500; launch.swayX.x += 20; m.killRocket(launch);
   assert.deepEqual(launch.boosters.frame, saved); assert.deepEqual(m.stagePose(launch.boosters, [1, 0, 0]), pose);
@@ -52,7 +52,7 @@ test('Moon drawn 3D limbs keep fixed bones and plant all four sockets on the hul
   const m = await game('moon-boys/rocket');
   // `grip` 1 holds the hull, 0 is free on the chute, and a bail blends through everything between.
   for (const grip of [1, 0.75, 0.5, 0.25, 0]) for (const side of [-1, 1]) for (const arm of [true, false]) for (let i = 0; i < 90; i++) {
-    const pose = m.heroLimb(side, arm, 1.1, i / 5, i / 90, false, grip);
+    const pose = m.heroLimb(side, arm, 1.1, i / 5, i / 90, grip);
     close(length3(pose.root, pose.joint), pose.bone); close(length3(pose.joint, pose.end), pose.bone);
     const mid = pose.root.map((v, k) => (v + pose.end[k]) / 2);
     assert.ok(arm ? (pose.joint[0] - mid[0]) * side > 0 : pose.joint[2] > mid[2], 'elbows bend out and knees forward, never across the body');
@@ -66,7 +66,7 @@ test('Moon emissions retain equal thrust density at 30 through 144 fps', async (
   for (const fps of [30, 60, 120, 144]) {
     const r = m.createRocket(); r.thrust = 1; let count = 0;
     for (let i = 0; i < fps; i++) {
-      m.stepRocket(r, { racing: true, multiplier: 1, tension: 0, crashed: false }, 1 / fps, false);
+      m.stepRocket(r, { racing: true, multiplier: 1, tension: 0, crashed: false }, 1 / fps);
       count += r.particles.filter(p => !p.smoke).length; r.particles.length = 0;
     }
     counts.push(count);
@@ -133,7 +133,7 @@ test('Honeypot fox keeps fixed bones and the stamp event occurs at the actual gl
   }
   p.fox.mode = 'stamping'; p.fox.age = 0; p.fox.arm.x = p.fox.arm.v = 0; let stamped = false;
   for (let i = 0; i < 150; i++) {
-    m.stepPicnic(p, { running: true, multiplier: 3.2, tension: 0.4, level: 0.5, reduced: false }, 1 / 120);
+    m.stepPicnic(p, { running: true, multiplier: 3.2, tension: 0.4, level: 0.5 }, 1 / 120);
     if (p.events.stamp) { stamped = true; close(length(m.foxArmPose(p.fox).face, jar.AUDIT_AT), 0); }
   }
   assert.ok(stamped);
@@ -141,10 +141,10 @@ test('Honeypot fox keeps fixed bones and the stamp event occurs at the actual gl
 
 test('Insider winch decelerates smoothly to its hold and suspension settles', async () => {
   const m = await game('insider-wallets/rally'), r = m.createRally();
-  m.dumpRally(r, 42, false, true);
+  m.dumpRally(r, 42, false);
   let last = 0, decelerated = false, maxSpeed = 0;
   for (let i = 0; i < 1800; i++) {
-    m.stepRally(r, { running: false, multiplier: 4, tension: 0.5, reduced: true }, 1 / 120);
+    m.stepRally(r, { running: false, multiplier: 4, tension: 0.5 }, 1 / 120);
     assert.ok(r.lift >= last - 1e-6 && r.lift <= 150 + 1e-6);
     maxSpeed = Math.max(maxSpeed, r.liftV);
     if (r.lift > 135 && r.liftV < maxSpeed / 2) decelerated = true;
@@ -155,7 +155,7 @@ test('Insider winch decelerates smoothly to its hold and suspension settles', as
 
 test('Wen Binance exit start and final pavement destination survive queue and taxi movement', async () => {
   const m = await game('wen-binance/queue'), c = await game('wen-binance/club'), q = m.createQueue();
-  m.settleQueue(q, 3); m.leaveQueue(q, false, true); const from = m.exitPosition(q), direction = Math.sign(c.KERB - 60 - from); let last = from;
+  m.settleQueue(q, 3); m.leaveQueue(q, false); const from = m.exitPosition(q), direction = Math.sign(c.KERB - 60 - from); let last = from;
   for (let i = 0; i < 480; i++) {
     m.stepQueue(q, { running: true, multiplier: 100000, tension: 1, thump: 0 }, 1 / 120);
     const x = m.exitPosition(q); assert.ok((x - last) * direction >= -1e-8); last = x;
@@ -170,7 +170,7 @@ test('Wen Moon pod shares pilot socket at release and harness does not scale wit
     close(p.x + Math.sin(p.angle.x) * 7, 166 * Math.sin(wobble));
     close(p.h + Math.cos(p.angle.x) * 7, 800 + 166 * Math.cos(wobble));
     assert.ok(p.vy > 100);
-    for (let i = 0; i < 1200; i++) m.stepPod(p, 1 / 120, false);
+    for (let i = 0; i < 1200; i++) m.stepPod(p, 1 / 120);
     assert.ok([p.x, p.h, p.angle.x, p.vy].every(Number.isFinite)); close(p.vy, -55, 0.01);
   }
   for (const open of [0, 0.1, 0.5, 1]) assert.equal(m.podRig(open).harnessY, -12);

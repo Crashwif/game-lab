@@ -6,7 +6,7 @@ const SKY = '#343c5c';
 const mix = (a: number, b: number, n: number): number => a + (b - a) * n;
 
 export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
-  const t = input.reduced ? 0 : input.phase === 'waiting' || input.phase === 'betting' ? input.clock : input.elapsed;
+  const t = input.phase === 'waiting' || input.phase === 'betting' ? input.clock : input.elapsed;
   const collapse = input.phase === 'crashed' ? ease((input.crashAge - 0.8) / 0.7) : 0;
   c.fillStyle = '#ddd2b6'; c.fillRect(0, 0, 960, 540);
   const wall = c.createLinearGradient(0, 95, 0, 452);
@@ -61,11 +61,11 @@ export function drawBackground(c: CanvasRenderingContext2D, input: ActingInput, 
   }
 }
 
-function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number, reduced: boolean): void {
+function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number): void {
   c.save(); c.translate(p.keyboard.x, p.keyboard.y); c.rotate(p.keyboardAngle);
   shape(c, [[-65, -12], [59, -16], [78, 8], [-76, 14]], PAPER, 4);
   for (let row = 0; row < 3; row += 1) for (let k = 0; k < 11; k += 1) {
-    const hot = !reduced && (Math.floor(time * 7) + row * 3) % 11 === k;
+    const hot = (Math.floor(time * 7) + row * 3) % 11 === k;
     c.fillStyle = hot ? RED : '#908574'; c.fillRect(-58 + k * 10 + row * 2, -8 + row * 6, 7, 4);
   }
   c.restore();
@@ -73,7 +73,7 @@ function keyboard(c: CanvasRenderingContext2D, p: ActorPose, time: number, reduc
 
 function display(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
   const index = input.phase === 'running' || input.phase === 'crashed' ? act.index : -1;
-  const t = input.reduced ? 0 : act.clock;
+  const t = act.clock;
   c.save(); c.beginPath(); c.rect(-88, -76, 169, 129); c.clip();
   c.fillStyle = index === 2 ? '#e4c977' : index === 5 ? '#e99b81' : '#bbcc92'; c.fillRect(-88, -76, 169, 129);
   if (index === 1) {
@@ -162,9 +162,9 @@ function keyboardCable(c: CanvasRenderingContext2D, p: ActorPose, act: Act, crtX
 
 export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: Act, p: ActorPose): void {
   const dead = input.phase === 'crashed';
-  const age = input.reduced && dead ? 4 : input.crashAge;
+  const age = input.crashAge;
   const flip = dead ? ease((age - 0.24) / 0.55) : 0;
-  const shake = input.reduced ? 0 : dead ? Math.sin(age * 40) * Math.exp(-age * 3) * 6 : act.impact * 5;
+  const shake = dead ? Math.sin(age * 40) * Math.exp(-age * 3) * 6 : act.impact * 5;
   const crtX = 687 + shake * 0.7, crtY = 257 + shake;
   c.save(); c.translate(452, 410 + shake); c.rotate(-flip * 2.8); c.translate(-452, -410);
   if (!dead) powerCord(c, p, crtX, crtY);
@@ -176,7 +176,7 @@ export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: A
   c.restore();
   // The keyboard is drawn in the actor's frame, so gripping hands land on it exactly; the cable follows it into the shaken monitor.
   if (!dead) {
-    keyboard(c, p, act.clock, input.reduced);
+    keyboard(c, p, act.clock);
     keyboardCable(c, p, act, crtX, crtY + shake);
   } else {
     // The monitor follows the desk contact, flies, hits the wall, and settles on the floor.
@@ -187,7 +187,7 @@ export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: A
     const spin = -launch * 1.8 + fall * 2.02;
     crt(c, input, act, x, y, spin, age > 1.03);
     if (age > 1.03) {
-      const dust = input.reduced ? 4 : age - 1.03;
+      const dust = age - 1.03;
       for (let i = 0; i < 30; i += 1) {
         const a = i * 2.3999, speed = 60 + (i * 37 % 200);
         const u = Math.min(dust, 1.4);
@@ -201,15 +201,15 @@ export function drawDesk(c: CanvasRenderingContext2D, input: ActingInput, act: A
 }
 
 export function drawProps(c: CanvasRenderingContext2D, input: ActingInput, act: Act): void {
-  const time = input.reduced ? 0 : act.clock;
+  const time = act.clock;
   const dead = input.phase === 'crashed';
-  const age = input.reduced && dead ? 4 : input.crashAge;
+  const age = input.crashAge;
   const tumble = dead ? ease((age - 0.63) / 0.9) : 0;
   // The plant is a horrified witness, with leaves trailing the pot's bounce.
-  c.save(); c.translate(886 - tumble * 21, 442 + (input.reduced ? 0 : act.impact * 8) + tumble * 36);
-  c.rotate(-tumble * 1.4 + (input.reduced ? 0 : act.impact * 0.06));
+  c.save(); c.translate(886 - tumble * 21, 442 + (act.impact * 8) + tumble * 36);
+  c.rotate(-tumble * 1.4 + (act.impact * 0.06));
   shape(c, [[-28, -40], [30, -40], [21, 17], [-21, 17]], '#bf4a36', 4);
-  const leaf = input.reduced ? 0 : Math.sin(time * 4 - 0.7) * 9 + act.impact * 15;
+  const leaf = Math.sin(time * 4 - 0.7) * 9 + act.impact * 15;
   line(c, [[0, -40], [leaf, -99], [leaf - 29, -113]], '#4b6146', 7);
   shape(c, [[leaf, -84], [leaf + 28, -122], [leaf + 38, -113], [leaf + 19, -89]], GREEN, 3);
   shape(c, [[leaf - 7, -103], [leaf - 54, -128], [leaf - 51, -107], [leaf - 18, -89]], GREEN, 3);
@@ -218,12 +218,10 @@ export function drawProps(c: CanvasRenderingContext2D, input: ActingInput, act: 
   // A printer ejects a whole bureaucracy when the updater gets involved.
   box(c, 767, 462, 112, 57, '#b5b4a0', 4); box(c, 780, 470, 86, 12, INK, 2);
   label(c, 'COPIUM', 823, 500, 15, INK, 96, 'center');
-  if (!dead && act.index === 3 && input.reduced) {
-    for (let i = 0; i < 4; i += 1) box(c, 746 + i * 3, 445 - i * 7, 101, 12, PAPER, 2);
-  }
-  if (!dead && act.index === 3 && !input.reduced) {
+
+  if (!dead && act.index === 3) {
     for (let i = 0; i < 8; i += 1) {
-      const u = input.reduced ? (i + 0.5) / 8 : (act.age * 0.36 + i / 8) % 1;
+      const u = (act.age * 0.36 + i / 8) % 1;
       const x = 817 - 360 * u + Math.sin(u * 9 + i) * 45;
       const y = 468 - Math.sin(u * Math.PI) * 298;
       c.save(); c.translate(x, y); c.rotate(Math.sin(u * 8 + i) * 0.5);
@@ -252,7 +250,7 @@ export function drawForeground(c: CanvasRenderingContext2D, input: ActingInput, 
     return;
   }
   if (input.phase === 'crashed') {
-    const age = input.reduced ? 4 : input.crashAge;
+    const age = input.crashAge;
     if (age < 1.1) {
       burst(c, 483, 188, 159, GOLD);
       label(c, 'FUCK THIS.', 483, 188, 42, INK, 258, 'center');
@@ -261,15 +259,15 @@ export function drawForeground(c: CanvasRenderingContext2D, input: ActingInput, 
       c.save(); c.translate(500, 151 - 170 * (1 - stamp)); c.rotate(-0.065);
       box(c, -198, -30, 396, 61, PAPER, 5);
       label(c, 'HAVE YOU TRIED CALMING DOWN?', 0, 1, 22, RED, 375, 'center'); c.restore();
-      const steam = input.reduced ? 0 : age;
+      const steam = age;
       for (let i = 0; i < 6; i += 1) {
-        const u = input.reduced ? i / 6 : (steam * 0.45 + i / 6) % 1;
+        const u = (steam * 0.45 + i / 6) % 1;
         c.globalAlpha = (1 - u) * 0.45;
         c.fillStyle = '#ede4d2'; c.beginPath(); c.ellipse(679 + Math.sin(u * 7 + i) * 31, 342 - u * 103, 17 + u * 23, 14 + u * 19, 0, 0, Math.PI * 2); c.fill();
       }
       c.globalAlpha = 1;
     }
-  } else if (input.phase === 'running' && !input.reduced && act.impact > 0.45 && [0, 7].includes(act.index)) {
+  } else if (input.phase === 'running' && act.impact > 0.45 && [0, 7].includes(act.index)) {
     c.save(); c.translate(532, 354); c.rotate(-0.16);
     label(c, act.index === 7 ? 'CALM!' : 'CLACK!', 0, 0, 25, RED, 145, 'center'); c.restore();
     for (let i = 0; i < 5; i += 1) line(c, [[499 + i * 15, 387], [493 + i * 18, 371 - (i % 2) * 9]], GOLD, 4);

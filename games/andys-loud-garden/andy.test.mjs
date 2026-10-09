@@ -34,7 +34,7 @@ test('watering keeps feet planted and the supporting hand on the actual tilted c
   const rig = createAndy(216);
   for (let i=0;i<1200;i++) {
     const d = drive('watering',216,(i%600)/600);
-    stepAndy(rig,d,1/60,false);
+    stepAndy(rig,d,1/60);
     const pose=computePose(rig);
     fixedBones(pose);
     for (const [index,name] of ['backFoot','frontFoot'].entries()) {
@@ -61,7 +61,7 @@ test('harvest keeps a supporting foot still through the turn, acceleration and d
       const age=i/fps, u=Math.min(1,Math.max(0,(age-.7)/3.1));
       const x=216-360*u*u*(3-2*u);
       const before=rig.feet.map(f=>({...f}));
-      stepAndy(rig,drive('harvest',x),1/fps,false);
+      stepAndy(rig,drive('harvest',x),1/fps);
       const pose=computePose(rig); fixedBones(pose);
       assert.ok(rig.feet.some(f=>f.lift===0), 'one foot always bears the weight');
       rig.feet.forEach((f,index)=>{
@@ -78,11 +78,11 @@ test('harvest keeps a supporting foot still through the turn, acceleration and d
 test('a crash respects hit-stop, lifts the feet with the body, and lands the entire can above ground', () => {
   const rig=createAndy(216); settleAndy(rig,drive());
   const before=JSON.stringify(rig);
-  stepAndy(rig,drive('busted'),0,false);
+  stepAndy(rig,drive('busted'),0);
   assert.equal(JSON.stringify(rig),before,'frozen beat cannot release the can early');
   let airborne=false,landed=false;
   for(let i=0;i<300;i++) {
-    stepAndy(rig,drive('busted'),1/60,false);
+    stepAndy(rig,drive('busted'),1/60);
     const pose=computePose(rig); fixedBones(pose);
     if(rig.hop.x < -3) {
       airborne=true;
@@ -96,25 +96,12 @@ test('a crash respects hit-stop, lifts the feet with the body, and lands the ent
   assert.equal(rig.can.held,false);
 });
 
-test('reduced motion settles every mode immediately without time-dependent poses or prop flights', () => {
-  for(const mode of ['idle','watering','busted','harvest']) {
-    const rig=createAndy(216), d=drive(mode);
-    stepAndy(rig,d,1/60,true);
-    const before=JSON.stringify({pose:computePose(rig),can:rig.can,drops:rig.drops,time:rig.time});
-    for(let i=0;i<180;i++)stepAndy(rig,d,1/30,true);
-    assert.equal(JSON.stringify({pose:computePose(rig),can:rig.can,drops:rig.drops,time:rig.time}),before);
-    assert.ok(Object.values(rig.events).every(e=>!e));
-    if (!rig.can.held) near(rig.can.y+canFloorOffset(rig.can.angle),480);
-    fixedBones(computePose(rig));
-  }
-});
-
 test('rest beats preserve the can grip; the next round recovers after a bust', () => {
   const rig=createAndy(216); settleAndy(rig,drive());
-  for(let i=0;i<45;i++)stepAndy(rig,drive('idle'),1/60,false);
+  for(let i=0;i<45;i++)stepAndy(rig,drive('idle'),1/60);
   assert.equal(rig.can.held,true);
-  for(let i=0;i<90;i++)stepAndy(rig,drive('busted'),1/60,false);
-  for(let i=0;i<120;i++)stepAndy(rig,drive('idle'),1/60,false);
+  for(let i=0;i<90;i++)stepAndy(rig,drive('busted'),1/60);
+  for(let i=0;i<120;i++)stepAndy(rig,drive('idle'),1/60);
   assert.equal(rig.can.held,true);assert.equal(rig.drops.length,0);
   near(rig.raise.x,0);near(rig.hop.x,0);
   fixedBones(computePose(rig));
@@ -155,7 +142,7 @@ test('the far arm stays behind the body, even on the can; when caught its forear
   const rig=createAndy(216); settleAndy(rig,drive('idle'));
   for(const [mode,frames] of [['idle',30],['watering',180],['idle',60],['watering',60]]) {
     for(let i=0;i<frames;i++) {
-      const d=drive(mode); stepAndy(rig,d,1/60,false);
+      const d=drive(mode); stepAndy(rig,d,1/60);
       const {arm,torso}=farArmOrder(rig,d);
       const strokes=Object.values(arm);
       assert.ok(strokes.every(s=>s.length)&&torso>=0,`${mode} frame ${i}: every part was drawn`);
@@ -170,7 +157,7 @@ test('a scare (headlights, a siren) ducks him at any frame rate without lifting 
     let deepest=0;
     for (let i=0;i<fps*3;i++) {
       const alarm=Math.max(0,Math.sin(Math.PI*i/fps/1.4));
-      stepAndy(rig,{...drive('watering',216,.5),alarm},1/fps,false);
+      stepAndy(rig,{...drive('watering',216,.5),alarm},1/fps);
       const pose=computePose(rig); fixedBones(pose);
       for (const [index,name] of ['backFoot','frontFoot'].entries()) {
         const foot=worldPoint(rig,pose[name],480);
@@ -211,7 +198,7 @@ test('the walking agents keep a foot on the ground under the body\'s bob, still 
   for (const fps of [30,60,144]) {
     const held=[null,null,null,null];
     for (let i=0;i<=fps*1.2;i++) {
-      const age=.45+i/fps, {ctx,strokes}=placedStrokes(); police(ctx,age,false);
+      const age=.45+i/fps, {ctx,strokes}=placedStrokes(); police(ctx,age);
       const feet=strokes.filter(s=>s.width===11).map(s=>s.path.at(-1));
       assert.equal(feet.length,4);
       for (const [agent,ground] of [[0,480-8*.85],[1,475-8*.78]]) {

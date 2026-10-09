@@ -96,8 +96,6 @@ export interface PartyState {
   sign: Spring;
   confetti: Confetti[];
   whaleFlash: number;
-  /** 1, or 0 under reduced motion: scales the dev's tremble, tugs and fake snap, the crowd's flinch, the flamingo's drop and the phone's flash. */
-  motion: number;
   rng: () => number;
   events: { splash: { x: number; y: number; big: boolean } | null; heli: boolean; drop: boolean; shutter: boolean };
 }
@@ -112,11 +110,10 @@ function newHolder(p: PartyState, x: number, y: number, mode: HolderMode, airdro
 /** How far a leaver has climbed out over the far wall; a runner caught on the deck never went in. */
 const climbOut = (h: Holder): number => (h.deck ? 1 : smoothstep(POOL.right - 30, POOL.right + 20, h.x));
 
-export function createParty(motion = 1): PartyState {
+export function createParty(): PartyState {
   return {
     time: 0, elapsed: 0, tension: 0, player: true, holders: [], avatar: freshAvatar(9), ghost: null, ghostAge: 0, floatie: null,
-    dev: freshDev(), heli: { active: false, x: HELI.from, drops: 0, pending: 0 }, sign: spring(0), confetti: [], whaleFlash: 0, motion,
-    rng: () => 0.5, events: { splash: null, heli: false, drop: false, shutter: false },
+    dev: freshDev(), heli: { active: false, x: HELI.from, drops: 0, pending: 0 }, sign: spring(0), confetti: [], whaleFlash: 0, rng: () => 0.5, events: { splash: null, heli: false, drop: false, shutter: false },
   };
 }
 
@@ -180,7 +177,7 @@ export function airdrop(p: PartyState): void {
 
 /** One link wound tighter: the dev's wrist twitches on the chain (2 for a full notch). */
 export function devTug(p: PartyState, strength: number): void {
-  p.dev.tug.v += 150 * strength * p.motion;
+  p.dev.tug.v += 150 * strength;
 }
 
 const FAKE_LINES = ['jk', 'relax ser', 'jk jk', 'just stretching'];
@@ -193,8 +190,8 @@ export function devFake(p: PartyState, index: number): void {
   for (const h of p.holders) if (h.mode === 'floating') h.glance = -0.08 - 0.12 * h.tone;
   p.sign.v += 2;
 }
-/** How hard a fake yank is pulling right now, 0..1: a snap, or under reduced motion a slower lift. */
-export const fakePull = (p: PartyState): number => smoothstep(0, p.motion ? 0.07 : 0.3, p.dev.fake) * (1 - smoothstep(0.3, 0.75, p.dev.fake));
+/** How hard a fake yank is pulling right now, 0..1: a snap. */
+export const fakePull = (p: PartyState): number => smoothstep(0, 0.07, p.dev.fake) * (1 - smoothstep(0.3, 0.75, p.dev.fake));
 
 /** Straight onto the safe lounger, shades on: an exit met late. */
 function lounge(a: Avatar): void {
@@ -398,7 +395,7 @@ export function stepParty(p: PartyState, pool: PoolState, growth: number, runnin
     k.rise += ((k.mode === 'floating' ? k.row * 7 : 0) - k.rise) * (1 - Math.exp(-8 * dt));
   }
   a.enter += dt;
-  if (a.enter >= DROP_S && a.enter - dt < DROP_S && p.motion > 0) { splash(pool, a.x, surfaceY(pool, a.x), 14, 240); p.events.splash = { x: a.x, y: a.y, big: true }; }
+  if (a.enter >= DROP_S && a.enter - dt < DROP_S) { splash(pool, a.x, surfaceY(pool, a.x), 14, 240); p.events.splash = { x: a.x, y: a.y, big: true }; }
   stepSpring(a.seat, p.player ? 1 : 0, 11, 0.5, dt);
   a.face += clamp((a.mode === 'walking' ? -1 : 1) - a.face, -dt * 13, dt * 13);
   switch (a.mode) {
@@ -533,7 +530,7 @@ function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, text: strin
 /** A shared world-space pose keeps the chain, fist and fixed-length arm on one socket. */
 export function devArmPose(p: PartyState) {
   const d = p.dev, lean = clamp(d.lean.x, 0, 1), lounging = d.mode === 'lounging', up = smoothstep(0, 1, d.up);
-  const tremble = lounging ? lean * lean * smoothstep(0.4, 0.85, p.tension) * p.motion : 0;
+  const tremble = lounging ? lean * lean * smoothstep(0.4, 0.85, p.tension) : 0;
   const jx = (noise(Math.floor(p.time * 31)) - 0.5) * 4 * tremble;
   const jy = (noise(Math.floor(p.time * 29) + 7) - 0.5) * 3 * tremble;
   // A fake yank snaps the wrist up and back; each tug twitches it toward him. Getting up blends the lounger pose into his feet.
@@ -733,7 +730,7 @@ export function drawHelicopter(ctx: CanvasRenderingContext2D, p: PartyState): vo
   ctx.beginPath(); ctx.roundRect(-70, -6, 52, 11, 4); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(-66, -6); ctx.lineTo(-62, -20); ctx.lineTo(-54, -6); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.lineWidth = 3;
-  const tail = p.motion > 0 ? Math.sin(p.time * 41) : 0.4;
+  const tail = Math.sin(p.time * 41);
   ctx.beginPath(); ctx.moveTo(-64, -14 - 10 * tail); ctx.lineTo(-64, -14 + 10 * tail); ctx.stroke();
   // Skids.
   ctx.lineWidth = 3;
@@ -746,12 +743,12 @@ export function drawHelicopter(ctx: CanvasRenderingContext2D, p: PartyState): vo
   drawWojakBust(ctx, -3, 12, { tone: 0.1, mood: 'smug', shades: 1, scale: 0.7, spin: 0 }, 1);
   ctx.fillStyle = 'rgba(200, 240, 255, 0.85)';
   ctx.beginPath(); ctx.ellipse(20, -4, 15, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // Mast and the main rotor: a blurred disc, and the blades when motion is on.
+  // Mast and the main rotor: a blurred disc and the spinning blades.
   ctx.strokeStyle = INK; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(0, -19); ctx.lineTo(0, -30); ctx.stroke();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
   ctx.beginPath(); ctx.ellipse(0, -30, 62, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-  if (p.motion > 0) {
+  {
     const b = Math.cos(p.time * 38);
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(-62 * b, -30); ctx.lineTo(62 * b, -30); ctx.stroke();
@@ -764,8 +761,8 @@ const inWater = (h: Holder): boolean => h.mode === 'floating' || h.mode === 'suc
 const holderAlpha = (h: Holder): number => (h.mode === 'fading' ? clamp(1 - h.t / 0.35, 0, 1) : 1);
 /** Back rows first, then left to right, so a nearer bust always overlaps a farther one. */
 const byDepth = (p: PartyState): Holder[] => p.holders.filter((h) => h.mode !== 'gone').sort((m, n) => n.row - m.row || m.x - n.x);
-/** The flamingo's fall from above into a fresh round (none under reduced motion, where it fades in instead). */
-const dropY = (a: Avatar, motion: number): number => (a.enter < DROP_S ? -460 * (1 - (a.enter / DROP_S) ** 2) * motion : 0);
+/** The flamingo's fall from above into a fresh round. */
+const dropY = (a: Avatar): number => (a.enter < DROP_S ? -460 * (1 - (a.enter / DROP_S) ** 2) : 0);
 
 /** Two equal bones from root to end with the middle joint bent to side `b`; an end out of reach falls short rather than stretch. */
 function limb(ctx: CanvasRenderingContext2D, rx: number, ry: number, ex: number, ey: number, len: number, b: number): void {
@@ -817,8 +814,8 @@ export function drawHoldersBehind(ctx: CanvasRenderingContext2D, p: PartyState, 
   }
   for (const a of [p.ghost, p.avatar]) {
     if (!a || !(a.mode === 'floating' || a.mode === 'paddling' || a.mode === 'sucked')) continue;
-    ctx.globalAlpha = a === p.ghost ? clamp(1 - p.ghostAge / 0.35, 0, 1) : p.motion ? 1 : clamp(a.enter / 0.35, 0, 1);
-    drawFlamingo(ctx, a.x, a.y + dropY(a, p.motion), a.scale, a.spin);
+    ctx.globalAlpha = a === p.ghost ? clamp(1 - p.ghostAge / 0.35, 0, 1) : 1;
+    drawFlamingo(ctx, a.x, a.y + dropY(a), a.scale, a.spin);
   }
   const f = p.floatie;
   if (f) {
@@ -900,8 +897,8 @@ function rigNow(a: Avatar): End[] {
 const MOODS: WojakLook['mood'][] = ['calm', 'nervous', 'panic'];
 
 /** Your degen: limbs, bust (once you have hopped on), the YOU tag, and the lounger kit once you are out. */
-function drawAvatar(ctx: CanvasRenderingContext2D, p: PartyState, a: Avatar): void {
-  const seat = clamp(a.seat.x, 0, 1.3), y = a.y + dropY(a, p.motion);
+function drawAvatar(ctx: CanvasRenderingContext2D, a: Avatar): void {
+  const seat = clamp(a.seat.x, 0, 1.3), y = a.y + dropY(a);
   if (seat < 0.02) return;
   if (a.mode === 'puddle') {
     ctx.fillStyle = 'rgba(102, 224, 163, 0.6)';
@@ -931,7 +928,7 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     if (!inWater(h)) drawHolderBody(ctx, p, h);
     const mood: WojakLook['mood'] = h.mode === 'sucked' ? 'shock' : h.mode === 'puddle' || h.mode === 'fading' ? 'sad' : h.mode === 'jumping' ? (h.airdropped ? 'panic' : 'smug') : h.mode === 'leaving' ? 'smug' : MOODS[h.mood]!;
     // A flinch as each one cracks, the dip of a landing, and in very long rounds a slow wave through the crowd.
-    const hop = h.glance > 0 && h.glance < 0.3 ? Math.sin(Math.PI * h.glance / 0.3) * 4 * p.motion : 0;
+    const hop = h.glance > 0 && h.glance < 0.3 ? Math.sin(Math.PI * h.glance / 0.3) * 4 : 0;
     const dip = Math.max(0, 1 - h.land / 0.12) * 3;
     const ripple = p.elapsed > 45 && !pool.draining && h.mode === 'floating' ? Math.max(0, Math.sin(p.time * 0.52 - h.row - h.x * 0.006)) * 6 : 0;
     drawWojakBust(ctx, h.x, h.y - 8 - h.rise - ripple - hop + dip, { tone: h.tone, mood, shades: 0, scale: h.scale, spin: h.spin }, h.face);
@@ -942,10 +939,10 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
   }
   if (p.ghost) {
     ctx.globalAlpha = clamp(1 - p.ghostAge / 0.35, 0, 1);
-    drawAvatar(ctx, p, p.ghost);
+    drawAvatar(ctx, p.ghost);
   }
   ctx.globalAlpha = 1;
-  drawAvatar(ctx, p, p.avatar);
+  drawAvatar(ctx, p.avatar);
   // The dev: lounging with the chain (sitting up and trembling as the number climbs), standing to yank it, the
   // selfie with the empty pool, then strolling off with the bag.
   const d = p.dev;
@@ -990,7 +987,7 @@ export function drawFigures(ctx: CanvasRenderingContext2D, p: PartyState, pool: 
     ctx.fillStyle = d.flash > 0.5 ? '#ffffff' : '#8fd3ff';
     ctx.fillRect(-4, -9, 8, 16);
     ctx.restore();
-    if (d.flash > 0.02 && p.motion > 0) {
+    if (d.flash > 0.02) {
       const g = ctx.createRadialGradient(px, py, 4, px, py, 110);
       g.addColorStop(0, `rgba(255, 255, 255, ${0.9 * d.flash * d.flash})`);
       g.addColorStop(1, 'rgba(255, 255, 255, 0)');

@@ -84,7 +84,6 @@ export interface PanelState {
   sus: number;
   stage: string;
   time: number;
-  reduced: boolean;
 }
 
 function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: number, colour: string): void {
@@ -166,7 +165,7 @@ export function drawPanel(ctx: CanvasRenderingContext2D, panel: PanelState): voi
   ctx.fillText(`HOLDERS ABOARD: ${panel.crashed ? 0 : grouped(panel.holders)}`, x + 12, y + 96);
   // The SUS meter fills with every oddity noticed, and throbs red once nothing about this is fine.
   const hot = clamp((panel.sus - 55) / 35, 0, 1);
-  const throb = panel.reduced || panel.crashed ? 1 : 0.65 + 0.35 * Math.sin(panel.time * 7);
+  const throb = panel.crashed ? 1 : 0.65 + 0.35 * Math.sin(panel.time * 7);
   const susColour = panel.crashed ? '#ff4d6d' : `rgb(${Math.round(201 + (255 - 201) * hot)}, ${Math.round(247 - (247 - 77) * hot * throb)}, ${Math.round(107 - (107 - 109) * hot)})`;
   ctx.fillStyle = hot > 0.5 ? '#ffb3c1' : '#e9ecf6';
   ctx.fillText(panel.crashed ? 'SUS: CONFIRMED' : `SUS: ${Math.round(panel.sus)}%`, x + 12, y + 116, 78);

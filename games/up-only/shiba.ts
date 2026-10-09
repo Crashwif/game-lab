@@ -34,7 +34,6 @@ export interface ShibaPose {
   /** Struck by the FUD, 0 to 1 while the flash lasts. */
   struck: number;
   time: number;
-  reduced: boolean;
 }
 
 const FUR = '#e0a35a';
@@ -83,29 +82,29 @@ function wing(ctx: CanvasRenderingContext2D, x: number, y: number, age: number, 
 
 export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   // The wings beat down over the first tenth of a second after a flap and glide back up.
-  const age = p.reduced ? .44 : p.flapAge;
+  const age = p.flapAge;
   const perched = clamp(p.perched ?? 0, 0, 1);
-  const idle = p.reduced ? 0 : clamp(p.idle ?? 0, 0, 1);
+  const idle = clamp(p.idle ?? 0, 0, 1);
   // At rest he stretches both wings straight up every 3.2 s (against the stroke); constant rates on the scene clock.
   const u = (p.time % 3.2) / 0.9, stretch = idle * (u < 1 ? Math.sin(Math.PI * u) ** 2 * 0.36 : 0);
-  const motion = p.reduced ? undefined : p.wingMotion ? { beat: p.wingMotion.beat * (1 - perched) - stretch, lag: p.wingMotion.lag * (1 - perched) - stretch * 0.92, feather: p.wingMotion.feather * (1 - perched) - stretch * 0.85 } : undefined;
-  const follow = p.reduced ? 0 : motion ? motion.lag - motion.beat : wingBeat(Math.max(0, age - .06)) - wingBeat(age);
+  const motion = p.wingMotion ? { beat: p.wingMotion.beat * (1 - perched) - stretch, lag: p.wingMotion.lag * (1 - perched) - stretch * 0.92, feather: p.wingMotion.feather * (1 - perched) - stretch * 0.85 } : undefined;
+  const follow = motion ? motion.lag - motion.beat : wingBeat(Math.max(0, age - .06)) - wingBeat(age);
   ctx.save();
   ctx.translate(p.x, p.y);
   // A clip wobbles from his own tilt, starting and ending at zero, so neither end of the spin pops.
   const wobble = p.stun > 0 ? Math.sin((0.45 - p.stun) * 30) * 0.5 * Math.min(1, p.stun / 0.1) : 0;
-  ctx.rotate(p.reduced ? p.tilt : p.tilt + wobble + p.fall * 7);
+  ctx.rotate(p.tilt + wobble + p.fall * 7);
   // Squash and stretch about the feet, and a breath at rest.
-  const breath = idle * Math.sin(p.time * 2.8) * 0.022, sq = p.reduced ? 0 : (p.squash ?? 0) * 0.15;
+  const breath = idle * Math.sin(p.time * 2.8) * 0.022, sq = (p.squash ?? 0) * 0.15;
   if (sq || breath) {
     ctx.translate(0, 30);
     ctx.scale(1 + sq - breath * 0.5, 1 - sq + breath);
     ctx.translate(0, -30);
   }
-  if (p.rocket && !p.reduced) ctx.translate(Math.sin(p.time * 60) * 1.5, Math.cos(p.time * 47) * 1.5);
+  if (p.rocket) ctx.translate(Math.sin(p.time * 60) * 1.5, Math.cos(p.time * 47) * 1.5);
   // The rocket's flame, behind him.
   if (p.rocket) {
-    const flick = p.reduced ? 1 : 0.85 + Math.sin(p.time * 40) * 0.15;
+    const flick = 0.85 + Math.sin(p.time * 40) * 0.15;
     poly(ctx, [[-30, -8], [-78 * flick, 0], [-30, 8]], '#ffaf42');
     poly(ctx, [[-30, -4], [-56 * flick, 0], [-30, 4]], '#fff6c8');
   }
@@ -114,7 +113,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   // The tail wags from its root at rest and trails the wing beat in flight.
   ctx.save();
   ctx.translate(-26, 2);
-  ctx.rotate(p.reduced ? 0 : idle * 0.25 * Math.sin(p.time * 28) + follow * 0.35);
+  ctx.rotate(idle * 0.25 * Math.sin(p.time * 28) + follow * 0.35);
   ctx.translate(26, -2);
   ctx.beginPath();
   ctx.arc(-34, -6, 12, Math.PI * 0.6, Math.PI * 2.2);
@@ -184,7 +183,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   }
   if (p.drip.has('lasers')) {
     ctx.save();
-    ctx.globalAlpha = p.reduced ? 0.6 : 0.5 + Math.sin(p.time * 20) * 0.2;
+    ctx.globalAlpha = 0.5 + Math.sin(p.time * 20) * 0.2;
     line(ctx, [[27, -19], [700, -19 - 60 * p.tilt]], '#ff2d55', 8);
     line(ctx, [[27, -19], [700, -19 - 60 * p.tilt]], '#fff0f3', 2.5);
     ctx.restore();
@@ -204,7 +203,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
     ctx.strokeStyle = 'rgba(95, 242, 230, 0.65)';
     ctx.lineWidth = 3;
     ctx.setLineDash([10, 8]);
-    ctx.lineDashOffset = p.reduced ? 0 : -p.time * 60;
+    ctx.lineDashOffset = -p.time * 60;
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -216,7 +215,7 @@ export function drawShiba(ctx: CanvasRenderingContext2D, p: ShibaPose): void {
   if (shock > 0.05) {
     ctx.save();
     ctx.globalAlpha = Math.min(1, shock * 2);
-    memeText(ctx, '!', p.x + 22, p.y - 76 - (p.reduced ? 0 : 6 * shock), 30, PINK);
+    memeText(ctx, '!', p.x + 22, p.y - 76 - (6 * shock), 30, PINK);
     ctx.restore();
   }
 }
@@ -227,7 +226,6 @@ export interface JetPose {
   time: number;
   /** Banking, in radians. */
   bank: number;
-  reduced: boolean;
 }
 
 /** The private jet: a white fuselage, a swept wing, engines under the tail and the name of the airline. */
@@ -235,7 +233,7 @@ export function drawJet(ctx: CanvasRenderingContext2D, p: JetPose): void {
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(p.bank);
-  const glow = p.reduced ? 1 : 0.8 + Math.sin(p.time * 30) * 0.2;
+  const glow = 0.8 + Math.sin(p.time * 30) * 0.2;
   for (const dy of [-6, 8]) {
     poly(ctx, [[-70, dy - 4], [-118 * glow, dy], [-70, dy + 4]], `rgba(95, 242, 230, ${0.6 * glow})`);
   }

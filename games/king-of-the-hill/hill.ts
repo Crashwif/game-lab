@@ -55,7 +55,7 @@ export function moonAt(growth: number): { x: number; y: number; r: number } {
   return { x: 820 - 200 * near, y: 110 + 40 * near, r: 34 + 150 * near };
 }
 
-export function drawSky(ctx: CanvasRenderingContext2D, cam: Camera, time: number, growth: number, reduced: boolean): void {
+export function drawSky(ctx: CanvasRenderingContext2D, cam: Camera, time: number, growth: number): void {
   const altitudeAt = (sy: number): number => cam.y + (300 - sy);
   const sky = ctx.createLinearGradient(0, 0, 0, 540);
   for (const f of [0, 0.25, 0.5, 0.75, 1]) sky.addColorStop(f, skyColour(altitudeAt(f * 540)));
@@ -67,7 +67,7 @@ export function drawSky(ctx: CanvasRenderingContext2D, cam: Camera, time: number
     for (let i = 0; i < 70; i += 1) {
       const sx = (noise(i * 3.1) * 1200 - cam.x * 0.05) % 960;
       const sy = (noise(i * 7.7) * 700 + cam.y * 0.08) % 540;
-      ctx.globalAlpha = space * (reduced ? 0.7 : 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(time * (1 + noise(i)) + i)));
+      ctx.globalAlpha = space * (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(time * (1 + noise(i)) + i)));
       ctx.beginPath(); ctx.arc(((sx % 960) + 960) % 960, ((sy % 540) + 540) % 540, 0.7 + noise(i * 1.3) * 1.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;

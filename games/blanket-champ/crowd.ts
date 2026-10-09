@@ -48,15 +48,13 @@ export interface CrowdState {
   /** The board: which lines the number has passed, a bounce per row as it flips, and whether the rest have paid. */
   odds: { voided: boolean[]; flips: Spring[]; paid: boolean };
   confetti: Confetti[];
-  /** 1, or 0 under reduced motion: the booth's LIVE light stops blinking. */
-  motion: number;
   events: { collected: boolean; wave: boolean };
 }
 
 const seated = (x: number) => ({ mode: 'seated' as SupporterMode, x, v: 0, stand: spring(0), modeAge: 0, shades: spring(0), ticket: true, bag: 0 });
 
-export function createCrowd(motion = 1): CrowdState {
-  return { motion, time: 0, bob: 0, cheer: 0, wave: -1, waveAt: 0, verdict: null, sulk: spring(0), hype: spring(0), supporter: seated(SEAT_X), tag: spring(0), tagText: '', bookiePop: spring(0), odds: { voided: LINES.map(() => false), flips: LINES.map(() => spring(0)), paid: false }, confetti: [], events: { collected: false, wave: false } };
+export function createCrowd(): CrowdState {
+  return { time: 0, bob: 0, cheer: 0, wave: -1, waveAt: 0, verdict: null, sulk: spring(0), hype: spring(0), supporter: seated(SEAT_X), tag: spring(0), tagText: '', bookiePop: spring(0), odds: { voided: LINES.map(() => false), flips: LINES.map(() => spring(0)), paid: false }, confetti: [], events: { collected: false, wave: false } };
 }
 
 function fanX(row: number, index: number): number {
@@ -406,7 +404,7 @@ export function drawBooth(ctx: CanvasRenderingContext2D, c: CrowdState, line: st
   // The caption strip sits in front of the desk, so the commentators end at the desk edge.
   ctx.fillStyle = '#1b1b1f'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(8, 58, 164, 26, 3); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = Math.floor(c.time * 2) % 2 || c.motion === 0 ? '#e63946' : '#7a1a24';
+  ctx.fillStyle = Math.floor(c.time * 2) % 2 ? '#e63946' : '#7a1a24';
   ctx.beginPath(); ctx.arc(20, 14, 5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#ffffff';
   ctx.font = '900 11px Impact, "Arial Black", sans-serif';

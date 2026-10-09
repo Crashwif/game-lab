@@ -36,7 +36,7 @@ for (const game of games) {
     }
     browse('goto', `${base}/${game}/index.html?seconds=150&late=1`);
     if (!(process.env.REVIEW_RESUME && ['mobile','tablet','desktop'].every(size => existsSync(`${directory}/${game}-${size}.png`)))) browse('responsive', `${directory}/${game}`);
-    for (const state of ['cashout', 'crash', 'reduced']) {
+    for (const state of ['cashout', 'crash']) {
       if (process.env.REVIEW_RESUME && existsSync(`${directory}/${game}-${state}.png`)) continue;
       browse('goto', `${base}/${game}/index.html?seconds=150&late=1&${state}=1`);
       browse('screenshot', `${directory}/${game}-${state}.png`);

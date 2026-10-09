@@ -82,8 +82,6 @@ export interface TraderDrive {
   listening?: boolean;
   /** The round is over and she is up: a sneak still on the stairs hurries. */
   hurry?: boolean;
-  /** Clock rate for idle motion (reduced motion runs it at a quarter). */
-  pace?: number;
 }
 
 export function createTrader(): Trader {
@@ -217,7 +215,7 @@ export function stepTrader(t: Trader, drive: TraderDrive, dt: number): void {
   stepSpring(t.lid, open || (t.mode === 'closing' && t.modeAge < 0.26) ? 0.05 : 1, 9, 0.72, dt);
   stepSpring(t.shades, t.mode === 'sneak' || t.mode === 'upstairs' ? 1 : 0, 14, 0.55, dt);
   t.sweat = drive.running ? clamp(t.sweat + dt * (drive.fear > 0.55 ? 0.35 : -0.2), 0, 1) : t.sweat * Math.exp(-1.2 * dt);
-  t.bob += dt * (drive.pace ?? 1) * (5 + drive.fear * 8);
+  t.bob += dt * (5 + drive.fear * 8);
   t.lookT = Math.max(0, t.lookT - dt);
   t.hushT = Math.max(0, t.hushT - dt);
   t.jab = Math.max(0, t.jab - dt / 0.4);

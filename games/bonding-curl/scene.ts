@@ -25,11 +25,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the hit-stop, the slow motion and the camera punch. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -87,8 +82,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'THE BICEP HAS A TICKER';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'phonk', crash: 'boom' });
   const gym: Gym = createGym();
   const curler: Curler = createCurler();
@@ -145,7 +139,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       // A hard cut in on the burst, held through the hit-stop, then eased back out.
@@ -236,7 +230,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (running && milestone < MILESTONES.length && multiplier >= MILESTONES[milestone]!) {
       heckle(gym, HECKLES[milestone % HECKLES.length]!, milestone % 2 === 0);
       milestone += 1;
-      if (!reduced) shake = Math.max(shake, 0.2);
+      shake = Math.max(shake, 0.2);
     }
     if (running && milestone === MILESTONES.length && view.elapsed >= encoreAt) {
       const round = Math.floor(view.elapsed / 8_000);
@@ -245,13 +239,13 @@ export function createScene(options: SceneOptions = {}): Scene {
       encoreAt = view.elapsed + 8_000;
     }
     if (running) audio.milestone(MILESTONES.filter((m) => multiplier >= m).length);
-    if (curler.events.rep && running) { if (!reduced) shake = Math.max(shake, 0.04 + 0.16 * tension); audio.fx('creak', 0.4 + 0.6 * tension); }
+    if (curler.events.rep && running) { shake = Math.max(shake, 0.04 + 0.16 * tension); audio.fx('creak', 0.4 + 0.6 * tension); }
     // The bicep's own pulse under the reps, quickening with the load, for as long as the player is still in.
     if (curler.events.beat && running && !secured && tension > 0.15) audio.fx('heartbeat', 0.15 + 0.35 * tension);
     if (curler.events.hop && running) audio.fx('tick', 0.35);
     if (curler.events.chalk) puff(gym, curlerArm(curler).hand, 5, '#f4f2ea', curler.modeAge);
-    if (curler.events.sleeve) { heckle(gym, 'SLEEVE GONE', true); if (!reduced) shake = Math.max(shake, 0.3); audio.fx('ratchet', 0.9); }
-    if (curler.events.dropped) { puff(gym, { x: curler.dumbbell.x, y: curler.dumbbell.y }, 10, '#ffffff', 5); if (!curler.burst) { swoon(gym); heckle(gym, 'MARRY ME', true); } if (!reduced) shake = Math.max(shake, 0.35); audio.fx('thud', 1); }
+    if (curler.events.sleeve) { heckle(gym, 'SLEEVE GONE', true); shake = Math.max(shake, 0.3); audio.fx('ratchet', 0.9); }
+    if (curler.events.dropped) { puff(gym, { x: curler.dumbbell.x, y: curler.dumbbell.y }, 10, '#ffffff', 5); if (!curler.burst) { swoon(gym); heckle(gym, 'MARRY ME', true); } shake = Math.max(shake, 0.35); audio.fx('thud', 1); }
     if (medic.events.glow) audio.fx('siren', 0.2);
     if (medic.events.peek) audio.fx('squeak', 0.5);
     if (medic.events.enter) audio.fx('siren', 0.6);
@@ -272,8 +266,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (wipe > 0) wipe = Math.max(0, wipe - real / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the burst and eases back out.
       const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(curler.burstAt.x, curler.burstAt.y);
@@ -283,7 +277,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawGymBack(ctx, gym, outcome !== null);
     drawGymCrowd(ctx, gym, outcome === 'called');
     drawGymFloor(ctx);
-    drawSirenGlow(ctx, medic, reduced);
+    drawSirenGlow(ctx, medic);
     drawMedic(ctx, medic);
     const cv = drawCurler(ctx, curler);
     drawPuffs(ctx, gym);

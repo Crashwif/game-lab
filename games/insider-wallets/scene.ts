@@ -18,8 +18,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-
-export interface SceneOptions { reducedMotion?: boolean; }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void; }
 
 const MEME_FONT = 'Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif';
@@ -76,8 +74,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return 'THE PILOT IS AN INSIDER';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // Casino music for a coin launch: the podium is a craps table. The crash turns the crowd.
   const audio = pageAudio({ style: 'casino', crash: 'crowd' });
   const rally: Rally = createRally();
@@ -110,7 +107,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     outcome = secured ? 'called' : view.stake === null ? 'spectator' : 'rekt';
     // A crash that already happened settles the rally to it rather than playing the milestones it missed.
     if (quiet) settleRally(rally, drive, secured !== null);
-    dumpRally(rally, view.currentX100, quiet, reduced);
+    dumpRally(rally, view.currentX100, quiet);
     if (quiet) {
       pop.x = 1;
       audio.crash('crowd', true);
@@ -118,7 +115,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       // The SOLD frame holds, punched in on the podium, then the yank starts in slow motion.
       freeze = FREEZE_S;
       slow = SLOW_S;
@@ -161,7 +158,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // A player who has cashed out still played this round; only a viewer with no bet is a spectator.
     const player = view.stake !== null || secured !== null;
-    const drive: RallyDrive = { running, multiplier, tension, reduced, staked: player };
+    const drive: RallyDrive = { running, multiplier, tension, staked: player };
 
     if (previous === null) {
       // A fresh scene can open mid-round or on the crash (a page that joins late, or a tab that missed the
@@ -183,7 +180,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       previous = view.phase;
     }
     // Not only while running: a cash-out first seen on the crash (the tab was hidden) still means you left.
-    if (secured) leaveSeat(rally, reduced);
+    if (secured) leaveSeat(rally);
     audio.update(view.phase, tension);
     // A tick every 1.4 s at 1×, under 0.9 s by 2×, until you cash out.
     if (running && !secured) {
@@ -213,7 +210,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (events.podium) audio.fx('thud', 1);
     if (running) audio.milestone(RUNGS.filter((rung) => multiplier >= rung).length);
-    if (rally.cannons > 0 && rally.bits.length > 40 && !reduced) shake = Math.max(shake, 0.08);
+    if (rally.cannons > 0 && rally.bits.length > 40) shake = Math.max(shake, 0.08);
     stepSpring(pop, outcome ? 1 : 0, 16, 0.45, dt);
     stepSpring(badge, secured ? 1 : 0, 14, 0.5, dt);
     // The camera runs on real time: it holds the punch through the hit-stop, then eases out.
@@ -230,16 +227,16 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.45);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the podium and eases back out.
       const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
-    const shown = reduced ? 0 : time;
-    drawRally(ctx, rally, multiplier, tension, shown, reduced);
+    const shown = time;
+    drawRally(ctx, rally, multiplier, tension, shown);
     if (outcome && pop.x > 0.02) {
       // Narrow enough that its overshoot under the punch-in stays clear of the tracker.
       ctx.save();
@@ -254,7 +251,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.restore();
     // The tracker shakes with the stage but sits outside the punch-in, so its edge never leaves the picture.
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
+    if (shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
     drawTracker(ctx, multiplier, tension, rally.crashed, rally.crashT, !player ? null : rally.leaving ? 'left' : 'in', shown, view.elapsed / 1000);
     ctx.restore();
     if (flash.x > 0.01) {

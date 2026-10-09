@@ -79,13 +79,10 @@ test('OnlyFrens heart births follow an eight-Hz clock rather than render count',
   const samples = [];
   for (const fps of [30, 60, 120]) {
     const s = m.createStream();
-    for (let i = 0; i < fps * 2; i++) m.stepStream(s, { running: true, tension: 1, multiplier: 5, reduced: false }, 1 / fps);
+    for (let i = 0; i < fps * 2; i++) m.stepStream(s, { running: true, tension: 1, multiplier: 5 }, 1 / fps);
     samples.push(s.hearts.map(h => [h.life, h.size]));
   }
   assert.ok(samples[0].length > 0); assert.deepEqual(samples[0], samples[1]); assert.deepEqual(samples[1], samples[2]);
-  const reduced = m.createStream();
-  for (let i = 0; i < 120; i++) m.stepStream(reduced, { running: true, tension: 1, multiplier: 5, reduced: true }, 1 / 60);
-  assert.equal(reduced.hearts.length, 0);
 });
 
 test('Hacked wrist is reachable and continuous around former wave/shrug thresholds', async () => {
@@ -103,7 +100,7 @@ test('Family Meeting slam cue crosses the authored table-contact pose', async ()
   close(m.fistLift(.55), 0); assert.ok(m.fistLift(.45) > 0);
   for (const fps of [30, 60, 120]) {
     const parents = m.createParents(); parents[0].slamT = .54;
-    const events = m.stepParents(parents, { running: false, tension: 0, time: 0, reduced: false, herLine: false, left: false }, 1 / fps);
+    const events = m.stepParents(parents, { running: false, tension: 0, time: 0, herLine: false, left: false }, 1 / fps);
     assert.equal(events.slam, true);
     assert.ok(m.fistLift(parents[0].slamT) < 3, 'cue occurs at contact/rebound, not maximum anticipation');
   }
@@ -117,7 +114,7 @@ test('Hopium doctor sockets invert correctly and render cables without using dev
       assert.ok(distance(m.doctorPoint(w, m.doctorPoint(w, local), true), local) < 1e-7);
     }
     w.paddles.x = 1;
-    const c = canvas(); c.scale(2, 2); c.translate(13, -4); m.drawWard(c, w, .8, false);
+    const c = canvas(); c.scale(2, 2); c.translate(13, -4); m.drawWard(c, w, .8);
     assert.ok(c.commands.some(command => command[0] === 'quadraticCurveTo'));
   }
   const origin = m.doctorPoint(w, { x: -14, y: -150 }); m.flatline(w, 500, false);
@@ -163,7 +160,7 @@ test('Blanket feet have separate impulses while quilt tucks remain attached to e
 
 test('Clown appointment transitions are continuous and a crash still renders a full rig', async () => {
   const m = await source('know-your-clown/character'), { directionAt } = await source('know-your-clown/direction');
-  const pose = seconds => { const d = directionAt(seconds * 1000); return { time: seconds, tension: d.tension, stage: d.stage, level: d.level, action: d.action, x: 511, y: 427, scale: 1, reduced: false, mode: d.stage === 4 ? 'dance' : 'scan', progress: 0 }; };
+  const pose = seconds => { const d = directionAt(seconds * 1000); return { time: seconds, tension: d.tension, stage: d.stage, level: d.level, action: d.action, x: 511, y: 427, scale: 1, mode: d.stage === 4 ? 'dance' : 'scan', progress: 0 }; };
   for (const at of [6, 11, 16, 21, 27, 34, 42, 50, 62, 74]) {
     const a = m.applicantRig(pose(at - 1e-6)), b = m.applicantRig(pose(at));
     for (const key of ['left', 'right', 'hip', 'chest']) assert.ok(distance(a[key], b[key]) < .01, `${at}s ${key} must not jump`);
@@ -174,7 +171,6 @@ test('Clown appointment transitions are continuous and a crash still renders a f
   const bodyLines = c => c.commands.filter(command => command[0] === 'lineTo').length;
   assert.ok(bodyLines(boxed) >= bodyLines(normal), 'body and articulated limbs survive the first crash frame');
 });
-
 
 test('departing daughter, patient and fan ease both feet out of their standing contacts', async () => {
   for (const game of ['family-meeting', 'hopium-drip', 'i-got-hacked']) {
@@ -193,7 +189,6 @@ test('departing daughter, patient and fan ease both feet out of their standing c
   }
 });
 
-
 test('Wife small leg proportions remain reachable over every floor and stair support pose', async () => {
   const { createTrader, exitPose, traderStance } = await source('wife-changing-money/trader');
   const trader = createTrader(), seated = traderStance(trader);
@@ -211,7 +206,6 @@ test('Wife small leg proportions remain reachable over every floor and stair sup
     prior = p;
   }
 });
-
 
 test('Wife unfolds into her first walking cycle without changing either planted sole at .25s', async () => {
   const { traderFoot } = await source('wife-changing-money/trader');

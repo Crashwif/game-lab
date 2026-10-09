@@ -25,7 +25,7 @@ function wrap(c: CanvasRenderingContext2D, text: string, y: number, color: strin
 /** Recompose the apparatus around the applicant, with one demand and one punchline. */
 export function drawPortrait(c: CanvasRenderingContext2D, v: MinistryView, view: SceneView, accepted: number | null, exit: number,
   pose: ApplicantPose, figure: (c: CanvasRenderingContext2D, pose: ApplicantPose, crate: boolean) => Rig, punchline: string): Rig {
-  const { d, crash, reduced, running } = v;
+  const { d, crash, running } = v;
   c.save();
   c.setTransform(c.canvas.width / PORTRAIT.width, 0, 0, c.canvas.height / PORTRAIT.height, 0, 0);
   box(c, 0, 0, 540, 752, 0, C.ink, C.ink, 0);
@@ -59,7 +59,7 @@ export function drawPortrait(c: CanvasRenderingContext2D, v: MinistryView, view:
   const witness = 1 - Math.max(v.park, v.gone);
   if (d.stage === 2 && witness > .01) {
     c.save(); c.globalAlpha *= witness;
-    drawDog(c, 74, 548, reduced ? 0 : d.seconds, d.dread, reduced);
+    drawDog(c, 74, 548, d.seconds, d.dread);
     box(c, 14, 407, 157, 32, 9, C.cream, C.ink, 2);
     label(c, testimony(d), 92, 429, 16, C.ink, 'center', 143);
     line(c, [75, 439, 82, 449, 87, 439], C.ink, 2);

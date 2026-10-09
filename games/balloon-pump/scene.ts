@@ -26,11 +26,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, flicker and twinkle. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -103,7 +98,7 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
   return rung(LADDER, multiplier);
 }
 
-function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], reduced: boolean): void {
+function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[]): void {
   const sky = ctx.createLinearGradient(0, 0, 0, GROUND);
   sky.addColorStop(0, '#120c2e');
   sky.addColorStop(0.42, '#3d2568');
@@ -114,7 +109,7 @@ function drawSky(ctx: CanvasRenderingContext2D, time: number, stars: Star[], red
   ctx.fillRect(0, 0, W, GROUND + 12);
   ctx.fillStyle = '#ffffff';
   for (const [i, s] of stars.entries()) {
-    ctx.globalAlpha = reduced ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * s.k + i));
+    ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * s.k + i));
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -251,8 +246,8 @@ function drawHose(ctx: CanvasRenderingContext2D, packet: number | null): void {
   ctx.stroke();
 }
 
-function drawLasers(ctx: CanvasRenderingContext2D, eyes: Point[], target: Point, intensity: number, time: number, reduced: boolean): void {
-  const k = intensity * (reduced ? 1 : 0.85 + 0.15 * Math.sin(time * 61));
+function drawLasers(ctx: CanvasRenderingContext2D, eyes: Point[], target: Point, intensity: number, time: number): void {
+  const k = intensity * (0.85 + 0.15 * Math.sin(time * 61));
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
@@ -320,12 +315,11 @@ function drawReadout(ctx: CanvasRenderingContext2D, view: SceneView, text: strin
   ctx.restore();
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'chiptune', crash: 'pop' });
   const pumper = createPumper();
   const balloon = createBalloon();
-  const sniper = createSniper(reduced);
+  const sniper = createSniper();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
@@ -373,7 +367,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       settleSpring(punch, 1);
@@ -416,7 +410,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       fear,
       stretch: 0.8 * smoothstep(0.3, 3.3, growth) + 0.2 * strain,
       inflow: false,
-      shiver: reduced ? 0 : strain,
+      shiver: strain,
     };
 
     const ending: Outcome = view.stake === null ? 'pop' : secured ? 'called' : 'rekt';
@@ -428,7 +422,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (previous === null) {
       previous = view.phase;
       settle = true;
-      effort = running && !reduced ? act.effort : 0;
+      effort = running ? act.effort : 0;
       settleBalloon(balloon, balloonDrive);
       settleSniper(sniper, { growth, running, strain, target: balloonGeometry(balloon).centre });
       burstEnding = ending;
@@ -476,7 +470,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       trail = settleTrail(elapsed, growth);
       trailAt = Math.floor(elapsed / 100);
     }
-    effort += ((running && !reduced ? act.effort : 0) - effort) * (1 - Math.exp(-3 * dt));
+    effort += ((running ? act.effort : 0) - effort) * (1 - Math.exp(-3 * dt));
     waited = view.phase === 'betting' ? waited + dt : 0;
     // The dev's heartbeat quickens with the tension, until the player has cashed out.
     if (running && !secured && balloon.alive) {
@@ -555,15 +549,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(shakeClock * 140) * 9 * shake * shake, Math.cos(shakeClock * 117) * 6 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(shakeClock * 140) * 9 * shake * shake, Math.cos(shakeClock * 117) * 6 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera cuts in on the burst, holds, and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(balloon.burstAt.x, balloon.burstAt.y);
       ctx.scale(k, k);
       ctx.translate(-balloon.burstAt.x, -balloon.burstAt.y);
     }
-    drawSky(ctx, time, stars, reduced);
+    drawSky(ctx, time, stars);
     if (ghost) {
       ctx.globalAlpha = ghost.alpha;
       drawTrail(ctx, ghost.trail, true);
@@ -579,7 +573,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     drawBalloon(ctx, balloon);
     if (propAct === 3 && effort > 0.01) {
       ctx.save(); ctx.globalAlpha = .65 * effort; ctx.strokeStyle = "#e7faff"; ctx.lineWidth = 4;
-      for (let i = 0; i < 4; i++) { const u = reduced ? i / 4 : (time * .7 + i / 4) % 1; ctx.beginPath(); ctx.arc(365 + u * 34, 365 - u * 50, 4 + u * 9, -.8, 1.8); ctx.stroke(); }
+      for (let i = 0; i < 4; i++) { const u = (time * .7 + i / 4) % 1; ctx.beginPath(); ctx.arc(365 + u * 34, 365 - u * 50, 4 + u * 9, -.8, 1.8); ctx.stroke(); }
       ctx.restore();
     }
     const exit = secured ? exitPoint(trail, Math.log2(secured.x100 / 100)) : null;
@@ -591,7 +585,7 @@ export function createScene(options: SceneOptions = {}): Scene {
       ctx.globalAlpha = 1;
     }
     drawStone(ctx, sniper);
-    if (pumperDrive.laser > 0.02 && balloon.alive) drawLasers(ctx, pumperView.eyes, geometry.centre, pumperDrive.laser, time, reduced);
+    if (pumperDrive.laser > 0.02 && balloon.alive) drawLasers(ctx, pumperView.eyes, geometry.centre, pumperDrive.laser, time);
     // The word outlives the crash by the few frames its spring takes to shrink it away.
     if (pop.x > 0.02) drawPop(ctx, balloon.burstAt, burstEnding, clamp(pop.x, 0, 1.3));
     if (secured && badge.x > 0.02) drawBadge(ctx, secured, clamp(badge.x, 0, 1.3), time);

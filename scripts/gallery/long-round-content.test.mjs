@@ -16,11 +16,11 @@ function controller(source) {
   })());
   return modules.get(source);
 }
-function advance(seconds, step, reduced = false, holdAt = Infinity) {
+function advance(seconds, step, holdAt = Infinity) {
   for (let frame = 0; frame < seconds * 60; frame += 1) {
     const time = frame * DT;
     const multiplier = Math.min(holdAt, free.multiplierAtContinuousX100(time * 1000, free.DEFAULT_CURVE) / 100);
-    step({ running: true, multiplier, tension: Math.min(1, Math.log2(multiplier) / 3.3), time, reduced, off: false }, DT);
+    step({ running: true, multiplier, tension: Math.min(1, Math.log2(multiplier) / 3.3), time, off: false }, DT);
   }
 }
 
@@ -43,14 +43,14 @@ for (const [name, source, create, step, leave, settle] of [
       api[step](state, { ...drive, multiplier: 100_000, tension: 1 }, dt);
       assert.ok(!state.events.line || state.events.line.at === 0, 'only the accepted cashout choreography may speak after leaving');
     });
-    // A late join skips the spent ladder but still has ongoing content, also under reduced motion.
+    // A late join skips the spent ladder but still has ongoing content.
     const late = api[create]();
     api[settle](late, 100_000, 1, false);
     let freshLines = 0;
     advance(20, (drive, dt) => {
       api[step](late, { ...drive, multiplier: 100_000, tension: 1 }, dt);
       if (late.events.line) freshLines += 1;
-    }, true);
+    });
     assert.ok(freshLines >= 2);
   });
 }
@@ -102,7 +102,7 @@ test('Moon Boys keeps camera gags varied and spaces repeated wink cues', async (
   const late = new Set();
   let winks = 0;
   advance(180, (drive, dt) => {
-    api.stepWorld(world, drive.multiplier, true, dt, false);
+    api.stepWorld(world, drive.multiplier, true, dt);
     for (const event of world.events) {
       if (event === 'wink') winks += 1;
       if (drive.time > 120 && ['mic', 'bird', 'glove'].includes(event)) late.add(event);
@@ -113,7 +113,7 @@ test('Moon Boys keeps camera gags varied and spaces repeated wink cues', async (
   assert.ok(winks >= 3 && winks <= 20, 'the moon must not retrigger a ding every animation cycle');
   api.snapWires(world);
   advance(20, (_drive, dt) => {
-    api.stepWorld(world, 100_000, false, dt, false);
+    api.stepWorld(world, 100_000, false, dt);
     assert.deepEqual(world.events, []);
   });
 });
@@ -146,7 +146,6 @@ for (const [name, source, obstacles] of [['Rug Rails', 'rug-rails/course', 'obst
   });
 }
 
-
 test('ambient long-round action continues when the displayed multiplier holds at 100000×', async () => {
   const api = await controller('family-meeting/kitchen');
   const state = api.createKitchen();
@@ -155,6 +154,6 @@ test('ambient long-round action continues when the displayed multiplier holds at
     api.stepKitchen(state, drive, dt);
     if (drive.time > 150 && state.events.line) heldLines += 1;
     assert.ok(state.bubbles.length <= 8);
-  }, false, 100_000);
+  }, 100_000);
   assert.ok(heldLines >= 4, 'a held display must not exhaust dialogue');
 });

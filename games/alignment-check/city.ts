@@ -116,7 +116,6 @@ export interface CityDrive {
   tension: number;
   time: number;
   elapsed: number;
-  reduced: boolean;
   escaped: boolean;
   target: { x: number; y: number } | null;
   crashT: number;
@@ -139,7 +138,7 @@ export function stepCity(c: City, drive: CityDrive, dt: number): void {
     }
   }
   c.mastPhase = (c.mastPhase + dt * mix(1, 6, drive.tension)) % 1000;
-  c.flicker = (c.flicker + dt * 0.2 * (1 + 4 * drive.tension) * (drive.reduced ? 0.3 : 1)) % 1000;
+  c.flicker = (c.flicker + dt * 0.2 * (1 + 4 * drive.tension) * (1)) % 1000;
   // The searchlight: sweep, lock past tension 0.78, track the throw, 3 s down the canyon.
   const s = c.search;
   const T = drive.thrown?.times;
@@ -614,7 +613,7 @@ function pigeon(ctx: Ctx, t: number): void {
   for (const fx of [cx - 24, cx + 20]) for (let i = 0; i < 3; i += 1) ctx.fillRect(fx + i * 3, 462, 2, 8);
 }
 /** The pigeon-eye insert by insert seconds `t`: the silhouette whips down behind the pigeon at +0.05, the head turns down at +0.15 and back at +0.35, the ?-mark from +0.40, a tiny puff at +0.45, the blink at +0.50. Nothing hits anything. */
-export function drawInsert(ctx: Ctx, c: City, t: number, reduced: boolean): void {
+export function drawInsert(ctx: Ctx, c: City, t: number): void {
   ctx.save();
   const g = ctx.createLinearGradient(0, 0, 0, 430);
   g.addColorStop(0, '#141a3a');
@@ -632,7 +631,7 @@ export function drawInsert(ctx: Ctx, c: City, t: number, reduced: boolean): void
     const u = (t - 0.05) / 0.12;
     const x = 560 + 30 * u;
     const y = mix(-140, 540, u);
-    if (!reduced) R(ctx, 'rgba(16,16,24,0.25)', x - 12, y - 180, 24, 180);
+    R(ctx, 'rgba(16,16,24,0.25)', x - 12, y - 180, 24, 180);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(u * 7);

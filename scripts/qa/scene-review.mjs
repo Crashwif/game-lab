@@ -17,7 +17,7 @@ const canvas = document.querySelector('canvas');
 canvas.width=960; canvas.height=540;
 const ctx=canvas.getContext('2d');
 const params=new URLSearchParams(location.search);
-let scene=createScene({reducedMotion:params.has('reduced')});
+let scene=createScene();
 let now=1000;
 const seconds=Number(params.get('seconds')||150);
 const validTime=value=>{if (!Number.isFinite(value) || value < 0 || value > 600) throw new Error('Review seconds must be between 0 and 600');};
@@ -59,7 +59,7 @@ const tick=(duration,phase=view.phase)=>{
 };
 const seek=(at,phase=at===0?'betting':'running')=>{
   validTime(at);
-  scene.dispose?.();scene=createScene({reducedMotion:params.has('reduced')});now=1000+at*1000;
+  scene.dispose?.();scene=createScene();now=1000+at*1000;
   Object.assign(view,{phase,currentX100:100*Math.pow(10,at/30),elapsed:at*1000,crashAge:0,cashoutX100:null,payout:null});
   frame();
   // Settle secondary springs without advancing authoritative round duration.

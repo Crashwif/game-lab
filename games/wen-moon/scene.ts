@@ -11,7 +11,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 /** Rungs: a caption and a stinger; the booster drops at the second, a jeet bails from the third. */
@@ -34,8 +33,7 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.letterSpacing = '0px';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   const audio = pageAudio({ style: 'synthwave', crash: 'boom' });
   const pop = spring(0), badge = spring(0), framing = spring(0), squat = spring(0);
   let last: number | null = null;
@@ -56,7 +54,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     else {
       pieces.push(...shred(PAD_X, GROUND - alt, view.currentX100, !secured));
       shake = 1; pop.v = 16;
-      if (!reduced) { freeze = FREEZE_S; slow = SLOW_S; }
+      { freeze = FREEZE_S; slow = SLOW_S; }
     }
   }
   // Off the hull with a kick, then the chute.
@@ -75,8 +73,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const tension = 1 - 1 / multiplier;
     const fresh = previous === null;
     const oldAlt = alt, oldWobble = wobble;
-    alt = idle ? (reduced ? 0 : alt * Math.exp(-dt * 9)) : Math.log2(multiplier) * PX_PER_DOUBLING;
-    wobble = reduced ? 0 : Math.sin(time * 3) * 0.04 * tension + (view.elapsed > 45000 ? Math.sin(time * Math.PI / 9) * 0.07 : 0);
+    alt = idle ? (alt * Math.exp(-dt * 9)) : Math.log2(multiplier) * PX_PER_DOUBLING;
+    wobble = Math.sin(time * 3) * 0.04 * tension + (view.elapsed > 45000 ? Math.sin(time * Math.PI / 9) * 0.07 : 0);
     if (real > 0 && !fresh) { climb += ((alt - oldAlt) / real - climb) * (1 - Math.exp(-real * 12)); wobbleV = (wobble - oldWobble) / real; }
     if (view.cashoutX100 !== null && !secured) {
       secured = { x100: view.cashoutX100, payout: view.payout };
@@ -126,7 +124,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (pod) {
       // Up from the nose, then the chute opens.
       if (pod.age <= 0.55 && pod.age + dt > 0.55) audio.fx('whoosh', 0.5);
-      stepPod(pod, dt, reduced);
+      stepPod(pod, dt);
     }
     for (const j of jeets) {
       j.t += dt;
@@ -148,7 +146,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     stepSpring(framing, pod && !idle && pod.age < 3.5 ? Math.max(0, 220 - screenY(pod.h)) : 0, 6, 1, dt);
 
     ctx.save();
-    if (!reduced) {
+    {
       const rumble = running ? 0.6 + 4 * tension : 0;
       ctx.translate(Math.sin(time * 140) * (9 * shake * shake + rumble), Math.cos(time * 117) * (6 * shake * shake + rumble));
       // The burst punches in through the hit-stop.
@@ -157,12 +155,12 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // Reframe the world to keep the pod in view.
     ctx.translate(0, framing.x);
-    drawWorld(ctx, alt, time, reduced, framing.x);
+    drawWorld(ctx, alt, time, framing.x);
     if (fire < 0) {
       ctx.save();
       ctx.translate(PAD_X, screenY(idle ? 0 : alt) + squat.x);
       if (idle) ctx.globalAlpha = 1 - left;
-      drawRocket(ctx, { booster: rung < SEPARATION, piloted: !secured, frog: { fear: tension, shades: false }, flame: running ? (30 + 130 * tension) * smoothstep(0, 0.4, time) : 0, flicker: reduced ? 0 : noise(Math.floor(time * 40)), wobble });
+      drawRocket(ctx, { booster: rung < SEPARATION, piloted: !secured, frog: { fear: tension, shades: false }, flame: running ? (30 + 130 * tension) * smoothstep(0, 0.4, time) : 0, flicker: noise(Math.floor(time * 40)), wobble });
       ctx.restore();
     } else if (fire < 2) {
       // The fireball blooms and fades.
@@ -174,7 +172,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     // The pad vents fuel.
     for (let i = 0; i < 6 && squat.x > 0.1; i++) {
-      const k = ((reduced ? 0 : vent * 0.5) + i / 6) % 1;
+      const k = ((vent * 0.5) + i / 6) % 1;
       ctx.globalAlpha = squat.x / 6 * (1 - k);
       disc(ctx, PAD_X + (i % 2 ? 1 : -1) * (26 + 60 * k), screenY(0) - 8 - 24 * k, 7 + 18 * k, '#f1f5f9');
     }
@@ -189,7 +187,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (pod) drawPod(ctx, pod, screenY(pod.h));
     if (fire >= 0 && fire < 0.3) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${(0.3 - fire) * (reduced ? 0.8 : 2.5)})`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${(0.3 - fire) * (2.5)})`;
       ctx.fillRect(0, 0, 960, 540);
     }
     if (pop.x > 0.02) {

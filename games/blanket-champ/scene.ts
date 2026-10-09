@@ -28,11 +28,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the hit-stop, the punch-in and the champ's tremble. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -134,12 +129,12 @@ function drawFireBrigade(ctx: CanvasRenderingContext2D, time: number, k: number)
   ctx.restore();
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait("BLANKET CHAMP", [170, 150, 590, 345], '#f0d99c');
-  const reduced = options.reducedMotion === true;
+
   const audio = pageAudio({ style: 'phonk', crash: 'trombone' });
-  const room: RoomState = createRoom(reduced ? 0 : 1);
-  const crowd: CrowdState = createCrowd(reduced ? 0 : 1);
+  const room: RoomState = createRoom();
+  const crowd: CrowdState = createCrowd();
   const pop = spring(0);
   const badge = spring(0);
   const captionPop = spring(0);
@@ -189,7 +184,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     // The stamp lands oversized on the held frame and slams down to size.
     pop.x = 1.4;
     pop.v = 0;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       punchHold = PUNCH_HOLD_S;
@@ -213,7 +208,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     time += dt;
     const multiplier = Math.max(1, view.currentX100 / 100);
-    const act = actAt(view.elapsed, reduced);
+    const act = actAt(view.elapsed);
     const growth = Math.log2(multiplier);
     // The tension follows the number alone: 1×–3× sweeps 0–0.67. The acts never take it down.
     const tension = tensionAt(multiplier);
@@ -274,8 +269,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     // While an act catches its breath the quilt's tempo eases by up to 12%; the tension stays where the number puts it.
     stepRoom(room, growth, running, dt, 1 - 0.12 * act.release);
     stepCrowd(crowd, tension, multiplier, view.stake, running, dt);
-    if (room.events.beat && !reduced) shake = Math.max(shake, 0.06 + 0.18 * tension);
-    if ((room.events.glassFell || room.events.fist) && !reduced) shake = Math.max(shake, 0.2);
+    if (room.events.beat) shake = Math.max(shake, 0.06 + 0.18 * tension);
+    if ((room.events.glassFell || room.events.fist)) shake = Math.max(shake, 0.2);
     // Cues from the room's and the crowd's own events; the knocks go quieter once you are out.
     if (room.events.beat && running) audio.fx('thud', (0.45 + 0.5 * tension) * (secured ? 0.5 : 1));
     if (room.events.crack) audio.fx('creak', 0.5);
@@ -315,8 +310,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.4);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 7 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    if (punch.x > 0.005) {
       // The camera punches in on the quilt and eases back out.
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(470, 310);

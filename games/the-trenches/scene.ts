@@ -30,11 +30,6 @@ export interface SceneView {
   payout: number | null;
 }
 
-export interface SceneOptions {
-  /** Drops the screen shake, the flash, the shell flicker, the hit-stop and the punch-in. */
-  reducedMotion?: boolean;
-}
-
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
 }
@@ -72,8 +67,7 @@ function memeText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   ctx.fillText(text, x, y, maxWidth);
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
-  const reduced = options.reducedMotion === true;
+export function createScene(): Scene {
   // A military band that quickens on the march; the crash is the nuke.
   const audio = pageAudio({ style: 'military', crash: 'boom' });
   const field: Field = createField();
@@ -134,7 +128,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     shake = 1;
     pop.v = 16;
-    if (!reduced) {
+    {
       freeze = FREEZE_S;
       slow = SLOW_S;
       settleSpring(punch, 1);
@@ -202,7 +196,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     if (secured && running) diveBack(squad, progress);
     const reached = RUNGS.filter((rung) => multiplier >= rung).length;
-    if (running && reached > milestones) { milestones = reached; if (!reduced) shake = Math.max(shake, 0.45); }
+    if (running && reached > milestones) { milestones = reached; shake = Math.max(shake, 0.45); }
     audio.update(view.phase, tension);
     // Your heartbeat while the bet rides: every 1.4 s at 1×, 0.88 s at 2×, 0.7 s at 3×. It stops when you cash out.
     if (running && view.stake !== null && !secured && seconds >= pulseAt) {
@@ -210,8 +204,8 @@ export function createScene(options: SceneOptions = {}): Scene {
       pulseAt = seconds + mix(1.4, 0.35, tension);
     }
 
-    stepField(field, { running, tension, multiplier, reduced, real }, dt);
-    stepSquad(squad, { seconds, running, tension, multiplier, progress, reduced }, dt);
+    stepField(field, { running, tension, multiplier, real }, dt);
+    stepSquad(squad, { seconds, running, tension, multiplier, progress }, dt);
     const fe = field.events;
     const se = squad.events;
     if (running && se.whistle) audio.fx('whistle', 1);
@@ -239,23 +233,23 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.6);
 
     ctx.save();
-    if (!reduced && shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
-    else if (!reduced && running && tension > 0.5) ctx.translate(Math.sin(time * 90) * 1.5 * (tension - 0.5), 0);
-    if (!reduced && punch.x > 0.005) {
+    if (shake > 0) ctx.translate(Math.sin(time * 140) * 8 * shake * shake, Math.cos(time * 117) * 5 * shake * shake);
+    else if (running && tension > 0.5) ctx.translate(Math.sin(time * 90) * 1.5 * (tension - 0.5), 0);
+    if (punch.x > 0.005) {
       // The camera punches in on the ridge, holds through the hit-stop and eases back out.
       const k = 1 + PUNCH * clamp(punch.x, 0, 1.2);
       ctx.translate(IMPACT.x, IMPACT.y);
       ctx.scale(k, k);
       ctx.translate(-IMPACT.x, -IMPACT.y);
     }
-    drawSky(ctx, field, tension, multiplier, reduced);
+    drawSky(ctx, field, tension, multiplier);
     drawGround(ctx, field, tension, progress, squad.scroll);
     // The long round's act props fade out under the nuke rather than vanishing.
-    if (running || crashed) drawAdvance(ctx, seconds, reduced, running ? 1 : 1 - smoothstep(0, 0.5, field.nukeAge), tension, field.time);
-    drawCloud(ctx, field, tension, reduced);
+    if (running || crashed) drawAdvance(ctx, seconds, running ? 1 : 1 - smoothstep(0, 0.5, field.nukeAge), tension, field.time);
+    drawCloud(ctx, field, tension);
     drawSquad(ctx, squad, progress, tension, view.stake !== null);
     drawTrench(ctx, squad, tension, view.stake !== null, progress);
-    drawNukeFront(ctx, field, reduced);
+    drawNukeFront(ctx, field);
     if (outcome && pop.x > 0.02 && field.nukeAge > 0.6) {
       ctx.save();
       ctx.translate(W / 2, 250);

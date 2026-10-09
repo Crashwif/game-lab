@@ -42,7 +42,6 @@ export interface AndyRig {
   modeAge: number;
   x: number;
   vx: number;
-  reduced: boolean;
   feet: [Foot, Foot];
   /** 1 facing the garden, -1 facing home; the turn passes through 0. */
   facing: Spring;
@@ -140,7 +139,7 @@ const facingScale = (rig: AndyRig): number => Math.sign(rig.facing.x || 1) * (0.
 
 export function createAndy(x: number): AndyRig {
   return {
-    mode: 'idle', time: 0, modeAge: 0, x, vx: 0, reduced: false, feet: [footAt(x - 25), footAt(x + 27)], facing: spring(1), stride: 0, pour: 0,
+    mode: 'idle', time: 0, modeAge: 0, x, vx: 0, feet: [footAt(x - 25), footAt(x + 27)], facing: spring(1), stride: 0, pour: 0,
     lean: spring(0), nod: spring(0), crouch: spring(0), hop: spring(0), reach: spring(0), tilt: spring(0), raise: spring(0),
     ears: [spring(0), spring(0)], headPrev: null, headV: { x: 0, y: 0 }, shades: spring(0), basket: spring(0),
     eyeOpen: spring(1), lid: spring(0.56), mouthOpen: spring(0.1), mouthCurve: spring(0.6), brow: spring(0), blinkAt: 2.1,
@@ -214,13 +213,13 @@ export function computePose(rig: AndyRig): Pose {
   const raise = clamp(rig.raise.x, 0, 1);
   const lean = rig.lean.x;
   const crouch = rig.crouch.x;
-  const walking = !rig.reduced && rig.mode === 'harvest' ? clamp(Math.abs(rig.vx) / 60, 0, 1) : 0;
-  const idle = !rig.reduced && (rig.mode === 'idle' || (rig.mode === 'harvest' && walking < 0.05)) ? 1 : 0;
+  const walking = rig.mode === 'harvest' ? clamp(Math.abs(rig.vx) / 60, 0, 1) : 0;
+  const idle = (rig.mode === 'idle' || (rig.mode === 'harvest' && walking < 0.05)) ? 1 : 0;
   const breathe = Math.sin(t * 1.5) * 1.8 * idle;
   const sway = Math.sin(t * 0.7) * 3 * idle;
   const u = rig.stride - Math.floor(rig.stride);
   const bob = walking * -3.5 * (0.5 + 0.5 * Math.cos(Math.PI * 2 * (u - 0.3) * 2));
-  const tremble = !rig.reduced && rig.mode === 'busted' ? Math.exp(-rig.modeAge * 1.3) * Math.sin(t * 38) * 2.5 : 0;
+  const tremble = rig.mode === 'busted' ? Math.exp(-rig.modeAge * 1.3) * Math.sin(t * 38) * 2.5 : 0;
   const flip = facingScale(rig);
   const foot = (f: Foot): Point => ({ x: (f.x - rig.x) / flip, y: -f.lift + Math.min(0, rig.hop.x) });
   const backFoot = foot(rig.feet[0]);
@@ -312,8 +311,7 @@ export function worldPoint(rig: AndyRig, p: Point, ground: number): Point {
  * Jumps to the pose the drive calls for, for a round met late: hands already up with the can on the
  * ground after a bust, or shades on and the basket in hand after an accepted exit.
  */
-export function settleAndy(rig: AndyRig, drive: AndyDrive, reduced = false): void {
-  rig.reduced = reduced;
+export function settleAndy(rig: AndyRig, drive: AndyDrive): void {
   rig.x = drive.x;
   rig.vx = 0;
   rig.feet = [footAt(drive.x - 25), footAt(drive.x + 27)];
@@ -360,14 +358,12 @@ function moodOf(rig: AndyRig, drive: AndyDrive): Mood {
   }
 }
 
-export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number, reduced: boolean): void {
+export function stepAndy(rig: AndyRig, drive: AndyDrive, dt: number): void {
   rig.events.pour = false;
   rig.events.step = false;
   rig.events.drop = false;
   rig.events.land = false;
-  // No drop, blink, ballistic prop or secondary motion leaks into the static presentation.
-  if (reduced) { settleAndy(rig, drive, true); return; }
-  rig.reduced = false;
+
   if (dt <= 0) return;
   const pose = computePose(rig);
   if (drive.mode !== rig.mode) enterMode(rig, drive.mode, pose, drive);

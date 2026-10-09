@@ -225,7 +225,7 @@ function plantedStep(walked: number, span: number, stride: number, lead: boolean
   return { x: f.x, y: f.y * smoothstep(0, 10, walked) * smoothstep(0, 10, span - walked) };
 }
 
-export interface MansionDrive { running: boolean; tension: number; multiplier: number; reduced: boolean }
+export interface MansionDrive { running: boolean; tension: number; multiplier: number; }
 
 export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   const before = m.time;
@@ -323,7 +323,7 @@ export function stepMansion(m: Mansion, drive: MansionDrive, dt: number): void {
   }
   // The wake: a seeded puff on each tick of the clock this step crossed, so it is as thick at 30 fps as at 144.
   const fleeing = m.ended && m.endAge < 4;
-  if (!drive.reduced && (fleeing || (!m.ended && m.engine.x > 0.5))) {
+  if ((fleeing || (!m.ended && m.engine.x > 0.5))) {
     const rate = fleeing ? 30 : 24;
     for (let n = Math.floor(before * rate) + 1; n <= Math.floor(m.time * rate); n++) {
       if (noise(n) > (fleeing ? 0.4 : 0.6)) m.wakes.push(fleeing ? { x: m.yachtX.x - 70 * m.yachtSize.x, y: HORIZON + 26, age: 0, life: 1.6, size: 4 + noise(n * 3) * 5 } : { x: m.yachtX.x - 60 * m.yachtSize.x, y: HORIZON + 24, age: 0, life: 1.2, size: 3 + noise(n * 5) * 3 });
@@ -612,7 +612,7 @@ function drawStar(ctx: CanvasRenderingContext2D, m: Mansion, x: number, footY: n
  * The barbecue on the lawn, drawn over the party: a drum grill with two drives cooking, the second assistant feeding
  * it from a stack marked EVIDENCE, smoke up past the palm. It fades in with the packing, in plain sight of the fans.
  */
-export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced: boolean): void {
+export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion): void {
   const packing = clamp(m.packing.x, 0, 1);
   if (packing < 0.02) return;
   const gx = GRILL.x;
@@ -634,9 +634,9 @@ export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced:
   const heat = 0.5 + 0.5 * packing + flare;
   for (let i = 0; i < 4; i += 1) {
     const fx = gx - 15 + i * 10;
-    // The flames lick at 14 Hz, or lazily under reduced motion.
-    const h = (9 + 15 * heat) * (0.55 + 0.45 * noise(Math.floor(m.time * (reduced ? 3 : 14)) + i * 3));
-    const lean = (noise(i * 5 + Math.floor(m.time * (reduced ? 2 : 9))) - 0.5) * 8;
+    // The flames lick at 14 Hz.
+    const h = (9 + 15 * heat) * (0.55 + 0.45 * noise(Math.floor(m.time * (14)) + i * 3));
+    const lean = (noise(i * 5 + Math.floor(m.time * (9))) - 0.5) * 8;
     ctx.fillStyle = i % 2 ? '#ff9f1c' : '#ffd23f'; ctx.strokeStyle = '#c1121f'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(fx - 5, gy - 30); ctx.quadraticCurveTo(fx - 7, gy - 30 - h * 0.5, fx + lean, gy - 30 - h); ctx.quadraticCurveTo(fx + 7, gy - 30 - h * 0.5, fx + 5, gy - 30); ctx.closePath(); ctx.fill(); ctx.stroke();
   }
@@ -656,12 +656,12 @@ export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced:
   const cx = mix(COOK.x + 90, COOK.x, packing);
   const cy = COOK.y;
   const t = m.grill.drive;
-  const wind = t >= 0 ? 0 : reduced ? 0.5 : 0.5 + 0.5 * Math.sin(m.time * 4);
+  const wind = t >= 0 ? 0 : 0.5 + 0.5 * Math.sin(m.time * 4);
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(0.72, 0.72);
   // He walks in (and out) on planted feet, by the ground covered.
-  const pace = reduced ? 0 : 1;
+  const pace = 1;
   for (const side of [-1, 1]) {
     const f = plantedStep((COOK.x + 90 - cx) / 0.72, 90 / 0.72, 60, side > 0);
     const foot = { x: side * 14 - f.x * pace, y: f.y * pace };
@@ -708,24 +708,24 @@ export function drawBarbecue(ctx: CanvasRenderingContext2D, m: Mansion, reduced:
 }
 
 /** The paparazzi drone, drawn over the house so it can dive on the balcony. */
-export function drawDrone(ctx: CanvasRenderingContext2D, m: Mansion, reduced: boolean): void {
+export function drawDrone(ctx: CanvasRenderingContext2D, m: Mansion): void {
   const d = m.drone;
   if (d.x.x > STAGE.w + 60) return;
   const tilt = clamp(d.tilt.x, -0.4, 0.4);
   ctx.save();
-  ctx.translate(d.x.x, d.y.x + (reduced ? 0 : Math.sin(m.time * 7) * 1.5));
+  ctx.translate(d.x.x, d.y.x + (Math.sin(m.time * 7) * 1.5));
   ctx.rotate(tilt);
   ctx.lineJoin = 'round';
   ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(-26, -4); ctx.lineTo(26, -4); ctx.stroke();
   for (const rx of [-26, 26]) {
-    const spin = reduced ? 0.85 : 0.55 + 0.45 * noise(Math.floor(m.time * 30) + rx);
+    const spin = 0.55 + 0.45 * noise(Math.floor(m.time * 30) + rx);
     ctx.fillStyle = 'rgba(210, 210, 225, 0.55)'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(rx, -6, 4 + 15 * spin, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.roundRect(-16, -8, 32, 14, 5); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = reduced || Math.floor(m.time * 3) % 2 ? '#ff4d6d' : '#7a1c2c';
+  ctx.fillStyle = Math.floor(m.time * 3) % 2 ? '#ff4d6d' : '#7a1c2c';
   ctx.beginPath(); ctx.arc(12, -1, 2, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1b1b1f';
   ctx.beginPath(); ctx.roundRect(-7, 6, 14, 10, 3); ctx.fill(); ctx.stroke();
@@ -746,7 +746,7 @@ export function drawDrone(ctx: CanvasRenderingContext2D, m: Mansion, reduced: bo
 }
 
 /** The house wall, curtains and the assistant packing, the balcony, the gate and the PR team. */
-export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: number, reduced: boolean): void {
+export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: number): void {
   // Sky.
   const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 40);
   sky.addColorStop(0, '#3b2452'); sky.addColorStop(0.55, '#c8577a'); sky.addColorStop(1, '#ffb36b');
@@ -853,7 +853,7 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
       const px = mix(640 + i * 40, 590 + i * 22, pr);
       // Feet planted by the distance walked (they walk left in, backwards out); a different stride each keeps them out of step.
       const walked = (640 + i * 40 - px) / 0.55, span = (50 + 18 * i) / 0.55, stride = span / Math.round(span / 44);
-      const pace = reduced ? 0 : 1;
+      const pace = 1;
       const step = (walked / stride) * Math.PI * 2;
       ctx.save();
       ctx.translate(px, 290);
@@ -889,7 +889,7 @@ export function drawMansion(ctx: CanvasRenderingContext2D, m: Mansion, tension: 
 }
 
 /** The phone close-up in the lower left: the chart, the draft post, then the post itself. */
-export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier: number, scale = 1, reduced = false): void {
+export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier: number, scale = 1): void {
   const p = { x: 22, y: 318, w: 150, h: 204 };
   ctx.save();
   // The punch at the post, about the phone's centre, and a rattle when a notification buzzes it.
@@ -948,7 +948,7 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
     label(ctx, 'is LIVE. love u all', p.x + 20, p.y + 153, 10, '#ffffff');
   }
   // Post button: it throbs faster with the tension, sinks under the thumb in a near miss, and lands flat once posted.
-  const throb = m.posted || reduced ? 0 : draft * Math.max(0, Math.sin(m.throb)) * 0.08;
+  const throb = m.posted ? 0 : draft * Math.max(0, Math.sin(m.throb)) * 0.08;
   const near = m.hover < 0 ? 0 : smoothstep(0, 0.45, m.hover) * (1 - smoothstep(0.85, 1.3, m.hover));
   const press = m.hover < 0 ? 0 : smoothstep(0.4, 0.55, m.hover) * (1 - smoothstep(0.7, 0.85, m.hover));
   ctx.save();
@@ -959,11 +959,11 @@ export function drawPhone(ctx: CanvasRenderingContext2D, m: Mansion, multiplier:
   label(ctx, m.posted ? 'POSTED' : near > 0.3 ? 'POST?!' : draft > 0.5 ? 'POST?' : 'POST', 0, 4, 10, '#ffffff', 'center');
   ctx.restore();
   ctx.restore();
-  // His thumb, in from the corner for a near miss; under reduced motion it fades in on the button instead.
+  // His thumb, in from the corner for a near miss.
   if (near > 0.01) {
     ctx.save();
-    const k = reduced ? 1 : near;
-    if (reduced) ctx.globalAlpha = near;
+    const k = near;
+
     ctx.translate(mix(p.x + p.w + 40, p.x + p.w / 2 + 42, k), mix(p.y + p.h + 50, p.y + 189 + 3 * press, k));
     ctx.rotate(-0.55);
     ctx.fillStyle = '#e0bda7'; ctx.strokeStyle = INK; ctx.lineWidth = 3;

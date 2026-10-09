@@ -112,8 +112,6 @@ export interface StudioDrive {
   elapsed?: number;
   /** A slow log driver for long rounds: 0 at 1×, 1 at 1000×. */
   long?: number;
-  /** Reduced motion: the rig holds still instead of nodding, talking and shaking. */
-  still?: boolean;
 }
 
 function createRig(): Rig {
@@ -316,7 +314,7 @@ function stepRig(s: Studio, drive: StudioDrive, dt: number): void {
   const r = s.rig;
   const t = drive.tension;
   const crashed = s.crashed;
-  if (!drive.still) {
+  {
     // Phases are integrated, so a changing tension speeds the motion up without jumping its phase.
     r.talk += dt * (5 + 20 * t + 6 * (drive.long ?? 0));
     r.bob += dt * (2 + 3 * t);
@@ -328,7 +326,7 @@ function stepRig(s: Studio, drive: StudioDrive, dt: number): void {
   r.waving += ((drive.running || crashed ? 0 : 1) - r.waving) * ease(8);
   stepSpring(r.slump, crashed ? 1 : 0, 9, 0.7, dt);
   // The head rides its own spring: it lags the nod, and drops 8 px when the wallet posts SOLD.
-  const nod = drive.still ? 0 : Math.sin(r.bob) * (2 + 4 * t) * (1 - r.slump.x);
+  const nod = Math.sin(r.bob) * (2 + 4 * t) * (1 - r.slump.x);
   stepSpring(r.head, nod + (crashed ? 8 : 0), 14, 0.55, dt);
   const live = drive.running && !crashed;
   const glance = live && t >= 0.5 && (drive.elapsed ?? 0) % 3 < 0.8;

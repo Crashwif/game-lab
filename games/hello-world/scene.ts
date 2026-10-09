@@ -20,8 +20,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-
-export interface SceneOptions { reducedMotion?: boolean }
 export interface Scene {
   draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void;
   /** Add cleanup here if your scene owns listeners or other resources. */
@@ -72,8 +70,8 @@ function bobAngle(elapsed: number): number {
 }
 
 /** Carry the circle's position and velocity into a quiet, damped landing. */
-export function circleBob(view: Pick<SceneView, 'phase' | 'elapsed' | 'crashAge'>, reduced = false): number {
-  if (reduced || (view.phase !== 'running' && view.phase !== 'crashed')) return 0;
+export function circleBob(view: Pick<SceneView, 'phase' | 'elapsed' | 'crashAge'>): number {
+  if ((view.phase !== 'running' && view.phase !== 'crashed')) return 0;
   const angle = bobAngle(view.elapsed);
   const swing = 12 * (1 - Math.exp(-view.elapsed / BOB_SWING_MS));
   const position = Math.sin(angle) * swing;
@@ -94,11 +92,11 @@ function stakeLine(view: SceneView): [text: string, colour: string] {
   return [`You're in · ${credits(view.stake)} riding`, COLOURS.accent];
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   // clips.json is empty: the shared helper makes all sounds locally, opt-in.
   // The helper owns its page lifecycle; do not close it when replacing a scene.
   const audio = pageAudio({ style: 'chiptune', crash: 'pop' });
-  const reduced = options.reducedMotion === true;
+
   let previousPhase: SceneView['phase'] | null = null;
   let previousCashout: number | null = null;
   let previousMilestone = 0;
@@ -135,14 +133,14 @@ export function createScene(options: SceneOptions = {}): Scene {
     // same frame: the number holds big for 0.12 s and settles, a 6 px shake dies
     // within 0.4 s, and the circle deflates before the next betting phase.
     const age = crashed ? Math.max(0, view.crashAge / 1000) : 0;
-    const shake = crashed && !reduced ? 6 * clamp01(1 - age / 0.4) ** 2 : 0;
-    const punch = crashed && !reduced ? (1 - clamp01((age - 0.12) / 0.25)) ** 2 : 0;
+    const shake = crashed ? 6 * clamp01(1 - age / 0.4) ** 2 : 0;
+    const punch = crashed ? (1 - clamp01((age - 0.12) / 0.25)) ** 2 : 0;
     const settle = crashed ? clamp01(age - 0.6) : 0; // 0 → 1 from 0.6 s to 1.6 s
     const deflate = settle * settle * (3 - 2 * settle);
 
     // Text pops as the multiplier passes `x100` and settles within about 5% more
-    // (0.6 s into a live round). Reduced motion keeps text still.
-    const pop = (x100: number) => (running && !reduced ? clamp01(1 - Math.log(view.currentX100 / x100) / 0.05) : 0);
+    // (0.6 s into a live round).
+    const pop = (x100: number) => (running ? clamp01(1 - Math.log(view.currentX100 / x100) / 0.05) : 0);
 
     // The shell scales this 960 × 540 coordinate space to fit any screen.
     ctx.save();
@@ -151,15 +149,15 @@ export function createScene(options: SceneOptions = {}): Scene {
     ctx.translate(shake * Math.sin(age * 70), shake * Math.sin(age * 53));
 
     // Replace this circle with your character or scene; the text draws over it. It
-    // grows with tension and bobs faster as the round runs; reduced motion holds it still.
+    // grows with tension and bobs faster as the round runs.
     const tint = crashed ? COLOURS.crashed : COLOURS.accent;
-    const y = 350 + circleBob(view, reduced);
+    const y = 350 + circleBob(view);
     const radius = 18 + (22 * tension + 6 * depth) * (1 - deflate);
     ctx.fillStyle = tint;
     ctx.beginPath();
     ctx.arc(480, y, radius, 0, Math.PI * 2);
     ctx.fill();
-    if (crashed && !reduced && age < 0.5) {
+    if (crashed && age < 0.5) {
       // The pop: a ring bursts out of the circle and fades in half a second.
       const burst = age / 0.5;
       ctx.globalAlpha = 1 - burst;

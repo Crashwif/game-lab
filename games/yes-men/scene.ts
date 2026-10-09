@@ -71,10 +71,6 @@ export interface SceneView {
   cashoutX100: number | null;
   payout: number | null;
 }
-export interface SceneOptions {
-  /** Drops the shake, the flash, the hit-stop and the camera punch. */
-  reducedMotion?: boolean;
-}
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 
 type Outcome = 'rekt' | 'called' | 'spectator';
@@ -103,9 +99,9 @@ function captionFor(view: SceneView, room: Room, outcome: Outcome | null, secure
   return room.caption || 'THE MEETING BEGINS';
 }
 
-export function createScene(options: SceneOptions = {}): Scene {
+export function createScene(): Scene {
   const { capture, present } = createPortrait('YES MEN', [160, 110, 640, 400], '#e0b64a');
-  const reduced = options.reducedMotion === true;
+
   // A brass band that marches harder with the multiplier; the crash is the klaxon.
   const audio = pageAudio({ style: 'military', crash: 'siren' });
   const room: Room = createRoom();
@@ -178,7 +174,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     pop.v = 16;
     shake = 1;
-    if (!reduced) {
+    {
       // Freeze on the slam with the camera punched in, hold it, then the papers fly slow.
       freeze = FREEZE_S;
       slow = SLOW_S;
@@ -251,7 +247,7 @@ export function createScene(options: SceneOptions = {}): Scene {
     }
     audio.update(view.phase, tension);
 
-    stepRoom(room, { running, multiplier, tension, time, reduced, left: secured !== null }, dt);
+    stepRoom(room, { running, multiplier, tension, time, left: secured !== null }, dt);
     if (secured && running && !room.crashed) {
       // The round keeps pumping after the walk-out: the regret ladder, said about the empty chair.
       const past = view.currentX100 / secured.x100;
@@ -267,8 +263,8 @@ export function createScene(options: SceneOptions = {}): Scene {
     const said = (by: number): number => room.bubbles.reduce((age, b) => (b.who === 'yes' && b.by === by ? Math.min(age, b.age) : age), 9);
     const leaderSaid = room.bubbles.reduce((age, b) => (b.who === 'leader' ? Math.min(age, b.age) : age), 9);
     const photo = room.photo > 0;
-    const stamped = stepLeader(leader, { running, tension, multiplier, said: leaderSaid, decree, crashed: room.crashed, photo, time, reduced }, dt);
-    const mev = stepYesMen(men, { running, tension, multiplier, time, reduced, decree, talker: newest?.who ?? null, talkAge: newest?.age ?? 9, said, crashed: room.crashed, photo }, dt);
+    const stamped = stepLeader(leader, { running, tension, multiplier, said: leaderSaid, decree, crashed: room.crashed, photo, time }, dt);
+    const mev = stepYesMen(men, { running, tension, multiplier, time, decree, talker: newest?.who ?? null, talkAge: newest?.age ?? 9, said, crashed: room.crashed, photo }, dt);
     const pev = stepPlayer(player, { running, tension, decree, crashed: room.crashed, time }, dt);
     const lev = stepPlayer(loyalist, { running, tension: 0, decree: false, crashed: room.crashed, time }, dt);
     if (pev.gone && !fresh) arrive(loyalist);
@@ -334,30 +330,30 @@ export function createScene(options: SceneOptions = {}): Scene {
     if (shake > 0) shake = Math.max(0, shake - dt / 0.5);
 
     ctx.save();
-    const rumble = running && !reduced && !room.crashed && !secured ? clamp(leader.hover.x - 0.6, 0, 0.4) * 3 : 0;
-    if (!reduced && (shake > 0 || rumble > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + rumble), Math.cos(time * 70) * 5 * shake);
-    if (!reduced && punch.x > 0.005) {
+    const rumble = running && !room.crashed && !secured ? clamp(leader.hover.x - 0.6, 0, 0.4) * 3 : 0;
+    if ((shake > 0 || rumble > 0)) ctx.translate(Math.sin(time * 90) * (8 * shake + rumble), Math.cos(time * 70) * 5 * shake);
+    if (punch.x > 0.005) {
       const k = 1 + PUNCH_ZOOM * clamp(punch.x, 0, 1.2);
       ctx.translate(PUNCH_AT.x, PUNCH_AT.y);
       ctx.scale(k, k);
       ctx.translate(-PUNCH_AT.x, -PUNCH_AT.y);
     }
-    drawRoom(ctx, room, time, reduced);
+    drawRoom(ctx, room, time);
     drawThrone(ctx);
-    drawLeader(ctx, leader, room.medals, time, reduced);
+    drawLeader(ctx, leader, room.medals, time);
     drawTable(ctx, room, time);
     // The ministers and whoever is walking, nearest last; whoever is in the chair sits behind its back.
     const seatedFigure = player.mode === 'seated' || player.mode === 'standing' ? player : loyalist.mode === 'seated' ? loyalist : null;
-    const items: { y: number; draw: () => void }[] = men.map((m) => ({ y: yesManDepth(m), draw: () => drawYesMan(ctx, m, time, reduced) }));
-    for (const f of [player, loyalist]) if (f.mode === 'walking' || f.mode === 'arriving') items.push({ y: playerAt(f).y, draw: () => drawPlayer(ctx, f, time, reduced) });
+    const items: { y: number; draw: () => void }[] = men.map((m) => ({ y: yesManDepth(m), draw: () => drawYesMan(ctx, m, time) }));
+    for (const f of [player, loyalist]) if (f.mode === 'walking' || f.mode === 'arriving') items.push({ y: playerAt(f).y, draw: () => drawPlayer(ctx, f, time) });
     items.sort((a, b) => a.y - b.y);
     for (const item of items) item.draw();
-    if (seatedFigure) drawPlayer(ctx, seatedFigure, time, reduced);
+    if (seatedFigure) drawPlayer(ctx, seatedFigure, time);
     drawYouChair(ctx);
     if (!isPortrait(ctx.canvas)) drawBubbles(ctx, room);
     drawAir(ctx, room);
-    if (seatedFigure) drawSeatTag(ctx, seatedFigure, time, reduced);
-    drawRedLight(ctx, room, time, reduced);
+    if (seatedFigure) drawSeatTag(ctx, seatedFigure, time);
+    drawRedLight(ctx, room, time);
     ctx.restore();
     drawFlash(ctx, room);
     if (room.crashed) drawPhoto(ctx, room, PHOTO_CIRCLE, room.harmless ? 'not you' : 'you');
