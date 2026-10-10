@@ -1,10 +1,10 @@
 {
   "name": "Degen Anonymous",
   "hook": "Clean for 12 days, until the chart moved",
-  "tagline": "A folding-chair circle at Degen Anonymous where every share is keyed to the round multiplier: the coffee urn fills with sponsor snacks, one member relapses live and everyone watches him open the exchange like a crash, and the big book of grievances fills with the room's top pumps. Cash out at your own share, or ride it to the group hug.",
-  "tags": ["Relapse on the curve", "Sponsor cup of snacks", "Big book of pumps"],
+  "tagline": "A church-basement circle of twelve folding chairs where every share is keyed to the round multiplier: Jules's nametag flips from 12 DAYS to DAY 0 while his thumb hovers over the BUY button, the sponsor's snack cup empties and refills, the room leans in and the corner TV nobody mentions keeps growing. Take profits with your own share and fold your chair, or stay for the crash: every chair up at once, the urn's puddle at Jules's shoe, the banner face-down on the cookies and the whole circle in a group hug.",
+  "tags": ["Thumb over the button", "Nametag flips to DAY 0", "Group hug pile-up"],
   "renderer": "Canvas 2D",
   "licence": "open",
   "royaltyBps": 0,
-  "poster": { "seconds": 34 }
+  "poster": { "seconds": 37 }
 }
