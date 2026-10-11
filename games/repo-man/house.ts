@@ -1,11 +1,4 @@
-/**
- * The set of Repo Man: a cul-de-sac at 4:07 am under a deep blue sky, the two-story house (cached once with its
- * windows punched out, so the rooms behind the glass stay live), the bedroom window with its blinds rig, the
- * living room with the TV and the smart fridge, the kid's window, the landing window, the front door, the modular
- * porch, the house numbers, the gutter and the hose; the neighbour's house with its porch light, the sodium
- * streetlight, the lawn with its sprinklers, the for-sale sign that grows like a sapling, the mailbox and the bike.
- * Drawing and the springs of the set's own props; nothing here reads or changes the outcome.
- */
+/** Cached cul-de-sac and house layers, live rooms and spring-driven props. Presentation only. */
 import { drawDegenWindow, drawKid, drawNeighbour, type WindowDegen } from './cast';
 import { blob, box, ink, INK, label, limb, memeText, poly } from './ink';
 import { type Items, POST } from './repo';
@@ -41,8 +34,7 @@ const canvas = (w: number, h: number): HTMLCanvasElement | null => {
   return c;
 };
 
-// ─── Cached layers ──────────────────────────────────────────────────────────────────────────────────────────
-
+// Cached layers
 let backdrop: HTMLCanvasElement | null = null;
 let houseCache: HTMLCanvasElement | null = null;
 let lightCache: HTMLCanvasElement | null = null;
@@ -261,7 +253,7 @@ function paintHouse(ctx: CanvasRenderingContext2D): void {
 }
 
 function paintLight(ctx: CanvasRenderingContext2D): void {
-  // The sodium streetlight: a cone and a pool on the sidewalk, and the house's own porch light.
+  // Streetlight cone, sidewalk pool and porch light.
   const cone = ctx.createRadialGradient(LAMP.x, LAMP.y + 8, 4, LAMP.x, LAMP.y + 140, 260);
   cone.addColorStop(0, 'rgba(255, 170, 70, 0.34)');
   cone.addColorStop(0.45, 'rgba(255, 140, 50, 0.1)');
@@ -345,8 +337,7 @@ export function drawLight(ctx: CanvasRenderingContext2D, time: number, flicker: 
   }
 }
 
-// ─── The rooms behind the glass ─────────────────────────────────────────────────────────────────────────────
-
+// The rooms behind the glass
 export interface Blinds { slats: Spring[]; raise: Spring; targets: number[]; raiseTarget: number }
 const SLATS = 8;
 const PEEK = 3;
@@ -729,7 +720,7 @@ function drawDoorway(ctx: CanvasRenderingContext2D, s: SetState): void {
   for (let i = 0; i < 4; i += 1) ctx.fillRect(x + 6 + i * 3, y + 40 + i * 10, w - 18, 3);
 }
 
-/** The house, with its rooms behind the glass and its cache over them. Shakes as one piece on its slab. */
+/** Draw rooms under the cached walls; shake the whole house together. */
 export function drawHouse(ctx: CanvasRenderingContext2D, s: SetState): void {
   ctx.save();
   if (s.shake !== 0) ctx.translate(s.shake, Math.abs(s.shake) * 0.25);
@@ -752,7 +743,7 @@ export function drawHouse(ctx: CanvasRenderingContext2D, s: SetState): void {
     memeText(ctx, 'SOLD', 0, 0, 46, '#7cf67c', 'center');
     ctx.restore();
   }
-  // Settling boards after the exit: one at a time, each a plank that slips a hair out of line.
+  // Boards settle one at a time after the exit.
   for (let i = 0; i < Math.min(BOARDS.length, s.boards); i += 1) {
     const [bx, by] = BOARDS[i]!;
     ctx.save();
@@ -814,7 +805,7 @@ function drawFrontDoor(ctx: CanvasRenderingContext2D, s: SetState): void {
   if (s.postit) drawPostit(ctx, DOOR.x + DOOR.w + 4, DOOR.y + 22, 0);
 }
 
-/** The front door, also used for the one riding shotgun: its little window mirrors the bedroom. */
+/** Door leaf; its glass mirrors the bedroom even when riding shotgun. */
 export function drawDoorLeaf(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, room: Bedroom, open = 0): void {
   box(ctx, x, y, w, h, 1, open > 0.2 ? '#4a2e1c' : '#6b3f24', 2.5);
   if (w < 12) return;
@@ -835,7 +826,7 @@ export function drawDoorLeaf(ctx: CanvasRenderingContext2D, x: number, y: number
   blob(ctx, x + w * 0.82, y + h * 0.55, 2.6, 2.6, '#d8b45a', 1.5);
 }
 
-/** The Post-it's callout, so the note can be read from the street: drawn over everything at the end of the crash. */
+/** Post-it callout drawn above the scene at the crash ending. */
 export function drawCallout(ctx: CanvasRenderingContext2D, callout: number): void {
   if (callout > 0.02) drawPostit(ctx, DOOR.x + DOOR.w + 4, DOOR.y + 22, callout, true);
 }
@@ -916,7 +907,7 @@ function drawGutterHome(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawSlab(ctx: CanvasRenderingContext2D, s: SetState): void {
-  // The porch is gone: the footing under the door, and the QR code the contractor stamped into it.
+  // Exposed footing and its QR code after the porch leaves.
   box(ctx, 478, 404, 126, 16, 1, '#5a5a66', 2);
   const qx = 528;
   const qy = 406;
@@ -956,8 +947,7 @@ export function drawHoseCoil(ctx: CanvasRenderingContext2D, x: number, y: number
   ctx.restore();
 }
 
-// ─── The lawn and the neighbours ────────────────────────────────────────────────────────────────────────────
-
+// The lawn and the neighbours
 export function drawNeighbourHouse(ctx: CanvasRenderingContext2D, s: SetState): void {
   const d = NEIGHBOUR.door;
   const on = clamp(s.neighbourLight, 0, 1);
@@ -1027,7 +1017,7 @@ export function drawSprinklers(ctx: CanvasRenderingContext2D, s: SetState): void
   }
 }
 
-/** The for-sale sign, grown like a sapling in a timelapse, the realtor's face already smiling. */
+/** For-sale sign grows from a sapling, with a smiling realtor. */
 export function drawSign(ctx: CanvasRenderingContext2D, s: SetState): void {
   const g = clamp(s.sign, 0, 1);
   if (g <= 0.005) return;

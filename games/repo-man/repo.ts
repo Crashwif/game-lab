@@ -1,16 +1,9 @@
-/**
- * The repossession itself: Gary's job queue (each rung he passes adds a job: walk to the item, take it, carry it
- * to the flatbed, heave it onto the stack), the stack's physics (a lean spring every landing kicks, the truck's
- * suspension sagging under the load, a squash per item), the supercar's hook, lift and winch, the checklist, the
- * exit (the hook comes off, everything flies home, Gary sits on the tailgate) and the crash (Gary takes the
- * front door and drives away with it). Poses are computed here from the job clocks; drawing lives elsewhere.
- * Everything keys off the displayed multiplier and the round's clocks; nothing here reads or changes the outcome.
- */
+/** Repossession jobs, item physics and outcome choreography. Computes poses from round state; never determines outcomes. */
 import type { Effect } from './audio';
 import { type ItemId, JOBS, type JobKind } from './lines';
 import { clamp, mix, mulberry32, settleSpring, smoothstep, spring, type Spring, stepSpring } from './motion';
 
-/** Gary's sidewalk, where he walks; the flatbed's deck; the supercar on the driveway apron. */
+/** World coordinates for the sidewalk, flatbed and driveway. */
 export const LANE_Y = 474;
 export const IDLE_X = 382;
 export const CAB_X = 128;
@@ -48,12 +41,7 @@ export const ITEMS: Record<ItemId, ItemSpec> = {
 };
 export const ORDER: ItemId[] = ['hose', 'tv', 'bike', 'fridge', 'mailbox', 'numbers', 'porch', 'gutter'];
 
-/**
- * Where each item lands, in landing order: the hose and the mailbox on the supercar's rear deck, the TV on its roof
- * with the fridge standing on the TV, the bike lying on the hood with the house numbers on the bike, the porch
- * balanced on the fridge like a tray and the gutters across the top, longer than the truck. Centres, bottoms on
- * whatever is under them.
- */
+/** Stack slots are item centres, with bottoms resting on the item below. */
 export const SLOTS: Record<ItemId, Pose> = {
   hose: { x: 334, y: 418, rot: 0.2 },
   tv: { x: 268, y: 391, rot: -0.03 },
@@ -180,7 +168,7 @@ const HOOK = jobIndex('hook');
 const LIFT = jobIndex('lift');
 const LOAD = jobIndex('load');
 
-/** Settles a fresh scene into a round already at `multiplier`: every job below it done, the pile built, Gary at his spot. */
+/** Late entry: complete past jobs, build the pile and place Gary. */
 export function settleRepo(r: Repo, multiplier: number, elapsed: number): void {
   resetRepo(r);
   r.runAge = Math.max(ARRIVE_S, elapsed);
@@ -268,7 +256,7 @@ export function stepRepo(r: Repo, d: RepoDrive, dt: number): void {
   }
   if (r.exit) r.exit.age += dt;
   if (r.crash) r.crash.age = d.crashAge / 1000;
-  // The pile: a lean every landing kicks, the deck sagging under the load, each item's squash.
+  // Landings kick the pile lean; weight sags the deck.
   stepSpring(r.lean, 0, 7, 0.22, dt);
   stepSpring(r.sag, sagFor(r), 11, 0.3, dt);
   for (const id of ORDER) stepSpring(r.squash[id], 0, 18, 0.35, dt);
@@ -297,8 +285,7 @@ function finishJob(r: Repo, index: number, loud: boolean): void {
   if (!j.open) tickEntry(r, j.entry, loud);
 }
 
-// ─── Gary's act ──────────────────────────────────────────────────────────────────────────────────────────────
-
+// Gary's act
 const ease = (t: number): number => smoothstep(0, 1, t);
 function walkX(a: number, b: number, t: number, d: number): { x: number; moving: number } {
   if (d <= 0) return { x: b, moving: 0 };
@@ -344,7 +331,7 @@ function arriveAct(t: number): Act {
   return { kind: 'arrive', phase: 'out', u: clamp(t / ARRIVE_S, 0, 1), t, x: w.x, face: 1, moving: w.moving, item: null, hidden: 1 - ease(step) };
 }
 
-/** The exit, in seconds after it: Gary turns to the house, the degen arrives, the hook, the handshake, the referral code, the tailgate. */
+/** Accepted-exit cue times, in seconds. */
 export const EXIT = { meet: 3.0, unhook: 3.6, hookOff: 4.0, shake: 4.3, shakeEnd: 5.9, write: 6.2, writeEnd: 8.0, walk: 8.1, sit: 9.0, sat: 9.5 } as const;
 function exitAct(r: Repo): Act {
   const e = r.exit!;
@@ -365,11 +352,7 @@ function exitAct(r: Repo): Act {
 }
 
 const CAB_SEAT = 104;
-/**
- * The crash is front-loaded so it finishes inside a short live crash hold: Gary stands still for the beacons and
- * the chart going red (0.45 s), walks to the door, pulls it off by about 1.2 s, carries it to the cab, and the
- * truck pulls away by about 3.2 s; the bedroom goes dark by about 4.5 s. Everything is keyed to the crash clock.
- */
+/** Crash-clock choreography: pause for beacons, take the door, drive away, then darken the bedroom. */
 export const CRASH_WALK = 0.45;
 const PULL_S = 0.4;
 function crashTimes(from: number): CrashTimes {
@@ -417,8 +400,7 @@ function computeAct(r: Repo, d: RepoDrive): Act {
   return idleAct(r.runAge);
 }
 
-// ─── The supercar, the door, the truck ─────────────────────────────────────────────────────────────────────────
-
+// The supercar, the door, the truck
 export interface CarState {
   /** The hook's travel from the deck tail to the frame (1 = on). */
   hook: number;
@@ -483,14 +465,14 @@ export function truckDX(r: Repo): number {
   const t = r.crash.age - r.crash.times.drive;
   return t > 0 ? -0.5 * 320 * t * t : 0;
 }
-/** The pile leaning back as the truck pulls away: a closed-form step response, so a late entry agrees. */
+/** Closed-form pile lean preserves the pose on late entry. */
 function driveLean(r: Repo): number {
   if (!r.crash || r.crash.dodged) return 0;
   const t = r.crash.age - r.crash.times.drive;
   return t > 0 ? r.crash.sway * (1 - Math.cos(6 * t) * Math.exp(-1.8 * t)) : 0;
 }
 
-/** The three hinge screws: popped at the pull, a closed-form fall onto the porch, seeded from the crash point. */
+/** Seeded hinge screws follow a closed-form fall onto the porch. */
 export function screwViews(r: Repo): { x: number; y: number; rot: number }[] {
   const c = r.crash;
   if (!c || c.dodged || c.age < c.times.pull) return [];
@@ -507,7 +489,7 @@ export function screwViews(r: Repo): { x: number; y: number; rot: number }[] {
 }
 
 export interface DoorView { state: 'hinged' | 'held' | 'cab'; open: number; x: number; y: number; rot: number }
-/** The front door: open for the fridge and the degen, off its hinges at the crash, riding shotgun after. */
+/** Door pose: hinged, carried, or riding shotgun. */
 export function doorView(r: Repo): DoorView {
   let open = 0;
   const f = jobProgress(r, jobIndex('fridge'));
@@ -531,8 +513,7 @@ export function doorView(r: Repo): DoorView {
   return { state: 'hinged', open, x: DOOR_X, y: 361, rot: 0 };
 }
 
-// ─── Items ──────────────────────────────────────────────────────────────────────────────────────────────────
-
+// Items
 export interface ItemView { id: ItemId; x: number; y: number; rot: number; squash: number; layer: 'held' | 'air' | 'stack' | 'ground'; count: number }
 export interface Items { views: ItemView[]; home: Record<ItemId, boolean>; numbersLeft: number; tvDark: boolean; tvPull: number; fridgeGone: boolean; bow: number; postit: boolean }
 
@@ -565,7 +546,7 @@ function stackPose(r: Repo, id: ItemId, dx: number, lean: number): Pose {
   return { x: s.x + dx + (r.lean.x + lean) * height / 100, y: s.y + r.sag.x * 0.6, rot: s.rot + (r.lean.x + lean) * 0.003 };
 }
 
-/** Every item's pose this frame: at home (drawn by the house), held, in the air, on the pile or dropped on the lawn. */
+/** Item poses and layers; the house draws items still at home. */
 export function items(r: Repo): Items {
   const out: Items = { views: [], home: { hose: true, tv: true, bike: true, fridge: true, mailbox: true, numbers: true, porch: true, gutter: true }, numbersLeft: 3, tvDark: false, tvPull: 0, fridgeGone: false, bow: 0, postit: false };
   const dx = truckDX(r);
@@ -658,7 +639,7 @@ function jobItem(r: Repo, id: ItemId, a: Act): ItemView | null {
   }
   const hold = carry(id, a.x, a.face);
   if (a.phase === 'back') return id === 'porch' ? null : view(hold, 'held');
-  // The finish: a heave and a toss onto the pile, or the winch dragging the porch across the lawn and up.
+  // Finish with a toss or winch the porch onto the pile.
   const slot = stackPose(r, id, 0, 0);
   if (id === 'porch') {
     const u = clamp(a.t / WINCH_S, 0, 1);
@@ -672,9 +653,8 @@ function jobItem(r: Repo, id: ItemId, a: Act): ItemView | null {
 }
 const lerpPose = (a: Pose, b: Pose, u: number): Pose => ({ x: mix(a.x, b.x, u), y: mix(a.y, b.y, u), rot: mix(a.rot, b.rot, u) });
 
-// ─── The exit and the crash ─────────────────────────────────────────────────────────────────────────────────
-
-/** The accepted exit: Gary drops the list, the hook comes off, everything flies home. `live` plays it from the top. */
+// The exit and the crash
+/** Accepted exit returns the items home; live starts the choreography. */
 export function exitRepo(r: Repo, live: boolean): void {
   const now = items(r);
   const car = carState(r);
@@ -693,14 +673,14 @@ export function exitRepo(r: Repo, live: boolean): void {
   }
 }
 
-/** The crash: the beacons, then Gary takes the front door. A dodged crash keeps Gary on the tailgate. */
+/** Crash takes the front door; a dodged crash keeps Gary seated. */
 export function crashRepo(r: Repo, x100: number, dodged: boolean, crashAge: number): void {
   const rand = mulberry32(x100 * 7 + 11);
   let dropped: ItemId | null = null;
   let loaded = r.done[LOAD];
   const hooked = r.done[HOOK] || (r.job?.index === HOOK && (r.job.age - r.job.time.out) / r.job.time.work > 0.5);
   if (!dodged && r.job) {
-    // Whatever was mid-air lands; whatever was in Gary's hands goes down on the lawn where he stands.
+    // Airborne items land; held items drop at Gary's feet.
     const kind = JOBS[r.job.index]!.kind;
     const id = SPEC[kind].item;
     const a = r.act;
@@ -718,14 +698,14 @@ export function crashRepo(r: Repo, x100: number, dodged: boolean, crashAge: numb
   r.crash = {
     age: crashAge, from, face: r.act.face, dodged, dropped, dropX: clamp(from + r.act.face * 28, 200, 760), loaded, hooked: hooked || loaded,
     times: crashTimes(from),
-    // The hinge screws that pop out when the door comes off, and how hard the pile sways as he pulls away.
+    // Seed the hinge screws and departure sway.
     screws: [0, 1, 2].map(() => ({ vx: -90 + rand() * 130, vy: -170 + rand() * 90, spin: (rand() - 0.5) * 30 })),
     sway: 8 + rand() * 5,
   };
 }
 
 export interface DegenOut { x: number; y: number; face: 1 | -1; run: number; walk: number; mode: 'door' | 'run' | 'stand' | 'shake'; t: number; scale: number }
-/** The degen outside after the exit: out of the door at 1.6 s, across the lawn in his socks, then beside Gary. */
+/** Degen exit: door at 1.6 s, across the lawn, then beside Gary. */
 export function degenOut(r: Repo): DegenOut | null {
   const e = r.exit;
   if (!e || e.age < 1.62) return null;

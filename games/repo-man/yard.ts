@@ -1,9 +1,4 @@
-/**
- * The curb: Gary's flatbed tow truck (the cab with its lettered door, the light bar of four amber beacons that
- * stay off the whole round, the tilting deck, the winch and its cable, the pile on the deck), the leased lime
- * supercar with its paper dealer plate on the driveway apron, and every item Gary takes, drawn wherever it is.
- * Drawing only; poses come from repo.ts and nothing here reads or changes the outcome.
- */
+/** Tow truck, supercar and reclaimed items; draws poses supplied by repo.ts. */
 import { type Bedroom, drawDoorLeaf, drawFridgeScreen, drawHoseCoil, drawMailbox } from './house';
 import { blob, box, ink, INK, label, limb, poly } from './ink';
 import type { ItemId } from './lines';
@@ -123,7 +118,7 @@ export function drawWheels(ctx: CanvasRenderingContext2D, dx: number, rolling: n
   }
 }
 
-/** The cab in front of the pile, with Gary (or the door) in the window and the beacons on the roof. */
+/** Cab foreground with driver or door and roof beacons. */
 export function drawCab(ctx: CanvasRenderingContext2D, d: TruckDrive, drawDriver: (ctx: CanvasRenderingContext2D) => void): void {
   ctx.save();
   ctx.translate(d.dx, 0);
@@ -184,7 +179,7 @@ export function drawCab(ctx: CanvasRenderingContext2D, d: TruckDrive, drawDriver
   ctx.restore();
 }
 
-/** The beacons' light: four rotating amber beams and the wash they throw on the street and the house. */
+/** Four rotating amber beams wash the street and house. */
 export function drawBeaconLight(ctx: CanvasRenderingContext2D, d: TruckDrive): void {
   if (d.beacons <= 0.01) return;
   ctx.save();
@@ -218,7 +213,7 @@ export function drawBeaconLight(ctx: CanvasRenderingContext2D, d: TruckDrive): v
   ctx.restore();
 }
 
-/** Exhaust from the stack behind the cab: a pure function of time, so it never accumulates. */
+/** Time-based exhaust never accumulates particles. */
 export function drawExhaust(ctx: CanvasRenderingContext2D, time: number, dx: number, rev: number): void {
   for (let k = 0; k < 6; k += 1) {
     const u = (time * (0.55 + 0.4 * rev) + k / 6) % 1;
@@ -232,10 +227,9 @@ export function drawExhaust(ctx: CanvasRenderingContext2D, time: number, dx: num
   }
 }
 
-// ─── The supercar ──────────────────────────────────────────────────────────────────────────────────────────────
-
+// The supercar
 export interface CarPose { x: number; y: number; rot: number }
-/** The supercar's pose: on the apron, hooked and lifted an inch, winched up the tilted deck, level on it, or towed. */
+/** Car pose across hooking, loading and towing. */
 export function carPose(l: CarState, sag: number, dx: number, towLift: number): CarPose {
   if (l.towed) {
     const fx = APRON_X + 40 + dx;
@@ -316,7 +310,7 @@ export function drawCar(ctx: CanvasRenderingContext2D, p: CarPose, l: CarState, 
   }
 }
 
-/** The winch cable from the drum along the deck to the tail roller, then to whatever it is hooked to. */
+/** Cable follows drum, deck, tail roller, then hook target. */
 export function drawCable(ctx: CanvasRenderingContext2D, d: TruckDrive, to: { x: number; y: number } | null, hookAt: { x: number; y: number }): void {
   const y0 = deckY(DECK_FRONT + 16, d.tilt, d.sag) - 7 + 0;
   const tail = { x: DECK_TAIL + d.dx, y: deckY(DECK_TAIL, d.tilt, d.sag) - 1 };
@@ -343,8 +337,7 @@ export function drawCable(ctx: CanvasRenderingContext2D, d: TruckDrive, to: { x:
   ctx.stroke();
 }
 
-// ─── Items ──────────────────────────────────────────────────────────────────────────────────────────────────
-
+// Items
 export interface ItemLook { count: number; bow: number; notice: number; time: number }
 
 /** Draws an item centred at (x, y), rotated, squashed on landing. */

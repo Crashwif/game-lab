@@ -1,7 +1,4 @@
-/**
- * The shared ink: the outline colour, the meme and bubble lettering, text wrapping, outlined shapes and the
- * speech bubbles, so the set, the cast and the HUD agree on one look. Everything draws in the 960 × 540 space.
- */
+/** Shared outlined shapes, lettering and speech bubbles in the 960 x 540 canvas. */
 import { clamp } from './motion';
 
 export const INK = '#1d1418';

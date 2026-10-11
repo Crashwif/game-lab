@@ -1,12 +1,4 @@
-/**
- * The people of Repo Man. Gary: cap, mustache, reflector vest over the company shirt, a barcode tattooed down his
- * forearm, a clipboard in one hand and a pen in the other; a walking rig (distance-driven feet, two-bone IK for
- * arms and legs) posed from his current act: walking out to an item, taking it, carrying it, heaving it onto the
- * pile, working the winch lever, nodding up at the window, waving at the kid, shaking hands, sitting on the
- * tailgate with his thermos, or taking the front door off its hinges. The degen: in the bedroom window behind the
- * blinds, then (after an exit) running across the lawn in his socks. The kid in the lower window and the
- * neighbour at their door. Rigs and drawing only; nothing here reads or changes the outcome.
- */
+/** Gary, the degen, the kid and the neighbour: pose-driven rigs and drawing only. */
 import { blob, box, ink, INK, label, limb, poly } from './ink';
 import { type Joint, solveLimb, walkingFoot } from './kinematics';
 import { type Act, DOOR_X, EXIT, LANE_Y, LEVER } from './repo';
@@ -23,8 +15,7 @@ const BOOT = '#3a2a1e';
 const ease = (t: number): number => smoothstep(0, 1, t);
 const lerpP = (a: P, b: P, t: number): P => ({ x: mix(a.x, b.x, t), y: mix(a.y, b.y, t) });
 
-// ─── Gary ───────────────────────────────────────────────────────────────────────────────────────────────────
-
+// Gary
 export interface GaryInput {
   act: Act;
   time: number;
@@ -39,7 +30,7 @@ export interface GaryInput {
   vest: number;
   /** The deck top where he sits. */
   deck: number;
-  /** A look over whatever he is doing: up at the window with a nod, or across at the neighbour. */
+  /** Glance up at the window or across at the neighbour. */
   glance: { kind: 'nod' | 'pat' | null; age: number };
   /** Raising the thermos to the degen from the tailgate (a crash after the exit). */
   toast: number;
@@ -77,7 +68,7 @@ const THIGH = 35;
 const SHIN = 34;
 const HEAD = 1.16;
 
-/** Gary's whole pose from his act: a bag of world targets the drawing solves limbs toward. */
+/** World-space pose targets for the limb solver. */
 export function garyPose(g: GaryInput): GaryPose {
   const a = g.act;
   const f = a.face;
@@ -105,7 +96,7 @@ export function garyPose(g: GaryInput): GaryPose {
   const hipAt = (): P => ({ x: a.x + sway, y: LANE_Y - HIP_H - (moving > 0 ? Math.abs(Math.sin(phase)) * 2.5 * moving : 0) });
   let hip = hipAt();
   if (k === 'idle') {
-    // Between items: a slow cycle of reading the list, looking up at the house, writing it down.
+    // Idle cycle: read, look up, write.
     const cyc = (t * 0.16 + 0.3) % 1;
     const up = cyc >= 0.35 && cyc < 0.6;
     writing = cyc > 0.7 && cyc < 0.9 ? 1 : 0;
@@ -266,7 +257,7 @@ export function garyPose(g: GaryInput): GaryPose {
     eyes = { x: 1, y: -0.6 };
     tilt = 0.15 * (1 - fu);
   }
-  // The exit: turn to the house, listen, unhook, shake on it, write the referral code, sit on the tailgate.
+  // Exit: listen, unhook, shake, write, sit.
   if (k === 'exit') {
     if (a.phase === 'turn') {
       const look = smoothstep(0.15, 0.35, u) * (1 - smoothstep(0.75, 0.95, u));
@@ -328,7 +319,7 @@ export function garyPose(g: GaryInput): GaryPose {
     }
     if (g.held) holdItem(g.held.hands);
   }
-  // A glance over whatever he is doing: up at the window with a nod, across at the neighbour.
+  // Overlay a window nod or neighbour glance.
   if (g.glance.kind && g.glance.age < 2.2) {
     const e = smoothstep(0, 0.25, g.glance.age) * (1 - smoothstep(1.8, 2.2, g.glance.age));
     if (g.glance.kind === 'nod') {
@@ -344,7 +335,7 @@ export function garyPose(g: GaryInput): GaryPose {
   hip.y += crouch * 20;
   const chest: P = { x: hip.x + f * (2 + lean * 30), y: hip.y - TORSO + crouch * 6 + breath * 0.4 };
   if (k === 'sit') chest.x = hip.x - f * 2;
-  // The clipboard at the chest, the pen at it; walking, the board goes under the arm and the pen hand swings.
+  // Walking tucks the clipboard and swings the pen hand.
   const swing = Math.sin(phase) * moving;
   if (!back) back = moving > 0.3 && clip === 'hand' ? { x: hip.x + f * 2, y: hip.y - 8 } : { x: chest.x + f * 17, y: chest.y + 22 };
   if (!front) {
@@ -365,11 +356,7 @@ export function garyPose(g: GaryInput): GaryPose {
   return { x: a.x, face: f, hip, chest, head, tilt, feet, hands: [back, front], crouch, clip, pen, thermos, phone, vest: g.vest, talk: g.talk, brow, eyes, blink: blinkOn, sit, hidden: a.hidden };
 }
 
-/**
- * Gary's secondary motion: his hands (relative to his hip, so a carried item never lags), his head's tilt and his
- * crouch chase the pose on springs with different rates, so a change of act eases instead of popping and the head
- * trails the body.
- */
+/** Hip-relative hands keep carried items aligned; head tilt and crouch follow on slower springs. */
 export interface GaryRig { back: P; front: P; bv: P; fv: P; tilt: Spring; crouch: Spring; seeded: boolean }
 export const createGaryRig = (): GaryRig => ({ back: { x: 0, y: 0 }, front: { x: 0, y: 0 }, bv: { x: 0, y: 0 }, fv: { x: 0, y: 0 }, tilt: spring(0), crouch: spring(0), seeded: false });
 export function smoothGary(rig: GaryRig, p: GaryPose, dt: number, settle: boolean, exact: boolean): void {
@@ -384,7 +371,7 @@ export function smoothGary(rig: GaryRig, p: GaryPose, dt: number, settle: boolea
     settleSpring(rig.tilt, p.tilt);
     rig.seeded = true;
   } else {
-    // A critically damped chase for the hands (18 rad/s), a looser spring for the head (11 rad/s, a little overshoot).
+    // Hands: critical damping at 18 rad/s. Head: overshoot at 11 rad/s.
     const chase = (pos: P, vel: P, target: P): void => {
       const sx = { x: pos.x, v: vel.x };
       const sy = { x: pos.y, v: vel.y };
@@ -638,7 +625,7 @@ function drawThermos(ctx: CanvasRenderingContext2D, x: number, y: number): void 
   ctx.stroke();
 }
 
-/** Gary, full figure. `held` draws whatever he carries between his body and his near arm. */
+/** held draws between the torso and near arm. */
 export function drawGary(ctx: CanvasRenderingContext2D, p: GaryPose, time: number, held?: () => void): void {
   if (p.hidden >= 0.99) return;
   const f = p.face;
@@ -663,7 +650,7 @@ export function drawGary(ctx: CanvasRenderingContext2D, p: GaryPose, time: numbe
   }
 }
 
-/** Gary in the cab: reading by dome light at betting, driving away with the door at the crash. */
+/** In the cab: reading during betting, driving during the crash. */
 export function drawGaryInCab(ctx: CanvasRenderingContext2D, x: number, y: number, face: 1 | -1, reading: boolean, talk: number, time: number): void {
   const p: GaryPose = {
     x, face, hip: { x, y: y + 44 }, chest: { x, y }, head: { x: x + face * 2, y: y - 22 }, tilt: reading ? -0.22 + Math.sin(time * 0.8) * 0.05 : 0, feet: [{ x, y: y + 90 }, { x, y: y + 90 }],
@@ -689,8 +676,7 @@ export function drawGaryInCab(ctx: CanvasRenderingContext2D, x: number, y: numbe
   ctx.restore();
 }
 
-// ─── The degen ──────────────────────────────────────────────────────────────────────────────────────────────
-
+// The degen
 const HOODIE = '#5b3f9a';
 const HOODIE_SHADE = '#47307c';
 const DEGEN_SKIN = '#e6cdb0';
@@ -843,7 +829,7 @@ export function drawDegenOut(ctx: CanvasRenderingContext2D, o: { x: number; y: n
     { x: hip.x + f * mix(-5, footA.x, run), y: o.y + mix(0, footA.y, run) },
     { x: hip.x + f * mix(7, footB.x, run), y: o.y + mix(0, footB.y, run) },
   ];
-  // Arms: flagging Gary down on the run, in the hoodie pocket after, out for the handshake.
+  // Arms wave while running, shake hands, then rest in the pocket.
   const sh = (side: number): P => ({ x: chest.x - f * side * 8, y: chest.y + 3 });
   let back: P;
   let front: P;
@@ -857,7 +843,7 @@ export function drawDegenOut(ctx: CanvasRenderingContext2D, o: { x: number; y: n
     const pump = Math.sin(clamp((o.t - EXIT.shake - 0.2) / 1.2, 0, 1) * Math.PI * 6) * 6 * smoothstep(0.1, 0.25, u) * (1 - smoothstep(0.85, 1, u));
     front = lerpP({ x: chest.x + f * 12, y: hip.y - 8 }, { x: meet.x, y: meet.y + pump }, smoothstep(0, 0.15, u) * (1 - smoothstep(0.88, 1, u)));
   } else {
-    // Hands in the hoodie pocket, shifting from sock to sock; a scratch of the head now and then.
+    // Idle: shift weight and occasionally scratch the head.
     const scratch = ((time * 0.13 + 0.4) % 1) < 0.12;
     back = { x: chest.x + f * 8, y: hip.y - 8 };
     front = scratch ? { x: chest.x + f * 4, y: chest.y - 34 + Math.sin(time * 20) * 2 } : { x: chest.x + f * 12, y: hip.y - 6 };
@@ -897,8 +883,7 @@ export function drawDegenOut(ctx: CanvasRenderingContext2D, o: { x: number; y: n
   ctx.restore();
 }
 
-// ─── The kid and the neighbour ─────────────────────────────────────────────────────────────────────────────
-
+// The kid and the neighbour
 /** The kid at the lower window, lit from behind, waving back at Gary. Never part of the joke. */
 export function drawKid(ctx: CanvasRenderingContext2D, x: number, base: number, on: number, wave: number, time: number): void {
   const k = smoothstep(0.3, 0.8, on);

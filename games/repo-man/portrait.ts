@@ -1,15 +1,7 @@
-/**
- * Game-local portrait compositor for narrow screens (the catalog's capture-and-crop design, after Yes Men's):
- * a title, the multiplier, the caption, a close-up cut from the landscape frame already drawn, a small overview
- * that keeps the whole room, and the current line. It only rearranges what the renderer drew; the shell still
- * owns controls and round state.
- */
+/** Narrow-screen close-up, overview and captions composed from the landscape frame; the shell owns controls. */
 export const isPortrait = (canvas: Pick<HTMLCanvasElement, 'clientWidth' | 'clientHeight'>): boolean => canvas.clientWidth > 0 && canvas.clientHeight > canvas.clientWidth;
 export interface PortraitView { phase: string; currentX100: number; cashoutX100: number | null }
-/**
- * `focus` is the close-up crop [x, y, w, h] in the 960 × 540 frame; `exit` names an accepted cash-out in the
- * status corner; `live` is the line under the label while the round is on.
- */
+/** focus: [x, y, w, h] in 960 x 540; exit/live label the accepted cashout and running state. */
 export function createPortrait(title: string, focus: readonly number[], color: string, exit = 'CASHED OUT', live = 'LIVE FROM THE ROOM') {
   let frame: HTMLCanvasElement | null = null;
   let background: string | null = null;

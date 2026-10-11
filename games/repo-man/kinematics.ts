@@ -1,9 +1,6 @@
 /** Presentation-only geometry; distance, not the render clock, advances a step. */
 export type Joint = { x: number; y: number };
-/**
- * Two-bone IK. `pole` picks the side the joint bends to; a value between -1 and 1 swings it through depth (toward or
- * away from the camera), so the bones foreshorten on the way across instead of the joint flipping in one frame.
- */
+/** Two-bone IK: pole in [-1, 1] bends through depth with foreshortening. */
 export function solveLimb(root: Joint, target: Joint, upper: number, lower: number, pole: number): { joint: Joint; end: Joint } {
   const dx = target.x - root.x, dy = target.y - root.y;
   const distance = Math.max(.0001, Math.hypot(dx, dy));
@@ -22,10 +19,7 @@ export function stepFoot(distance: number, stride: number, offset: number, lift:
   return { x: -half - u * stride * .42 + stride * u * u * (3 - 2 * u), y: -lift * Math.sin(Math.PI * u) ** 2 };
 }
 
-/**
- * The first step grows out of the standing pose: the gait starts with one foot planted under the hip at mid-stance,
- * so it never slides, and the other lifting out of mid-swing, both blended in over the first few pixels.
- */
+/** Blend from mid-stance and mid-swing over the first few pixels to avoid foot sliding. */
 export function walkingFoot(distance: number, stride: number, offset: number, lift: number): Joint {
   const foot = stepFoot(distance, stride, offset + .29, lift);
   const ramp = (span: number) => { const u = Math.min(1, Math.max(0, distance / span)); return u * u * (3 - 2 * u); };

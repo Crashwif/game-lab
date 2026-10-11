@@ -1,12 +1,4 @@
-/**
- * The dialogue: a ladder of lines keyed to the displayed multiplier, never to the crash point. A line comes due
- * when the multiplier passes its rung and is said once its speaker's current bubble has been up long enough to
- * read (at least HOLD seconds) and a short beat has passed since the last line, so two lines never pop on the
- * same frame and replies follow their questions. The caption is the last captioned line actually said, so it
- * never runs ahead of the dialogue. Past the last rung an overtime cycle comes due every `ratio` of multiplier,
- * so a long round keeps talking. Everything is bounded: at most MAX_BUBBLES live bubbles and MAX_QUEUE waiting.
- * Presentation only: nothing here reads or changes the round's outcome.
- */
+/** Bounded dialogue queue keyed to the displayed multiplier. Captions follow spoken lines; overtime repeats indefinitely. */
 import { clamp, spring, type Spring, stepSpring } from './motion';
 
 export interface Line {
@@ -111,11 +103,7 @@ function show(s: Script, line: Line, age = 0): void {
 /** The speaker's live bubble, if any. */
 export const bubbleOf = (s: Script, who: string): Bubble | undefined => lastOf(s.bubbles, (b) => b.line.who === who && b.age < b.life);
 
-/**
- * Advances the script by `dt` seconds at the displayed `multiplier`. While `live` (running, no crash yet) lines
- * come due from the ladder and the overtime cycle; queued lines (including unscheduled ones from `say`) are said
- * in order whenever their speaker is free and the beat has passed, live or not.
- */
+/** dt is seconds. Live rounds schedule ladder/overtime lines; queued lines play when the speaker and beat permit. */
 export function stepScript(s: Script, multiplier: number, dt: number, live: boolean): void {
   s.events = [];
   s.quiet += dt;
@@ -146,10 +134,7 @@ export function stepScript(s: Script, multiplier: number, dt: number, live: bool
   s.bubbles = s.bubbles.filter((b) => b.age < b.life + 0.3);
 }
 
-/**
- * An unscheduled line (a cash-out, the crash, a regret aside), said through the same queue. `urgent` puts it at
- * the head of the queue; `interrupt` also lets it cut its speaker off and skip the beat.
- */
+/** Queues an unscheduled line; urgent prepends, interrupt also cuts off the speaker and skips the beat. */
 export function say(s: Script, line: Omit<Line, 'at'> & { at?: number }, urgent = false, interrupt = false): void {
   const full: Line = { at: 0, ...line };
   if (interrupt) {
@@ -170,11 +155,7 @@ export function hush(s: Script): void {
   s.queue = [];
 }
 
-/**
- * Settles a fresh script into a round already at `multiplier`, for a scene that missed the start: every line
- * below the multiplier counts as said, the caption is the last captioned one, and the last line or two stay up
- * as if they had been said a moment ago. Nothing is queued and no events fire.
- */
+/** Late entry: mark past lines said, restore recent bubbles and caption, with no queue or events. */
 export function settleScript(s: Script, multiplier: number): void {
   resetScript(s);
   while (s.next < s.ladder.length && multiplier >= s.ladder[s.next]!.at) s.next += 1;
