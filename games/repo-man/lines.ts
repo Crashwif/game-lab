@@ -1,9 +1,4 @@
-/**
- * The words of Repo Man: Gary's checklist ladder keyed to the displayed multiplier, the overtime items he keeps
- * finding past 100×, what he says from the tailgate after you buy it all back, the crash's lines, the captions,
- * the stamps, and the jobs (what Gary physically does at each rung, and the checklist entry it writes).
- * Data only. Nothing here reads or changes the round's outcome.
- */
+/** Dialogue, captions and repossession jobs keyed to the displayed multiplier. Presentation only. */
 import type { Line } from './script';
 
 export const TITLE = 'REPO MAN';
@@ -31,10 +26,7 @@ export const LADDER: Line[] = [
   { at: 100, who: 'gary', text: 'Some things you don’t tow. The vest stays.', cap: 'THE VEST STAYS' },
 ];
 
-/**
- * Past the last rung, one of these comes due every 1.35× of multiplier, in order, forever. Each one is a checklist
- * entry (the `tick:` beat) that Gary writes down and ticks, and each one makes the house shudder on its slab.
- */
+/** Overtime repeats every 1.35x; tick: beats add checklist entries and shudder the house. */
 export const OVERTIME: Omit<Line, 'at'>[] = [
   { who: 'gary', text: 'Wifi password. It was on the fridge. The fridge is on my truck.', cap: 'STILL ITEMIZING', beat: 'tick:Wifi password' },
   { who: 'gary', text: 'The vibe. Noted at the top. Re-noted.', beat: 'tick:The vibe (again)' },
@@ -108,11 +100,7 @@ export const STAMP = { rekt: 'REPOSSESSED', dodged: 'KEPT THE DOOR', watched: 'J
 export type ItemId = 'hose' | 'tv' | 'bike' | 'fridge' | 'mailbox' | 'numbers' | 'porch' | 'gutter';
 export type JobKind = 'hook' | 'opener' | 'lift' | 'load' | 'wave' | 'note' | 'qr' | 'vest' | ItemId;
 
-/**
- * What Gary does at each rung, in order: walk to it, take it, carry it to the flatbed, heave it onto the stack.
- * `entry` is the checklist line he writes when it comes due; it is ticked when the job is done (`open` entries
- * are written and left unticked).
- */
+/** Jobs run in order. entry is written when due and ticked on completion unless open. */
 export const JOBS: { at: number; kind: JobKind; entry?: string; open?: boolean }[] = [
   { at: 1.2, kind: 'hook', entry: 'Vehicle (lime, leased)' },
   { at: 1.5, kind: 'opener', entry: 'Garage door opener' },

@@ -1,8 +1,4 @@
-/**
- * Motion toolkit (the same one Balloon Pump uses): exact damped springs,
- * easing helpers, deterministic noise and a seeded generator. Everything is
- * frame-rate independent: pass the real `dt` in seconds.
- */
+/** Frame-rate-independent springs, easing and seeded presentation noise; dt is in seconds. */
 
 export const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
 export const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -27,12 +23,7 @@ export interface Spring {
 
 export const spring = (x = 0): Spring => ({ x, v: 0 });
 
-/**
- * Moves a damped spring toward `target` by `dt` seconds using the closed-form
- * solution of the oscillator, so it is stable and exact for any step size.
- * `omega` is the undamped angular frequency in rad/s; `zeta` the damping ratio
- * (below 1 overshoots and rings, 1 settles without overshoot).
- */
+/** Exact spring step: dt in seconds, omega in rad/s, zeta as damping ratio (1 is critical). */
 export function stepSpring(s: Spring, target: number, omega: number, zeta: number, dt: number): Spring {
   if (dt <= 0) return s;
   const x0 = s.x - target;

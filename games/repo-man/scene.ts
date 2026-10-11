@@ -1,11 +1,4 @@
-/**
- * Composes Repo Man: the cul-de-sac at 4:07 am, Gary working his checklist up the multiplier while the degen
- * watches through the blinds over a chart that stays green, the accepted exit (SOLD, socks, the handshake, the
- * tailgate), the crash (four amber beacons, the chart going red, the front door off its hinges and riding
- * shotgun down the block), the HUD and the checklist panel, the cues and the portrait compositor.
- * Every beat keys off the displayed multiplier, the round's clocks and the confirmed exit; nothing here reads,
- * predicts or changes the committed outcome.
- */
+/** Composes the street, actors, cues and HUD from the displayed multiplier, clocks and confirmed exit. */
 import { type Effect, pageAudio } from './audio';
 import { createGaryRig, drawDegenOut, drawGary, drawGaryInCab, garyPose, type GaryPose, smoothGary } from './cast';
 import { type Bedroom, BED, createBlinds, drawBackdrop, drawCallout, drawDoorLeaf, drawHouse, drawLight, drawMailboxPost, drawNeighbourHouse, drawSign, drawSprinklers, type SetState, stepBlinds } from './house';
@@ -44,7 +37,7 @@ const COLOURS = { accent: '#ffb23e', bad: '#ff4d6d', good: '#7cf67c' };
 /** The multipliers that ring a milestone stinger. */
 const RUNGS = [1.2, 1.5, 2, 2.6, 3.4, 4.5, 6, 8, 11, 15, 22, 40, 100];
 
-// ─── Crash feel ─────────────────────────────────────────────────────────────────────────────────────────
+// Crash feel
 const FREEZE_S = 0.15;
 const SLOW_S = 0.45;
 const SLOW_RATE = 0.3;
@@ -58,13 +51,7 @@ const CRASH_CUES: [number, Effect | 'drop', number][] = [
   [0, 'siren', 0.28], [0.02, 'click', 0.4], [0.5, 'drop', 1], [0.52, 'buzz', 0.7], [1.7, 'notify', 0.7], [1.85, 'ding', 0.6], [2.25, 'ding', 0.35],
 ];
 const DODGED_CUES: [number, Effect | 'drop', number][] = [[0, 'siren', 0.18], [0.5, 'drop', 1], [0.52, 'buzz', 0.4], [1.7, 'notify', 0.5], [1.85, 'ding', 0.4]];
-/**
- * The crash is front-loaded: beacons at 0, the chart red at 0.5 s, the door off at about 1.2 s, the fridge at 1.7 s,
- * UNDER CONTRACT at 2.2 s, the kid's light at 2.6 s, the truck gone by about 5 s, the room dark by about 4.5 s and
- * the Post-it called out at 5 s: the final image is complete by ENDING_S. Live, the next betting phase can start
- * about 2 s after the crash; a crash this scene saw live then plays on as an encore over the betting phase, on the
- * scene's own crash clock, until the ending is complete (at most ENCORE_MAX), then blinks to the fresh street.
- */
+/** Live crashes finish through the next betting phase on the scene clock, bounded by ENCORE_MAX, then wipe to the next round. */
 const ENDING_S = 5.8;
 const ENCORE_MAX = 3.5;
 /** When the Post-it is called out large. */
@@ -93,9 +80,9 @@ export function createScene(): Scene {
   let secured: { x100: number; payout: number | null } | null = null;
   let outcome: Outcome | null = null;
   let crashed = false;
-  /** True from a crash met late until the next round: the aftermath is shown, not replayed, so no cues. */
+  /** Late-entry aftermath suppresses cues until the next round. */
   let muted = false;
-  /** True when this scene saw the exit happen (the choreography plays); false when it was met late. */
+  /** Play exit choreography only when witnessed live. */
   let exitLive = false;
   let regret = 0;
   let afterDue = 0;
@@ -114,15 +101,15 @@ export function createScene(): Scene {
   let bettingSaid = false;
   let lastRung = 0;
   let lastMultiplier = 1;
-  /** The scene's own crash clock (seconds): follows crashAge while crashed, runs on through the encore. */
+  /** Crash seconds: follows crashAge, then advances through the encore. */
   let crashClock = 0;
   let crashX100 = 100;
   let encore = false;
   let encoreAge = 0;
   let rolling = 0;
-  /** Gary's glance over what he is doing: up at the window on "Morning.", across at the neighbour on "Morning, Pat." */
+  /** Dialogue cues glances toward the window or neighbour. */
   const glance: { kind: 'nod' | 'pat' | null; age: number } = { kind: null, age: 9 };
-  /** The degen flinches at every sound the checklist makes through the floor: the hook's click, each tick. */
+  /** Flinch at the hook click and checklist ticks. */
   let flinch = 9;
   const lastFx = new Map<Effect, number>();
   const EXIT_LINES: [number, Omit<Line, 'at'>][] = [[EXIT.meet, DEGEN_LINE], ...DEAL_LINES];
@@ -208,9 +195,9 @@ export function createScene(): Scene {
     }
     time += dt;
 
-    // ─── The crash clock and the encore ───
+    // The crash clock and the encore
     if (encore) {
-      // A crash seen live plays on into betting until its ending is complete, on real time.
+      // The encore runs in real time through betting.
       encoreAge += real;
       crashClock += real;
       if (input.phase === 'running' || input.phase === 'crashed' || encoreAge >= ENCORE_MAX || crashClock >= ENDING_S) {
@@ -224,7 +211,7 @@ export function createScene(): Scene {
       encore = true;
       encoreAge = 0;
     }
-    // During the encore the scene keeps drawing the crashed round: its phase, its multiplier, its exit.
+    // Keep the crashed round's state during the encore.
     const view: SceneView = encore
       ? { ...input, phase: 'crashed', currentX100: crashX100, crashAge: crashClock * 1000, cashoutX100: secured?.x100 ?? null, payout: secured?.payout ?? null }
       : input;
@@ -286,14 +273,14 @@ export function createScene(): Scene {
     if (secured) {
       const past = view.currentX100 / secured.x100;
       if (exitLive && repo.exit) while (exitLine < EXIT_LINES.length && repo.exit.age >= EXIT_LINES[exitLine]![0]) say(script, EXIT_LINES[exitLine++]![1], true);
-      // Gary talks from the tailgate once the deal is done (or straight away, if the exit was met late).
+      // Tailgate dialogue begins after the deal, or on late entry.
       if (running && !crashed && (!exitLive || (repo.exit?.age ?? 99) > EXIT.sat)) {
         while (regret < REGRET.length && past >= REGRET[regret]![0]) say(script, REGRET[regret++]![1]);
         const due = afterCount(past);
         while (afterDue < due) say(script, AFTER[afterDue++ % AFTER.length]!);
       }
     }
-    // The crash's lines come due on crashAge, also after a quiet settle (only the sound is muted).
+    // Crash dialogue follows crashAge even when sound is muted.
     if (crashed) {
       const age = crashClock;
       const lines = outcome === 'dodged' ? DODGED_LINES : CRASH_LINES;
@@ -308,7 +295,7 @@ export function createScene(): Scene {
     }
     stepScript(script, multiplier, dt, running && !crashed && !secured);
 
-    // ─── The set's state ───
+    // The set's state
     stepRepo(repo, { phase: view.phase, multiplier, live: running && !crashed && !secured, loud, crashAge: crashClock * 1000 }, dt);
     const flips = stepBlinds(blinds, secured ? secured.x100 / 100 : multiplier, dt, fresh || view.phase === 'betting' || view.phase === 'waiting');
     const T = repo.crash?.times;
@@ -317,7 +304,7 @@ export function createScene(): Scene {
     const its = itemsOf(repo);
     const car = carState(repo);
     const dx = truckDX(repo);
-    // Kid's light at 5×; in a crash it comes on with the beacons if it was off, and goes off at beat six.
+    // Kid's light: 5x or the crash beacons, off at beat six.
     let kidOn = running || crashed ? (multiplier >= 5 ? 1 : 0) : 0;
     if (crashed) kidOn = ca < 2.6 ? (kidOn || ca > 0.7 ? 1 : 0) : 0;
     stepSpring(kid, kidOn, 22, 0.9, dt);
@@ -389,7 +376,7 @@ export function createScene(): Scene {
     }
     lastMultiplier = multiplier;
 
-    // ─── Cues: milestones and the heartbeat under the diesel ───
+    // Cues: milestones and the heartbeat under the diesel
     const rung = RUNGS.filter((r) => multiplier >= r).length;
     if (!fresh && running && !crashed && rung > lastRung) audio.milestone(rung);
     lastRung = rung;
@@ -414,7 +401,7 @@ export function createScene(): Scene {
     }
     stepSpring(captionPop, 0, 12, 0.35, dt);
 
-    // ─── The picture's state ───
+    // The picture's state
     const exiting = repo.exit && exitLive ? repo.exit.age : 99;
     const room: Bedroom = {
       red: crashed ? smoothstep(0.5, 0.65, ca) : 0,
@@ -487,7 +474,7 @@ export function createScene(): Scene {
     // Hands on a carried thing stay exactly on it; everything else eases.
     smoothGary(rig, gary, dt, fresh || view.phase === 'betting' || view.phase === 'waiting', held !== null || door.state === 'held');
 
-    // ─── The picture ───
+    // The picture
     ctx.save();
     if (shake > 0) ctx.translate(Math.sin(time * 90) * 8 * shake, Math.cos(time * 70) * 5 * shake);
     if (punch.x > 0.005) {
@@ -526,7 +513,7 @@ export function createScene(): Scene {
     drawMailboxPost(ctx, set);
     drawExhaust(ctx, time, dx, crashed && T && ca > T.drive - 0.3 ? 1 : 0);
     drawTruckBack(ctx, truck);
-    // The supercar on the deck rides under the pile; on the apron it sits in front of the deck's tail.
+    // Decked car behind the pile; driveway car in front of the tail.
     const onDeck = car.load > 0.5;
     if (onDeck) drawCar(ctx, lp, car, time);
     for (const v of its.views) if (v.layer === 'stack') drawView(ctx, v, set, time);
@@ -546,7 +533,7 @@ export function createScene(): Scene {
     // On a narrow screen the portrait shows the line under the picture instead of the bubbles.
     if (!isPortrait(ctx.canvas)) for (const b of script.bubbles) drawBubble(ctx, b.line.text, place(b.line.who as Speaker, gary, inCab, out, dx, its), b.pop.x, bubbleAlpha(b), b.line.thought);
     ctx.restore();
-    // A crash after the exit is played small: the bedroom going red in an inset, Gary's coffee in the foreground.
+    // Dodged crash: bedroom inset behind Gary's coffee.
     if (outcome === 'dodged' && ca > 0.5) drawInset(ctx, set, ca);
     if (flash > 0) {
       ctx.fillStyle = `rgba(255, 186, 70, ${0.4 * flash})`;
@@ -559,7 +546,7 @@ export function createScene(): Scene {
       ctx.fillRect(0, 0, 960, 540);
     }
 
-    // ─── The HUD ───
+    // The HUD
     capture(ctx);
     drawChecklist(ctx, repo.entries, secured ? 'paid' : rekt && ca > (T?.dark ?? 4.5) ? 'repo' : null);
     if (caption) {
@@ -612,7 +599,7 @@ export function createScene(): Scene {
   return { draw };
 }
 
-/** How many kept-going lines are due this far past the exit, after the regret ladder runs out. */
+/** Count post-regret dialogue lines due since the exit. */
 function afterCount(past: number): number {
   const lastAt = REGRET.at(-1)![0];
   return past < lastAt * 1.35 ? 0 : Math.floor(Math.log(past / lastAt) / Math.log(1.35) + 1e-9);
@@ -704,7 +691,7 @@ function drawJingle(ctx: CanvasRenderingContext2D, set: SetState, its: ReturnTyp
   ctx.restore();
 }
 
-/** The picture-in-picture for a crash after the exit: upstairs, the chart going red on an empty bed. */
+/** Dodged-crash inset: the empty bedroom chart turns red. */
 function drawInset(ctx: CanvasRenderingContext2D, set: SetState, ca: number): void {
   const k = smoothstep(0.5, 0.8, ca);
   ctx.save();
@@ -731,7 +718,7 @@ function drawInset(ctx: CanvasRenderingContext2D, set: SetState, ca: number): vo
   ctx.restore();
 }
 
-/** The checklist on Gary's clipboard: the loan agreement, itemized, a tick for each thing on the truck. */
+/** Clipboard loan agreement with a tick per completed job. */
 function drawChecklist(ctx: CanvasRenderingContext2D, entries: Entry[], stamp: 'paid' | 'repo' | null): void {
   const x = 808;
   const y = 396;
@@ -820,7 +807,7 @@ function captionFor(view: SceneView, said: string, secured: { x100: number } | n
   return said;
 }
 
-/** Where each speaker's bubble sits: Gary's beside his head, clear of the bedroom window and the HUD. */
+/** Bubble positions keep Gary clear of the window and HUD. */
 function place(who: Speaker, g: GaryPose, inCab: boolean, out: ReturnType<typeof degenOut>, dx: number, its: ReturnType<typeof itemsOf>): BubblePlace {
   if (who === 'gary') {
     if (inCab) {
