@@ -15,14 +15,14 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'gallery-export-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const options = { dist: join(root, 'dist'), out: join(root, 'out'), cache: join(root, 'cache'), commit: '1'.repeat(40), repository: 'https://github.com/Crashwif/game-lab', sources: 'git', skipPosters: false };
-  let games = [game('first'), game('second')]; let sharedKey = 'shared-inputs';
+  let games = [game('first'), game('second')]; let sharedKey = 'shared-inputs'; let captureKey = digest('capture-inputs'); let buildPrefix = '';
   let built = []; let captured = []; let failCapture = false;
   const build = async (slugs, dist) => {
     built.push(...slugs);
     for (const slug of slugs) {
       await mkdir(join(dist, slug), { recursive: true });
       const source = games.find((g) => g.slug === slug).sources;
-      for (const file of BUNDLE_FILES) await writeFile(join(dist, slug, file), file === 'game.generated.js' ? source['main.ts'] : source[file]);
+      for (const file of BUNDLE_FILES) await writeFile(join(dist, slug, file), file === 'game.generated.js' ? buildPrefix + source['main.ts'] : source[file]);
     }
   };
   const capture = async (_dist, out, short, selected) => {
@@ -34,10 +34,10 @@ async function fixture(t) {
     built = []; captured = [];
     // Each run starts on an empty runner; only the explicit output cache survives.
     await rm(options.dist, { recursive: true, force: true });
-    const result = await exportGallery({ ...options, ...overrides }, { games, sharedKey, build, capture });
+    const result = await exportGallery({ ...options, ...overrides }, { games, sharedKey, captureKey, build, capture });
     return { ...result, built, captured };
   };
-  return { root, options, run, setGames(value) { games = value; }, setShared(value) { sharedKey = value; }, failCapture() { failCapture = true; } };
+  return { root, options, run, setGames(value) { games = value; }, setShared(value) { sharedKey = value; }, setCapture(value) { captureKey = value; }, setBuildPrefix(value) { buildPrefix = value; }, failCapture() { failCapture = true; } };
 }
 
 test('cold exports build and capture every game; warm exports keep the complete catalog and fresh provenance', async (t) => {
@@ -51,6 +51,7 @@ test('cold exports build and capture every game; warm exports keep the complete 
   assert.equal(manifest.commit, commit); assert.deepEqual(manifest.games.map((g) => g.slug), ['first', 'second']);
   const source = await json(join(f.options.out, 'SOURCE.json'));
   assert.equal(source.commit, commit);
+  assert.equal(source.posterCapture, digest('capture-inputs'));
   for (const slug of ['first', 'second']) {
     const pack = await json(join(f.options.out, 'sources', `${slug}.json`));
     assert.equal(pack.commit, commit);
@@ -90,12 +91,32 @@ test('poster timing changes recapture only that poster, preserving its bundle', 
   assert.equal(await readFile(join(f.options.out, '1111111/first/poster.png'), 'utf8'), 'poster:first:25');
 });
 
-test('shared build inputs invalidate every game, including when returning to another source version', async (t) => {
+test('shared build changes rebuild but only different rendered bytes recapture posters', async (t) => {
   const f = await fixture(t); await f.run();
-  f.setShared('another-sdk');
-  assert.deepEqual((await f.run()).built, ['first', 'second']);
-  f.setShared('shared-inputs');
-  assert.deepEqual((await f.run()).built, ['first', 'second']);
+  f.setShared('another-build-input');
+  let result = await f.run();
+  assert.deepEqual(result.built, ['first', 'second']); assert.deepEqual(result.captured, []);
+  assert.deepEqual((await f.run()).built, []);
+  f.setShared('changed-sdk'); f.setBuildPrefix('sdk();');
+  result = await f.run();
+  assert.deepEqual(result.built, ['first', 'second']); assert.deepEqual(result.captured, ['first', 'second']);
+});
+
+test('capture environment or recipe changes recapture posters without rebuilding games', async (t) => {
+  const f = await fixture(t); await f.run();
+  f.setCapture(digest('different-browser-font-or-recipe'));
+  const result = await f.run();
+  assert.deepEqual(result.built, []); assert.deepEqual(result.captured, ['first', 'second']);
+  assert.deepEqual((await f.run()).captured, []);
+});
+
+test('records without independent capture provenance supply no reusable output', async (t) => {
+  const f = await fixture(t); await f.run();
+  const path = join(f.options.cache, 'first/record.json');
+  const record = await json(path); record.version = 1;
+  await writeFile(path, JSON.stringify(record));
+  const result = await f.run();
+  assert.deepEqual(result.built, ['first']); assert.deepEqual(result.captured, ['first']);
 });
 
 test('corrupt bundles rebuild; missing or corrupt posters recapture without rebuilding', async (t) => {
@@ -149,21 +170,30 @@ test('shared fingerprints require a clean matching checkout and cover toolchain,
   let sha = commit(); const initial = sharedInputs(sha, root);
   await put('README.md', '# Copy'); await put('docs/integration.md', '# Integration'); await put('scripts/games.mjs', "['first', 'second']"); await put('games/first/README.md', '# Game');
   sha = commit(); assert.equal(sharedInputs(sha, root), initial);
-  for (const file of ['package-lock.json', '.nvmrc', 'packages/game-sdk/src/index.ts', 'scripts/build.mjs', '.github/workflows/game-lab-deploy.yml', 'unrecognised-config.json', 'docs/runtime.json']) {
+  for (const file of ['package-lock.json', '.nvmrc', 'packages/game-sdk/src/index.ts', 'scripts/build.mjs', 'games/tsconfig.json', 'unrecognised-config.json', 'docs/runtime.json']) {
     const before = sharedInputs(sha, root); await put(file, `input:${file}`); sha = commit();
     assert.notEqual(sharedInputs(sha, root), before, file);
   }
-  const captureEnvironment = process.env.GAME_LAB_CAPTURE_ENV;
-  const environmentKey = sharedInputs(sha, root);
-  try {
-    process.env.GAME_LAB_CAPTURE_ENV = 'another-runner-image';
-    assert.notEqual(sharedInputs(sha, root), environmentKey);
-  } finally {
-    if (captureEnvironment === undefined) delete process.env.GAME_LAB_CAPTURE_ENV;
-    else process.env.GAME_LAB_CAPTURE_ENV = captureEnvironment;
+  for (const file of ['scripts/audio/prompts.json', 'scripts/audio/generate.mjs', 'scripts/audio/cache/first/master.mp3', 'scripts/gallery/export.mjs', '.github/workflows/game-lab-deploy.yml']) {
+    const before = sharedInputs(sha, root); await put(file, `input:${file}`); sha = commit();
+    assert.equal(sharedInputs(sha, root), before, file);
   }
   await put('games/first/main.ts', 'uncommitted()'); assert.throws(() => sharedInputs(sha, root), /clean checkout/);
   sha = commit(); assert.throws(() => sharedInputs('1'.repeat(40), root), /clean checkout/);
   await put('untracked.ts', 'imported()'); assert.throws(() => sharedInputs(sha, root), /clean checkout/);
   assert.notEqual(gameKeys(game('first'), initial).bundle, gameKeys(game('second'), initial).bundle);
+});
+
+test('uncached capture accepts prepared bundles without probing a Linux cache environment', async (t) => {
+  const f = await fixture(t);
+  const selected = game('first');
+  await mkdir(join(f.options.dist, selected.slug), { recursive: true });
+  for (const file of BUNDLE_FILES) await writeFile(join(f.options.dist, selected.slug, file), 'prepared bundle');
+  const captured = [];
+  await exportGallery({ ...f.options, cache: '' }, { games: [selected], capture: async (_dist, out, short, games) => {
+    captured.push(...games.map((entry) => entry.slug));
+    await writeFile(join(out, short, selected.slug, 'poster.png'), 'uncached poster');
+  } });
+  assert.deepEqual(captured, ['first']);
+  assert.equal((await json(join(f.options.out, 'SOURCE.json'))).posterCapture, null);
 });

@@ -31,14 +31,13 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, realpathSync } from 'node:fs';
 import { access, appendFile, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
-import { extname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { GAMES } from '../games.mjs';
 import { ROOT, SOURCE_ENTRY, readGallery, sourcePack } from './pack.mjs';
-import { BUNDLE_FILES, planGames, saveGame, sharedInputs } from './cache.mjs';
-
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
+import { BUNDLE_FILES, planGames, posterKey, saveGame, sharedInputs } from './cache.mjs';
+import { capturePosters } from './capture.mjs';
+import { captureIdentity } from './capture-environment.mjs';
 
 function args() {
   const out = { dist: 'dist', out: 'gallery-out', commit: '', repository: 'https://github.com/Crashwif/game-lab', sources: 'git', skipPosters: false, cache: '', plan: false };
@@ -81,78 +80,6 @@ const sha256 = (path) => new Promise((done, fail) => {
 });
 const sha256Text = (text) => createHash('sha256').update(text).digest('hex');
 
-/** Serves a directory on an ephemeral port for the poster captures. */
-function serve(root) {
-  const server = createServer(async (req, res) => {
-    const path = resolve(root, `.${decodeURIComponent((req.url ?? '/').split('?')[0])}`);
-    if (!path.startsWith(resolve(root))) { res.writeHead(403); res.end(); return; }
-    try {
-      const body = await readFile(path);
-      res.writeHead(200, { 'content-type': TYPES[extname(path)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
-      res.end(body);
-    } catch {
-      res.writeHead(404); res.end();
-    }
-  });
-  return new Promise((done) => server.listen(0, '127.0.0.1', () => done({ server, port: server.address().port })));
-}
-
-/** Counts the distinct colours of a PNG, in the page, so WebGL and 2D canvases are checked alike. */
-async function countColours(base64) {
-  const png = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const bitmap = await createImageBitmap(new Blob([png], { type: 'image/png' }));
-  const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d');
-  context.drawImage(bitmap, 0, 0);
-  return new Set(new Uint32Array(context.getImageData(0, 0, bitmap.width, bitmap.height).data.buffer)).size;
-}
-
-async function capturePosters(dist, out, short, games) {
-  if (games.length === 0) return;
-  let chromium;
-  try {
-    ({ chromium } = await import('playwright'));
-  } catch {
-    throw new Error('Playwright is not installed: run `npm ci` and `npx playwright install chromium`, or pass --skip-posters');
-  }
-  const { server, port } = await serve(dist);
-  let browser;
-  const failures = [];
-  try {
-    browser = await chromium.launch();
-    for (const game of games) {
-      const page = await browser.newPage({ viewport: { width: 960, height: 660 }, deviceScaleFactor: 1, reducedMotion: 'no-preference' });
-      // Listen before loading: a bad replay throws while the deferred script runs, before the load event.
-      const errors = [];
-      page.on('pageerror', (error) => errors.push(error.message));
-      page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
-      let png;
-      try {
-        await page.goto(`http://127.0.0.1:${port}/${game.slug}/index.html?mode=replay`, { waitUntil: 'load' });
-        const canvas = page.locator('canvas');
-        await canvas.waitFor();
-        await page.waitForTimeout(Math.round(game.poster.seconds * 1000));
-        png = await canvas.screenshot({ type: 'png' });
-        const colours = await page.evaluate(countColours, png.toString('base64'));
-        if (colours < 2) errors.push('the poster is a single colour');
-      } catch (error) {
-        errors.push(error.message);
-      } finally {
-        await page.close();
-      }
-      // Errors can arrive until the page closes; only then is the poster known to pass, and written.
-      if (errors.length) failures.push(`${game.slug}: ${errors.join('; ')}`);
-      else {
-        await writeFile(join(out, short, game.slug, 'poster.png'), png);
-        console.log(`poster: ${game.slug} at ${game.poster.seconds}s`);
-      }
-    }
-  } finally {
-    await browser?.close();
-    await new Promise((done) => server.close(done));
-  }
-  if (failures.length) throw new Error(`poster capture failed for ${failures.length} of ${games.length} games:\n  ${failures.join('\n  ')}`);
-}
-
 function readGames(options) {
   const source = options.sources === 'git' ? { from: 'git', commit: options.commit } : { from: 'worktree' };
   return GAMES.map((slug) => ({ slug, ...readGallery(slug, source), sources: sourcePack(slug, source).files }));
@@ -164,18 +91,17 @@ async function buildMissing(slugs, dist) {
 }
 
 /** Every export includes the entire current catalog; only its expensive build and capture work is selective. */
-export async function exportGallery(options, { games = readGames(options), sharedKey, build = buildMissing, capture = capturePosters } = {}) {
+export async function exportGallery(options, { games = readGames(options), sharedKey, captureKey, build = buildMissing, capture = capturePosters } = {}) {
   if (options.plan && !options.cache) throw new Error('--plan requires --cache');
   if (options.cache && (options.sources !== 'git' || options.skipPosters)) throw new Error('--cache requires --sources git and cannot skip posters');
-  const planned = options.cache ? await planGames(games, options.cache, sharedKey ?? sharedInputs(options.commit)) : games;
+  const captureFingerprint = captureKey ?? (options.plan || options.skipPosters || !options.cache ? null : await captureIdentity());
+  const planned = options.cache ? await planGames(games, options.cache, sharedKey ?? sharedInputs(options.commit), captureFingerprint) : games;
   const builds = options.cache ? planned.filter((g) => !g.bundle) : [];
-  const posters = options.skipPosters ? [] : planned.filter((g) => !g.cachedPoster);
+  let posters = options.skipPosters ? [] : planned.filter((g) => !g.cachedPoster);
   const summary = { build: builds.map((g) => g.slug), posters: posters.map((g) => g.slug), reused: planned.filter((g) => g.cachedPoster).map((g) => g.slug), total: games.length };
-  if (options.cache) console.log(`gallery plan: build ${builds.length}, capture ${posters.length}, reuse ${summary.reused.length} of ${games.length} games`);
+  if (options.cache) console.log(`gallery plan: build ${builds.length}, possible capture ${posters.length}, verified reuse ${summary.reused.length} of ${games.length} games`);
   if (options.plan) {
     if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `incremental=true\nbuild=${builds.length > 0}\nposters=${posters.length > 0}\n`);
-    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,
-      `## Gallery export\n\n- Build: ${summary.build.join(', ') || 'none'}\n- Capture posters: ${summary.posters.join(', ') || 'none'}\n- Reuse verified posters: ${summary.reused.length} of ${games.length}\n`);
     return summary;
   }
   if (builds.length) await build(summary.build, options.dist);
@@ -185,7 +111,16 @@ export async function exportGallery(options, { games = readGames(options), share
       for (const file of BUNDLE_FILES) await writeFile(join(options.dist, game.slug, file), game.bundle[file]);
     }
     for (const file of BUNDLE_FILES) await access(join(options.dist, game.slug, file)).catch(() => { throw new Error(`${options.dist}/${game.slug}/${file} is missing: run npm run build first`); });
+    if (options.cache) {
+      const bundle = {};
+      for (const file of BUNDLE_FILES) bundle[file] = await readFile(join(options.dist, game.slug, file));
+      game.keys.poster = posterKey(game, bundle, captureFingerprint);
+      game.cachedPoster = game.candidate?.key === game.keys.poster ? game.candidate.bytes : null;
+    }
   }
+  posters = options.skipPosters ? [] : planned.filter((g) => !g.cachedPoster);
+  summary.posters = posters.map((g) => g.slug);
+  summary.reused = planned.filter((g) => g.cachedPoster).map((g) => g.slug);
   const short = options.commit.slice(0, 7);
   // --skip-posters keeps the posters this short commit already has in the output.
   const kept = new Map();
@@ -224,15 +159,19 @@ export async function exportGallery(options, { games = readGames(options), share
     commit: options.commit,
     build: options.cache ? 'npm ci; build shared packages and changed games; reuse verified bundles and posters with identical inputs' : 'npm ci && npm run build',
     posters: `Canvas captures from verified replay mode at 960 × 540, taken the number of seconds after page load given by games/<slug>/gallery.json: ${games.map((g) => `${g.name} at ${g.poster.seconds}`).join(', ')}.`,
-    // The platform sync reuses a poster only while the game's bundle files and this moment are unchanged.
+    // Sync requires matching rendered bytes, timing and capture provenance to reuse a poster.
+    posterCapture: captureFingerprint,
     posterSeconds: Object.fromEntries(games.map((g) => [g.slug, g.poster.seconds])),
     sources: `sources/<slug>.json holds each game's own .ts, .json, .html and .css files (except gallery.json), read from the commit, as the platform's remix flow starts from them; the SDK and crash maths come from the platform's own packages.`,
     files,
   };
   await writeFile(join(options.out, 'SOURCE.json'), `${JSON.stringify(record, null, 2)}\n`);
   if (options.cache) {
-    for (const game of planned) if (!game.bundle || !game.cachedPoster) await saveGame(options.cache, game, join(options.out, short, game.slug));
+    for (const game of planned) await saveGame(options.cache, game, join(options.out, short, game.slug));
   }
+  console.log(`gallery result: built ${summary.build.length}, captured ${summary.posters.length}, reused ${summary.reused.length} of ${games.length} games`);
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,
+    `## Gallery export\n\n- Build: ${summary.build.join(', ') || 'none'}\n- Capture posters: ${summary.posters.join(', ') || 'none'}\n- Reuse verified posters: ${summary.reused.join(', ') || 'none'} (${summary.reused.length} of ${games.length})\n`);
   console.log(`exported ${games.length} games from ${options.commit} (${options.sources === 'git' ? 'sources from its blobs' : 'sources from the working tree'}) to ${options.out}/${short} (source packs in ${options.out}/sources)`);
   return summary;
 }

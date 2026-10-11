@@ -92,8 +92,6 @@ jobs:
           set -euo pipefail
           version="$(git show "$GITHUB_SHA:.nvmrc")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          capture="$(git rev-parse "$GITHUB_SHA:.github/workflows/game-lab-deploy.yml")"
-          echo "capture=$capture:${ImageOS:-unknown}:${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ steps.node.outputs.version }}
@@ -103,13 +101,12 @@ jobs:
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .game-lab-cache
-          key: game-lab-export-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: game-lab-export-v1-${{ runner.os }}-${{ runner.arch }}-
+          key: game-lab-export-v2-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: game-lab-export-v2-${{ runner.os }}-${{ runner.arch }}-
       - name: Plan game builds and poster captures
         id: plan
         env:
           COMMIT: ${{ steps.commit.outputs.sha }}
-          GAME_LAB_CAPTURE_ENV: ${{ steps.node.outputs.capture }}
         run: |
           set -euo pipefail
           if [ -f scripts/gallery/cache.mjs ]; then
@@ -146,7 +143,6 @@ jobs:
         env:
           COMMIT: ${{ steps.commit.outputs.sha }}
           INCREMENTAL: ${{ steps.plan.outputs.incremental }}
-          GAME_LAB_CAPTURE_ENV: ${{ steps.node.outputs.capture }}
         run: |
           set -euo pipefail
           flags=()

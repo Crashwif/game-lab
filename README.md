@@ -176,7 +176,11 @@ For incremental export, first plan the work:
 node scripts/gallery/export.mjs --cache .game-lab-cache --plan
 ```
 
-This requires a clean checkout of the selected commit. If the plan needs builds, install dependencies and build `@crashwif/crash-math` then `@crashwif/game-sdk`; if it needs captures, install Playwright's Chromium too. Run the same command without `--plan` to build missing or changed games and write a complete export using verified cached outputs for the rest. Shared build inputs invalidate the cache; README changes and gallery copy do not. A poster-time change recaptures only that poster. Missing or corrupt outputs are rebuilt.
+This requires a clean Linux checkout of the selected commit. The plan reports possible captures before the browser environment and rebuilt outputs are available. Install dependencies, Playwright's Chromium and fontconfig; when builds are needed, build `@crashwif/crash-math` then `@crashwif/game-sdk`. Run the same command without `--plan` to build missing or changed games and write a complete export using verified cached outputs for the rest. The final log and Actions summary list games actually built, captured and reused.
+
+Bundle keys cover each game's source, shared runtime/build inputs (including `games/tsconfig.json`) and the Node toolchain. Audio-generation prompts, master recordings, gallery tooling, workflow edits, README changes and gallery copy do not change a bundle key. Unknown shared inputs conservatively rebuild games. Poster keys cover the three rendered bundle files, the game's capture time, the capture helper and the installed browser, libraries, fonts and font configuration. A rebuild that produces identical bytes reuses its poster. A timing change captures only that game; a capture recipe or environment change recaptures posters without rebuilding bundles. Missing or corrupt outputs cannot supply reusable bytes.
+
+The cache uses version 2. Records without independent capture provenance require a complete initial capture; byte hashes alone do not establish the browser and fonts that produced a poster. The initial export populates the cache, and an identical export reports zero captures. Browser/font setup still runs to verify the environment before reuse; unrelated runner image labels and workflow changes are absent from the capture key. `SOURCE.json` records `posterCapture`, and platform sync reuses a poster only when this fingerprint, its timing, bundle bytes and recorded poster hash all match.
 
 The non-cached exporter accepts `--skip-posters`, preserving posters already exported for that commit and reporting missing ones. It cannot be combined with `--cache`. Platform sync requires every poster unless `--allow-missing-posters` is explicitly passed.
 
@@ -186,7 +190,7 @@ The non-cached exporter accepts `--skip-posters`, preserving posters already exp
 node scripts/gallery/sync-platform.mjs --export gallery-out --platform <platform-checkout>
 ```
 
-It reuses unchanged posters and retains releases for open previews: by default, releases live within the last seven days, at least the last three releases, and the active and immediately previous releases. `--keep-days` and `--keep-min` adjust retention.
+It reuses posters with matching capture provenance and retains releases for open previews: by default, releases live within the last seven days, at least the last three releases, and the active and immediately previous releases. `--keep-days` and `--keep-min` adjust retention.
 
 ### Automated publishing
 

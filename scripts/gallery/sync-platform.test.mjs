@@ -34,7 +34,7 @@ async function fixture(t) {
     await rm(exported, { recursive: true, force: true });
     await mkdir(join(exported, 'sources'), { recursive: true });
     const manifest = { repository: 'https://github.com/Crashwif/game-lab', commit, assetRoot: `/assets/game-lab/${short}`, games: [] };
-    const record = { commit, posterSeconds: {}, files: {} };
+    const record = { commit, posterCapture: sha256('capture-environment'), posterSeconds: {}, files: {} };
     const packs = {};
     for (const { slug, js = `console.log('${slug}');`, poster = Buffer.from(`poster of ${slug} at ${short}`), seconds = 10 } of games) {
       const game = { slug, name: slug, licence: 'open', royaltyBps: 0 };
@@ -220,6 +220,26 @@ test('an unchanged game keeps the previous release poster byte for byte', async 
   await sync('3333333', [{ slug: 'boiler-room', seconds: 12 }, { slug: 'thin-ice', js: 'console.log("changed");' }]);
   assert.equal(await readFile(join(assets, '3333333/boiler-room/poster.png'), 'utf8'), 'poster of boiler-room at 3333333');
   assert.equal(await readFile(join(assets, '3333333/thin-ice/poster.png'), 'utf8'), 'poster of thin-ice at 2222222');
+});
+
+test('changed or absent capture provenance preserves the exported poster', async (t) => {
+  const lab = await fixture(t);
+  await lab.sync('1111111', [{ slug: 'boiler-room' }]);
+  for (const [short, capture] of [['2222222', sha256('other-fonts')], ['3333333', undefined], ['4444444', undefined]]) {
+    await lab.write(short, [{ slug: 'boiler-room' }]);
+    await editJson(join(lab.exported, 'SOURCE.json'), (source) => { source.posterCapture = capture; });
+    assert.doesNotMatch(lab.run(), /reused/);
+    assert.equal(await readFile(join(lab.assets, short, 'boiler-room/poster.png'), 'utf8'), `poster of boiler-room at ${short}`);
+  }
+});
+
+test('a corrupt previous poster cannot replace verified exported bytes', async (t) => {
+  const lab = await fixture(t);
+  await lab.sync('1111111', [{ slug: 'boiler-room' }]);
+  await writeFile(join(lab.assets, '1111111/boiler-room/poster.png'), 'corrupted');
+  const result = await lab.sync('2222222', [{ slug: 'boiler-room' }]);
+  assert.doesNotMatch(result.output, /reused/);
+  assert.equal(await readFile(join(lab.assets, '2222222/boiler-room/poster.png'), 'utf8'), 'poster of boiler-room at 2222222');
 });
 
 test('an export without every poster is refused unless --allow-missing-posters', async (t) => {
