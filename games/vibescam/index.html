@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vibescam — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <div class="stage"><canvas aria-label="A token launch livestream in three panes: a founder in a backwards cap and a $VIBE hoodie at a desk under an LED strip and a pink neon sign, vibe coding a product that does not exist by typing prompts into an AI assistant whose generated code, warnings and badges stack up on the screen share as the round multiplier climbs, beside a landing page with a phone that never finishes loading, a sell button that gets removed, a tokenomics pie with one slice labelled TEAM, a padlock drawn open and a roadmap to Mars, a $VIBE chart with holders and liquidity, and a chat that posts faster as the tension rises while he sweats, stops blinking and smacks a big red SHIP IT button whose sticker is peeling; cashing out is your wallet selling, flipping your pinned row in the chat to SOLD; the crash is the rug pull, where the sticker comes off to read RUG, he smacks it, the product dissolves into vapor and 404s, the repository is deleted, the holders read one, he puts on sunglasses, grabs the LP duffel bag and walks out through the door as the lights die and the stream ends."></canvas></div>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out · sell the vibe</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

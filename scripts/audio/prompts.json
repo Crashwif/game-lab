@@ -733,6 +733,11 @@
           "seconds": 0.6
         }
       }
+    },
+    "vibescam": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A glossy startup launch-stream synthwave at 112 BPM: a bright arpeggiated lead over a sidechained supersaw pad, a punchy gated snare and a confident bass, with a product-keynote sheen that turns slightly too confident — each section adding one layer (a chiptune counter-melody, a detuned brass stab, a rising riser that never quite resolves, a glitchy stutter) like a pitch deck growing a slide at a time. No voices, lyrics or sampled speech. Develop six distinct 25-second sections. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
     }
   }
 }
