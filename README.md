@@ -110,6 +110,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [The Reading](games/the-reading) | A will whose inventory melts on the curve: a lawyer with one editorializing eyebrow, a recovery phrase hidden in the chocolate, a synthetic grandmother chatbot, a structural deer head, a doily that hides the sampler's last word and a freezer full of frozen dips | Playable |
 | [Vibescam](games/vibescam) | A token launch livestream: a founder vibe codes a product that does not exist, every rung of the curve ships another AI-generated feature, badge and claim for $VIBE, a tokenomics pie with one slice, a sell button that gets removed, a padlock drawn open, a chat that posts faster with the tension, a sticker peeling off the SHIP IT button to read RUG, a product that turns to vapor and a founder who leaves with the LP bag | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
+| [Fire Sale](docs/concepts.md#fire-sale) | A dragon torches a town on the multiplier: houses that ignite at each milestone, a screaming crowd on a stride rig, a wif-hat escape through the gate, a brave hero whose extinguisher ends the round | Concept |
 
 ### Lightweight games for the browser Studio
 
