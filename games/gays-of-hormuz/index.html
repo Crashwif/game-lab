@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#140f2e">
+  <title>Gays of Hormuz — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <div class="stage"><canvas aria-label="Gays of Hormuz: the SS Sashay, a pride cruise ship with a rainbow funnel, a disco ball and a drag queen at the bow, sails east through the Strait of Hormuz with Iran's coast on the horizon. Steer up toward port or down toward starboard with the arrow keys, W and S, the helm buttons or by dragging the picture, dodging naval mines, Iranian missiles launched from the coast, homing drones and speedboats, and pick up castaways on pool floaties. A confirmed cash-out brings a Pride Air helicopter to winch you off the foredeck; the round's crash sinks the ship."></canvas></div>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <div class="round-actions">
+        <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Board · 50 credits</button>
+        <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out · airlift</button>
+        <button id="restart" hidden>Replay round</button>
+        <button id="sound" class="secondary">Sound: off</button>
+      </div>
+      <div class="helm" role="group" aria-label="Helm">
+        <button id="helm-port" type="button" class="helm-key" aria-label="Steer to port, up the picture toward the Iranian side" aria-keyshortcuts="ArrowUp W"><span aria-hidden="true">▲</span><span>PORT</span></button>
+        <button id="helm-starboard" type="button" class="helm-key" aria-label="Steer to starboard, down the picture toward the Omani side" aria-keyshortcuts="ArrowDown S"><span aria-hidden="true">▼</span><span>STARBOARD</span></button>
+        <p id="helm-help"><span class="keyboard-hint">↑ ↓ or W S to steer · drag the picture · Space cashes out.</span> <span class="pointer-hint">Hold PORT or STARBOARD, or drag the ship.</span> Steering, hits and rescues are arcade play: they never change the round, your bet or when she sinks. Credits have no monetary value.</p>
+      </div>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>
