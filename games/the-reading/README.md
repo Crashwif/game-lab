@@ -63,6 +63,8 @@ If the chart keeps going without you, the caption keeps score: **WILL UNDER ARM*
 
 ## The crash
 
+A new round that crashes instantly interrupts the previous ending and starts its own crash picture and cues. This transition is covered by `node --test scripts/gallery/narrative-transitions.test.mjs` from the repository root.
+
 Keyed to the scene's crash clock (the view's `crashAge`, carried on through the encore below), deterministic from the crash point so a replay melts identically. The beats are front-loaded for the live hold, which moves on to the next betting phase about two seconds after the crash: beats 1 to 4 land inside two seconds, every beat by five, and the final image is complete at six.
 
 1. The nephew's chart goes red in one frame (the camera punches in on the phone, with a flash and a hit-stop). He looks up from it, the only person in the room who knows what happened, and he does not say anything. He is not asked.

@@ -230,11 +230,12 @@ export function createScene(): Scene {
     } else if (crashed && !muted && previous === 'crashed' && (input.phase === 'betting' || input.phase === 'waiting') && crashClock < ENDING_S) encore = 0;
     let view = input;
     if (encore >= 0) {
-      if (input.phase === 'running' || crashClock >= ENDING_S || encore >= ENCORE_MAX_S) {
+      if (input.phase === 'running' || input.phase === 'crashed' || crashClock >= ENDING_S || encore >= ENCORE_MAX_S) {
         encore = -1;
         wipe = 1;
         reset();
-        previous = input.phase;
+        // An instant next round may go straight from betting to crashed. Process that new crash below.
+        previous = input.phase === 'crashed' ? 'betting' : input.phase;
       } else view = { ...input, phase: 'crashed', currentX100: crashX, crashAge: crashClock * 1000 };
     } else if (input.phase === 'crashed') crashClock = input.crashAge / 1000;
     let dt = real;

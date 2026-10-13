@@ -65,6 +65,8 @@ If the chart keeps going without you, the caption keeps score: **THE ROOM STILL 
 
 ## The crash
 
+The ending continues across waiting and betting without resetting the room or losing the banner and group-hug sound cues. A new running or instantly crashed round interrupts it. These transitions are covered by `node --test scripts/gallery/narrative-transitions.test.mjs` from the repository root.
+
 Keyed to the scene's crash clock (seconds since the crash: the crash age while the shell shows the crash, then real time through the encore below), front-loaded so every beat lands within about five seconds and the final image is whole at six, and deterministic from the crash point so a replay collapses identically.
 
 1. **0 s.** Jules's thumb comes down. **BOUGHT THE TOP** flashes on his phone and on a close-up of it beside him, under a flash, a 0.15 s hit-stop and a camera punch on him. He looks at the circle. He says nothing.
