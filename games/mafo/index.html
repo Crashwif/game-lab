@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MAFO — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <div class="stage"><canvas aria-label="A cooking show filmed in the kitchen of a single-wide trailer at night: Junior, in a trucker cap, swim goggles, yellow dish gloves and a KISS THE COOK apron, stirs his Mamaw's turkey fryer with a canoe paddle through a lid held down with bungee cords, while a duct-taped pressure gauge climbs, steam leaks from the seams and a copper coil drips blue rock candy into a mason jar. As the round multiplier climbs the brew turns from muddy brown to glowing country blue, the gauge pins and gets swapped for a bigger one, the trailer rocks on its cinder blocks, the pet possum faints, the neighbour calls the sheriff through the kitchen window and his cousin, you, in a lawn chair, puts on sunglasses, oven mitts and a motorcycle helmet. Cashing out is the cousin leaving to get ice, out the door to hide behind the pickup; the crash is the trailer finding out: a record scratch, a last bad idea, a cut outside, and an explosion that throws the roof, the fridge and Junior across the yard."></canvas></div>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out · go get ice</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>
