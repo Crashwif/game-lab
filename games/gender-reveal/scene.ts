@@ -207,6 +207,7 @@ export function createScene(): Scene {
 
   function beginCrash(view: SceneView, quiet: boolean, multiplier: number): void {
     crashed = true;
+    crashClock = view.crashAge / 1000;
     crashView = { ...view };
     outcome = secured ? 'dodged' : view.stake === null ? 'watched' : 'rekt';
     hush(script);
@@ -316,12 +317,13 @@ export function createScene(): Scene {
     if (encore >= 0) {
       encore += real;
       crashClock += real;
-      if (raw.phase === 'running' || crashClock >= ENDING_S || encore >= ENCORE_MAX_S) {
+      if (raw.phase === 'running' || raw.phase === 'crashed' || crashClock >= ENDING_S || encore >= ENCORE_MAX_S) {
         // The ending is complete (or the next round is already under way): blink to the fresh yard.
         encore = -1;
         wipe = 1;
         reset();
-        previous = raw.phase;
+        // Let an instant next crash enter its own ending instead of retaining the old round's picture.
+        previous = raw.phase === 'crashed' ? 'betting' : raw.phase;
       }
     } else if (crashed && !muted && previous === 'crashed' && (raw.phase === 'betting' || raw.phase === 'waiting') && crashClock < ENDING_S) encore = 0;
     // During the encore the scene keeps drawing the crashed round as it stood, on its own crash clock.
@@ -364,7 +366,7 @@ export function createScene(): Scene {
       if (view.phase === 'crashed') beginCrash(view, true, multiplier);
       settleCast(cast, castDrive());
     } else if (view.phase !== previous) {
-      if (view.phase === 'crashed' && !crashed) beginCrash(view, crashClock > 1.5, multiplier);
+      if (view.phase === 'crashed' && !crashed) beginCrash(view, view.crashAge > 1500, multiplier);
       if (view.phase === 'betting' || view.phase === 'waiting') {
         if (crashed || script.next > 0) wipe = 1;
         reset();

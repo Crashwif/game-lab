@@ -70,6 +70,8 @@ If the chart keeps going without you, the caption keeps score from 1.5× past th
 
 ## The crash
 
+A new round that crashes instantly interrupts the previous ending and starts its own crash picture and cues. This transition is covered by `node --test scripts/gallery/narrative-transitions.test.mjs` from the repository root.
+
 Keyed to the crash clock (the seconds since the crash; the choreography runs half a second behind it through the hit-stop), deterministic from the crash point so a replay tumbles identically. The beats are front-loaded because the room moves on to the next betting phase about two seconds after a crash: beats 1–4 land within two seconds, the widow speaks at about 3.5 s and the final image is complete by 5.4 s (ENDING_S). A crash seen live plays on into the betting phase (an encore, at most 3.5 s, still captioned and stamped as the crash) until that ending is complete, then blinks to black into the fresh betting set.
 
 1. The phone in the casket's hands buzzes once, the camera punched in on it after a 0.15 s freeze. **PUSH NOTIFICATION: DEV SOLD.** Liquidity gone. The card rises out of the phone and folds back into it by 2.5 s.

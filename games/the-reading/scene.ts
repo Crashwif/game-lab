@@ -458,8 +458,8 @@ export function createScene(): Scene {
     // ─── Phase edges first, so this frame draws the state they leave. Leaving a crash this scene saw live with
     // the ending still playing, the next betting phase waits: the ending plays on as an encore, then the blink. ───
     if (!fresh && view.phase !== previous) {
-      // The next round running already: cut the encore short (the blink, the reset) and run.
-      if (encore >= 0 && view.phase === 'running') endEncore();
+      // A new round can already be running or instantly crashed: end the old picture before its new edge.
+      if (encore >= 0 && (view.phase === 'running' || view.phase === 'crashed')) endEncore();
       if (view.phase === 'crashed' && !crashed) beginCrash(view, view.crashAge > 1500);
       if ((view.phase === 'betting' || view.phase === 'waiting') && encore < 0) {
         if (previous === 'crashed' && crashed && !muted && crashClock < BEATS.end) encore = 0;

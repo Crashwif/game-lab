@@ -272,6 +272,8 @@ export function createScene(): Scene {
 
   function draw(ctx: CanvasRenderingContext2D, raw: SceneView, now: number): void {
     const real = last === null ? 0 : clamp((now - last) / 1000, 0, 0.1);
+    // Keep the preceding frame's crash time before the encore advances it, so its cues still cross edges.
+    const crashBefore = crashClock;
     last = now;
     let dt = real;
     if (freeze > 0) {
@@ -327,7 +329,7 @@ export function createScene(): Scene {
       if (raw.phase === 'crashed') beginCrash(raw, true);
     } else if (raw.phase !== previous) {
       if (raw.phase === 'crashed' && !crashed) beginCrash(raw, raw.crashAge > 1500);
-      if (raw.phase === 'betting' || raw.phase === 'waiting') {
+      if ((raw.phase === 'betting' || raw.phase === 'waiting') && encore === null) {
         if (previous === 'crashed' && crashed && !muted && encore === null && crashClock < ENDING_S) encore = 0;
         else {
           if (crashed || script.next > 0) wipe = 1;
@@ -359,7 +361,6 @@ export function createScene(): Scene {
       if (running && !crashed) while (regret < REGRET.length && past >= REGRET[regret]![0]) say(script, REGRET[regret++]![1]);
     }
     // The crash clock follows the crash age while the shell is crashed (the encore advances it on real time).
-    const crashBefore = crashClock;
     if (crashed) {
       if (encore === null) crashClock = view.crashAge / 1000;
       while (crashLine < CRASH_LINES.length && CRASH_LINES[crashLine]![0] <= crashClock) say(script, CRASH_LINES[crashLine++]![1], true, true);

@@ -58,6 +58,8 @@ Then a picture-in-picture, **BEYOND THE SIDE GATE**, shows the plus-one on the s
 
 ## The crash
 
+A new round that crashes instantly interrupts the previous ending and starts its own crash clock and cues. This transition is covered by `node --test scripts/gallery/narrative-transitions.test.mjs` from the repository root.
+
 Keyed to the crash clock, deterministic from the crash point so a replay detonates identically. The first beat lands on a hit-stop with a flash, a shake and the camera punched in on the box. Beats one to four land inside two seconds, every beat and its line by five, and the final image is complete by five and a half seconds of crash.
 
 1. The latch. The box opens: the lid blows off and lands upside down on the lawn, the front panel falls flat. Inside: no balloon, no gender. A phone with a pre-launched token page — **$BABY IS LIVE** — propped on a fog machine that was supposed to be atmospheric and vents all at once. Sheila: "IT'S A— …it's a phone?"
