@@ -460,25 +460,25 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): voi
     ctx.fill();
     ctx.stroke();
   } else {
-    // The beanie with its fold, hair out from under it.
+    // The beanie with its fold, worn high enough to leave her brows on her forehead, hair out from under it.
     ctx.fillStyle = '#c86b85';
     ctx.beginPath();
-    ctx.ellipse(0, -30, 46, 30, 0, Math.PI, 0);
-    ctx.lineTo(46, -22);
-    ctx.lineTo(-46, -22);
+    ctx.ellipse(0, -40, 46, 22, 0, Math.PI, 0);
+    ctx.lineTo(46, -32);
+    ctx.lineTo(-46, -32);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#b55a73';
     ctx.beginPath();
-    ctx.roundRect(-46, -30, 92, 14, 5);
+    ctx.roundRect(-46, -40, 92, 13, 5);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#2a1a12';
     ctx.beginPath();
-    ctx.moveTo(-42, -16);
-    ctx.quadraticCurveTo(-20, -8, -10, -18);
-    ctx.lineTo(-42, -10);
+    ctx.moveTo(-44, -27);
+    ctx.quadraticCurveTo(-36, -25, -31, -27);
+    ctx.quadraticCurveTo(-34, -18, -42, -12);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -495,12 +495,13 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): voi
       ctx.quadraticCurveTo(side * 16, -34 - 10 * heat - browUp, side * 8, -26 - 8 * heat - browUp);
     } else {
       const lift = (side > 0 ? 6 * heat : 0) + browUp;
-      ctx.moveTo(side * 30, -24 - lift);
-      ctx.lineTo(side * 8, -26 - lift * 0.4);
+      ctx.moveTo(side * 29, -21 - lift);
+      ctx.lineTo(side * 8, -23 - lift * 0.4);
     }
     ctx.stroke();
   }
-  // Eyes: his go wide; hers roll up until only the whites show, with an arc on each of Rick's lines.
+  // Eyes: his go wide behind the lenses; hers roll up until the pupils tuck under the lids, with an arc along the
+  // rim on each of Rick's lines.
   const roll = r.kind === 'niece' ? smoothstep(0.05, 0.85, heat) * (1 - shock) : 0;
   const u = clamp(r.takeAge / 0.6, 0, 1);
   const arc = r.kind === 'niece' && u < 1 ? Math.sin(Math.PI * u) : 0;
@@ -512,8 +513,9 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): voi
       ctx.stroke();
       continue;
     }
-    const rx = (r.kind === 'dad' ? 9 + 5 * heat : 10) + 2 * shock;
-    const ry = (r.kind === 'dad' ? 7 + 6 * heat : 7 + 2 * heat) + 3 * shock;
+    // His widen inside the lenses, short of the rims, until the blast knocks the glasses askew.
+    const rx = r.kind === 'dad' ? 9 + heat + shock : 10 + 2 * shock;
+    const ry = r.kind === 'dad' ? 7 + 2.5 * heat + 1.5 * shock : 7 + 2 * heat + 3 * shock;
     ctx.fillStyle = '#ffffff';
     ink(ctx, 2);
     ctx.beginPath();
@@ -523,15 +525,22 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): voi
     ctx.save();
     ctx.clip();
     ctx.fillStyle = INK;
-    const px = side * 16 + (r.kind === 'dad' ? 0 : 1) + r.look.x * (1 - roll) - 7 * arc * (1 - u);
-    const py = -6 + r.look.y * (1 - roll) - 14 * roll - 9 * arc * u;
+    let px = (r.kind === 'dad' ? 0 : 1) + r.look.x * (1 - roll) - 7 * arc * (1 - u);
+    let py = 2 + r.look.y * (1 - roll) - 14 * roll - 9 * arc * u;
+    // The pupil's centre stays inside the rim, so a roll pins it up under the lid instead of out of sight.
+    const out = Math.hypot(px / (rx - 1.5), py / (ry - 1.5));
+    if (out > 1) {
+      px /= out;
+      py /= out;
+    }
     ctx.beginPath();
-    ctx.arc(px, py, (r.kind === 'dad' ? Math.max(1.5, 4 - 2 * heat) : 3.6) * (1 - 0.3 * jolt), 0, Math.PI * 2);
+    ctx.arc(side * 16 + px, -8 + py, (r.kind === 'dad' ? Math.max(1.5, 4 - 2 * heat) : 3.6) * (1 - 0.3 * jolt), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
   if (r.kind === 'dad') {
-    // The glasses go askew in the blast.
+    // The glasses go askew in the blast. Each lens begins its own subpath where its arc starts, so no stray stroke
+    // crosses it.
     ctx.save();
     ctx.translate(0, -8);
     ctx.rotate(-0.17 * shock);
@@ -539,9 +548,10 @@ function drawHead(ctx: CanvasRenderingContext2D, r: Relative, time: number): voi
     ctx.strokeStyle = '#2a2a30';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.arc(-16, -8, 13, 0, Math.PI * 2);
-    ctx.moveTo(13, -8);
-    ctx.arc(16, -8, 13, 0, Math.PI * 2);
+    for (const side of [-1, 1]) {
+      ctx.moveTo(side * 16 + 13, -8);
+      ctx.arc(side * 16, -8, 13, 0, Math.PI * 2);
+    }
     ctx.moveTo(-3, -8);
     ctx.lineTo(3, -8);
     ctx.moveTo(-29, -9);
