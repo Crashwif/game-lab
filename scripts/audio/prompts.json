@@ -748,6 +748,11 @@
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A backwoods bluegrass hoedown at 120 BPM for a late-night cooking show in a trailer: a rolling banjo, an upright bass slapping root and fifth, a fiddle hook and a washboard shuffle that pick up speed and nerve as it goes, with a harmonica answering and a jug blowing the low notes. Develop six distinct 25-second sections: a lazy front-porch opening, the fiddle hook kicking in, a double-time banjo break as things heat up, a tense stop-time section with a high whistle on top like a kettle about to go, a call-and-response between fiddle and harmonica, then back toward the opening theme for a gentle repeat. Leave space for explosions and sound effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
       }
+    },
+    "flock-off": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A menacing drift phonk chase at 132 BPM for a man in all black on a BMX outrunning the police through a strip-mall suburb at dusk: a distorted 808 cowbell melody, a detuned Memphis-style bass, crunchy lo-fi drums with a half-time bounce, a sinister pitched-down synth motif and siren-like risers that circle closer as the tension climbs. Develop six distinct 25-second sections: a slow lurking intro on the cowbell, the drop with the full beat, a section with a helicopter-rotor rhythm under the bass, a stripped half-time breakdown with a heartbeat pulse, a double-time chase with stacked sirens, then back toward the opening theme for a gentle repeat. Leave space for gunshots, glass and sirens. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
     }
   }
 }
