@@ -1,32 +1,39 @@
 /**
  * The man in black on his BMX: a side-view rig facing right. The wheels and the crank turn with distance
- * (never time), the legs pedal on two-bone IK from the hip to the pedals, the far hand holds the bars and
- * the near hand points the gun at the reticle, solved in screen space. Lean, squat, nod and recoil are
- * springs; `riderPose` is pure, so a late entry or a replay draws the same frame. Nothing here knows about
- * the round: the scene decides where the bike is, how high it hops and what it is aiming at.
+ * (never time), the legs pedal on two-bone IK from the hips to ankles held just above the pedals, the far
+ * hand holds the bars with the elbow out and the near hand points the gun at the reticle, solved in screen
+ * space. He sits on the slammed saddle at rest and rises into a crouch over the bottom bracket as he gets
+ * going. Stance, lean, squat, nod and recoil are springs; `riderPose` is pure, so a late entry or a replay
+ * draws the same frame. Nothing here knows about the round: the scene decides where the bike is, how high
+ * it hops and what it is aiming at.
  */
 import { type Joint, solveLimb } from './kinematics';
-import { type Spring, clamp, mix, settleSpring, spring, stepSpring } from './motion';
+import { type Spring, clamp, mix, settleSpring, smoothstep, spring, stepSpring } from './motion';
 
 /** Bike geometry in bike px: the origin is the road under the bottom bracket; y runs up as negative. */
 export const WHEEL = 24;
 export const REAR: Joint = { x: -46, y: -24 };
 export const FRONT: Joint = { x: 50, y: -24 };
 export const BB: Joint = { x: -6, y: -28 };
-const SEAT: Joint = { x: -24, y: -66 };
-const HEAD_TUBE_TOP: Joint = { x: 32, y: -74 };
-const HEAD_TUBE_BOTTOM: Joint = { x: 40, y: -54 };
-export const GRIP: Joint = { x: 28, y: -96 };
-const HIP: Joint = { x: -12, y: -78 };
-const SHOULDER: Joint = { x: 14, y: -116 };
-const HEAD: Joint = { x: 30, y: -134 };
-export const UPPER_LEG = 34, LOWER_LEG = 34, UPPER_ARM = 24, LOWER_ARM = 24;
+const SEAT: Joint = { x: -22, y: -60 };
+const HEAD_TUBE_TOP: Joint = { x: 34, y: -70 };
+const HEAD_TUBE_BOTTOM: Joint = { x: 42, y: -50 };
+export const GRIP: Joint = { x: 40, y: -98 };
+/** Seated on the saddle at rest; up in a crouch over the bottom bracket at speed. */
+const SEATED = { hip: { x: -16, y: -70 }, shoulder: { x: 14, y: -116 }, head: { x: 32, y: -134 } };
+const CROUCH = { hip: { x: -2, y: -88 }, shoulder: { x: 26, y: -126 }, head: { x: 42, y: -140 } };
+export const UPPER_LEG = 36, LOWER_LEG = 36, UPPER_ARM = 22, LOWER_ARM = 22;
+/** The ankle sits here relative to the pedal spindle, so the ball of the foot is on the pedal. */
+export const ANKLE: Joint = { x: -3, y: -7 };
+/** The far hip and far shoulder sit a little behind and below the near ones, for depth. */
+export const FAR_HIP: Joint = { x: -3, y: 1 };
+export const FAR_SHOULDER: Joint = { x: -4, y: 2 };
 /** The chainring turns the wheel this many times per crank turn. */
 export const GEAR = 2.75;
 export const CRANK = 15;
 export const GUN_LENGTH = 17;
-/** The gun arm reaches this far from the shoulder: a little short of straight, so the elbow keeps a bend. */
-export const REACH = 44;
+/** The gun arm reaches this far from the shoulder: short of straight, so the elbow keeps a bend. */
+export const REACH = 40;
 
 export interface RiderDrive {
   distance: number;
@@ -39,6 +46,8 @@ export interface RiderDrive {
 }
 export interface RiderRig {
   time: number;
+  /** 0 seated, 1 crouched over the pedals. */
+  stance: Spring;
   lean: Spring;
   squat: Spring;
   nod: Spring;
@@ -54,6 +63,7 @@ export interface Pose {
   crank: number;
   hip: Joint; shoulder: Joint; head: Joint;
   elbowL: Joint; handL: Joint; elbowR: Joint; handR: Joint;
+  /** Knees and ankles; the shoes hang off the ankles onto the pedals. */
   kneeL: Joint; footL: Joint; kneeR: Joint; footR: Joint;
   /** The gun's hand, its angle, and the muzzle; null with both hands on the bars. */
   gun: { x: number; y: number; angle: number; flip: boolean } | null;
@@ -64,12 +74,14 @@ export interface Pose {
 }
 
 export function createRider(): RiderRig {
-  return { time: 0, lean: spring(0), squat: spring(0), nod: spring(0), kick: spring(0), air: false, events: { land: false } };
+  return { time: 0, stance: spring(0), lean: spring(0), squat: spring(0), nod: spring(0), kick: spring(0), air: false, events: { land: false } };
 }
 
+const stanceFor = (drive: RiderDrive): number => smoothstep(20, 150, drive.speed);
 const leanFor = (drive: RiderDrive): number => (drive.hop > 0 ? -0.6 : clamp(drive.speed / 350, 0, 1) * 0.35);
 
 export function settleRider(rig: RiderRig, drive: RiderDrive): void {
+  settleSpring(rig.stance, stanceFor(drive));
   settleSpring(rig.lean, leanFor(drive));
   settleSpring(rig.squat, 0);
   settleSpring(rig.nod, leanFor(drive));
@@ -90,8 +102,8 @@ export function stepRider(rig: RiderRig, drive: RiderDrive, dt: number): void {
     rig.events.land = true;
   }
   rig.air = air;
-  const lean = leanFor(drive);
-  stepSpring(rig.lean, lean, 11, 0.7, dt);
+  stepSpring(rig.stance, stanceFor(drive), 4, 1, dt);
+  stepSpring(rig.lean, leanFor(drive), 11, 0.7, dt);
   stepSpring(rig.squat, 0, 16, 0.5, dt);
   stepSpring(rig.nod, rig.lean.x, 13, 0.4, dt);
   stepSpring(rig.kick, 0, 26, 0.55, dt);
@@ -109,23 +121,29 @@ export function toScreen(frame: Frame, p: Joint): Joint {
   return { x: frame.x + p.x * c - p.y * s, y: frame.y + p.x * s + p.y * c };
 }
 
+/** The pedal spindle for a crank angle, in bike px. */
+export const pedalAt = (crank: number): Joint => ({ x: BB.x + CRANK * Math.cos(crank), y: BB.y + CRANK * Math.sin(crank) });
+
 export function riderPose(rig: RiderRig, drive: RiderDrive, frame: Frame): Pose {
   const wheel = drive.distance / WHEEL;
   const crank = wheel / GEAR;
+  const stance = clamp(rig.stance.x, 0, 1);
   const lean = rig.lean.x;
   const squat = clamp(rig.squat.x, -4, 12);
   const nod = rig.nod.x;
-  // The upper body sits back on a hop and forward with speed; the hip dips into a landing.
-  const hip: Joint = { x: HIP.x - lean * 6, y: HIP.y + squat };
-  const shoulder: Joint = { x: SHOULDER.x - lean * 14, y: SHOULDER.y + squat * 0.8 + Math.abs(lean) * 4 };
-  const head: Joint = { x: HEAD.x - nod * 16, y: HEAD.y + squat * 0.7 + Math.abs(nod) * 5 };
-  // The feet on the pedals; the near (right) crank is at `crank`, the far one half a turn on.
-  const pedalR: Joint = { x: BB.x + CRANK * Math.cos(crank), y: BB.y + CRANK * Math.sin(crank) };
-  const pedalL: Joint = { x: BB.x - CRANK * Math.cos(crank), y: BB.y - CRANK * Math.sin(crank) };
-  const legR = solveLimb(hip, pedalR, UPPER_LEG, LOWER_LEG, 1);
-  const legL = solveLimb(hip, pedalL, UPPER_LEG, LOWER_LEG, 1);
+  // Standing on the pedals rocks the hips a little with each stroke.
+  const rock = stance * 1.5 * Math.sin(crank * 2);
+  const hip: Joint = { x: mix(SEATED.hip.x, CROUCH.hip.x, stance) - lean * 5, y: mix(SEATED.hip.y, CROUCH.hip.y, stance) + squat + rock };
+  const shoulder: Joint = { x: mix(SEATED.shoulder.x, CROUCH.shoulder.x, stance) - lean * 12, y: mix(SEATED.shoulder.y, CROUCH.shoulder.y, stance) + squat * 0.8 + rock * 0.6 + Math.abs(lean) * 4 };
+  const head: Joint = { x: mix(SEATED.head.x, CROUCH.head.x, stance) - nod * 14, y: mix(SEATED.head.y, CROUCH.head.y, stance) + squat * 0.7 + rock * 0.5 + Math.abs(nod) * 5 };
+  // The ankles ride just above the pedals; the near (right) crank is at `crank`, the far one half a turn on.
+  const pedalR = pedalAt(crank);
+  const pedalL = pedalAt(crank + Math.PI);
+  // The solver bends toward the leg line's right-hand side, so a downward leg needs a negative pole for a forward knee.
+  const legR = solveLimb(hip, { x: pedalR.x + ANKLE.x, y: pedalR.y + ANKLE.y }, UPPER_LEG, LOWER_LEG, -1);
+  const legL = solveLimb({ x: hip.x + FAR_HIP.x, y: hip.y + FAR_HIP.y }, { x: pedalL.x + ANKLE.x, y: pedalL.y + ANKLE.y }, UPPER_LEG, LOWER_LEG, -1);
   // The far hand holds the bars, elbow back and out.
-  const armL = solveLimb(shoulder, GRIP, UPPER_ARM, LOWER_ARM, -1);
+  const armL = solveLimb({ x: shoulder.x + FAR_SHOULDER.x, y: shoulder.y + FAR_SHOULDER.y }, GRIP, UPPER_ARM, LOWER_ARM, 1);
   const S = toScreen(frame, shoulder);
   let gun: Pose['gun'] = null;
   let muzzle: Joint | null = null;
@@ -149,7 +167,7 @@ export function riderPose(rig: RiderRig, drive: RiderDrive, frame: Frame): Pose 
     gun = { x: handR.x, y: handR.y, angle, flip };
     muzzle = { x: handR.x + Math.cos(angle) * GUN_LENGTH, y: handR.y + Math.sin(angle) * GUN_LENGTH };
   } else {
-    const armR = solveLimb(shoulder, { x: GRIP.x + 3, y: GRIP.y + 1 }, UPPER_ARM, LOWER_ARM, -1);
+    const armR = solveLimb(shoulder, { x: GRIP.x + 2, y: GRIP.y + 1 }, UPPER_ARM, LOWER_ARM, 1);
     elbowR = toScreen(frame, armR.joint);
     handR = toScreen(frame, armR.end);
   }
@@ -165,9 +183,12 @@ export function riderPose(rig: RiderRig, drive: RiderDrive, frame: Frame): Pose 
 // ---- Drawing ---------------------------------------------------------------------------------------------------
 
 export const INK = {
-  black: '#0b0b10', cloth: '#15151c', rim: '#3d4150', chrome: '#c6ccd8', tire: '#1d1d22', tread: '#4a4a52', frame: '#2a1f3d', frameLight: '#5e4b86',
+  black: '#0b0b10', cloth: '#16161e', clothFar: '#0e0e14', rim: '#454a5a', rimFar: '#2a2d39', chrome: '#c6ccd8', tire: '#1d1d22', tread: '#4a4a52', frame: '#2a1f3d', frameLight: '#5e4b86',
   skin: '#d9a582', eye: '#f6f6f8', pupil: '#0b0b10', gold: '#f2c14e', sole: '#e9e9ec', red: '#ff3b4f',
 } as const;
+interface Side { fill: string; rim: string }
+const NEAR: Side = { fill: INK.cloth, rim: INK.rim };
+const FAR: Side = { fill: INK.clothFar, rim: INK.rimFar };
 
 function line(ctx: CanvasRenderingContext2D, a: Joint, b: Joint, width: number, color: string, cap: CanvasLineCap = 'round'): void {
   ctx.strokeStyle = color;
@@ -179,13 +200,35 @@ function line(ctx: CanvasRenderingContext2D, a: Joint, b: Joint, width: number, 
   ctx.stroke();
 }
 
-/** A limb as two strokes with a dark rim so black cloth reads against a dark street. */
-function limb(ctx: CanvasRenderingContext2D, a: Joint, b: Joint, c: Joint, width: number): void {
-  ctx.lineJoin = 'round';
-  line(ctx, a, b, width + 3, INK.rim);
-  line(ctx, b, c, width + 3, INK.rim);
-  line(ctx, a, b, width, INK.cloth);
-  line(ctx, b, c, width, INK.cloth);
+/** A tapered bone from `a` (width `wa`) to `b` (width `wb`) with round ends. */
+function bonePath(ctx: CanvasRenderingContext2D, a: Joint, b: Joint, wa: number, wb: number): void {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  ctx.beginPath();
+  ctx.moveTo(a.x + nx * wa / 2, a.y + ny * wa / 2);
+  ctx.lineTo(b.x + nx * wb / 2, b.y + ny * wb / 2);
+  ctx.arc(b.x, b.y, wb / 2, Math.atan2(ny, nx), Math.atan2(-ny, -nx), false);
+  ctx.lineTo(a.x - nx * wa / 2, a.y - ny * wa / 2);
+  ctx.arc(a.x, a.y, wa / 2, Math.atan2(-ny, -nx), Math.atan2(ny, nx), false);
+  ctx.closePath();
+}
+
+/** A limb as two tapered bones with a dark rim all round, so black cloth reads against a dark street. */
+function limb(ctx: CanvasRenderingContext2D, a: Joint, b: Joint, c: Joint, widths: [number, number, number], side: Side): void {
+  ctx.fillStyle = side.rim;
+  bonePath(ctx, a, b, widths[0] + 3, widths[1] + 3); ctx.fill();
+  bonePath(ctx, b, c, widths[1] + 3, widths[2] + 3); ctx.fill();
+  ctx.fillStyle = side.fill;
+  bonePath(ctx, a, b, widths[0], widths[1]); ctx.fill();
+  bonePath(ctx, b, c, widths[1], widths[2]); ctx.fill();
+  // The joint's cap, a shade lighter, so the knee or elbow reads as a bend.
+  ctx.fillStyle = side.rim;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, widths[1] * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 function wheel(ctx: CanvasRenderingContext2D, pose: Pose, axle: Joint, blur: number): void {
@@ -240,7 +283,7 @@ function wheel(ctx: CanvasRenderingContext2D, pose: Pose, axle: Joint, blur: num
   ctx.restore();
 }
 
-/** The frame, bars, fork, chainring and chain, and the pedals and cranks. The wheels draw separately so a crash can shed them. */
+/** The frame, bars, fork, chainring and chain. The wheels and cranks draw separately so a crash can shed them. */
 export function drawFrame(ctx: CanvasRenderingContext2D, pose: Pose): void {
   const T = (p: Joint) => toScreen(pose.frame, p);
   ctx.lineJoin = 'round';
@@ -286,11 +329,11 @@ export function drawCrank(ctx: CanvasRenderingContext2D, pose: Pose, near: boole
   const bb = toScreen(pose.frame, BB);
   const a = pose.crank + (near ? 0 : Math.PI) + pose.frame.angle;
   const pedal: Joint = { x: bb.x + Math.cos(a) * CRANK, y: bb.y + Math.sin(a) * CRANK };
-  line(ctx, bb, pedal, 3.5, near ? INK.chrome : INK.rim);
+  line(ctx, bb, pedal, 3.5, near ? INK.chrome : INK.rimFar);
   ctx.save();
   ctx.translate(pedal.x, pedal.y);
   ctx.rotate(pose.frame.angle);
-  ctx.fillStyle = near ? INK.black : INK.rim;
+  ctx.fillStyle = near ? INK.black : INK.rimFar;
   ctx.fillRect(-6, -1.5, 12, 3);
   ctx.restore();
 }
@@ -300,29 +343,41 @@ export function drawWheels(ctx: CanvasRenderingContext2D, pose: Pose, blur: numb
   wheel(ctx, pose, FRONT, blur);
 }
 
-function shoe(ctx: CanvasRenderingContext2D, foot: Joint, angle: number): void {
+/** A sneaker hanging off the ankle onto the pedal: heel back, toe forward, a white sole. */
+function shoe(ctx: CanvasRenderingContext2D, ankle: Joint, angle: number, side: Side): void {
   ctx.save();
-  ctx.translate(foot.x, foot.y);
+  ctx.translate(ankle.x, ankle.y);
   ctx.rotate(angle);
-  ctx.fillStyle = INK.sole;
-  ctx.fillRect(-8, 1, 17, 3);
-  ctx.fillStyle = INK.cloth;
+  ctx.fillStyle = side.rim;
   ctx.beginPath();
-  ctx.moveTo(-8, 1); ctx.lineTo(-7, -5); ctx.lineTo(3, -6); ctx.lineTo(9, -1); ctx.lineTo(9, 1);
+  ctx.moveTo(-9, -3); ctx.lineTo(-9, 8); ctx.lineTo(13, 9); ctx.lineTo(13, 4); ctx.lineTo(5, -3);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = INK.rim;
+  ctx.fillStyle = side.fill;
+  ctx.beginPath();
+  ctx.moveTo(-7, -2); ctx.lineTo(-7, 6); ctx.lineTo(11, 7); ctx.lineTo(11, 4); ctx.lineTo(4, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = side === NEAR ? INK.sole : '#9a9aa2';
+  ctx.beginPath();
+  ctx.moveTo(-8, 5); ctx.lineTo(12, 6); ctx.lineTo(12, 8.5); ctx.lineTo(-8, 7.5);
+  ctx.closePath();
+  ctx.fill();
+  // Laces.
+  ctx.strokeStyle = side.rim;
   ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-2, 0); ctx.lineTo(3, 1); ctx.moveTo(-1, 2); ctx.lineTo(4, 3);
   ctx.stroke();
   ctx.restore();
 }
 
-function glove(ctx: CanvasRenderingContext2D, hand: Joint): void {
-  ctx.fillStyle = INK.cloth;
-  ctx.strokeStyle = INK.rim;
-  ctx.lineWidth = 1.2;
+function glove(ctx: CanvasRenderingContext2D, hand: Joint, side: Side): void {
+  ctx.fillStyle = side.fill;
+  ctx.strokeStyle = side.rim;
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2);
+  ctx.arc(hand.x, hand.y, 4.6, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 }
@@ -370,55 +425,84 @@ export function drawGun(ctx: CanvasRenderingContext2D, gun: NonNullable<Pose['gu
 
 export interface RiderLook { blur: number; flash: number; decoy: boolean; blink: number; tilt: number; /** False for a figure off the bike: no frame, no cranks. */ bike?: boolean }
 
+/** The foot's tilt through the stroke: toes down past the bottom, heel down over the top. */
+const ankling = (crank: number): number => 0.22 * Math.sin(crank) + 0.08;
+
 /** The man in black, around the bike: far limbs first, then the bike's frame, the body, the near limbs and the gun. */
 export function drawRider(ctx: CanvasRenderingContext2D, pose: Pose, look: RiderLook): void {
   const a = pose.frame.angle;
-  // Far leg and far arm, behind everything.
   const bike = look.bike !== false;
-  limb(ctx, pose.hip, pose.kneeL, pose.footL, 9);
-  shoe(ctx, pose.footL, a + 0.15);
+  // Far leg and far arm, behind everything.
+  limb(ctx, { x: pose.hip.x + FAR_HIP.x, y: pose.hip.y + FAR_HIP.y }, pose.kneeL, pose.footL, [13, 10, 7], FAR);
+  shoe(ctx, pose.footL, a + (bike ? ankling(pose.crank + Math.PI) : 0.2), FAR);
   if (bike) drawCrank(ctx, pose, false);
-  limb(ctx, pose.shoulder, pose.elbowL, pose.handL, 7);
-  glove(ctx, pose.handL);
+  limb(ctx, { x: pose.shoulder.x + FAR_SHOULDER.x, y: pose.shoulder.y + FAR_SHOULDER.y }, pose.elbowL, pose.handL, [9, 7, 6], FAR);
+  glove(ctx, pose.handL, FAR);
   if (bike) drawFrame(ctx, pose);
-  // The backpack, the hoodie, the chain and the hood.
+  // The body: hips narrower than the shoulders, leaning into the bars.
   const dir = { x: pose.shoulder.x - pose.hip.x, y: pose.shoulder.y - pose.hip.y };
   const len = Math.hypot(dir.x, dir.y) || 1;
-  const n = { x: -dir.y / len, y: dir.x / len };
-  const back = { x: pose.shoulder.x + n.x * 9, y: pose.shoulder.y + n.y * 9 };
+  const ux = dir.x / len, uy = dir.y / len;
+  // `n` points to the rider's front.
+  const n = { x: -uy, y: ux };
+  const P = (along: number, across: number): Joint => ({ x: pose.hip.x + ux * along + n.x * across, y: pose.hip.y + uy * along + n.y * across });
+  // The backpack on his back.
   ctx.fillStyle = INK.black;
-  ctx.strokeStyle = INK.rim;
+  ctx.strokeStyle = INK.rimFar;
   ctx.lineWidth = 1.5;
+  const pack = P(len * 0.55, -14);
   ctx.beginPath();
-  ctx.ellipse(back.x - dir.x * 0.25, back.y - dir.y * 0.25, 9, 15, Math.atan2(dir.y, dir.x) + Math.PI / 2, 0, Math.PI * 2);
+  ctx.ellipse(pack.x, pack.y, 9, 15, Math.atan2(uy, ux) + Math.PI / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  // The hoodie.
   ctx.fillStyle = INK.cloth;
+  ctx.strokeStyle = INK.rim;
+  ctx.lineWidth = 1.5;
+  const hipBack = P(-4, -10), hipFront = P(-2, 9), shFront = P(len + 2, 13), shBack = P(len + 1, -13);
   ctx.beginPath();
-  ctx.moveTo(pose.hip.x + n.x * 11, pose.hip.y + n.y * 11);
-  ctx.lineTo(pose.shoulder.x + n.x * 15, pose.shoulder.y + n.y * 15);
-  ctx.lineTo(pose.shoulder.x - n.x * 13, pose.shoulder.y - n.y * 13);
-  ctx.lineTo(pose.hip.x - n.x * 10, pose.hip.y - n.y * 10);
+  ctx.moveTo(hipBack.x, hipBack.y);
+  ctx.quadraticCurveTo(P(len * 0.5, -15).x, P(len * 0.5, -15).y, shBack.x, shBack.y);
+  ctx.lineTo(shFront.x, shFront.y);
+  ctx.quadraticCurveTo(P(len * 0.45, 13).x, P(len * 0.45, 13).y, hipFront.x, hipFront.y);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  // The kangaroo pocket and the drawstrings.
+  ctx.strokeStyle = INK.rim;
+  ctx.lineWidth = 1;
+  const p1 = P(len * 0.18, 9), p2 = P(len * 0.42, 11);
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.stroke();
+  for (const k of [-2, 3]) {
+    const s0 = P(len - 4, k), s1 = P(len - 16, k + 4);
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.quadraticCurveTo(s0.x + 2, s0.y + 6, s1.x, s1.y);
+    ctx.stroke();
+  }
   // A gold chain, because of course.
   ctx.strokeStyle = INK.gold;
   ctx.lineWidth = 1.4;
+  const c0 = P(len - 2, -6), c1 = P(len - 14, 4), c2 = P(len - 1, 10);
   ctx.beginPath();
-  ctx.moveTo(pose.shoulder.x - n.x * 9, pose.shoulder.y - n.y * 9 + 2);
-  ctx.quadraticCurveTo(pose.shoulder.x - n.x * 4 + dir.x * 0.02, pose.shoulder.y - n.y * 2 + 12, pose.shoulder.x + n.x * 3, pose.shoulder.y + n.y * 3 + 6);
+  ctx.moveTo(c0.x, c0.y);
+  ctx.quadraticCurveTo(c1.x, c1.y, c2.x, c2.y);
   ctx.stroke();
-  // The hood behind the head, then the balaclava and its eyes.
+  // The neck, the hood behind the head, then the balaclava and its eyes.
   const h = pose.head;
+  const neck = P(len + 6, 2);
+  line(ctx, P(len, 0), neck, 9, INK.cloth);
   ctx.fillStyle = INK.cloth;
   ctx.strokeStyle = INK.rim;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(pose.shoulder.x - 8, pose.shoulder.y + 2);
-  ctx.quadraticCurveTo(h.x - 20, h.y - 12, h.x - 5, h.y - 19);
-  ctx.quadraticCurveTo(h.x + 11, h.y - 22, h.x + 16, h.y - 7);
-  ctx.lineTo(pose.shoulder.x + 12, pose.shoulder.y + 4);
+  ctx.moveTo(shBack.x - 2, shBack.y + 2);
+  ctx.quadraticCurveTo(h.x - 22, h.y - 8, h.x - 6, h.y - 19);
+  ctx.quadraticCurveTo(h.x + 12, h.y - 23, h.x + 17, h.y - 6);
+  ctx.lineTo(shFront.x + 4, shFront.y + 2);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -448,15 +532,15 @@ export function drawRider(ctx: CanvasRenderingContext2D, pose: Pose, look: Rider
   if (look.decoy) {
     // The decoy is identical. That is the point. He does have a sticker.
     ctx.fillStyle = INK.red;
-    ctx.fillRect(back.x - 4, back.y - 2, 8, 4);
+    ctx.fillRect(pack.x - 4, pack.y - 2, 8, 4);
   }
   // Near leg, near crank and the gun arm in front.
-  limb(ctx, pose.hip, pose.kneeR, pose.footR, 9);
-  shoe(ctx, pose.footR, a + 0.15);
+  limb(ctx, pose.hip, pose.kneeR, pose.footR, [14, 11, 8], NEAR);
+  shoe(ctx, pose.footR, a + (bike ? ankling(pose.crank) : 0.2), NEAR);
   if (bike) drawCrank(ctx, pose, true);
-  limb(ctx, pose.shoulder, pose.elbowR, pose.handR, 7);
-  glove(ctx, pose.handR);
+  limb(ctx, pose.shoulder, pose.elbowR, pose.handR, [10, 8, 6], NEAR);
   if (pose.gun) drawGun(ctx, pose.gun, look.flash);
+  glove(ctx, pose.handR, NEAR);
 }
 
 /** The shadow under the bike, flatter and fainter the higher it hops. */

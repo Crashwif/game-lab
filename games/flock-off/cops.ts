@@ -11,7 +11,7 @@ import { C, drawKia, outlined, roundRect, text } from './art';
 import { GROUND, RIDER_X, clamp } from './city';
 import { type Joint, solveLimb } from './kinematics';
 import { mix, mulberry32 } from './motion';
-import { BB, FRONT, INK, REAR, WHEEL, drawFrame, drawRider, drawWheels, riderPose, toScreen, type Frame, type Pose, type RiderRig } from './rider';
+import { FRONT, INK, LOWER_ARM, LOWER_LEG, REAR, UPPER_ARM, UPPER_LEG, WHEEL, drawFrame, drawRider, drawWheels, riderPose, toScreen, type Frame, type Pose, type RiderRig } from './rider';
 import { CAUSES, HOW, type Cause } from './script';
 
 export type PursuerKind = 'cruiser' | 'cruiser2' | 'news' | 'swat' | 'heli' | 'drone' | 'feds' | 'predator';
@@ -411,10 +411,10 @@ export function ragdollPose(center: Joint, angle: number, flail: number, t: numb
   const shoulder: Joint = { x: center.x + ax * 24, y: center.y + ay * 24 };
   const head: Joint = { x: center.x + ax * 44 + px * 4, y: center.y + ay * 44 + py * 4 };
   const swing = (k: number) => Math.sin(t * 9 + k) * flail;
-  const legR = solveLimb(hip, { x: hip.x - ax * 50 + px * (22 + 20 * swing(1)), y: hip.y - ay * 50 + py * (22 + 20 * swing(1)) }, 34, 34, 1);
-  const legL = solveLimb(hip, { x: hip.x - ax * 50 - px * (18 + 20 * swing(2)), y: hip.y - ay * 50 - py * (18 + 20 * swing(2)) }, 34, 34, 1);
-  const armR = solveLimb(shoulder, { x: shoulder.x + ax * 10 + px * (40 + 10 * swing(3)), y: shoulder.y + ay * 10 + py * (40 + 10 * swing(3)) }, 24, 24, 1);
-  const armL = solveLimb(shoulder, { x: shoulder.x + ax * 20 - px * (34 + 10 * swing(4)), y: shoulder.y + ay * 20 - py * (34 + 10 * swing(4)) }, 24, 24, -1);
+  const legR = solveLimb(hip, { x: hip.x - ax * 50 + px * (22 + 20 * swing(1)), y: hip.y - ay * 50 + py * (22 + 20 * swing(1)) }, UPPER_LEG, LOWER_LEG, 1);
+  const legL = solveLimb(hip, { x: hip.x - ax * 50 - px * (18 + 20 * swing(2)), y: hip.y - ay * 50 - py * (18 + 20 * swing(2)) }, UPPER_LEG, LOWER_LEG, 1);
+  const armR = solveLimb(shoulder, { x: shoulder.x + ax * 10 + px * (40 + 10 * swing(3)), y: shoulder.y + ay * 10 + py * (40 + 10 * swing(3)) }, UPPER_ARM, LOWER_ARM, 1);
+  const armL = solveLimb(shoulder, { x: shoulder.x + ax * 20 - px * (34 + 10 * swing(4)), y: shoulder.y + ay * 20 - py * (34 + 10 * swing(4)) }, UPPER_ARM, LOWER_ARM, -1);
   return {
     frame: { x: center.x, y: center.y, angle }, wheel: 0, crank: 0,
     hip, shoulder, head, elbowL: armL.joint, handL: armL.end, elbowR: armR.joint, handR: armR.end,

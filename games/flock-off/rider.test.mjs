@@ -15,7 +15,7 @@ const len = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const frame = { x: 300, y: 452, angle: 0 };
 const drive = (over) => ({ distance: 0, speed: 250, hop: 0, hopU: 0, aim: { x: 700, y: 250 }, ...over });
 
-test('both legs and both arms keep their bone lengths at every crank angle and aim, and the feet sit on the pedals', () => {
+test('both legs and both arms keep their bone lengths at every crank angle and aim, and the ankles ride over the pedals', () => {
   const rig = R.createRider();
   R.settleRider(rig, drive());
   let checked = 0;
@@ -23,13 +23,17 @@ test('both legs and both arms keep their bone lengths at every crank angle and a
     for (const aim of [{ x: 700, y: 250 }, { x: 900, y: 50 }, { x: 320, y: 60 }, { x: 60, y: 300 }, { x: 310, y: 340 }, null]) {
       const pose = R.riderPose(rig, drive({ distance, aim }), frame);
       assert.ok(Math.abs(len(pose.hip, pose.kneeR) - R.UPPER_LEG) < 1e-6 && Math.abs(len(pose.kneeR, pose.footR) - R.LOWER_LEG) < 1e-6);
-      assert.ok(Math.abs(len(pose.hip, pose.kneeL) - R.UPPER_LEG) < 1e-6 && Math.abs(len(pose.kneeL, pose.footL) - R.LOWER_LEG) < 1e-6);
-      assert.ok(Math.abs(len(pose.shoulder, pose.elbowL) - R.UPPER_ARM) < 1e-6 && Math.abs(len(pose.elbowL, pose.handL) - R.LOWER_ARM) < 1e-6);
+      const farHip = { x: pose.hip.x + R.FAR_HIP.x, y: pose.hip.y + R.FAR_HIP.y };
+      const farShoulder = { x: pose.shoulder.x + R.FAR_SHOULDER.x, y: pose.shoulder.y + R.FAR_SHOULDER.y };
+      assert.ok(Math.abs(len(farHip, pose.kneeL) - R.UPPER_LEG) < 1e-6 && Math.abs(len(pose.kneeL, pose.footL) - R.LOWER_LEG) < 1e-6);
+      assert.ok(Math.abs(len(farShoulder, pose.elbowL) - R.UPPER_ARM) < 1e-6 && Math.abs(len(pose.elbowL, pose.handL) - R.LOWER_ARM) < 1e-6);
       assert.ok(Math.abs(len(pose.shoulder, pose.elbowR) - R.UPPER_ARM) < 1e-6 && Math.abs(len(pose.elbowR, pose.handR) - R.LOWER_ARM) < 1e-6);
-      // The near foot is on the near pedal, which turns with distance through the gearing.
+      // The near ankle rides just over the near pedal, which turns with distance through the gearing; the knee bends forward.
       const crank = distance / R.WHEEL / R.GEAR;
-      const pedal = R.toScreen(frame, { x: R.BB.x + R.CRANK * Math.cos(crank), y: R.BB.y + R.CRANK * Math.sin(crank) });
-      assert.ok(len(pose.footR, pedal) < 0.01, `the foot is ${len(pose.footR, pedal).toFixed(2)} px off the pedal at ${distance}`);
+      const pedal = R.toScreen(frame, { x: R.BB.x + R.CRANK * Math.cos(crank) + R.ANKLE.x, y: R.BB.y + R.CRANK * Math.sin(crank) + R.ANKLE.y });
+      assert.ok(len(pose.footR, pedal) < 0.01, `the ankle is ${len(pose.footR, pedal).toFixed(2)} px off the pedal at ${distance}`);
+      const mid = { x: (pose.hip.x + pose.footR.x) / 2, y: (pose.hip.y + pose.footR.y) / 2 };
+      if (pose.footR.y > pose.hip.y + 30) assert.ok(pose.kneeR.x >= mid.x - 0.01, 'the knee points forward');
       // The far hand holds the grip.
       assert.ok(len(pose.handL, R.toScreen(frame, R.GRIP)) < 0.01);
       if (aim) {
@@ -61,6 +65,17 @@ test('the pose is pure and continuous in distance, and the frame carries everyth
   const lifted = R.riderPose(rig, drive({ distance: 500 }), { x: 300, y: 420, angle: -0.2 });
   assert.ok(lifted.hip.y < a.hip.y - 20, 'a hop lifts the whole rider');
   assert.ok(Math.abs(len(lifted.hip, lifted.kneeR) - R.UPPER_LEG) < 1e-6);
+});
+
+test('he sits at rest and rises into the crouch with speed', () => {
+  const rig = R.createRider();
+  R.settleRider(rig, drive({ speed: 0 }));
+  const seated = R.riderPose(rig, drive({ speed: 0 }), frame);
+  R.settleRider(rig, drive({ speed: 300 }));
+  const crouched = R.riderPose(rig, drive({ speed: 300 }), frame);
+  assert.ok(crouched.hip.y < seated.hip.y - 10, 'the hips come up off the saddle');
+  assert.ok(crouched.hip.x > seated.hip.x + 8, 'and forward over the bottom bracket');
+  for (const pose of [seated, crouched]) assert.ok(Math.abs(len(pose.hip, pose.kneeR) - R.UPPER_LEG) < 1e-6);
 });
 
 test('the springs land on the same pose at 30, 60 and 120 Hz, and a landing squats', () => {
