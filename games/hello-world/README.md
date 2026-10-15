@@ -16,11 +16,11 @@ Open the printed URL for the recorded preview. Remove `?mode=replay` for live pl
 - Replay: <http://127.0.0.1:4500/bundle/hello-world/index.html?mode=replay>
 - Live: <http://127.0.0.1:4500/bundle/hello-world/index.html>
 
-Click **Join round** during betting, then **Cash out** while running. Space performs the available action unless another control has focus. **Sound** cycles off, on and effects only; **Restart replay** restarts the recording. Stop and restart the preview after edits. Credits have no monetary value.
+Click **Join round** during betting, then **Cash out** while running. Space performs the available action unless another control has focus. **Sound** cycles off, on and effects only; **Restart replay** restarts the recording. The preview rebuilds on save; refresh the browser after a successful build. Credits have no monetary value.
 
 ## Make it yours
 
-For a first edit, change `GREETING`, `COLOURS` or the `MILESTONES` captions in `scene.ts`, then restart the preview. The commented `draw()` function is the entire visual example; it draws into a 960 × 540 coordinate space that the shell scales for the screen. No art, fonts, recordings, extra rendering libraries or API keys are required.
+For a first edit, change `GREETING`, `COLOURS` or the `MILESTONES` captions in `scene.ts`, then save and refresh the preview. The commented `draw()` function is the entire visual example; it draws into a 960 × 540 coordinate space that the shell scales for the screen. No art, fonts, recordings, extra rendering libraries or API keys are required.
 
 To add a separate game in this repository:
 
