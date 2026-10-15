@@ -32,3 +32,29 @@ test('preview refuses absent games and path traversal before building', async ()
     await assert.rejects(previewGame(game, { games: ['selected'], port: 0 }), /Choose a game/);
   }
 });
+
+test('watched edits keep the last successful snapshot on a syntax error and publish the next good build', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'preview-watch-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = join(root, 'games', 'selected');
+  await mkdir(source, { recursive: true });
+  await writeFile(join(source, 'main.ts'), 'document.title = "First version";');
+  await writeFile(join(source, 'index.html'), '<html>First version</html>');
+  await writeFile(join(source, 'style.css'), 'body { color: red }');
+  const events = [];
+  const preview = await previewGame('selected', { root, games: ['selected'], port: 0, watch: true, onRebuild: error => events.push(error) });
+  t.after(() => preview.close());
+  const url = `http://127.0.0.1:${preview.port}/bundle/selected/game.generated.js`;
+  const original = await (await fetch(url)).text();
+  const until = async predicate => {
+    const deadline = Date.now() + 5000;
+    while (!predicate()) { assert.ok(Date.now() < deadline, 'watch callback did not arrive'); await new Promise(resolve => setTimeout(resolve, 30)); }
+  };
+  await writeFile(join(source, 'main.ts'), 'export const broken = ;');
+  await until(() => events.some(Boolean));
+  assert.equal(await (await fetch(url)).text(), original);
+  events.length = 0;
+  await writeFile(join(source, 'main.ts'), 'document.title = "Second version";');
+  await until(() => events.includes(null));
+  assert.match(await (await fetch(url)).text(), /Second version/);
+});
