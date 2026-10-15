@@ -1,0 +1,11 @@
+{
+  "name": "Gays of Hormuz",
+  "hook": "The strait was never that straight.",
+  "tagline": "A pride cruise ship runs the Strait of Hormuz: steer the SS Sashay between naval mines, Iranian missiles, homing drones and speedboats, scoop castaways off their pool floaties and grab the disco shield. Cash out for a Pride Air airlift off the foredeck before the round sinks her.",
+  "tags": ["Interactive dodging", "Pride cruise", "Sinking crash"],
+  "renderer": "Canvas 2D",
+  "interactive": true,
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 16 }
+}

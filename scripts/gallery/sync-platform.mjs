@@ -12,7 +12,7 @@
  * and every destination against its root. An export without a poster for
  * every game is refused unless --allow-missing-posters is passed.
  *
- * A game whose bundle files and poster moment match the previous release
+ * A game whose bundle files, poster moment and capture environment match the previous release
  * keeps that release's poster, so an unchanged game adds nothing new to the
  * platform's history. assets/releases.json lists the release directories kept
  * for pages opened before a release: every release that was live within the
@@ -125,14 +125,15 @@ if (listed !== null && (!Array.isArray(listed) || !listed.every(isRelease))) thr
 // With no releases.json yet, the release directories already there: the run that starts the list keeps them all.
 const unlisted = listed ? [] : ((await readdir(assets, { withFileTypes: true }).catch(missing)) ?? []).filter((e) => e.isDirectory() && RELEASE.test(e.name)).map((e) => e.name).sort();
 
-// Reuse the previous release's poster for a game whose bundle files and poster moment are unchanged.
+// Reuse requires verified capture provenance as well as matching bundle files and timing.
 const reused = [];
 const before = COMMIT.test(previousSource?.commit ?? '') ? previousSource.commit.slice(0, 7) : null;
 for (const g of games) {
+  if (!/^[0-9a-f]{64}$/.test(source.posterCapture ?? '') || source.posterCapture !== previousSource?.posterCapture) continue;
   if (!before || typeof source.posterSeconds?.[g.slug] !== 'number' || previousSource.posterSeconds?.[g.slug] !== source.posterSeconds[g.slug]) continue;
   if (!BUNDLE_FILES.every((file) => previousSource.files?.[`${before}/${g.slug}/${file}`] === sha256(g.bundle[file]))) continue;
   const poster = await plainFile(join(assets, before, g.slug, 'poster.png'), false);
-  if (!poster) continue;
+  if (!poster || sha256(poster) !== previousSource.files?.[`${before}/${g.slug}/poster.png`]) continue;
   g.poster = poster;
   source.files = { ...source.files, [`${short}/${g.slug}/poster.png`]: sha256(poster) };
   reused.push(g.slug);

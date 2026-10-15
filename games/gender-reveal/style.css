@@ -35,5 +35,15 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 [data-mode=embedded]::-webkit-scrollbar{display:none}
 @media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
 /* game */
-/* Match these tokens to COLOURS in scene.ts. */
-:root{--bg:#101827;--fg:#edf2fa;--accent:#82cfff;--on-accent:#101827}
+/* A sunny backyard party in pink and blue: the accent is the reveal pink (COLOURS.accent in lines.ts). */
+:root{--bg:#1f1a2e;--fg:#fff3f8;--accent:#f7a8c8;--on-accent:#1f1a2e}
+
+/* Portrait direction: on narrow screens the canvas becomes 540 × 800 and portrait.ts recomposes the frame. */
+@media(max-width:600px) and (min-height:500px){
+  .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}
+@media(max-width:600px){
+  :root[data-mode=embedded] .stage{position:relative;aspect-ratio:540/800;overflow:hidden}
+  :root[data-mode=embedded] .stage canvas{position:absolute;inset:0 auto auto 0;width:250%;aspect-ratio:540/800;margin:0;transform:scale(.4);transform-origin:top left}
+}

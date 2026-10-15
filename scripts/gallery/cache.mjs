@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { ROOT, SLUG } from './pack.mjs';
 
 export const BUNDLE_FILES = ['index.html', 'game.generated.js', 'style.css'];
-const VERSION = 1;
+const VERSION = 2;
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 const key = (value) => digest(JSON.stringify(value));
 const entries = (files) => Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).map(([path, content]) => [path, digest(content)]);
@@ -17,18 +17,23 @@ export function sharedInputs(commit, root = ROOT) {
   if (git(root, 'rev-parse', 'HEAD') !== commit || git(root, 'status', '--porcelain')) {
     throw new Error('--cache requires a clean checkout of --commit; use an isolated worktree for another commit');
   }
-  // Unknown shared files invalidate every game. Catalog order and prose do not change a bundle or poster.
+  // Unknown shared files invalidate builds. Generated audio is consumed through each game's source pack.
   const shared = git(root, 'ls-tree', '-r', '-z', '--full-tree', commit).split('\0').filter(Boolean).filter((entry) => {
     const path = entry.slice(entry.indexOf('\t') + 1);
-    return !path.startsWith('games/') && !path.endsWith('.md') && path !== 'scripts/games.mjs';
+    return path === 'games/tsconfig.json' || (!path.startsWith('games/') && !path.endsWith('.md')
+      && path !== 'scripts/games.mjs' && !path.startsWith('scripts/audio/')
+      && !path.startsWith('scripts/gallery/') && !path.startsWith('.github/'));
   });
-  return key({ version: VERSION, shared, node: process.version, platform: process.platform, arch: process.arch,
-    captureEnvironment: process.env.GAME_LAB_CAPTURE_ENV ?? 'local' });
+  return key({ version: VERSION, shared, node: process.version, platform: process.platform, arch: process.arch });
 }
 
 export function gameKeys(game, shared) {
-  const bundle = key({ version: VERSION, slug: game.slug, shared, sources: entries(game.sources) });
-  return { bundle, poster: key({ bundle, seconds: game.poster.seconds }) };
+  return { bundle: key({ version: VERSION, slug: game.slug, shared, sources: entries(game.sources) }) };
+}
+
+/** Capture depends on rendered bytes, not on the inputs or tools that produced them. */
+export function posterKey(game, bundle, capture) {
+  return key({ version: VERSION, slug: game.slug, files: entries(bundle), seconds: game.poster.seconds, capture });
 }
 
 async function plain(path, directory = false) {
@@ -38,33 +43,34 @@ async function plain(path, directory = false) {
 }
 
 /** Hash mismatches, missing files and unsafe cache entries count as misses, never as publishable output. */
-export async function cachedGame(cache, game, keys) {
-  const result = { ...game, keys, bundle: null, cachedPoster: null };
+export async function cachedGame(cache, game, keys, capture) {
+  const result = { ...game, keys, bundle: null, candidate: null, cachedPoster: null };
   if (!cache) return result;
   if (!SLUG.test(game.slug)) throw new Error('invalid cache slug');
   try {
     const dir = join(cache, game.slug);
     await plain(cache, true); await plain(dir, true);
     const record = JSON.parse(await plain(join(dir, 'record.json')));
-    if (record.version !== VERSION || record.bundle !== keys.bundle) return result;
+    if (record.version !== VERSION || record.slug !== game.slug) return result;
     const bundle = {};
     for (const file of BUNDLE_FILES) {
       const bytes = await plain(join(dir, file));
       if (digest(bytes) !== record.files?.[file]) return result;
       bundle[file] = bytes;
     }
-    result.bundle = bundle;
-    if (record.poster === keys.poster) {
-      const poster = await plain(join(dir, 'poster.png'));
-      if (digest(poster) === record.files?.['poster.png']) result.cachedPoster = poster;
+    if (record.bundle === keys.bundle) result.bundle = bundle;
+    const poster = await plain(join(dir, 'poster.png'));
+    if (digest(poster) === record.files?.['poster.png']) {
+      result.candidate = { key: record.poster, bytes: poster };
+      if (result.bundle && capture && record.poster === posterKey(game, bundle, capture)) result.cachedPoster = poster;
     }
   } catch { /* Cache contents are optional; rebuilding supplies verified outputs. */ }
   return result;
 }
 
-export async function planGames(games, cache, shared) {
+export async function planGames(games, cache, shared, capture) {
   const planned = [];
-  for (const game of games) planned.push(await cachedGame(cache, game, gameKeys(game, shared)));
+  for (const game of games) planned.push(await cachedGame(cache, game, gameKeys(game, shared), capture));
   return planned;
 }
 
@@ -79,5 +85,5 @@ export async function saveGame(cache, game, directory) {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir);
   for (const [file, body] of Object.entries(bytes)) await writeFile(join(dir, file), body);
-  await writeFile(join(dir, 'record.json'), JSON.stringify({ version: VERSION, ...game.keys, files: Object.fromEntries(entries(bytes)) }) + '\n');
+  await writeFile(join(dir, 'record.json'), JSON.stringify({ version: VERSION, slug: game.slug, ...game.keys, files: Object.fromEntries(entries(bytes)) }) + '\n');
 }

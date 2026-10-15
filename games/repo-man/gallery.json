@@ -1,10 +1,16 @@
 {
   "name": "Repo Man",
   "hook": "Collateral: vehicle, fixtures, the vibe",
-  "tagline": "4 am on a cul-de-sac: Gary works a checklist while the owner watches through the blinds over a chart that is still green, and every step up the round multiplier unbolted more of the house. The Lambo, the hose, the TV, the kid's bike with a bow on the handlebars. Buy it all back with one confirmed cash-out, or watch Gary take the front door off its hinges.",
-  "tags": ["Checklist on the curve", "Kid's bike with a bow", "Respect between professionals"],
+  "tagline": "4:07 am on a cul-de-sac: Gary works a loan checklist up the multiplier while the owner watches through the blinds over a chart that stays green. The supercar, the hose, the TV, the kid's bike with a bow on it, the smart fridge, the porch: every rung stacks more of the house on his flatbed. Cash out and run down in your socks to buy it all back, or watch the beacons come on and the front door ride off seatbelted.",
+  "tags": [
+    "Checklist on the curve",
+    "Kid's bike with a bow",
+    "Front door rides shotgun"
+  ],
   "renderer": "Canvas 2D",
   "licence": "open",
   "royaltyBps": 0,
-  "poster": { "seconds": 34 }
+  "poster": {
+    "seconds": 39.6
+  }
 }

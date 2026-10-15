@@ -843,6 +843,25 @@ function drawHeadband(ctx: CanvasRenderingContext2D, r: number, dir: number, win
   disc(ctx, kx, y, 5, HEADBAND);
 }
 const heatSkin = (heat: number): string => (heat < 0.3 ? SKIN : heat < 0.6 ? SKIN_PINK : heat < 0.85 ? SKIN_RED : SKIN_PURPLE);
+/** The faction patch: green with the white script, stitched on the near sleeve and upright along the arm. */
+function drawPatch(ctx: CanvasRenderingContext2D, at: Joint, angle: number, w: number): void {
+  const h = w * 0.68;
+  ctx.save();
+  ctx.translate(at.x, at.y);
+  ctx.rotate(angle - Math.PI / 2);
+  ctx.fillStyle = HEADBAND;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = '#f7f4ee';
+  ctx.fillRect(-w / 2, -h * 0.17, w, h * 0.34);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 0.9;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.22, -h * 0.1);
+  ctx.quadraticCurveTo(0, h * 0.25, w * 0.22, -h * 0.1);
+  ctx.stroke();
+  ctx.restore();
+}
 function drawClipboard(ctx: CanvasRenderingContext2D, h: Joint, strokes: number, pen: boolean): void {
   ctx.save();
   ctx.translate(h.x, h.y);
@@ -1044,10 +1063,15 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   // The finger: the near hand below rung 7, the freed far hand from then on.
   const hand = (i: 0 | 1) => drawHand(ctx, sk.hands[i], b.limb * 0.6, m.open[i], handColour(i), jabbing && (i === 1) === c.rung < 7 ? pointAt(i) : undefined);
   const board = m.clipboard === 'hand';
+  const nearArm = (): void => {
+    const [sh, el] = [sk.shoulders[1], sk.elbows[1]];
+    strokeLimb(ctx, sh, el, sk.hands[1], b.limb, sleeve);
+    drawPatch(ctx, mixJ(sh, el, 0.42), Math.atan2(el.y - sh.y, el.x - sh.x), b.limb - 2);
+  };
   ctx.save();
   ctx.translate((noise(Math.floor(time * 40) + m.seed) - 0.5) * 4 * heat * heat, 0);
   if (layer === 'reach') {
-    strokeLimb(ctx, sk.shoulders[1], sk.elbows[1], sk.hands[1], b.limb, sleeve);
+    nearArm();
     hand(1);
     ctx.restore();
     return;
@@ -1058,9 +1082,9 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
     strokeLimb(ctx, sk.hips[i], sk.knees[i], sk.feet[i], b.limb + 2, i ? OLIVE : '#0e130e');
     ell(ctx, sk.feet[i].x + 5, sk.feet[i].y - 3, lead ? 13 : 16, 6, i ? '#2a2a30' : '#20242a');
   }
-  // The neck goes on before the vest so the collar covers its end, and stays narrower than the jaw it holds up.
-  ctx.lineCap = 'butt';
-  const nw = (lead ? 1.1 : 1.5) * b.headR;
+  // The neck goes on before the vest, narrower than the head; its round ends hide under the chin and the collar, so no edge shows.
+  ctx.lineCap = 'round';
+  const nw = (lead ? 0.9 : 1) * b.headR;
   for (const [w, col] of [[nw + 4, INK], [nw, skin]] as [number, string][]) {
     ctx.strokeStyle = col;
     ctx.lineWidth = w;
@@ -1070,24 +1094,6 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
   const [hp0, hp1] = sk.hips;
   poly(ctx, [J(sh0.x - 6, sh0.y - 6), J(sh1.x + 6, sh1.y - 6), J(hp1.x + 6, hp1.y + 6), J(hp0.x - 6, hp0.y + 6)], OLIVE);
   poly(ctx, [J(sh0.x + 2, sh0.y - 2), J(sh1.x - 2, sh1.y - 2), J(hp1.x + 1, hp1.y), J(hp0.x - 1, hp0.y)], VEST, 2);
-  // The chest patch: green with the same white script, high on the vest where neither the board nor a folded arm covers it.
-  {
-    const cx = (sh0.x + sh1.x) / 2 - 14;
-    const cy = sh0.y + 6;
-    const pw = 15;
-    const ph = 10;
-    ctx.fillStyle = HEADBAND;
-    ctx.fillRect(cx - pw / 2, cy - ph / 2, pw, ph);
-    ctx.fillStyle = '#f7f4ee';
-    ctx.fillRect(cx - pw / 2, cy - 1.8, pw, 3.6);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 0.9;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - pw * 0.22, cy - 1.2);
-    ctx.quadraticCurveTo(cx, cy + 2.6, cx + pw * 0.22, cy - 1.3);
-    ctx.stroke();
-  }
   ctx.strokeStyle = '#1a1a20';
   ctx.lineWidth = 4;
   seg(ctx, hp0.x - 4, hp0.y + 2, hp1.x + 4, hp1.y + 2);
@@ -1108,7 +1114,7 @@ export function drawMilitia(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, 
     ctx.restore();
     return;
   }
-  strokeLimb(ctx, sh1, sk.elbows[1], sk.hands[1], b.limb, sleeve);
+  nearArm();
   // The near hand last, over the near arm, with what it holds: the heavy's board, the coin, the torch.
   if (!lead && board) drawClipboard(ctx, sk.hands[1], c.lead.strokes, false);
   if (m.coin === 'looking' || (m.coin === 'diving' && m.coinT > 2.2)) disc(ctx, sk.hands[1].x, sk.hands[1].y - 2, 5, '#f2c14e', 1.5);
@@ -1130,11 +1136,21 @@ function drawMilitiaHead(ctx: CanvasRenderingContext2D, m: Militia, c: Crew, tim
   ctx.save();
   ctx.translate(m.sk.head.x, m.sk.head.y);
   ctx.scale(swell, swell);
-  if (!lead) rr(ctx, -r * 0.9, -r * 0.1 + jaw, r * 1.8, r * 1.05, 9, skin, 2.5);
-  disc(ctx, 0, 0, r, skin, 2.5);
-  if (!lead) {
+  if (lead) disc(ctx, 0, 0, r, skin, 2.5);
+  else {
+    // The heavy's head in one outline: a round crown into a tapered jaw that chews, no box under it.
+    const w = r * 0.8;
+    const a = Math.asin(0.15);
     ctx.fillStyle = skin;
-    ctx.fillRect(-r * 0.88, -r * 0.1, r * 1.76, r * 0.6);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, a, Math.PI - a, true);
+    ctx.lineTo(-w, r * 0.72 + jaw);
+    ctx.quadraticCurveTo(-w, r * 1.04 + jaw, 0, r * 1.04 + jaw);
+    ctx.quadraticCurveTo(w, r * 1.04 + jaw, w, r * 0.72 + jaw);
+    ctx.closePath();
+    ctx.fill();
+    ink(ctx, 2.5);
+    ctx.stroke();
   }
   ctx.fillStyle = lead ? '#5a4634' : 'rgba(60,46,36,0.75)';
   ctx.beginPath();
@@ -1423,12 +1439,12 @@ function drawSuspectFigure(ctx: CanvasRenderingContext2D, s: Suspect, sk: Skelet
   drawHand(ctx, sk.hands[0], b.limb * 0.65, s.open[0] * 0.8, SKIN, pointing && fh === 0 ? pointAt(0) : undefined);
   if (fh === 0 && s.mode === 'roof' && s.aside.x > 0.3) disc(ctx, sk.hands[0].x, sk.hands[0].y, 4, SKIN);
   if (ph === 0 && s.phone !== 'pocket' && s.phone !== 'loose') drawPhone(ctx, s, J(sk.hands[0].x - 2, sk.hands[0].y - 8), s.phone === 'down' ? pointAt(0) + Math.PI / 2 : rot + 0.15, time);
-  // The far leg a shade darker than the near so the stance reads in depth.
+  // The far leg a shade darker than the near so the stance reads in depth; the bare shin goes on first, the shorts' hem over it.
   for (const i of [0, 1] as const) {
     const f = sk.feet[i];
     const k = sk.knees[i];
-    strokeLimb(ctx, sk.hips[i], k, midJ(k, f), b.limb + 6, i ? '#8b7d5a' : '#776b4e');
     strokeLimb(ctx, k, midJ(k, f), f, b.limb - 2, i ? SKIN : '#e3bd9a');
+    strokeLimb(ctx, sk.hips[i], k, mixJ(k, f, 0.18), b.limb + 6, i ? '#8b7d5a' : '#776b4e');
     ctx.save();
     ctx.translate(f.x, f.y);
     // A planted croc lies flat on the gravel whatever the knee does; it turns with the shin only once the foot lifts.
