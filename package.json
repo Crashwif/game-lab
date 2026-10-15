@@ -20,6 +20,7 @@
     "pack:sdk": "npm pack -w @crashwif/crash-math && npm pack -w @crashwif/game-sdk",
     "gallery:export": "node scripts/gallery/export.mjs --dist dist --out gallery-out",
     "audio": "node scripts/audio/generate.mjs",
+    "new-game": "node scripts/new-game.mjs",
     "preview": "npm run build -w @crashwif/crash-math && npm run build -w @crashwif/game-sdk && npm run build -w @crashwif/emulator && node scripts/preview.mjs",
     "test:browser": "node --test scripts/qa/*.test.mjs scripts/audio/*.test.mjs"
   },

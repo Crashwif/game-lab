@@ -22,13 +22,13 @@ The preview builds only Hello World and the shared packages, starts the local em
 
 Change `GREETING` or `COLOURS` in [`games/hello-world/scene.ts`](games/hello-world/scene.ts) for your first edit. The template draws a greeting, a multiplier and a circle; joining, confirmed cash-outs, replay and optional sound already work. No artwork or API keys are needed. **Sound** cycles off, on and effects only, and remembers your choice.
 
-Stop and restart the preview after edits; it does not reload changes automatically. To explore another reference, replace `hello-world` with a slug from [`scripts/games.mjs`](scripts/games.mjs). `npm run dev` builds the entire catalog and prints each game's live and replay URLs. Both commands use port 4500, so stop one before starting the other.
+The preview rebuilds the selected game when you save. Refresh the browser after “Preview rebuilt”; a build error keeps your last playable preview available. Use `--no-watch` for a single build, or `npm run preview -- --list` to list games. To explore another reference, replace `hello-world` with a slug from [`scripts/games.mjs`](scripts/games.mjs). `npm run dev` builds the entire catalog and prints each game's live and replay URLs. Both commands use port 4500, so stop one before starting the other.
 
 Keep Windows checkouts outside OneDrive. Stop preview/dev processes before reinstalling dependencies and resolve installation errors before building. TypeScript is installed locally with the development dependencies; no global install is needed.
 
 ## Build your own
 
-Copy `games/hello-world/` to `games/<your-slug>/` and follow the [template's guide](games/hello-world/README.md#make-it-yours) to rename it, update its replay ID and register it in the catalog. Start with `scene.ts`; customize the page in `index.html` and the styles after `/* game */` in `style.css`. Keep `main.ts`, `audio.ts` and the shared CSS block in sync with [the page shell](#the-page-shell).
+Run `npm run new-game -- my-game "My Game"` to copy the starter, set its name and replay ID, and add the catalog entry, README row and optional music prompt. It makes no AI calls. The [template's guide](games/hello-world/README.md#make-it-yours) also documents manual setup. Start with `scene.ts`; customize the page in `index.html` and the styles after `/* game */` in `style.css`. Keep `main.ts`, `audio.ts` and the shared CSS block in sync with [the page shell](#the-page-shell).
 
 Read the [integration guide](docs/integration.md) for embedded games, direct SDK clients, emulator setup and publishing, and the [animation reference](docs/animation.md) for the rigs, inverse kinematics, gaits, springs, seeded crashes and other techniques the reference games share. [Contributing](CONTRIBUTING.md) describes the source-pack rules, gallery metadata and [submitting a game from a fork](CONTRIBUTING.md#submit-a-game-from-a-fork).
 
