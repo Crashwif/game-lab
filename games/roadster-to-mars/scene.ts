@@ -323,7 +323,8 @@ export function createScene(): Scene {
     if (running && !flipped && m >= FLIP_AT) { flipped = true; audio.fx('whoosh', 0.7); }
     if (running && !fresh && mode() !== 'replay') {
       if (m >= 10 && !persist.invited) { persist.invited = true; save(); labelTrim(); note = 'INVITE RECEIVED: ROCKET TRIM UNLOCKED. SEATS ONE. NOT ROAD LEGAL. PERFECT.'; noteAge = 0; audio.fx('buzz', 0.5); }
-      if (m >= 100 && !marsNow) { marsNow = true; persist.mars += 1; persist.prodYear = 2028; persist.actuallys = 1; save(); }
+      // Mars counts for the car you are still in: a flight you landed early, or only watched, went there without you.
+      if (m >= 100 && !marsNow) { marsNow = true; if (view.stake !== null && !secured) { persist.mars += 1; persist.prodYear = 2028; persist.actuallys = 1; save(); } }
     }
 
     const cam = idle ? stepSpring(camS, BASE_Y, 7, 1, dt).x : settleSpring(camS, cameraFor(m, elapsedS)).x;
@@ -401,7 +402,11 @@ export function createScene(): Scene {
     // The stamps.
     if (running && elapsedS < 0.6) { ctx.globalAlpha = 1 - elapsedS / 0.6; memeText(ctx, 'GO FOR LAUNCH', 480, 150, 36, COLOURS.gas, 'center'); ctx.globalAlpha = 1; }
     const marsA = smoothstep(100, 101, m) * (1 - smoothstep(108, 114, m));
-    if (marsA > 0 && !outcome) { ctx.globalAlpha = marsA; memeText(ctx, 'MARS', 480, 190, 96, COLOURS.gold, 'center'); mono(ctx, 'FIRST CAR ON MARS. FLAG PLANTED. PRODUCTION RESET TO 2028, ACTUALLY.', 480, 214, 13, COLOURS.text, 'center', 500, 860); ctx.globalAlpha = 1; }
+    if (marsA > 0 && !outcome) {
+      ctx.globalAlpha = marsA; memeText(ctx, 'MARS', 480, 190, 96, COLOURS.gold, 'center');
+      mono(ctx, view.stake !== null && !secured ? 'FIRST CAR ON MARS. FLAG PLANTED. PRODUCTION RESET TO 2028, ACTUALLY.' : 'FIRST CAR ON MARS. IT WENT WITHOUT YOU. THE FLAG IS STILL NICE TO LOOK AT.', 480, 214, 13, COLOURS.text, 'center', 500, 860);
+      ctx.globalAlpha = 1;
+    }
     if (pop.x > 0.02 && outcome) {
       const s = Math.min(pop.x, 1.25);
       const [word, colour, size] = outcome === 'rud' ? ['RAPID UNSCHEDULED DISASSEMBLY', COLOURS.mars, 54] as const : outcome === 'landed' ? ['WELL, IT WORKED.', COLOURS.green, 64] as const : outcome === 'scrubbed' ? ['LAUNCH SCRUBBED', COLOURS.mars, 64] as const : ['WATCHED IT FALL', COLOURS.muted, 56] as const;
