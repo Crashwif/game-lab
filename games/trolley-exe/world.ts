@@ -1,8 +1,11 @@
 /**
- * TROLLEY.EXE's picture: the CRT, the track and its fork, the people tied to it, the trolley, the lever,
- * God's panel, the readout, the glitch and the blue screen. Everything here draws from numbers the scene
- * hands it (tension, clocks, poses); nothing reads or changes the round's outcome.
+ * TROLLEY.EXE's picture: the CRT, the line and its forks scrolling under a trolley that stays put, the levers,
+ * the people on the branches, God's panel, the fork card, the readout, the glitch and the blue screen. Everything
+ * here draws from numbers the scene hands it; nothing reads or changes the round's outcome.
  */
+import { type Kind, caption, drawCharacter } from './cast';
+import { DY, FORK_LEN, type Fork, MERGE, RUN, SPLIT, TROLLEY_X, type World, branchOffset, standAt, trolleyOffset } from './course';
+import type { Side } from './input';
 
 export const W = 960;
 export const H = 540;
@@ -12,68 +15,27 @@ export const COLOURS = {
 } as const;
 export const MONO = 'ui-monospace, Menlo, Consolas, "Liberation Mono", monospace';
 export const SANS = '"Segoe UI", system-ui, -apple-system, sans-serif';
-
-/** The track: the approach and the main line at MAIN_Y, the fork at FORK_X, the side line at SIDE_Y. */
-export const MAIN_Y = 404;
-export const SIDE_Y = 296;
-export const FORK_X = 380;
-export const START_X = 70;
-/** Where the five stand on the main track, and the one on the side track. */
-export const VICTIMS = [630, 690, 750, 810, 870] as const;
-export const SIDE_VICTIM_X = 720;
-/** The end of the side branch's curve, where it runs level again. */
-const SIDE_LEVEL_X = 520;
-const CURVE_LEN = 180;
-export const SIDE_TOTAL = CURVE_LEN + (W - 40 - SIDE_LEVEL_X);
+export const MAIN_Y = 448;
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 export const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 export const smooth = (t: number): number => { const s = clamp(t, 0, 1); return s * s * (3 - 2 * s); };
-/** A deterministic 0..1 from a number, so a replay draws the same jitter frame for frame. */
 export function hash(n: number): number { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
 export const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
-
-export interface Pose { x: number; y: number; a: number }
-
-/** Where the trolley sits on the approach while the round runs: creeping toward the fork, never reaching it. */
-export const approachX = (tension: number): number => START_X + (FORK_X - 34 - START_X) * Math.pow(clamp(tension, 0, 1), 0.72);
-
-function bezier(t: number): { x: number; y: number } {
-  const p0x = FORK_X, p0y = MAIN_Y, p1x = 470, p1y = MAIN_Y, p2x = 430, p2y = SIDE_Y, p3x = SIDE_LEVEL_X, p3y = SIDE_Y;
-  const u = 1 - t;
-  return {
-    x: u * u * u * p0x + 3 * u * u * t * p1x + 3 * u * t * t * p2x + t * t * t * p3x,
-    y: u * u * u * p0y + 3 * u * u * t * p1y + 3 * u * t * t * p2y + t * t * t * p3y,
-  };
-}
-
-/** A point along the side branch by distance fraction `s` (0 at the fork, 1 at the picture's edge), with its heading. */
-export function sidePoint(s: number): Pose {
-  const d = clamp(s, 0, 1) * SIDE_TOTAL;
-  if (d <= CURVE_LEN) {
-    const t = d / CURVE_LEN;
-    const p = bezier(t), q = bezier(Math.min(1, t + 0.01));
-    return { x: p.x, y: p.y, a: Math.atan2(q.y - p.y, q.x - p.x) };
-  }
-  return { x: SIDE_LEVEL_X + (d - CURVE_LEN), y: SIDE_Y, a: 0 };
-}
-/** The side branch fraction at which the trolley reaches an x on its level part. */
-export const sideParamAt = (x: number): number => (CURVE_LEN + Math.max(0, x - SIDE_LEVEL_X)) / SIDE_TOTAL;
+/** A world distance on the screen. */
+export const screenX = (w: World, d: number): number => TROLLEY_X + d - w.distance;
 
 // ─── The set ────────────────────────────────────────────────────────────────────────────────────────────
 
 export function drawCRT(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = COLOURS.bg;
   ctx.fillRect(0, 0, W, H);
-  // A faint phosphor haze over the track, so the picture is not flat black.
-  const glow = ctx.createRadialGradient(480, 360, 40, 480, 360, 640);
+  const glow = ctx.createRadialGradient(480, 380, 40, 480, 380, 640);
   glow.addColorStop(0, 'rgba(95,207,85,0.08)');
   glow.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 }
-
-/** Scanlines and a vignette over everything: the last thing drawn before the shell's frame ends. */
 export function drawScanlines(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = 'rgba(0,0,0,0.16)';
   for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1.5);
@@ -84,165 +46,131 @@ export function drawScanlines(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(0, 0, W, H);
 }
 
-function sidePath(ctx: CanvasRenderingContext2D): void {
-  ctx.moveTo(FORK_X, MAIN_Y);
-  ctx.bezierCurveTo(470, MAIN_Y, 430, SIDE_Y, SIDE_LEVEL_X, SIDE_Y);
-  ctx.lineTo(W - 20, SIDE_Y);
+/** Traces a branch of a fork on the screen, from its split to its merge. */
+function branchPath(ctx: CanvasRenderingContext2D, sx: number, side: Side): void {
+  const dy = DY[side];
+  ctx.moveTo(sx, MAIN_Y);
+  ctx.bezierCurveTo(sx + SPLIT * 0.6, MAIN_Y, sx + SPLIT * 0.4, MAIN_Y + dy, sx + SPLIT, MAIN_Y + dy);
+  ctx.lineTo(sx + SPLIT + RUN, MAIN_Y + dy);
+  ctx.bezierCurveTo(sx + SPLIT + RUN + MERGE * 0.6, MAIN_Y + dy, sx + SPLIT + RUN + MERGE * 0.4, MAIN_Y, sx + FORK_LEN, MAIN_Y);
 }
 
-export function drawTrack(ctx: CanvasRenderingContext2D): void {
+/** The line and every fork in view: ties under rails, the branch the trolley will take a touch brighter. */
+export function drawTrack(ctx: CanvasRenderingContext2D, w: World, next: Fork | null): void {
   ctx.save();
   ctx.lineCap = 'butt';
-  // Ties under both lines.
-  ctx.strokeStyle = '#17281a';
-  ctx.lineWidth = 14;
-  ctx.setLineDash([4, 12]);
-  ctx.beginPath();
-  ctx.moveTo(20, MAIN_Y);
-  ctx.lineTo(W - 20, MAIN_Y);
-  ctx.stroke();
-  ctx.beginPath();
-  sidePath(ctx);
-  ctx.stroke();
+  const visible = w.forks.filter((f) => screenX(w, f.at + FORK_LEN) > -40 && screenX(w, f.at) < W + 40);
+  // The line between forks.
+  const segments: [number, number][] = [];
+  let x = -40;
+  for (const f of w.forks) {
+    const sx = screenX(w, f.at);
+    if (sx > x) segments.push([x, Math.min(W + 40, sx)]);
+    x = Math.max(x, screenX(w, f.at + FORK_LEN));
+  }
+  if (x < W + 40) segments.push([x, W + 40]);
+  for (const pass of [0, 1]) {
+    ctx.strokeStyle = pass === 0 ? '#17281a' : COLOURS.dim;
+    ctx.lineWidth = pass === 0 ? 14 : 3;
+    ctx.setLineDash(pass === 0 ? [4, 12] : []);
+    ctx.beginPath();
+    for (const [a, b] of segments) {
+      ctx.moveTo(a, MAIN_Y);
+      ctx.lineTo(b, MAIN_Y);
+    }
+    ctx.stroke();
+    for (const f of visible) {
+      const sx = screenX(w, f.at);
+      for (const side of ['up', 'down'] as Side[]) {
+        const chosen = f.lever === side && (f.locked || f === next);
+        ctx.strokeStyle = pass === 0 ? '#17281a' : chosen ? COLOURS.ph2 : COLOURS.dim;
+        ctx.beginPath();
+        branchPath(ctx, sx, side);
+        ctx.stroke();
+      }
+    }
+  }
   ctx.setLineDash([]);
-  // Rails.
-  ctx.strokeStyle = COLOURS.dim;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(20, MAIN_Y);
-  ctx.lineTo(W - 20, MAIN_Y);
-  ctx.stroke();
-  ctx.beginPath();
-  sidePath(ctx);
-  ctx.stroke();
-  ctx.fillStyle = COLOURS.dim;
-  ctx.font = `11px ${MONO}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('M A I N   T R A C K', 640, MAIN_Y + 30);
-  ctx.fillText('S I D E   T R A C K', 640, SIDE_Y - 44);
   ctx.restore();
 }
 
-/** The lever at the fork: a pole on a pivot that swings from the main setting to the side one. */
-export function drawLever(ctx: CanvasRenderingContext2D, angle: number, lit: number): void {
+/** The lever at a fork's split: an arm that swings to the branch set, tagged with whose hand set it. */
+export function drawLever(ctx: CanvasRenderingContext2D, sx: number, f: Fork, isNext: boolean, time: number): void {
   ctx.save();
-  ctx.translate(FORK_X, MAIN_Y);
-  ctx.fillStyle = COLOURS.dim;
-  ctx.font = `10px ${MONO}`;
-  ctx.textAlign = 'center';
-  ctx.fillText('LEVER', 0, 26);
+  ctx.translate(sx, MAIN_Y);
+  const angle = f.lever === 'up' ? -0.55 : f.lever === 'down' ? 0.55 : 0;
+  ctx.save();
   ctx.rotate(angle);
-  ctx.strokeStyle = COLOURS.amber;
+  ctx.strokeStyle = f.lever ? COLOURS.amber : COLOURS.amberDim;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(0, -34);
+  ctx.lineTo(0, -30);
   ctx.stroke();
-  ctx.fillStyle = COLOURS.amber;
+  ctx.fillStyle = f.lever ? COLOURS.amber : COLOURS.amberDim;
   ctx.beginPath();
-  ctx.arc(0, -34, 5.5 + 2 * lit, 0, Math.PI * 2);
+  ctx.arc(0, -30, 5, 0, Math.PI * 2);
   ctx.fill();
-  if (lit > 0) {
-    ctx.globalAlpha = 0.35 * lit;
+  if (isNext && !f.locked) {
+    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(time * 6);
     ctx.beginPath();
-    ctx.arc(0, -34, 12 + 6 * lit, 0, Math.PI * 2);
+    ctx.arc(0, -30, 13, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
-}
-
-/** A person tied across the track: standing on the rail in rope, wriggling harder as the trolley nears; fallen once it has passed. */
-export function drawFigure(ctx: CanvasRenderingContext2D, x: number, y: number, dead: boolean, wriggle: number, time: number, seed: number): void {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.strokeStyle = COLOURS.ph;
-  ctx.fillStyle = COLOURS.ph;
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  if (dead) {
-    // Flat along the rail, eyes crossed, a small ring rising.
-    ctx.translate(0, -4);
-    ctx.beginPath();
-    ctx.moveTo(-6, 0);
-    ctx.lineTo(22, 0);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(4, 0);
-    ctx.lineTo(10, -8);
-    ctx.moveTo(14, 0);
-    ctx.lineTo(20, -7);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(-11, 0, 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-14, -3);
-    ctx.lineTo(-10, 1);
-    ctx.moveTo(-10, -3);
-    ctx.lineTo(-14, 1);
-    ctx.stroke();
-    ctx.strokeStyle = COLOURS.amber;
-    ctx.globalAlpha = 0.7;
-    ctx.beginPath();
-    ctx.ellipse(-11, -16, 7, 2.5, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-    return;
-  }
-  const t = time * (2.2 + 2.6 * wriggle) + seed * 6.28;
-  const lean = Math.sin(t) * (0.04 + 0.22 * wriggle);
-  ctx.rotate(lean);
-  // Legs, body, arms (tied behind), head.
-  ctx.beginPath();
-  ctx.moveTo(-5, 0);
-  ctx.lineTo(0, -12);
-  ctx.lineTo(5, 0);
-  ctx.moveTo(0, -12);
-  ctx.lineTo(0, -30);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-6, -24);
-  ctx.lineTo(0, -19);
-  ctx.lineTo(6, -24);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, -37, 6.5, 0, Math.PI * 2);
-  ctx.stroke();
-  // Eyes: wide as the trolley nears.
-  ctx.beginPath();
-  ctx.arc(-2.4, -38, 0.9 + 0.8 * wriggle, 0, Math.PI * 2);
-  ctx.arc(2.4, -38, 0.9 + 0.8 * wriggle, 0, Math.PI * 2);
-  ctx.fill();
-  // Rope.
-  ctx.strokeStyle = COLOURS.amberDim;
-  ctx.lineWidth = 1.5;
-  for (const ry of [-16, -22, -27]) {
-    ctx.beginPath();
-    ctx.ellipse(0, ry, 5.5, 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  ctx.fillStyle = f.setBy === 'you' ? COLOURS.ph : f.setBy === 'auto' ? COLOURS.violet : COLOURS.amberDim;
+  ctx.font = `700 9px ${MONO}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(f.setBy === 'you' ? 'YOU' : f.setBy === 'auto' ? 'AUTO' : isNext ? '?' : '', 0, 24);
   ctx.restore();
 }
 
-/** The trolley, facing +x with its wheels on the rail at the pose. */
-export function drawTrolley(ctx: CanvasRenderingContext2D, pose: Pose, spin: number, lamp: number, shake: number): void {
+/** Everyone on both branches of a fork, with the branch captions. */
+export function drawFork(ctx: CanvasRenderingContext2D, w: World, f: Fork, time: number): void {
+  for (const side of ['up', 'down'] as Side[]) {
+    const y = MAIN_Y + DY[side];
+    const xs = standAt(f, side);
+    const kinds = f.dilemma[side];
+    xs.forEach((d, i) => {
+      const sx = screenX(w, d);
+      if (sx < -40 || sx > W + 40) return;
+      const near = clamp(1 - (d - w.distance) / 320, 0, 1);
+      drawCharacter(ctx, kinds[i]!, sx, y, f.dead[side][i]!, f.locked && f.lever === side ? near : near * 0.5, time, f.index * 0.37 + i * 0.61);
+    });
+    const mid = screenX(w, f.at + SPLIT + RUN / 2);
+    if (mid > -200 && mid < W + 200) {
+      ctx.save();
+      ctx.fillStyle = f.locked && f.lever === side ? COLOURS.amber : COLOURS.dim;
+      ctx.font = `10px ${MONO}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(caption(kinds), mid, side === 'up' ? y - 64 : y - 54, RUN + 60);
+      ctx.restore();
+    }
+  }
+}
+
+/** The trolley at its place on the screen, following the branch it is on. */
+export function drawTrolley(ctx: CanvasRenderingContext2D, w: World, spin: number, lamp: number, shake: number, ghost = false): void {
+  const { dy, angle } = trolleyOffset(w);
+  drawTram(ctx, TROLLEY_X, MAIN_Y + dy, angle, spin, lamp, shake, ghost);
+}
+export function drawTram(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number, spin: number, lamp: number, shake: number, ghost: boolean): void {
   ctx.save();
-  ctx.translate(pose.x + shake * Math.sin(spin * 37), pose.y + shake * Math.cos(spin * 23));
-  ctx.rotate(pose.a);
-  // Headlight cone.
+  if (ghost) ctx.globalAlpha = 0.55;
+  ctx.translate(x + shake * Math.sin(spin * 37), y + shake * Math.cos(spin * 23));
+  ctx.rotate(angle);
   ctx.fillStyle = COLOURS.amber;
-  ctx.globalAlpha = 0.25 + 0.55 * lamp;
+  ctx.globalAlpha *= 0.25 + 0.55 * lamp;
   ctx.beginPath();
   ctx.moveTo(36, -20);
   ctx.lineTo(96, -34);
   ctx.lineTo(96, -6);
   ctx.closePath();
   ctx.fill();
-  ctx.globalAlpha = 1;
-  // Body.
+  ctx.globalAlpha = ghost ? 0.55 : 1;
   ctx.fillStyle = '#0d1a0e';
   ctx.strokeStyle = COLOURS.ph;
   ctx.lineWidth = 2;
@@ -251,16 +179,14 @@ export function drawTrolley(ctx: CanvasRenderingContext2D, pose: Pose, spin: num
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = COLOURS.ph2;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha *= 0.85;
   for (const wx of [-28, -10, 8]) ctx.fillRect(wx, -26, 12, 10);
-  ctx.globalAlpha = 1;
-  // Pantograph.
+  ctx.globalAlpha = ghost ? 0.55 : 1;
   ctx.strokeStyle = COLOURS.ph2;
   ctx.beginPath();
   ctx.moveTo(0, -32);
   ctx.lineTo(10, -46);
   ctx.stroke();
-  // Wheels with spokes.
   ctx.strokeStyle = COLOURS.ph;
   ctx.fillStyle = COLOURS.black;
   for (const wx of [-20, 20]) {
@@ -277,13 +203,10 @@ export function drawTrolley(ctx: CanvasRenderingContext2D, pose: Pose, spin: num
   }
   ctx.restore();
 }
-
-/** Sparks off the wheels: a few short streaks behind the trolley, more as it hurries. */
-export function drawSparks(ctx: CanvasRenderingContext2D, pose: Pose, amount: number, time: number): void {
+export function drawSparks(ctx: CanvasRenderingContext2D, x: number, y: number, amount: number, time: number): void {
   if (amount <= 0) return;
   ctx.save();
-  ctx.translate(pose.x, pose.y);
-  ctx.rotate(pose.a);
+  ctx.translate(x, y);
   ctx.strokeStyle = COLOURS.amber;
   ctx.lineWidth = 1.5;
   const n = Math.round(2 + 6 * amount);
@@ -301,7 +224,6 @@ export function drawSparks(ctx: CanvasRenderingContext2D, pose: Pose, amount: nu
 
 // ─── The HUD ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Wraps `text` into lines no wider than `width` in the current font. */
 export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
@@ -317,65 +239,61 @@ export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number)
   return lines;
 }
 
-/** God's panel across the top: the speaker's name on the frame, the line as far as it has typed, and the patience bar. */
+/** God's panel across the top: the speaker on the frame, the line as far as it has typed, the patience bar. */
 export function drawGodBox(ctx: CanvasRenderingContext2D, speaker: string, text: string, cursor: boolean, patience: number, patienceLabel: string, time: number): void {
   ctx.save();
   ctx.fillStyle = 'rgba(18,15,6,0.92)';
   ctx.strokeStyle = COLOURS.amber;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.rect(24.5, 22.5, W - 49, 96);
+  ctx.rect(24.5, 22.5, W - 49, 86);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = COLOURS.bg;
   ctx.font = `11px ${MONO}`;
   const label = ` ${speaker} `;
-  const lw = ctx.measureText(label).width;
-  ctx.fillRect(38, 16, lw + 2, 13);
+  ctx.fillRect(38, 16, ctx.measureText(label).width + 2, 13);
   ctx.fillStyle = COLOURS.amber;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(label, 39, 27);
-  ctx.font = `17px ${MONO}`;
+  ctx.font = `16px ${MONO}`;
   const lines = wrap(ctx, text, W - 110).slice(0, 3);
-  lines.forEach((l, i) => ctx.fillText(l, 42, 56 + i * 22));
+  lines.forEach((l, i) => ctx.fillText(l, 42, 52 + i * 20));
   if (cursor && Math.floor(time * 2) % 2 === 0) {
     const lastLine = lines[lines.length - 1] ?? '';
-    ctx.fillRect(44 + ctx.measureText(lastLine).width, 44 + (Math.max(1, lines.length) - 1) * 22, 9, 15);
+    ctx.fillRect(44 + ctx.measureText(lastLine).width, 41 + (Math.max(1, lines.length) - 1) * 20, 9, 14);
   }
-  // Patience.
   ctx.font = `10px ${MONO}`;
   ctx.fillStyle = COLOURS.amberDim;
   ctx.textAlign = 'right';
-  ctx.fillText(patienceLabel, W - 46, 110);
-  const bw = 220;
+  ctx.fillText(patienceLabel, W - 46, 101);
+  const bw = 200;
   const bx = W - 46 - bw - ctx.measureText(patienceLabel).width - 12;
   ctx.strokeStyle = COLOURS.amberDim;
   ctx.lineWidth = 1;
-  ctx.strokeRect(bx + 0.5, 101.5, bw, 9);
+  ctx.strokeRect(bx + 0.5, 92.5, bw, 9);
   ctx.fillStyle = patience < 0.3 ? COLOURS.red : patience < 0.6 ? COLOURS.amber : COLOURS.ph2;
   ctx.globalAlpha = patience < 0.3 && Math.floor(time * 3) % 2 === 0 ? 0.55 : 1;
-  ctx.fillRect(bx + 1, 102.5, (bw - 2) * clamp(patience, 0, 1), 7);
+  ctx.fillRect(bx + 1, 93.5, (bw - 2) * clamp(patience, 0, 1), 7);
   ctx.restore();
 }
 
-/** The multiplier in phosphor, its label, and the word for the round under it. */
+/** The multiplier in phosphor with its label. */
 export function drawReadout(ctx: CanvasRenderingContext2D, x100: number, punch: number, colour: string, label: string): void {
   ctx.save();
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = COLOURS.dim;
   ctx.font = `11px ${MONO}`;
-  ctx.fillText(label, W - 44, 154);
+  ctx.fillText(label, W - 44, 140);
   ctx.fillStyle = colour;
   ctx.shadowColor = colour;
   ctx.shadowBlur = 18;
-  ctx.font = `700 ${64 * (1 + 0.22 * punch)}px ${MONO}`;
-  ctx.fillText(formatX(x100), W - 40, 216);
+  ctx.font = `700 ${56 * (1 + 0.22 * punch)}px ${MONO}`;
+  ctx.fillText(formatX(x100), W - 40, 194);
   ctx.restore();
 }
-
-/** The title block at the left of the picture. */
 export function drawTitle(ctx: CanvasRenderingContext2D, sub: string): void {
   ctx.save();
   ctx.textAlign = 'left';
@@ -383,16 +301,63 @@ export function drawTitle(ctx: CanvasRenderingContext2D, sub: string): void {
   ctx.fillStyle = COLOURS.ph;
   ctx.shadowColor = COLOURS.ph;
   ctx.shadowBlur = 14;
-  ctx.font = `700 40px ${MONO}`;
-  ctx.fillText('TROLLEY.EXE', 40, 184);
+  ctx.font = `700 34px ${MONO}`;
+  ctx.fillText('TROLLEY.EXE', 40, 156);
   ctx.shadowBlur = 0;
   ctx.fillStyle = COLOURS.amber;
-  ctx.font = `12px ${MONO}`;
-  ctx.fillText(sub, 42, 206);
+  ctx.font = `11px ${MONO}`;
+  ctx.fillText(sub, 42, 174);
   ctx.restore();
 }
 
-/** A stamp that pops in: a boxed line of text. */
+/** The fork card: the next question, its two branches, which the lever points at and whose hand set it, and a bar to the split. */
+export function drawForkCard(ctx: CanvasRenderingContext2D, f: Fork | null, auto: boolean, toSplit: number, keyboard: boolean, ledger: string): void {
+  ctx.save();
+  ctx.fillStyle = 'rgba(11,18,12,0.9)';
+  ctx.strokeStyle = COLOURS.line;
+  ctx.lineWidth = 1;
+  ctx.fillRect(40.5, 180.5, 430, 108);
+  ctx.strokeRect(40.5, 180.5, 430, 108);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = `10px ${MONO}`;
+  ctx.fillStyle = COLOURS.dim;
+  ctx.fillText(f ? `NEXT FORK · ${f.index + 1}` : 'NEXT FORK', 52, 195);
+  ctx.textAlign = 'right';
+  ctx.fillText(ledger, 458, 195, 320);
+  ctx.textAlign = 'left';
+  if (!f) {
+    ctx.fillStyle = COLOURS.ink;
+    ctx.font = `12px ${MONO}`;
+    ctx.fillText('The track is clear. For now.', 52, 226);
+    ctx.restore();
+    return;
+  }
+  ctx.fillStyle = COLOURS.ink;
+  ctx.font = `12px ${MONO}`;
+  wrap(ctx, f.dilemma.prompt, 406).slice(0, 2).forEach((l, i) => ctx.fillText(l, 52, 213 + i * 15));
+  const row = (side: Side, y: number) => {
+    const set = f.lever === side;
+    ctx.fillStyle = set ? COLOURS.amber : COLOURS.dim;
+    ctx.font = `700 11px ${MONO}`;
+    ctx.fillText(`${side === 'up' ? '↑' : '↓'} ${caption(f.dilemma[side])}`, 52, y, 300);
+    if (set) {
+      ctx.fillStyle = f.setBy === 'auto' ? COLOURS.violet : COLOURS.ph;
+      ctx.textAlign = 'right';
+      ctx.fillText(f.setBy === 'auto' ? 'AUTO-ETHICS.DLL' : 'YOUR HAND', 458, y);
+      ctx.textAlign = 'left';
+    }
+  };
+  row('up', 248);
+  row('down', 263);
+  ctx.fillStyle = COLOURS.dim;
+  ctx.font = `9px ${MONO}`;
+  ctx.fillText(f.locked ? 'LOCKED · THE TROLLEY IS IN THE FORK' : auto ? (keyboard ? '↑ ↓ OR W S TO TAKE THE LEVER · THE MACHINE THROWS IT OTHERWISE' : 'TAP THE TOP OR BOTTOM OF THE PICTURE TO TAKE THE LEVER') : (keyboard ? '↑ ↓ SET THE SWITCH · IT LOCKS AT THE SPLIT · UNTHROWN, IT STAYS' : 'TAP TOP OR BOTTOM · IT LOCKS AT THE SPLIT · UNTHROWN, IT STAYS'), 52, 282, 406);
+  ctx.fillStyle = f.locked ? COLOURS.amberDim : COLOURS.amber;
+  ctx.fillRect(52, 270, 406 * clamp(1 - toSplit, 0, 1), 2);
+  ctx.restore();
+}
+
 export function drawStamp(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, pop: number, colour: string): void {
   if (pop <= 0.01) return;
   ctx.save();
@@ -411,28 +376,24 @@ export function drawStamp(ctx: CanvasRenderingContext2D, text: string, x: number
   ctx.fillText(text, 0, 1);
   ctx.restore();
 }
-
-/** The line at the foot of the picture: your stake, your lever, your outcome. */
 export function drawFootLine(ctx: CanvasRenderingContext2D, text: string, colour: string): void {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = colour;
-  ctx.font = `600 18px ${MONO}`;
-  ctx.fillText(text, W / 2, 500, W - 80);
+  ctx.font = `600 16px ${MONO}`;
+  ctx.fillText(text, W / 2, 531, W - 80);
   ctx.restore();
 }
 
 // ─── The crash ──────────────────────────────────────────────────────────────────────────────────────────
 
-/** Tears the picture: strips of the frame so far, shifted sideways, with a few phosphor blocks. */
 export function drawGlitch(ctx: CanvasRenderingContext2D, amount: number, seed: number): void {
   if (amount <= 0.01) return;
   const m = ctx.getTransform();
   const sx = m.a, sy = m.d, ox = m.e, oy = m.f;
   const canvas = ctx.canvas;
-  const bands = 7;
-  for (let i = 0; i < bands; i += 1) {
+  for (let i = 0; i < 7; i += 1) {
     const r1 = hash(seed * 3 + i * 7), r2 = hash(seed * 5 + i * 11), r3 = hash(seed * 7 + i * 13);
     if (r3 > 0.3 + 0.6 * amount) continue;
     const y = r1 * (H - 40);
@@ -440,9 +401,8 @@ export function drawGlitch(ctx: CanvasRenderingContext2D, amount: number, seed: 
     const dx = (r3 - 0.5) * 120 * amount;
     const srcW = canvas.width - Math.abs(dx) * sx;
     const srcX = ox + Math.max(0, -dx) * sx;
-    const dstX = Math.max(0, dx);
     try {
-      ctx.drawImage(canvas, srcX, oy + y * sy, srcW, h * sy, dstX, y, srcW / sx, h);
+      ctx.drawImage(canvas, srcX, oy + y * sy, srcW, h * sy, Math.max(0, dx), y, srcW / sx, h);
     } catch {
       // A detached or zero-sized canvas has nothing to tear.
     }
@@ -451,8 +411,7 @@ export function drawGlitch(ctx: CanvasRenderingContext2D, amount: number, seed: 
   ctx.globalAlpha = 0.5 * amount;
   ctx.fillStyle = COLOURS.ph;
   for (let i = 0; i < 5; i += 1) {
-    const r = hash(seed * 11 + i * 17);
-    if (r > amount) continue;
+    if (hash(seed * 11 + i * 17) > amount) continue;
     ctx.fillRect(hash(seed + i) * W, hash(seed * 2 + i) * H, 20 + 120 * hash(seed * 3 + i), 3 + 10 * hash(seed * 4 + i));
   }
   ctx.restore();
@@ -465,7 +424,6 @@ export interface BlueScreen {
   failed: string;
   trace: string[];
 }
-
 /** The blue screen over the picture: slides down over 0.35 s of `t`, then types its findings. */
 export function drawBSOD(ctx: CanvasRenderingContext2D, t: number, info: BlueScreen, time: number): void {
   const slide = smooth(t / 0.35);
@@ -483,26 +441,24 @@ export function drawBSOD(ctx: CanvasRenderingContext2D, t: number, info: BlueScr
   ctx.fillText('TROLLEY.EXE ran into a problem and needs to restart.', 70, 168);
   ctx.font = `17px ${SANS}`;
   ctx.globalAlpha = 0.88;
-  ctx.fillText("We're collecting your sins, and then we'll restart for you.", 70, 198);
+  ctx.fillText("We're collecting your switches, and then we'll restart for you.", 70, 198);
   ctx.globalAlpha = 1;
-  // The percentage climbs in uneven steps once the screen is up, and stalls where it must.
   const steps = [0, 13, 27, 27, 45, 66, 66, 66.6, 66.6, 84, 99, 99, 100];
   const k = clamp(Math.floor((t - 0.4) / 0.16), 0, steps.length - 1);
   ctx.font = `20px ${SANS}`;
   ctx.fillText(`${t < 0.4 ? 0 : steps[k]}% complete`, 70, 236);
-  // The findings type in from 0.4 s, fast enough to finish before a live round's next betting phase.
   const shown = clamp((t - 0.4) * 170, 0, 9999);
-  const lines = [`Stop code: ${info.code}`, info.detail, `Crashed at ${info.crashedAt}`, `What failed: ${info.failed}`, '', 'Divine trace (most recent sin first):', ...info.trace.map((l) => `  at God.say("${l}")`), '  at God.judge (heaven.js:∞)'];
-  ctx.font = `14px ${MONO}`;
+  const lines = [`Stop code: ${info.code}`, info.detail, `Crashed at ${info.crashedAt}`, `What failed: ${info.failed}`, '', 'Divine trace (most recent switch first):', ...info.trace, '  at God.judge (heaven.js:∞)'];
+  ctx.font = `13px ${MONO}`;
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.fillRect(70, 254, W - 140, 14 + lines.length * 19);
+  ctx.fillRect(70, 254, W - 140, 14 + lines.length * 18);
   ctx.fillStyle = COLOURS.white;
   let budget = shown;
   lines.forEach((line, i) => {
     if (budget <= 0) return;
     const part = line.slice(0, Math.floor(budget));
     budget -= line.length + 3;
-    ctx.fillText(part, 82, 274 + i * 19, W - 164);
+    ctx.fillText(part, 82, 272 + i * 18, W - 164);
   });
   if (t > 2.3 && Math.floor(time * 1.5) % 2 === 0) {
     ctx.font = `16px ${SANS}`;

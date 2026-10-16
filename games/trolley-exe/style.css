@@ -35,9 +35,10 @@ button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 [data-mode=embedded]::-webkit-scrollbar{display:none}
 @media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
 /* game */
-/* Match these tokens to COLOURS in world.ts: phosphor on black, amber for the lever and God. */
+/* Match these tokens to COLOURS in world.ts: phosphor on black, amber for the levers and God, violet for the machine. */
 :root{--bg:#070a08;--fg:#d7ffd0;--accent:#ffb347;--on-accent:#070a08}
 body{font-family:ui-monospace,Menlo,Consolas,"Liberation Mono",monospace}
 #status{letter-spacing:.04em}
 #notice{background:color-mix(in srgb,#ff4d4d 35%,var(--bg))}
 button.secondary{box-shadow:inset 0 0 0 2px color-mix(in srgb,#5fcf55 55%,transparent)}
+#autoethics{box-shadow:inset 0 0 0 2px color-mix(in srgb,#c48cff 60%,transparent)}

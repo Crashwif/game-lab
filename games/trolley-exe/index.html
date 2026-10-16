@@ -8,16 +8,17 @@
 </head>
 <body>
   <main>
-    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
-    <canvas aria-label="TROLLEY.EXE on a green phosphor screen: five people tied to the main track and one to the side track, a trolley that creeps toward the fork as the round multiplier climbs, a lever at the fork, God's commentary and His patience bar across the top, the multiplier as a hesitation bonus, and a blue screen with a stop code when the round crashes."></canvas>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. Auto-ethics is the game's own control, wired from scene.ts. -->
+    <canvas aria-label="TROLLEY.EXE on a green phosphor screen: a trolley rolls down a line that forks again and again, with people tied to both branches of every fork (strangers, a robot, your mother, influencers, a professor and his students, a billionaire, a cow, podcasters, the trolley's lawyer, its inventor, the intern, your insurance adjuster, a politician, undecided voters, a crypto bro, God, and you). Arrow keys, W and S, a tap on the top or bottom of the picture or a vertical swipe set the next switch; AUTO-ETHICS.DLL throws it until you do. God comments on every switch across the top as the hesitation bonus climbs and His patience drains; cashing out walks you away from the lever; the crash lunges through both branches, tears the picture and ends on a blue screen with a stop code and the Book of your switches."></canvas>
     <div class="controls">
       <div class="info">
         <p id="status" role="status">Connecting…</p>
         <p id="readout"></p>
       </div>
       <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Take the lever · 50 credits</button>
-      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Pull the lever</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Walk away · cash out</button>
       <button id="restart" hidden>Replay round</button>
+      <button id="autoethics" class="secondary" title="Hand the lever to AUTO-ETHICS.DLL, or take it back">Auto-ethics: on</button>
       <button id="sound" class="secondary">Sound: off</button>
       <p id="notice" role="alert" hidden></p>
     </div>
