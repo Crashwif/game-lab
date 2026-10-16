@@ -754,6 +754,19 @@
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A menacing drift phonk chase at 132 BPM for a man in all black on a BMX outrunning the police through a strip-mall suburb at dusk: a distorted 808 cowbell melody, a detuned Memphis-style bass, crunchy lo-fi drums with a half-time bounce, a sinister pitched-down synth motif and siren-like risers that circle closer as the tension climbs. Develop six distinct 25-second sections: a slow lurking intro on the cowbell, the drop with the full beat, a section with a helicopter-rotor rhythm under the bass, a stripped half-time breakdown with a heartbeat pulse, a double-time chase with stacked sirens, then back toward the opening theme for a gentle repeat. Leave space for gunshots, glass and sirens. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
       }
     },
+    "self-deport": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. Drift phonk for a landscaper outrunning a quota down a strip-mall street at dawn: a 84 BPM half-time groove with a 168 BPM double-time feel, cowbell-led phonk percussion, a distorted 808 bass that slides, a gated vocal-chop texture used as an instrument with no words, a dusty Rhodes motif and a mariachi-tinged trumpet line that surfaces twice, in F minor. Develop six distinct 25-second sections: the leaf blower idling at dawn, the first unmarked van, the cruiser that holds beside him, the helicopter sweep, the two rallies filming each other, and a return toward the opening with the trumpet on top. Keep a clean mix and space for engine, siren, drone and crowd effects. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      },
+      "crash": {
+        "prompt": "A cartoon raid that turns into a computer crash: tires screech and a van door slides and slams, a brief scuffle of boots and a cardboard-thud stamp, then the sound of a picture tearing, a buzz of digital glitch artifacts and a final dry hiss of static as a screen dies. Short, dry, close sound design, punchy controlled bass, no explosion, no music, no voices.",
+        "seconds": 3.0
+      },
+      "cashout": {
+        "prompt": "A phone notification chime, a quick satisfying app-button tap, a bright rising three-note success jingle with a soft cash-register chime at the end, a playful cartoon exit. Premium mobile-app sound design, clean and dry, no voices, no background music.",
+        "seconds": 1.8
+      }
+    },
     "trolley-exe": {
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A tense retro chiptune for TROLLEY.EXE, a trolley-problem game on a green phosphor screen: a square-wave motif that rocks like wheels on rails at 108 BPM, a triangle bass that walks, a soft noise hat and an occasional bell. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the rolling motif, add the bell and a counter-melody, tighten the harmony as if something is approaching, thin to the bass and the wheels, rebuild with a higher, brighter variation, and finish by returning to the opening motif with more urgency. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."

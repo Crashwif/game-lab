@@ -11,56 +11,56 @@ export const TITLE = 'DEGEN ANONYMOUS';
 
 /** The shares, keyed to the multiplier. Half of all rounds end before 2×, so the early ones come a few seconds apart. */
 export const LADDER: Line[] = [
-  { at: 1.03, who: 'terry', text: 'GM, degens. Let’s go round the circle.', cap: 'GM DEGENS' },
-  { at: 1.15, who: 'jules', text: 'Hi, I’m Jules, I’ve been clean for 12 days. I deleted the app, I put the phone in the drawer, I — I’m getting a text.', cap: '12 DAYS CLEAN', beat: 'text' },
-  { at: 1.35, who: 'ron', text: 'The drawer is not a plan, Jules. The drawer is where the plan goes to die.', beat: 'nod' },
-  { at: 1.55, who: 'nurse', text: 'Mine went up 40% this week. My portfolio. No — sorry — my cholesterol.', cap: 'NUMBER GO UP', beat: 'laugh' },
-  { at: 1.8, who: 'podcast', text: 'I’m doing an episode on this exact feeling. It’s called “Clean But Watching.” Nobody move, I’m getting a level.', beat: 'mic' },
-  { at: 1.95, who: 'jules', text: 'It’s probably just the weather app.', thought: true, beat: 'glance' },
-  { at: 2.1, who: 'stock', text: 'Sold the stock in 2009. You know the one. Been coming here since. Different thing. Anyway — new coin, same ticker.', beat: 'still' },
-  { at: 2.25, who: 'terry', text: '…Thank you for sharing.', gap: 1.6 },
-  { at: 2.4, who: 'jules', text: 'I’m not reading it. I’m holding it near my face.', cap: 'DAY 0 AGAIN', beat: 'phone' },
-  { at: 2.8, who: 'vegan', text: 'I didn’t come here to talk about coins, I came for the cookies. These are not vegan cookies. I’m having three.', beat: 'three' },
-  { at: 3.2, who: 'guitar', text: 'This one’s called “Number Go Up.” It’s about my ex-wife.', beat: 'song' },
-  { at: 3.8, who: 'jules', text: 'My sponsor says a relapse is a lie you tell yourself. So — I’m not telling you anything. I’m just checking on something.', cap: 'THE ROOM LEANS IN', beat: 'stand' },
-  { at: 4.5, who: 'ron', text: 'Jules. JULES. The chart is not your higher power.', beat: 'tv' },
-  { at: 5.5, who: 'twinA', text: 'We did a group buy.' },
-  { at: 5.6, who: 'twinB', text: 'We did a group hug.', gap: 0.9 },
-  { at: 5.7, who: 'twinA', text: 'We did both.', gap: 0.9 },
-  { at: 7, who: 'jules', text: 'I opened the exchange.', beat: 'return', life: 4 },
-  { at: 9, who: 'ron', text: 'We are not powerless. We are UNpowerful. There is a difference, and the difference is the chart.', cap: 'DIAMOND CHIPS', beat: 'thesis' },
-  { at: 10.5, who: 'terry', text: 'Nobody’s holding hands yet. But keep your hands where I can hold them.' },
-  { at: 12, who: 'nurse', text: 'That’s my entry.', beat: 'tvlook' },
-  { at: 12.6, who: 'podcast', text: 'That’s everyone’s entry.', gap: 1, beat: 'mic' },
-  { at: 15, who: 'vegan', text: 'I’m on cookie six. Nobody’s counting. I’m counting.' },
-  { at: 18, who: 'cookie', text: 'I don’t know what anyone is talking about. These are excellent cookies. What is an entry?' },
-  { at: 21, who: 'ron', text: 'Watch says we’re over time. The watch is also up 30%.' },
-  { at: 25, who: 'jules', text: 'It’s going to zero and I think I’m in early.', cap: 'THIS IS FINE', beat: 'zero' },
+  { at: 1.03, who: 'terry', text: 'GM, degens. Welcome to our safe space for unsafe leverage.', cap: 'GM DEGENS' },
+  { at: 1.15, who: 'jules', text: 'Hi, I’m Jules, 12 days clean. Deleted Phantom, blocked my congressman’s stock-tracker bot, and—wait, price alert.', cap: '12 DAYS CLEAN', beat: 'text' },
+  { at: 1.35, who: 'ron', text: 'Deleting the app is performative, Jules. Your seed phrase is still tattooed on your inner thigh.', beat: 'nod' },
+  { at: 1.55, who: 'nurse', text: 'Universal healthcare won’t fix my portfolio, but a 40× dog coin might.', cap: 'NUMBER GO UP', beat: 'laugh' },
+  { at: 1.8, who: 'podcast', text: 'Recording this for my sigma-mindset podcast: “Trauma Bonding Curves.” Speak into the lapel mic, Jules.', beat: 'mic' },
+  { at: 1.95, who: 'jules', text: 'It’s probably just an Amber Alert or an SEC filing.', thought: true, beat: 'glance' },
+  { at: 2.1, who: 'stock', text: 'I blamed Obama in ’08, Trump in ’20, and Biden in ’22. Turns out I just love buying the top on 50× margin.', beat: 'still' },
+  { at: 2.25, who: 'terry', text: '…We don’t judge political parties here, we judge entries.', gap: 1.6 },
+  { at: 2.4, who: 'jules', text: 'I’m not trading! I’m just doing independent peer-reviewed chart research!', cap: 'DAY 0 AGAIN', beat: 'phone' },
+  { at: 2.8, who: 'vegan', text: 'I’m an anti-capitalist vegan, these cookies are Costco butter-lard, and I’m on my fourth one because the chart is green.', beat: 'three' },
+  { at: 3.2, who: 'guitar', text: 'Anyway, here’s “Wonderwall,” dedicated to the Federal Reserve.', beat: 'song' },
+  { at: 3.8, who: 'jules', text: 'My therapist says I have anxious attachment to liquidity pools. Look at that candle!', cap: 'THE ROOM LEANS IN', beat: 'stand' },
+  { at: 4.5, who: 'ron', text: 'Jules! Jerome Powell is not your higher power!', beat: 'tv' },
+  { at: 5.5, who: 'twinA', text: 'We shorted the housing market.' },
+  { at: 5.6, who: 'twinB', text: 'We manifested abundance.', gap: 0.9 },
+  { at: 5.7, who: 'twinA', text: 'We now live in a Honda Civic.', gap: 0.9 },
+  { at: 7, who: 'jules', text: 'I just market-bought with my student loan forgiveness.', beat: 'return', life: 4 },
+  { at: 9, who: 'ron', text: 'Step One: admit the system is rigged. Step Two: try to front-run the system anyway.', cap: 'DIAMOND CHIPS', beat: 'thesis' },
+  { at: 10.5, who: 'terry', text: 'Keep your hands in the circle and off the Robinhood options tab.' },
+  { at: 12, who: 'nurse', text: 'Wait, is that the coin Pelosi’s nephew tweeted?!', beat: 'tvlook' },
+  { at: 12.6, who: 'podcast', text: 'Use promo code RELAPSE for 20% off athletic greens!', gap: 1, beat: 'mic' },
+  { at: 15, who: 'vegan', text: 'Cookie six. I have abandoned Marxism for generational wealth.' },
+  { at: 18, who: 'cookie', text: 'I thought this was the HOA zoning meeting. How do I buy the dog money?' },
+  { at: 21, who: 'ron', text: 'Meeting’s overtime. Even the church treasurer is aping in.' },
+  { at: 25, who: 'jules', text: 'It’s a bipartisan rug pull and I’m leveraged to the tits!', cap: 'THIS IS FINE', beat: 'zero' },
 ];
 
 /** Past the last share the circle goes round again: one of these every 1.35× of multiplier, in order, forever. */
 export const OVERTIME: Omit<Line, 'at'>[] = [
-  { who: 'terry', text: 'Okay. Let’s go round again. Everyone’s shared. Share again.', cap: 'SHARE AGAIN' },
-  { who: 'ron', text: 'Meeting was meant to end an hour ago. The chart doesn’t end. That’s the whole problem.' },
-  { who: 'podcast', text: 'We’re live. We’ve always been live. Episode four hundred: “Still Watching.”', cap: 'STILL WATCHING', beat: 'mic' },
-  { who: 'nurse', text: 'Everybody breathe. In for four, out for four. Don’t look at the TV for four.' },
-  { who: 'twinA', text: 'We bought more. We hugged more.' },
-  { who: 'jules', text: 'I’m not checking it. My thumb is checking it.', cap: 'THUMB ON THE BUTTON' },
-  { who: 'vegan', text: 'Cookie nine. Still not vegan. I’ve made my peace with it.' },
-  { who: 'guitar', text: 'New song. It’s called “Higher.” Same three chords.', beat: 'song' },
-  { who: 'stock', text: 'I sold this one too. In my head. Twice.' },
-  { who: 'terry', text: 'One day at a time. Today is going really, really fast.', cap: 'ONE DAY AT A TIME' },
-  { who: 'cookie', text: 'Can someone tell the TV the meeting’s over here?' },
-  { who: 'twinB', text: 'Same chart. Same chairs. Same us.' },
-  { who: 'ron', text: 'Higher power, check-in. Still up? Still up.', cap: 'STILL UP' },
-  { who: 'jules', text: 'Day zero is a long day.' },
+  { who: 'terry', text: 'Okay, late-stage relapse check. Everybody state your pronouns and your liquidation price.', cap: 'SHARE AGAIN' },
+  { who: 'ron', text: 'The meeting ended an hour ago. Late capitalism never ends.' },
+  { who: 'podcast', text: 'We’re trending on X and Bluesky! Both sides hate us! Bullish!', cap: 'STILL WATCHING', beat: 'mic' },
+  { who: 'nurse', text: 'Breathe in for four, hold for four, do not market-buy the top for four.' },
+  { who: 'twinA', text: 'We refinanced the Honda Civic.' },
+  { who: 'jules', text: 'I’m not dissociating, I’m locked in.', cap: 'THUMB ON THE BUTTON' },
+  { who: 'vegan', text: 'Cookie nine. Dairy is a construct. Number go up is real.' },
+  { who: 'guitar', text: 'This next song is called “Rich Dad, Poor Dad, Liquidated Dad.”', beat: 'song' },
+  { who: 'stock', text: 'My financial advisor just walked in and grabbed a folding chair.' },
+  { who: 'terry', text: 'Grant me the serenity to accept the dips I cannot buy.', cap: 'ONE DAY AT A TIME' },
+  { who: 'cookie', text: 'I just put my reverse mortgage into the TV line. Did I win?' },
+  { who: 'twinB', text: 'Generational trauma out, generational wealth in.' },
+  { who: 'ron', text: 'Higher power check: still printing? Still printing.', cap: 'STILL UP' },
+  { who: 'jules', text: 'Day zero feels incredible until the red candle.' },
 ];
 
 /** Terry opens while bets are open: no announcement, straight to the room. */
-export const BETTING_LINE: Omit<Line, 'at'> = { who: 'terry', text: 'Who relapsed this week? … Nobody? Great meeting, see you Thursday.', cap: 'WHO RELAPSED THIS WEEK?' };
+export const BETTING_LINE: Omit<Line, 'at'> = { who: 'terry', text: 'Who gambled their rent while blaming the economy this week? … Everybody? Sit down.', cap: 'WHO RELAPSED THIS WEEK?' };
 
 /** Your share: the player's chair speaks, in full. */
-export const EXIT_LINE: Omit<Line, 'at'> = { who: 'you', text: 'Hi. I’m the reason we’re all here. I took profits.', life: 4.6 };
+export const EXIT_LINE: Omit<Line, 'at'> = { who: 'you', text: 'Hi. I’m a class traitor. I just cashed out in profit.', life: 4.6 };
 
 export const CAPTIONS = {
   waiting: 'SETTING OUT THE CHAIRS',
@@ -77,19 +77,19 @@ export const BADGE = 'TOOK PROFITS · STAYED FOR THE COOKIES';
 
 /** After your share the room carries on and does not notice: keyed to how far past the exit the multiplier is. */
 export const REGRET: [past: number, line: Omit<Line, 'at'>][] = [
-  [1.4, { who: 'terry', text: 'Lovely share. Who was that? Anyway — Jules.' }],
-  [2, { who: 'stock', text: 'Somebody sold. I know that feeling. Different thing.' }],
-  [3, { who: 'ron', text: 'Count the chairs. Ten. Eleven. We’ll count again Thursday.' }],
-  [5, { who: 'podcast', text: 'Note for the episode: someone left with profits AND a chair.' }],
-  [10, { who: 'cookie', text: 'More cookies for the room. That’s the only chart I read.' }],
+  [1.4, { who: 'terry', text: 'Healthy boundary. Terrible chart discipline. Anyway — Jules.' }],
+  [2, { who: 'stock', text: 'Imagine paying short-term capital gains tax. Couldn’t be me.' }],
+  [3, { who: 'ron', text: 'Quitting while you’re ahead is a symptom of low conviction.' }],
+  [5, { who: 'podcast', text: 'Clip that: beta male takes guaranteed profit instead of 100×.' }],
+  [10, { who: 'cookie', text: 'He left his cookies. I’m redistributing them.' }],
 ];
 
 /** The crash's lines, keyed to seconds of the crash clock, all said by the time the pile is whole. Jules says nothing. */
 export const CRASH_LINES: [at: number, line: Omit<Line, 'at'>][] = [
-  [0.7, { who: 'terry', text: 'Okay. Okay. Everybody stay seated.', life: 2.4 }],
-  [2.0, { who: 'ron', text: 'Higher power, one time. One time.', life: 4.4 }],
-  [3.4, { who: 'twinA', text: 'Group hug.', life: 3 }],
-  [4.5, { who: 'terry', text: 'Great meeting, everyone. See you Thursday.', life: 6 }],
+  [0.7, { who: 'terry', text: 'Okay. Nobody blame the Fed. Everybody into the trauma pile.', life: 2.4 }],
+  [2.0, { who: 'ron', text: 'Higher power, one bailout. Just one bailout.', life: 4.4 }],
+  [3.4, { who: 'twinA', text: 'Bipartisan group hug.', life: 3 }],
+  [4.5, { who: 'terry', text: 'Great progress today, everyone. Same time Thursday.', life: 6 }],
 ];
 
 export const STAMP = { rekt: 'YOU’RE IN THE PILE', dodged: 'SEE YOU THURSDAY', watched: 'JUST HERE FOR THE COOKIES' };
