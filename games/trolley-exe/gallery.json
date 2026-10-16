@@ -1,0 +1,9 @@
+{
+  "name": "TROLLEY.EXE",
+  "hook": "Pull the lever before God crashes the simulation",
+  "tagline": "Five people tied to the main track, one to the side, your hand on the lever. Every second you don't pull, the hesitation bonus climbs and God's patience drains while He narrates your character flaws rung by rung, until He leaves and the intern takes over. Pull the lever to cash out onto the side track and live with it; wait too long and the trolley lunges, the picture tears, and a blue screen with your stop code ends the round.",
+  "tags": ["God on the curve", "A lever that cashes out", "A crash that crashes"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": { "seconds": 14 }
+}

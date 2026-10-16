@@ -753,6 +753,11 @@
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A menacing drift phonk chase at 132 BPM for a man in all black on a BMX outrunning the police through a strip-mall suburb at dusk: a distorted 808 cowbell melody, a detuned Memphis-style bass, crunchy lo-fi drums with a half-time bounce, a sinister pitched-down synth motif and siren-like risers that circle closer as the tension climbs. Develop six distinct 25-second sections: a slow lurking intro on the cowbell, the drop with the full beat, a section with a helicopter-rotor rhythm under the bass, a stripped half-time breakdown with a heartbeat pulse, a double-time chase with stacked sirens, then back toward the opening theme for a gentle repeat. Leave space for gunshots, glass and sirens. No voices, lyrics, sampled speech, crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
       }
+    },
+    "trolley-exe": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A tense retro chiptune for TROLLEY.EXE, a trolley-problem game on a green phosphor screen: a square-wave motif that rocks like wheels on rails at 108 BPM, a triangle bass that walks, a soft noise hat and an occasional bell. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the rolling motif, add the bell and a counter-melody, tighten the harmony as if something is approaching, thin to the bass and the wheels, rebuild with a higher, brighter variation, and finish by returning to the opening motif with more urgency. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
     }
   }
 }

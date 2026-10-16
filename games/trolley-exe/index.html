@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TROLLEY.EXE — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="TROLLEY.EXE on a green phosphor screen: five people tied to the main track and one to the side track, a trolley that creeps toward the fork as the round multiplier climbs, a lever at the fork, God's commentary and His patience bar across the top, the multiplier as a hesitation bonus, and a blue screen with a stop code when the round crashes."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Take the lever · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Pull the lever</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>
