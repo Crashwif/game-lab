@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roadster to Mars — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="Roadster to Mars: a white wedge-shaped Roadster drives up an inverted ramp at a Texas test site, leaves the lip on cold-gas thrusters and climbs with the multiplier past a row of parked Teslas, a skycycle, an FAA warning sign, an airliner, the Kármán line, the ISS, a Starlink train, the Moon, Starman in the 2018 Roadster and Mars, where it plants a flag reading 2028, actually. The Earth's curvature rises into view and recedes to a marble. A lobby of fellow reservation holders lands on their own schedules and a parody hype ticker comments. Cashing out deploys a parachute labelled REFUNDABLE while a remote-operated ghost car flies on; the crash is a rapid unscheduled disassembly with a flash, a shockwave and pressure vessels tumbling, and an instant crash is a launch scrubbed for weather."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Place deposit · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Land it · cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="trim" class="secondary" type="button" title="Which thrusters the car shows. The room's chain owns the pace.">Trim: Performance</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

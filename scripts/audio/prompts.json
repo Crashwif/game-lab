@@ -771,6 +771,11 @@
       "music": {
         "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A tense retro chiptune for TROLLEY.EXE, a trolley-problem game on a green phosphor screen: a square-wave motif that rocks like wheels on rails at 108 BPM, a triangle bass that walks, a soft noise hat and an occasional bell. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the rolling motif, add the bell and a counter-melody, tighten the harmony as if something is approaching, thin to the bass and the wheels, rebuild with a higher, brighter variation, and finish by returning to the opening motif with more urgency. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
       }
+    },
+    "roadster-to-mars": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental synthwave game score for Roadster to Mars: a cold, slightly absurd countdown feel that builds from a Texas test pad into deep space, with a driving arpeggio, a bright lead that rises in confidence, and a quieter section for the stretch past the Moon. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
