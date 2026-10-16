@@ -766,6 +766,11 @@
         "prompt": "A phone notification chime, a quick satisfying app-button tap, a bright rising three-note success jingle with a soft cash-register chime at the end, a playful cartoon exit. Premium mobile-app sound design, clean and dry, no voices, no background music.",
         "seconds": 1.8
       }
+    },
+    "trolley-exe": {
+      "music": {
+        "prompt": "Compose one complete original instrumental game score lasting exactly 150 seconds. A tense retro chiptune for TROLLEY.EXE, a trolley-problem game on a green phosphor screen: a square-wave motif that rocks like wheels on rails at 108 BPM, a triangle bass that walks, a soft noise hat and an occasional bell. No voices, lyrics or sampled speech. Develop six distinct 25-second sections: introduce the rolling motif, add the bell and a counter-melody, tighten the harmony as if something is approaching, thin to the bass and the wheels, rebuild with a higher, brighter variation, and finish by returning to the opening motif with more urgency. Leave space for game effects. No crash sounds, victory ending, silent intro, long fade or repetition of a short loop."
+      }
     }
   }
 }
