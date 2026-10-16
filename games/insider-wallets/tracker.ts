@@ -11,14 +11,14 @@ export const INK = '#1c1f26';
 
 /** `pending` is the multiplier the row starts to blink PENDING at. */
 export const ROWS: { name: string; salt: number; pending: number }[] = [
-  { name: 'COUSIN', salt: 1.15, pending: 1.15 },
-  { name: 'DONOR #1', salt: 1.4, pending: 1.3 },
-  { name: 'GOLF BUDDY', salt: 1.7, pending: 1.45 },
-  { name: 'LOBBYIST', salt: 2.05, pending: 1.65 },
-  { name: 'BARBER', salt: 2.4, pending: 1.9 },
-  { name: 'DOG WALKER', salt: 2.9, pending: 2.2 },
-  { name: 'ANON.SOL', salt: 3.4, pending: 2.6 },
-  { name: 'TREASURER', salt: 4.1, pending: 3.1 },
+  { name: 'FIRST SON', salt: 1.15, pending: 1.15 },
+  { name: 'PELOSI.SOL', salt: 1.4, pending: 1.3 },
+  { name: 'SUPER PAC', salt: 1.7, pending: 1.45 },
+  { name: 'PARDON BRO', salt: 2.05, pending: 1.65 },
+  { name: 'BLIND TRUST', salt: 2.4, pending: 1.9 },
+  { name: 'WAR HAWK', salt: 2.9, pending: 2.2 },
+  { name: 'ESG FUND', salt: 3.4, pending: 2.6 },
+  { name: 'OFFSHORE.ETH', salt: 4.1, pending: 3.1 },
 ];
 
 /** How many insiders are PENDING at this multiplier: the scene pings each flip. */

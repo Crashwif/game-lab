@@ -48,74 +48,74 @@ export const BEATS = {
 
 /** The programme, keyed to the displayed multiplier. `cap` walks the caption ladder as lines are said. */
 export const LADDER: Line[] = [
-  { at: 1.0, who: 'sheila', text: 'Programme item one: welcome, guests. GM. Phones stay AWAY.', cap: 'GM GUESTS' },
-  { at: 1.2, who: 'tanner', text: 'Is it on? Okay. We are so blessed. We are SO blessed.', cap: 'BOY OR GIRL', beat: 'mic' },
-  { at: 1.3, who: 'destiny', text: 'smile. he has the mic. smile.', thought: true, gap: 0.9 },
-  { at: 1.5, who: 'sheila', text: 'Grandpa Hal will hold the box key. For the honor.', beat: 'key' },
-  { at: 1.56, who: 'hal', text: "I'm keeping it. I've seen combat. Parking-lot combat.", gap: 1.1 },
-  { at: 1.8, who: 'destiny', text: 'Mom. The cake is… separating.', cap: 'NUMBER GO UP', beat: 'cake' },
-  { at: 1.9, who: 'sheila', text: 'The frosting is NEUTRAL. I signed off on neutral.' },
-  { at: 2.2, who: 'kyle', text: "Traction's looking great, babes.", cap: "IT'S LOADING", beat: 'kyle' },
-  { at: 2.25, who: 'destiny', text: 'Did you invite the scrubs guy?', gap: 0.8 },
-  { at: 2.3, who: 'tanner', text: "We don't know him, he came with the bounce house.", gap: 1.0 },
-  { at: 2.4, who: 'carol', text: '???' },
-  { at: 2.45, who: 'brad', text: 'loaded.' },
-  { at: 2.7, who: 'sheila', text: 'Whose piñata is that? WHOSE PIÑATA IS THAT.', beat: 'tick' },
-  { at: 2.85, who: 'crowd', text: '…not ours.', thought: true, gap: 1.2 },
-  { at: 3.0, who: 'carol', text: 'why is there a chart on the garage' },
-  { at: 3.3, who: 'pauline', text: 'That is my piece.', beat: 'grandmas' },
-  { at: 3.36, who: 'bev', text: 'That is MY piece.', gap: 0.5 },
-  { at: 4.0, who: 'sheila', text: 'Note: the chart is now bigger than the banner. EITHER WAY is unpinnable.', beat: 'focus' },
-  { at: 4.5, who: 'destiny', text: 'Babe. Your eyes are on the garage.' },
-  { at: 5.0, who: 'tanner', text: 'My boss. Declined. Today we are diamond hands, babe.', cap: 'DIAMOND DIAPER', beat: 'phone' },
-  { at: 5.3, who: 'sheila', text: '…The latch is warm. Why is the latch warm.', beat: 'latch' },
-  { at: 6.4, who: 'brad', text: 'aped the reveal. no take-backs' },
-  { at: 8.0, who: 'kyle', text: "We're live in five. Keep the confetti warm.", cap: 'WEN BIRTH', beat: 'live' },
-  { at: 8.4, who: 'worker', text: 'Copy that. Confetti warm.' },
-  { at: 10, who: 'tanner', text: 'Babe, why is the scrubs guy on a headset?' },
-  { at: 13, who: 'dale', text: "IT'S A DOG. IT'S ALWAYS A DOG.", beat: 'dale' },
-  { at: 13.3, who: 'hal', text: 'zzz… key… mine… zzz', thought: true, beat: 'asleep' },
-  { at: 17, who: 'sheila', text: 'The piñata is ticking in morse. Who taught the piñata morse.' },
-  { at: 25, who: 'destiny', text: 'My water!', beat: 'spill' },
+  { at: 1.0, who: 'sheila', text: 'Programme item one: welcome, guests. Sign the NDA and scan the QR code for the baby’s presale.', cap: 'GM GUESTS' },
+  { at: 1.2, who: 'tanner', text: 'Testing, testing. We are so blessed, y’all. Use code BLESSED for 10% off the ultrasound NFT.', cap: 'BOY OR GIRL', beat: 'mic' },
+  { at: 1.3, who: 'destiny', text: 'smile for the brand deal. do not cry on the patrocinado.', thought: true, gap: 0.9 },
+  { at: 1.5, who: 'sheila', text: 'Grandpa Hal will guard the launch key. He fought in two wars and a Costco parking lot.', beat: 'key' },
+  { at: 1.56, who: 'hal', text: "Back in '68 we didn't reveal genders, we just got drafted.", gap: 1.1 },
+  { at: 1.8, who: 'destiny', text: 'Mom, the raw-milk tradwife cake is… melting.', cap: 'NUMBER GO UP', beat: 'cake' },
+  { at: 1.9, who: 'sheila', text: 'The frosting is politically neutral beige! Neither party can cancel beige!' },
+  { at: 2.2, who: 'kyle', text: 'Pre-market volume on $BABY is ripping, babes.', cap: "IT'S LOADING", beat: 'kyle' },
+  { at: 2.25, who: 'destiny', text: 'Tanner, why is your crypto bro wearing OB-GYN scrubs?', gap: 0.8 },
+  { at: 2.3, who: 'tanner', text: 'He’s our Chief Liquidity Midwife, babe. Respect the scrubs.', gap: 1.0 },
+  { at: 2.4, who: 'carol', text: 'is the baby a boy, a girl, or an LLC??' },
+  { at: 2.45, who: 'brad', text: 'aped my child support into the fetus.' },
+  { at: 2.7, who: 'sheila', text: 'Why is the piñata wired to 40 pounds of Tannerite?! TANNER.', beat: 'tick' },
+  { at: 2.85, who: 'crowd', text: '…the forestry service is gonna love this.', thought: true, gap: 1.2 },
+  { at: 3.0, who: 'carol', text: 'why are there green candlesticks on the garage door' },
+  { at: 3.3, who: 'pauline', text: 'I survived Carter’s inflation, I’m taking the corner piece.', beat: 'grandmas' },
+  { at: 3.36, who: 'bev', text: 'Touch my frosting and I’ll call the HOA, Pauline.', gap: 0.5 },
+  { at: 4.0, who: 'sheila', text: 'The chart just passed the “BOY OR GIRL” banner. The baby is now a mid-cap asset.', beat: 'focus' },
+  { at: 4.5, who: 'destiny', text: 'Tanner. Look at your pregnant wife, not DexScreener.' },
+  { at: 5.0, who: 'tanner', text: 'Paternity leave? Declined. This unborn child is paying off my Ford Raptor, babe.', cap: 'DIAMOND DIAPER', beat: 'phone' },
+  { at: 5.3, who: 'sheila', text: '…The mystery box is 400 degrees. Did you get a permit for weapons-grade glitter?', beat: 'latch' },
+  { at: 6.4, who: 'brad', text: 'leveraged long on the trimester. no epidural, no stop-loss' },
+  { at: 8.0, who: 'kyle', text: 'TikTok Live is at 50k viewers! Pump the pink and blue smoke!', cap: 'WEN BIRTH', beat: 'live' },
+  { at: 8.4, who: 'worker', text: 'Copy that. Violating three EPA statutes now.' },
+  { at: 10, who: 'tanner', text: 'Babe, if it’s twins do we do a token split or an airdrop?' },
+  { at: 13, who: 'dale', text: "IT'S A PSYOP! THE ULTRASOUND IS AI-GENERATED!", beat: 'dale' },
+  { at: 13.3, who: 'hal', text: 'zzz… my pension died for this… zzz', thought: true, beat: 'asleep' },
+  { at: 17, who: 'sheila', text: 'The piñata is ticking in Morse code. It’s spelling “NO REFUNDS.”' },
+  { at: 25, who: 'destiny', text: 'My water broke! Wait—no, that’s the margin call!', beat: 'spill' },
   { at: 25.4, who: 'crowd', text: '*GASP*', gap: 0.3 },
-  { at: 35, who: 'kyle', text: 'Worker 2, positions. Fog on my mark.' },
-  { at: 60, who: 'sheila', text: 'The box is levitating. That is not a party effect.', cap: 'THIS IS FINE', beat: 'levitate' },
-  { at: 62, who: 'worker', text: "Extinguisher's for the vibes, ma'am.", beat: 'hazmat' },
-  { at: 130, who: 'sheila', text: 'Update: the reveal has been moved up due to atmospheric conditions.', beat: 'sky' },
+  { at: 35, who: 'kyle', text: 'Worker 2, prep the offshore wire transfer on my mark.' },
+  { at: 60, who: 'sheila', text: 'The gender box is levitating. Neither the Bible nor science prepared me for this.', cap: 'THIS IS FINE', beat: 'levitate' },
+  { at: 62, who: 'worker', text: "OSHA doesn't cover demonic possession, ma'am.", beat: 'hazmat' },
+  { at: 130, who: 'sheila', text: 'Update: the FAA has closed the airspace above the cul-de-sac.', beat: 'sky' },
 ];
 
 /** Past the last rung, one of these comes due every 1.35× of multiplier, in order, forever. */
 export const OVERTIME: Omit<Line, 'at'>[] = [
-  { who: 'kyle', text: "Liquidity's warm. Confetti's warmer." },
-  { who: 'sheila', text: 'Programme item forty-one: we hold. We ALL hold.', cap: 'HOLD THE CAKE' },
-  { who: 'carol', text: '?????' },
-  { who: 'tanner', text: 'We are so blessed. I keep saying it. It keeps being true.' },
-  { who: 'pauline', text: 'I can wait.' },
-  { who: 'bev', text: 'I can wait longer.', gap: 0.5 },
-  { who: 'brad', text: 'still loaded. reloading.' },
-  { who: 'dale', text: 'STILL A DOG.', cap: 'STILL NEUTRAL' },
-  { who: 'destiny', text: 'Babe. Look at me. Not at the garage.' },
-  { who: 'sheila', text: 'If this leaks now I will end the extended family too.', cap: 'PHONES AWAY' },
-  { who: 'hal', text: 'zzz… parking lot… never again… zzz', thought: true },
-  { who: 'kyle', text: 'Worker 2, hold the fog. Hold it.' },
-  { who: 'worker', text: 'Holding.' },
-  { who: 'tanner', text: 'Boss again. Declined. Declined. Declined.', cap: 'WEN REVEAL' },
-  { who: 'destiny', text: 'What exactly is he a doctor of?' },
-  { who: 'sheila', text: 'Attendance remains perfect. Nobody leaves before the reveal.', cap: 'NOBODY LEAVES' },
+  { who: 'kyle', text: 'The baby isn’t even born and it’s already accredited!' },
+  { who: 'sheila', text: 'Programme item forty-one: nobody calls CPS or the SEC.', cap: 'HOLD THE CAKE' },
+  { who: 'carol', text: 'i thought we were getting a toaster' },
+  { who: 'tanner', text: 'Faith, family, and 100× perpetual futures, y’all.' },
+  { who: 'pauline', text: 'I’m writing this kid out of the will.' },
+  { who: 'bev', text: 'There’s nothing left in the will, Pauline.', gap: 0.5 },
+  { who: 'brad', text: 'can I claim the fetus as a tax write-off if I hold 1%?' },
+  { who: 'dale', text: 'THE STORK IS A GOVERNMENT DRONE!', cap: 'STILL NEUTRAL' },
+  { who: 'destiny', text: 'Tanner, if you rug our own baby shower I’m taking the truck.' },
+  { who: 'sheila', text: 'Keep smiling! The sponsors are watching!', cap: 'PHONES AWAY' },
+  { who: 'hal', text: 'zzz… shoulda stayed in Da Nang… zzz', thought: true },
+  { who: 'kyle', text: 'Worker 2, keep the getaway van running.' },
+  { who: 'worker', text: 'Engine’s warm, boss.' },
+  { who: 'tanner', text: 'Dave Ramsey just blocked me. Bullish.', cap: 'WEN REVEAL' },
+  { who: 'destiny', text: 'Wait—we’re not even pregnant, are we, Tanner?!' },
+  { who: 'sheila', text: 'Nobody leaves the yard until the engagement metrics peak!', cap: 'NOBODY LEAVES' },
 ];
 
 /** Said while bets are open. */
-export const BETTING_LINE: Omit<Line, 'at'> = { who: 'sheila', text: 'Phones away. Phones AWAY. If it leaks before the reveal, I will end this family.', cap: 'PHONES AWAY' };
+export const BETTING_LINE: Omit<Line, 'at'> = { who: 'sheila', text: 'Phones away unless you’re tagging the sponsors! Nobody leak the gender before the token launches!', cap: 'PHONES AWAY' };
 
 /** The plus-one's line on the accepted exit: a thought, never said out loud. */
-export const EXIT_LINE: Omit<Line, 'at'> = { who: 'you', text: 'last slice. napkin. gate.', thought: true };
+export const EXIT_LINE: Omit<Line, 'at'> = { who: 'you', text: 'take the cake. hop the fence. block this family.', thought: true };
 
 export const CAPTIONS = {
   waiting: 'SETTING UP THE CHAIRS',
   /** Shown on the accepted exit, then cycled every 2.4 s while the round keeps running without you. */
   exit: ['CAKE SECURED', 'LEFT BEFORE THE REVEAL', 'SMUG AND FED'],
   /** Once the multiplier is 1.5× past the exit: the party goes on without the plus-one. */
-  kept: 'YOU MISSED EVERYTHING. CAKE WAS GOOD THOUGH.',
+  kept: 'YOU MISSED THE WILDFIRE. CAKE WAS GOOD THOUGH.',
   /** The crash, cycled every 1.6 s while the aftermath holds. */
   crash: ["IT'S A DOG", '$BABY RUGGED', 'RECEIPTS FOR EVERYONE', 'NGMI'],
   dodged: 'RUG DODGED — GATE CLOSED BEHIND YOU',
@@ -124,11 +124,11 @@ export const CAPTIONS = {
 
 /** What the party says about the empty chair, keyed to how far past the exit the multiplier is. */
 export const REGRET: [past: number, line: Omit<Line, 'at'>][] = [
-  [1.5, { who: 'sheila', text: 'Attendance: pending. Who took the last slice?' }],
-  [2, { who: 'carol', text: 'did someone just leave with CAKE' }],
-  [3, { who: 'tanner', text: 'Whose plus-one was that? Babe. Whose plus-one?' }],
-  [5, { who: 'destiny', text: 'We should have left with the cake.' }],
-  [10, { who: 'sheila', text: 'Strike the plus-one from the group chat.' }],
+  [1.5, { who: 'sheila', text: 'Attendance violation! Who left without buying the registry dip?!' }],
+  [2, { who: 'carol', text: 'someone just hopped the fence with half the sheet cake' }],
+  [3, { who: 'tanner', text: 'Uninvited from the baptism! And the Series A!' }],
+  [5, { who: 'destiny', text: 'Honestly, take me with you.' }],
+  [10, { who: 'sheila', text: 'Send them an invoice for their folding chair.' }],
 ];
 
 /**

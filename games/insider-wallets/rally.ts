@@ -9,7 +9,7 @@ export const INK = '#1c1f26';
 const SKIN = '#f3dccb';
 const MARKS = [1.5, 2.2, 3.2, 4.8, 7, 10, 14, 20];
 /** One per sign holder, front row first. */
-const SIGNS = ['SEND IT', 'WAGMI', 'BUY HIGH', 'LFG', 'HE CARES', 'MY RENT', 'TRUST ME', 'NO KYC'];
+const SIGNS = ['DRAIN IT', 'TAX FREE', 'PARDON ME', 'MY 401K', 'HE CARES', 'DEEP STATE', 'BUY HIGH', 'NO REFUNDS'];
 const CROWD = ['#e63946', '#3b82f6', '#f2c14e', '#7cf67c', '#e7eef8'];
 interface Fan { x: number; row: number; col: number; h: number; h2: number; colour: string; sign: number; rank: number; }
 /** The crowd's places, back row first so each row's shoulders sit behind the heads in front. Slot 2 of the front row is your seat. */
@@ -28,8 +28,8 @@ for (let row = 4; row >= 0; row -= 1) {
 const joinKey = (fan: Fan): number => ((fan.row === 0 && Math.abs(fan.col - 2) === 1) || (fan.sign >= 0 && fan.sign < 3) ? -1 : fan.row + fan.h * 1.6);
 [...FANS].sort((a, b) => joinKey(a) - joinKey(b)).forEach((fan, rank) => { fan.rank = rank; });
 /** What the press pool shouts, from polite to panicked; the tension picks the row. */
-const QUESTIONS = ['SIR, IS THIS LEGAL?', 'SIR, WHO IS ANON.SOL?', 'SIR, DID YOUR BARBER BUY?', 'SIR, HOW IS THE DOG WALKER RICH?', 'SIR, IS THAT YOUR HELICOPTER?', 'SIR, WHERE ARE YOU GOING?', 'SIR?? SIR???'];
-const FOLLOWUPS = ['SIR, ANOTHER FAMILY WALLET?', 'SIR, WHO PAID FOR THE FUEL?', 'SIR, THE CROWD HAS QUESTIONS', 'SIR, IS THE PILOT AN INSIDER?', 'SIR, WHY IS YOUR TIE SO LONG?', 'SIR, CAN WE SEE THE RECEIPTS?'];
+const QUESTIONS = ['SIR, IS THIS BIPARTISAN?', 'SIR, WHO IS PELOSI.SOL?', 'SIR, DID YOUR SON PRE-MINE?', 'SIR, WHY IS THE PAC SHORTING?', 'SIR, DOES THIS BUY A PARDON?', 'SIR, IS THAT THE FED CHOPPER?', 'SIR, THE BLIND TRUST SOLD!'];
+const FOLLOWUPS = ['SIR, BOTH PARTIES DUMPED!', 'SIR, IS THE SEC IN ON IT?', 'SIR, TAXPAYERS WANT RECEIPTS', 'SIR, WHY IS THE TIE 9 FEET?', 'SIR, ARE REFUNDS WOKE?', 'SIR, ENJOY THE CAYMANS!'];
 /** Seconds of rally time after the crash frame before the helicopter yanks him, and before the podium goes over. */
 const LIFT_DELAY = 0.12;
 const PODIUM_DELAY = 0.32;
@@ -339,13 +339,13 @@ function spawn(r: Rally, x: number, y: number, rand: () => number, count = 16, c
 
 /** Two lines that fit the podium screen. A character slice was cutting words in half. */
 export function prompter(multiplier: number, crashed: boolean): readonly [string, string] {
-  if (crashed || multiplier >= 12) return ['NEVER HEARD', 'OF THIS COIN'];
-  if (multiplier < 1.3) return ['GM', 'PATRIOTS'];
-  if (multiplier < 1.8) return ["THE PEOPLE'S", 'COIN'];
-  if (multiplier < 2.6) return ['NUMBER ONLY', 'GOES UP'];
-  if (multiplier < 4) return ['TREMENDOUS', 'BAGS'];
-  if (multiplier < 7) return ['MY FRIENDS', 'BOUGHT EARLY'];
-  return ['I DO NOT OWN', 'ANY OF IT'];
+  if (crashed || multiplier >= 12) return ['I BARELY KNEW', 'THIS TOKEN'];
+  if (multiplier < 1.3) return ['GOD BLESS', 'EXIT LIQUIDITY'];
+  if (multiplier < 1.8) return ['BIPARTISAN', 'PUMP & DUMP'];
+  if (multiplier < 2.6) return ['TAX THE POOR', 'MINT THE FLOAT'];
+  if (multiplier < 4) return ['TREMENDOUS', 'DARK MONEY'];
+  if (multiplier < 7) return ['MY FAMILY', 'ALREADY VESTED'];
+  return ['TOTALLY LEGAL', 'COOL & NORMAL'];
 }
 
 type Point = { x: number; y: number };

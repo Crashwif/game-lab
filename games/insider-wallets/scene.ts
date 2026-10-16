@@ -63,15 +63,15 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
     return 'DO NOT CHECK THE CHART';
   }
   if (multiplier < 1.35) return 'MAKE BAGS GREAT AGAIN';
-  if (multiplier < 1.9) return 'FOR THE UNBANKED';
-  if (multiplier < 2.8) return "THE PEOPLE'S COIN";
-  if (multiplier < 4.2) return 'COUSIN BOUGHT EARLY';
-  if (multiplier < 6.5) return 'NOT INSIDER TRADING';
-  if (multiplier < 10) return 'INSIDERS PENDING';
-  if (multiplier < 16) return 'IS THAT A HELICOPTER';
-  if (multiplier < 40) return 'THE HELICOPTER IS RUNNING';
-  if (multiplier < 150) return 'STILL NOT A SECURITY';
-  return 'THE PILOT IS AN INSIDER';
+  if (multiplier < 1.9) return 'BUILD BACK BROKE';
+  if (multiplier < 2.8) return 'BIPARTISAN EXIT LIQUIDITY';
+  if (multiplier < 4.2) return 'THE SPOUSE BOUGHT CALLS';
+  if (multiplier < 6.5) return '10% FOR THE BIG GUY';
+  if (multiplier < 10) return 'PARDONS COST EXTRA';
+  if (multiplier < 16) return 'BOTH PARTIES ARE SELLING';
+  if (multiplier < 40) return 'THE CHOPPER IS TAX-DEDUCTIBLE';
+  if (multiplier < 150) return 'SEC LOOKED THE OTHER WAY';
+  return 'DEMOCRACY MANIFEST';
 }
 
 export function createScene(): Scene {
