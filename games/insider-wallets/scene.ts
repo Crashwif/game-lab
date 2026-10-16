@@ -7,6 +7,8 @@
 import { pageAudio } from './audio';
 import { cannonCount, createRally, drawRally, dumpRally, leaveSeat, resetRally, settleRally, stepRally, type Rally, type RallyDrive } from './rally';
 import { clamp, mix, spring, stepSpring } from './motion';
+import { createPortrait } from './portrait';
+import { pageSound } from './sound';
 import { drawTracker, money, pendingCount, totalBalance } from './tracker';
 
 export interface SceneView {
@@ -77,6 +79,8 @@ function captionFor(view: SceneView, multiplier: number, outcome: Outcome | null
 export function createScene(): Scene {
   // Casino music for a coin launch: the podium is a craps table. The crash turns the crowd.
   const audio = pageAudio({ style: 'casino', crash: 'crowd' });
+  const sound = pageSound(audio);
+  const { capture, present } = createPortrait('INSIDER WALLETS', [160, 80, 500, 380], '#f0c14a', 'LEFT EARLY', 'LIVE AT THE PODIUM');
   const rally: Rally = createRally();
   const pop = spring(0);
   const badge = spring(0);
@@ -111,6 +115,7 @@ export function createScene(): Scene {
     if (quiet) {
       pop.x = 1;
       audio.crash('crowd', true);
+      sound.cut();
       return;
     }
     shake = 1;
@@ -126,6 +131,7 @@ export function createScene(): Scene {
     // Every insider's register rings in the frame the rows flash SOLD; the crowd turns.
     audio.crash('crowd');
     audio.fx('kaching', 1);
+    sound.yank();
   }
 
   function draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void {
@@ -171,6 +177,7 @@ export function createScene(): Scene {
       if (view.phase === 'betting') {
         if (rally.crashed) cut = 1;
         resetRally(rally);
+        sound.cut();
         outcome = null;
         secured = null;
         shake = 0;
@@ -182,6 +189,7 @@ export function createScene(): Scene {
     // Not only while running: a cash-out first seen on the crash (the tab was hidden) still means you left.
     if (secured) leaveSeat(rally);
     audio.update(view.phase, tension);
+    sound.update(tension, clamp(rally.reach.x, 0, 1), running);
     // A tick every 1.4 s at 1×, under 0.9 s by 2×, until you cash out.
     if (running && !secured) {
       pulse -= dt;
@@ -254,6 +262,7 @@ export function createScene(): Scene {
     if (shake > 0) ctx.translate(Math.sin(time * 90) * 7 * shake, Math.cos(time * 70) * 4 * shake);
     drawTracker(ctx, multiplier, tension, rally.crashed, rally.crashT, !player ? null : rally.leaving ? 'left' : 'in', shown, view.elapsed / 1000);
     ctx.restore();
+    capture(ctx);
     if (flash.x > 0.01) {
       ctx.fillStyle = `rgba(124, 246, 124, ${0.3 * clamp(flash.x, 0, 1)})`;
       ctx.fillRect(0, 0, 960, 540);
@@ -284,7 +293,10 @@ export function createScene(): Scene {
     }
     memeText(ctx, readout, 20, 52, 36, outcome === 'rekt' || outcome === 'spectator' ? '#ff4d6d' : '#ffffff', 'left', 250);
     memeText(ctx, `CANNONS ${cannonCount(rally)}`, 20, 524, 20, '#f0c14a', 'left');
-    memeText(ctx, rally.crashed ? 'RUGGED' : money(totalBalance(multiplier)), 660, 524, 18, rally.crashed ? '#ffb4c2' : '#f0c14a', 'right');
+    const balText = rally.crashed ? 'RUGGED' : money(totalBalance(multiplier));
+    memeText(ctx, balText, 660, 524, 18, rally.crashed ? '#ffb4c2' : '#f0c14a', 'right');
+    const detail = rally.crashed && rally.crashT > 0.9 ? [0, 0, 960, 540] : undefined;
+    present(ctx, { phase: view.phase, currentX100: view.currentX100, cashoutX100: secured?.x100 ?? null }, caption, `INSIDER BAGS · ${balText}`, `${flipped} OF 7 INSIDERS QUEUED TO SELL · CANNONS ${cannonCount(rally)}`, detail);
   }
 
   return { draw };

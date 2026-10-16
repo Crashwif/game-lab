@@ -5,7 +5,7 @@
  * pitch comes from the swell and hits, and after the backend's crash `sinkPose` takes her under as a pure
  * function of crash time, so a replay or a late entry draws the same frame.
  */
-import { PRIDE, drawDisco, drawPerson, sparkle, text, mixColor } from './art';
+import { PRIDE, bendJoint, drawDisco, drawPerson, sparkle, text, mixColor } from './art';
 
 export interface ShipFrame { x: number; y: number; scale: number; angle: number; pivot: number; drop: number }
 
@@ -371,10 +371,13 @@ export function drawShip(ctx: CanvasRenderingContext2D, look: ShipLook): void {
   ctx.strokeStyle = '#c68e64';
   ctx.lineWidth = 1.1;
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   const spread = 1 - flood;
+  const armL = bendJoint(-1.5, -7, -6 * spread - 1.5 * (1 - spread), -8.5 - 2 * (1 - spread), 2.7, 2.7, -1);
+  const armR = bendJoint(1.5, -7, 6 * spread + 1.5 * (1 - spread), -8.5 - 2 * (1 - spread), 2.7, 2.7, 1);
   ctx.beginPath();
-  ctx.moveTo(-1.5, -7); ctx.lineTo(-6 * spread - 1.5 * (1 - spread), -8.5 - 2 * (1 - spread));
-  ctx.moveTo(1.5, -7); ctx.lineTo(6 * spread + 1.5 * (1 - spread), -8.5 - 2 * (1 - spread));
+  ctx.moveTo(-1.5, -7); ctx.lineTo(armL.jx, armL.jy); ctx.lineTo(armL.ex, armL.ey);
+  ctx.moveTo(1.5, -7); ctx.lineTo(armR.jx, armR.jy); ctx.lineTo(armR.ex, armR.ey);
   ctx.stroke();
   ctx.fillStyle = '#c68e64';
   ctx.beginPath();

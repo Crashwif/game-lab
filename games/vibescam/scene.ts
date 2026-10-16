@@ -19,6 +19,7 @@ import { BETTING_LINE, CAPTIONS, CRASH_CAPTIONS, CRASH_LINES, EXIT_LINE, type Fe
 import { createPortrait } from './portrait';
 import { askScreens, createScreens, drawScreens, holdersAt, resetScreens, type ScreensDrive, settleScreens, shipScreens, shippedText, stepScreens, writeFiller } from './screens';
 import { type Bubble, bubbleAlpha, createScript, hush, lastLine, resetScript, say, settleLine, settleScript, stepScript, talking } from './script';
+import { pageSound } from './sound';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -88,6 +89,7 @@ function shippedBelow(multiplier: number): Feature[] {
 export function createScene(): Scene {
   // Glossy synthwave for a launch stream that tightens with the multiplier; the crash is the stream cutting to static.
   const audio = pageAudio({ style: 'synthwave', crash: 'static' });
+  const sound = pageSound(audio);
   const { capture, present } = createPortrait(TITLE, [CAM.x, CAM.y, CAM.w, CAM.h], COLOURS.accent, 'SOLD THE VIBE', 'LIVE FROM THE DEN');
   const script = createScript(LADDER, OVERTIME);
   const den = createDen();
@@ -145,6 +147,7 @@ export function createScene(): Scene {
     resetFounder(founder);
     resetScreens(screens);
     resetChat(chat);
+    sound.cut();
     handled = new Set();
     secured = null;
     outcome = null;
@@ -221,6 +224,7 @@ export function createScene(): Scene {
       if (line && crashClock < BEATS.end + 2) settleLine(script, line, 1);
       settleSpring(pop, 1);
       audio.crash('static', true);
+      sound.cut();
       return;
     }
     freeze = FREEZE_S;
@@ -230,6 +234,7 @@ export function createScene(): Scene {
     settleSpring(punch, 1);
     pop.v = 16;
     audio.crash('static');
+    sound.powerDown();
   }
 
   /** The crash's beats as sound, on the edges of the crash clock this scene actually saw. */
@@ -400,6 +405,7 @@ export function createScene(): Scene {
       settleFounder(founder, { time, tension, depth, running, multiplier, crash: crashed ? crashClock : -1, talking: 0, look: 'screen', typing: running });
     }
     audio.update(phase, tension);
+    sound.update(tension, running && !crashed);
 
     if (phase === 'betting' && !bettingSaid) {
       bettingSaid = true;

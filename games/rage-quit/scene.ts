@@ -19,6 +19,15 @@ export interface Scene {
   dispose?(): void;
 }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
+const FREEZE_S = 0.14;
+const SLOW_S = 0.36;
+const SLOW_RATE = 0.32;
+/** Hit-stop freeze on the smash frame, then slow motion before catching up into the aftermath. */
+function crashClock(raw: number): number {
+  if (raw <= FREEZE_S) return 0;
+  if (raw <= FREEZE_S + SLOW_S) return (raw - FREEZE_S) * SLOW_RATE;
+  return SLOW_S * SLOW_RATE + (raw - FREEZE_S - SLOW_S) * 1.25;
+}
 
 export function createScene(): Scene {
   const audio = pageAudio({ style: 'hardstyle', crash: 'slam', bpm: 138, tempoRise: 0.12, music: 0.55 });
@@ -28,6 +37,7 @@ export function createScene(): Scene {
   let previousCrashAge = 0;
   let previousAct = -1;
   let previousContact = -1;
+  let previousKeyTick = -1;
   let exitAt = -Infinity;
 
   function render(c: CanvasRenderingContext2D, view: SceneView, now: number, close: boolean): string {
@@ -42,9 +52,10 @@ export function createScene(): Scene {
     if (!safe) exitAt = -Infinity;
     // Heat changes expression and effort, and contains no information about a future result.
     const heat = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 8);
+    const warpedCrash = dead ? crashClock(Math.max(0, view.crashAge) / 1000) : 0;
     const input: ActingInput = {
       phase: view.phase, elapsed: Math.max(0, view.elapsed) / 1000,
-      crashAge: Math.max(0, view.crashAge) / 1000 * 1.55, clock: now / 1000,
+      crashAge: warpedCrash * 1.55, clock: now / 1000,
       heat, safe, exitAge: Math.max(0, (now - exitAt) / 1000),
     };
     const act = actAt(input);
@@ -53,17 +64,21 @@ export function createScene(): Scene {
     if (dead && previousPhase !== 'crashed') audio.crash('slam', fresh || view.crashAge > 1500);
     const continuous = !fresh && view.elapsed >= previousElapsed && view.elapsed - previousElapsed < 1500;
     const contact = Math.floor(input.elapsed * (1.15 + Math.min(heat, 0.8) * 0.4) * 2 - 0.1);
+    const keyTick = Math.floor(input.elapsed * (3.2 + heat * 3.5));
     if (running && continuous && !safe) {
       if (previousAct !== act.number && previousPhase === 'running') audio.fx(act.index === 4 ? 'creak' : act.index === 3 ? 'ratchet' : 'notify', 0.5);
       if (previousContact !== contact && [0, 7].includes(act.index)) audio.fx('thud', 0.22);
+      if (previousKeyTick !== keyTick && [0, 1, 2, 5, 6].includes(act.index)) audio.fx('click', 0.08 + heat * 0.12);
     }
     if (dead && previousPhase === 'crashed' && view.crashAge - previousCrashAge < 1500) {
+      if (previousCrashAge < 220 && view.crashAge >= 220) audio.fx('zap', 0.55);
       if (previousCrashAge < 665 && view.crashAge >= 665) audio.fx('shatter', 0.8);
+      if (previousCrashAge < 880 && view.crashAge >= 880) { audio.fx('whoosh', 0.5); audio.fx('thud', 0.65); }
       if (previousCrashAge < 1160 && view.crashAge >= 1160) audio.fx('bell', 0.5);
     }
     previousPhase = view.phase; previousCashout = view.cashoutX100;
     previousElapsed = view.elapsed; previousAct = act.number;
-    previousContact = contact; previousCrashAge = view.crashAge;
+    previousContact = contact; previousKeyTick = keyTick; previousCrashAge = view.crashAge;
 
     const caption = safe ? 'UNPLUGGED. UNBOTHERED. STILL SMUG.' : dead ? input.crashAge < 1.8 ? 'CTRL + ALT + DELUSION.' : 'NO REFUNDS FOR EMOTIONAL DAMAGE.' : running ? act.caption : view.phase === 'betting' ? 'CLOCK IN. LOSE YOUR SHIT.' : 'ANOTHER DAY IN THE COPE CAVE.';
     c.save();

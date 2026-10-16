@@ -118,19 +118,30 @@ export function bull(c: CanvasRenderingContext2D, p: BullPose): void {
 }
 
 export interface BearPose { x: number; y: number; scale?: number; time: number; panic?: number; gesture?: number; suit?: string; tilt?: number; headphones?: boolean; crown?: boolean }
+function bearLimb(sx: number, sy: number, tx: number, ty: number, upper: number, lower: number, sign: number): [readonly [number, number], readonly [number, number], readonly [number, number]] {
+  const dx = tx - sx, dy = ty - sy, d = Math.max(0.001, Math.hypot(dx, dy));
+  const r = clamp(d, Math.abs(upper - lower) + 0.01, upper + lower - 0.01), ux = dx / d, uy = dy / d;
+  const a = (upper * upper - lower * lower + r * r) / (2 * r);
+  const h = Math.sqrt(Math.max(0, upper * upper - a * a)) * sign;
+  return [[sx, sy], [sx + ux * a - uy * h, sy + uy * a + ux * h], [sx + ux * r, sy + uy * r]];
+}
 export function bear(c: CanvasRenderingContext2D, p: BearPose): void {
   const panic = p.panic ?? 0, gesture = p.gesture ?? 0;
   c.save(); c.translate(p.x, p.y); c.rotate(p.tilt ?? 0); c.scale(p.scale ?? 1, p.scale ?? 1);
   const legPhase = Math.sin(p.time * 8) * panic;
-  line(c, [[-16, -31], [-21 - legPhase * 13, -10], [-26 - legPhase * 13, 0]], INK, 13);
-  line(c, [[17, -31], [21 + legPhase * 13, -10], [29 + legPhase * 13, 0]], INK, 13);
+  const liftL = Math.max(0, Math.cos(p.time * 8)) * 6 * panic;
+  const liftR = Math.max(0, -Math.cos(p.time * 8)) * 6 * panic;
+  line(c, bearLimb(-16, -31, -24 - legPhase * 12, -liftL, 19, 19, 1), INK, 13);
+  line(c, bearLimb(17, -31, 26 + legPhase * 12, -liftR, 19, 19, -1), INK, 13);
   oval(c, 0, -57, 38, 39, p.suit ?? '#966547', 4);
   poly(c, [[-29, -82], [0, -51], [28, -82], [33, -36], [-28, -35]], p.suit ?? '#6a6884', 3);
   poly(c, [[-7, -73], [8, -73], [3, -43]], GOLD, 2);
   const handY = -61 - gesture * 43 - panic * 36;
-  line(c, [[-29, -70], [-46, -58 - gesture * 15], [-60, handY]], INK, 13);
-  line(c, [[31, -70], [46, -60 - gesture * 10], [60, handY + Math.sin(p.time * 5) * (7 + panic * 15)]], INK, 13);
-  oval(c, -60, handY, 10, 11, '#c08756', 3); oval(c, 60, handY + Math.sin(p.time * 5) * (7 + panic * 15), 10, 11, '#c08756', 3);
+  const armL = bearLimb(-29, -70, -60, handY, 27, 27, -1);
+  const armR = bearLimb(31, -70, 60, handY + Math.sin(p.time * 5) * (7 + panic * 15), 27, 27, 1);
+  line(c, armL, INK, 13);
+  line(c, armR, INK, 13);
+  oval(c, armL[2][0], armL[2][1], 10, 11, '#c08756', 3); oval(c, armR[2][0], armR[2][1], 10, 11, '#c08756', 3);
   const headBob = Math.sin(p.time * 3) * 3;
   c.save(); c.translate(0, -100 + headBob); c.rotate(-gesture * 0.08 + panic * Math.sin(p.time * 8) * 0.2);
   oval(c, -25, -22, 13, 14, '#9e633f', 4); oval(c, 26, -22, 13, 14, '#9e633f', 4);

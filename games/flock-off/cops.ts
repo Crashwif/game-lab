@@ -251,25 +251,35 @@ export function drawCop(ctx: CanvasRenderingContext2D, x: number, y: number, mod
   ctx.translate(x, y);
   ctx.rotate(angle);
   ctx.scale(facing, 1);
-  const stride = mode === 'run' ? Math.sin(run * 12) : 0;
+  const phase = run * 12;
+  const stride = mode === 'run' ? Math.sin(phase) : 0;
+  const liftL = mode === 'run' ? Math.max(0, Math.cos(phase)) * 6 : 0;
+  const liftR = mode === 'run' ? Math.max(0, -Math.cos(phase)) * 6 : 0;
+  const legL = solveLimb({ x: -2, y: -30 }, { x: -2 - 10 * stride, y: -liftL }, 16, 16, -1);
+  const legR = solveLimb({ x: 2, y: -30 }, { x: 2 + 10 * stride, y: -liftR }, 16, 16, -1);
   ctx.strokeStyle = '#1e3a8a';
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
-  // Legs.
+  ctx.lineJoin = 'round';
+  // Two-bone IK legs with forward knee bend and vertical foot clearance.
   ctx.beginPath();
-  ctx.moveTo(0, -30); ctx.lineTo(8 * stride, -14); ctx.lineTo(10 * stride + 2, 0);
-  ctx.moveTo(0, -30); ctx.lineTo(-8 * stride, -14); ctx.lineTo(-10 * stride - 2, 0);
+  ctx.moveTo(-2, -30); ctx.lineTo(legL.joint.x, legL.joint.y); ctx.lineTo(legL.end.x, legL.end.y);
+  ctx.moveTo(2, -30); ctx.lineTo(legR.joint.x, legR.joint.y); ctx.lineTo(legR.end.x, legR.end.y);
   ctx.stroke();
-  // Torso and arms.
+  // Torso and two-bone IK arm.
   ctx.fillStyle = '#2a4db8';
   roundRect(ctx, -8, -58, 16, 30, 5);
   ctx.fill();
+  const handTarget = mode === 'run'
+    ? { x: 18 - 8 * stride, y: -40 - 6 * stride }
+    : mode === 'pile'
+      ? { x: 24, y: -40 }
+      : { x: 8, y: -30 };
+  const arm = solveLimb({ x: 4, y: -52 }, handTarget, 13, 13, 1);
   ctx.strokeStyle = '#2a4db8';
   ctx.lineWidth = 5;
   ctx.beginPath();
-  if (mode === 'run') { ctx.moveTo(4, -52); ctx.lineTo(16, -44 + 6 * stride); ctx.lineTo(26, -52 + 10 * stride); }
-  else if (mode === 'pile') { ctx.moveTo(4, -52); ctx.lineTo(18, -48); ctx.lineTo(26, -40); }
-  else { ctx.moveTo(4, -52); ctx.lineTo(10, -40); ctx.lineTo(8, -30); }
+  ctx.moveTo(4, -52); ctx.lineTo(arm.joint.x, arm.joint.y); ctx.lineTo(arm.end.x, arm.end.y);
   ctx.stroke();
   ctx.fillStyle = '#f2c14e';
   ctx.beginPath();
@@ -521,12 +531,12 @@ export function drawBust(ctx: CanvasRenderingContext2D, bust: Bust, t: number, s
       const centerLocal = { x: 4, y: -92 };
       const center = { x: pivot.x + (centerLocal.x - REAR.x) * Math.cos(angle) - centerLocal.y * Math.sin(angle), y: pivot.y + (centerLocal.x - REAR.x) * Math.sin(angle) + centerLocal.y * Math.cos(angle) };
       figure = ragdollPose(center, angle + 0.1, 0, t);
-      // Rigid: arms and legs straight out.
+      // Rigid: arms and legs straight out, solved within two-bone reach.
       const ax = Math.sin(angle), ay = -Math.cos(angle), px = -ay, py = ax;
-      figure.handR = { x: figure.shoulder.x + px * 46 + ax * 4, y: figure.shoulder.y + py * 46 + ay * 4 };
-      figure.elbowR = { x: mix(figure.shoulder.x, figure.handR.x, 0.5) + ay * 2, y: mix(figure.shoulder.y, figure.handR.y, 0.5) - ax * 2 };
-      figure.handL = { x: figure.shoulder.x - px * 44 + ax * 6, y: figure.shoulder.y - py * 44 + ay * 6 };
-      figure.elbowL = { x: mix(figure.shoulder.x, figure.handL.x, 0.5), y: mix(figure.shoulder.y, figure.handL.y, 0.5) };
+      const armR = solveLimb(figure.shoulder, { x: figure.shoulder.x + px * 42 + ax * 4, y: figure.shoulder.y + py * 42 + ay * 4 }, UPPER_ARM, LOWER_ARM, 1);
+      const armL = solveLimb(figure.shoulder, { x: figure.shoulder.x - px * 40 + ax * 6, y: figure.shoulder.y - py * 40 + ay * 6 }, UPPER_ARM, LOWER_ARM, -1);
+      figure.elbowR = armR.joint; figure.handR = armR.end;
+      figure.elbowL = armL.joint; figure.handL = armL.end;
       if (t < 1.6) {
         ctx.strokeStyle = '#d9dde8';
         ctx.lineWidth = 1;
@@ -598,8 +608,10 @@ export function drawBust(ctx: CanvasRenderingContext2D, bust: Bust, t: number, s
     for (let k = 0; k < 3; k++) {
       const start = { x: stopX + 30 - k * 36, y: ground };
       const u = clamp(run * 1.3 - k * 0.15, 0, 1);
-      const x = mix(start.x, target.x - 14 + k * 14, u);
-      if (u < 1) drawCop(ctx, x, ground - 2, 'run', t + k, 1, 0);
+      const endX = target.x - 14 + k * 14;
+      const x = mix(start.x, endX, u);
+      const runDist = (x - start.x) / 96;
+      if (u < 1) drawCop(ctx, x, ground - 2, 'run', runDist + k * 0.25, 1, 0);
       else {
         const onto = clamp((pile - k * 0.12) * 1.6, 0, 1);
         drawCop(ctx, target.x - 10 + k * 12, ground - 2 - 10 * k * onto, onto > 0.5 ? 'pile' : 'stand', 0, k % 2 ? -1 : 1, -Math.PI / 2 * onto * (k % 2 ? -1 : 1) * 0.9);
@@ -607,15 +619,17 @@ export function drawBust(ctx: CanvasRenderingContext2D, bust: Bust, t: number, s
     }
   }
   if (pile > 0.6) {
-    // The arm out of the pile, phone up, still posting.
-    const ax = target.x + 34, ay = ground - 30;
+    // The arm out of the pile, phone up, still posting (solved with two-bone IK).
+    const postArm = solveLimb({ x: target.x + 10, y: ground - 8 }, { x: target.x + 34, y: ground - 30 }, UPPER_ARM, LOWER_ARM, 1);
+    const ax = postArm.end.x, ay = postArm.end.y;
     ctx.strokeStyle = INK.rim;
     ctx.lineWidth = 9;
     ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(target.x + 10, ground - 8); ctx.lineTo(ax, ay); ctx.stroke();
+    ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(target.x + 10, ground - 8); ctx.lineTo(postArm.joint.x, postArm.joint.y); ctx.lineTo(ax, ay); ctx.stroke();
     ctx.strokeStyle = INK.cloth;
     ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(target.x + 10, ground - 8); ctx.lineTo(ax, ay); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(target.x + 10, ground - 8); ctx.lineTo(postArm.joint.x, postArm.joint.y); ctx.lineTo(ax, ay); ctx.stroke();
     ctx.fillStyle = '#1a1826';
     roundRect(ctx, ax - 5, ay - 20, 10, 18, 2);
     ctx.fill();

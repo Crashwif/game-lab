@@ -15,6 +15,18 @@ export interface SceneView {
 export interface Scene { draw(ctx: CanvasRenderingContext2D, view: SceneView, now: number): void }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
 const CUES = ['crowd', 'engine', 'clang', 'beep', 'hiss', 'airhorn', 'phone', 'gasp'] as const;
+const FREEZE_S = 0.13;
+const SLOW_S = 0.34;
+const SLOW_RATE = 0.32;
+/** Hit-stop freeze on the avalanche crack, then slow motion before catching up by 1.0s. */
+function crashClock(raw: number): number {
+  if (raw <= FREEZE_S) return 0;
+  if (raw <= FREEZE_S + SLOW_S) return (raw - FREEZE_S) * SLOW_RATE;
+  const elapsedSlow = SLOW_S * SLOW_RATE;
+  const rest = raw - FREEZE_S - SLOW_S;
+  const catchup = clamp(rest / 0.52);
+  return elapsedSlow + rest + (raw - (elapsedSlow + rest)) * catchup;
+}
 
 function caption(view: SceneView): string {
   if (view.cashoutX100 !== null) return view.phase === 'crashed' ? 'HR CANNOT REACH ME HERE.' : 'NO NOTICE. NO EXIT INTERVIEW.';
@@ -42,6 +54,7 @@ export function createScene(): Scene {
   const audio = pageAudio({ style: 'dnb', bpm: 144, tempoRise: .18, music: .5, crash: 'shatter' });
   let previousPhase: SceneView['phase'] | null = null;
   let previousElapsed = 0;
+  let previousAge = 0;
   let previousCashout: number | null = null;
   let secureEntry: { at: number; pose: PenguinPose } | null = null;
   let heroX = 437;
@@ -49,7 +62,8 @@ export function createScene(): Scene {
   function draw(c: CanvasRenderingContext2D, view: SceneView, now: number, close = false): void {
     const running = view.phase === 'running'; const crashed = view.phase === 'crashed'; const safe = view.cashoutX100 !== null;
     const seconds = Math.max(0, view.elapsed) / 1000;
-    const age = crashed ? Math.max(0, view.crashAge) / 1000 : 0;
+    const rawAge = crashed ? Math.max(0, view.crashAge) / 1000 : 0;
+    const age = crashed ? crashClock(rawAge) : 0;
     const active = running || crashed;
     const clock = active ? seconds + age : now / 1000;
     const liveTime = clock;
@@ -60,7 +74,7 @@ export function createScene(): Scene {
     const finalising = crashed && previousPhase === 'running';
     const reset = (view.elapsed < previousElapsed && !finalising) || (!active && previousPhase !== view.phase);
     const fresh = previousPhase === null || reset;
-    if (reset) secureEntry = null;
+    if (reset) { secureEntry = null; previousAge = 0; }
     const tension = clamp(Math.log2(Math.max(100, view.currentX100) / 100) / 10);
     audio.update(view.phase, safe ? tension * .2 : tension);
     if (safe && (previousCashout === null || reset)) {
@@ -69,8 +83,13 @@ export function createScene(): Scene {
     }
     if (!safe) secureEntry = null;
     if (crashed && previousPhase !== 'crashed') {
-      const quiet = fresh || age > 1.5;
+      const quiet = fresh || rawAge > 1.5;
       audio.crash('shatter', quiet); if (!quiet) audio.fx('boom', .55);
+    }
+    if (crashed && !fresh && !safe && rawAge - previousAge < 1.5) {
+      if (previousAge < 0.18 && age >= 0.18) audio.fx('scream', .42);
+      if (previousAge < 1.06 && age >= 1.06) { audio.fx('thud', .65); audio.fx('clang', .4); }
+      if (previousAge < 1.35 && age >= 1.35) audio.fx('phone', .45);
     }
     const continuous = !fresh && previousPhase === 'running' && running && view.elapsed >= previousElapsed && view.elapsed - previousElapsed < 600;
     if (continuous && !safe) {
@@ -84,7 +103,7 @@ export function createScene(): Scene {
       }
       if (Math.floor(performance.pose.gait * 2) !== Math.floor(perform(previousElapsed / 1000, true, now / 1000).pose.gait * 2) && p.walk) audio.fx('stomp', .13);
     }
-    previousPhase = view.phase; previousCashout = view.cashoutX100; previousElapsed = view.elapsed;
+    previousPhase = view.phase; previousCashout = view.cashoutX100; previousElapsed = view.elapsed; previousAge = age;
 
     c.save();
     sky(c, liveTime, act.tier);

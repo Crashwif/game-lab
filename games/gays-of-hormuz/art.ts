@@ -681,7 +681,18 @@ export function drawBoat(ctx: CanvasRenderingContext2D, clock: number, variant: 
 
 export interface PersonLook { skin: number; shirt: number; arms: number; bob: number; duck: number; wave?: number }
 
-/** A small dancing figure, feet at the origin, about 12 px tall. `arms` 0 down, 1 up. */
+/** Law-of-cosines two-bone IK joint solver. */
+export function bendJoint(sx: number, sy: number, tx: number, ty: number, upper: number, lower: number, sign: number): { jx: number; jy: number; ex: number; ey: number } {
+  const dx = tx - sx, dy = ty - sy;
+  const dist = Math.hypot(dx, dy) || 1e-5;
+  const reach = Math.min(Math.max(dist, Math.abs(upper - lower) + 1e-4), upper + lower - 1e-4);
+  const ux = dx / dist, uy = dy / dist;
+  const a = (upper * upper - lower * lower + reach * reach) / (2 * reach);
+  const h = Math.sqrt(Math.max(0, upper * upper - a * a)) * (sign < 0 ? -1 : 1);
+  return { jx: sx + ux * a - uy * h, jy: sy + uy * a + ux * h, ex: sx + ux * reach, ey: sy + uy * reach };
+}
+
+/** A small dancing figure, feet at the origin, about 12 px tall. `arms` 0 down, 1 up; uses two-bone IK limbs. */
 export function drawPerson(ctx: CanvasRenderingContext2D, look: PersonLook): void {
   const squash = 1 - 0.4 * look.duck;
   const hip = -4.5 * squash - look.bob;
@@ -689,9 +700,14 @@ export function drawPerson(ctx: CanvasRenderingContext2D, look: PersonLook): voi
   ctx.strokeStyle = '#2a2140';
   ctx.lineWidth = 1.3;
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(-1.2, 0); ctx.lineTo(-0.8, hip);
-  ctx.moveTo(1.2, 0); ctx.lineTo(0.8, hip);
+  for (const side of [-1, 1] as const) {
+    const leg = bendJoint(side * 0.9, hip, side * 1.3, 0, 2.7, 2.7, -side);
+    ctx.moveTo(side * 0.9, hip);
+    ctx.lineTo(leg.jx, leg.jy);
+    ctx.lineTo(leg.ex, leg.ey);
+  }
   ctx.stroke();
   ctx.fillStyle = SHIRTS[look.shirt % SHIRTS.length]!;
   roundRect(ctx, -2.2, neck, 4.4, hip - neck + 0.6, 1.4);
@@ -699,12 +715,14 @@ export function drawPerson(ctx: CanvasRenderingContext2D, look: PersonLook): voi
   ctx.strokeStyle = SKIN[look.skin % SKIN.length]!;
   const up = look.arms * (1 - look.duck);
   const wave = look.wave ?? 0;
-  for (const side of [-1, 1]) {
+  for (const side of [-1, 1] as const) {
     const ax = side * (2.5 + 1.5 * up) + (side > 0 ? wave : 0);
     const ay = neck + 1 - (up * 6 - 3 * (1 - up)) * (side > 0 ? 1 : 0.85);
+    const arm = bendJoint(side * 1.8, neck + 0.8, ax, ay, 2.4, 2.4, side);
     ctx.beginPath();
     ctx.moveTo(side * 1.8, neck + 0.8);
-    ctx.lineTo(ax, ay);
+    ctx.lineTo(arm.jx, arm.jy);
+    ctx.lineTo(arm.ex, arm.ey);
     ctx.stroke();
   }
   ctx.fillStyle = SKIN[look.skin % SKIN.length]!;

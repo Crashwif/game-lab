@@ -457,8 +457,11 @@ function drawCandidate(ctx: CanvasRenderingContext2D, r: Rally, tension: number,
     limb(ctx, { x: side * 13, y: 12 }, { x: side * 18 + kick, y: 84 - Math.abs(kick) }, 38, 36, -side, 15, '#1d3354');
     ctx.fillStyle = '#171922'; ctx.fillRect(side * 18 + kick - 8, 78 - Math.abs(kick), 25, 10);
   }
-  ctx.fillStyle = SKIN; ctx.fillRect(-8, -60, 16, 17);
+  const breath = crashed ? 0 : Math.sin(time * (2.2 + 2.4 * tension)) * (1.2 + 1.6 * tension);
+  ctx.fillStyle = SKIN; ctx.fillRect(-8, -60 + breath * 0.4, 16, 17);
   // Body and tie. The tie and the thumb get the nerves. The hair does not.
+  ctx.save();
+  ctx.translate(0, breath * 0.5);
   ctx.fillStyle = '#1d3354';
   ink(ctx, 3);
   ctx.beginPath();
@@ -483,10 +486,11 @@ function drawCandidate(ctx: CanvasRenderingContext2D, r: Rally, tension: number,
   ctx.moveTo(0, -46);
   ctx.lineTo(tie * 0.3, -8);
   ctx.stroke();
+  ctx.restore();
   // The free arm hangs. The other bends up into the thumb.
-  limb(ctx, { x: -24, y: -32 }, { x: -42, y: 10 }, 28, 26, 1, 8, '#1d3354');
+  limb(ctx, { x: -24, y: -32 + breath * 0.5 }, { x: -42, y: 10 }, 28, 26, 1, 8, '#1d3354');
   const wrist = { x: 64, y: -38 + jitter * 0.4 };
-  limb(ctx, { x: 22, y: -30 }, wrist, 28, 24, wrist.y >= -30 ? -1 : 1, 9, '#1d3354');
+  limb(ctx, { x: 22, y: -30 + breath * 0.5 }, wrist, 28, 24, wrist.y >= -30 ? -1 : 1, 9, '#1d3354');
   const thumb = { x: 72, y: -62 + jitter };
   limb(ctx, wrist, thumb, 14, 12, thumb.y >= wrist.y ? -1 : 1, 5, SKIN);
   ctx.fillStyle = SKIN;
@@ -498,22 +502,75 @@ function drawCandidate(ctx: CanvasRenderingContext2D, r: Rally, tension: number,
   ctx.stroke();
   // Head, jittered, and in a long round swaying as he looks up at the helicopter. Hair is drawn at the unshaken origin on purpose.
   ctx.save();
-  ctx.translate(jitter * 0.8 + (crashed ? 0 : Math.sin(time * Math.PI / 10) * 4 * smoothstep(0.4, 0.6, late)), 0);
+  ctx.translate(jitter * 0.8 + (crashed ? 0 : Math.sin(time * Math.PI / 10) * 4 * smoothstep(0.4, 0.6, late)), breath * 0.35);
   ctx.beginPath();
   ctx.ellipse(0, -78, 20, 22, 0, 0, Math.PI * 2);
   ctx.fillStyle = SKIN;
   ctx.fill();
   ink(ctx, 2);
   ctx.stroke();
-  ctx.fillStyle = INK;
+  // Eyes: sclera, darting pupils (toward the press pool or the extraction chopper), scheduled blinks, and brows.
+  const blinkCycle = fract(time * 0.29 + 0.37);
+  const blink = !crashed && blinkCycle > 0.94 ? Math.sin(((blinkCycle - 0.94) / 0.06) * Math.PI) : 0;
+  const lookPress = r.question && r.questionAge < 2.2 ? 1 : 0;
+  const lookHeli = clamp(r.reach.x * 1.4 + smoothstep(0.45, 0.85, tension) * (Math.sin(time * 1.9) > 0.25 ? 1 : 0), 0, 1);
+  const lookX = crashed ? 0 : lookPress ? -1.6 : mix(Math.sin(time * 1.2) * 1.1, 1.7, lookHeli);
+  const lookY = crashed ? -1.2 : lookPress ? 0.8 : mix(0.2, -1.3, lookHeli);
+  for (const [ex, side] of [[-6, -1], [7, 1]] as const) {
+    if (blink > 0.65) {
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ex - 4, -80);
+      ctx.lineTo(ex + 4, -80);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ink(ctx, 1.5);
+      ctx.beginPath();
+      ctx.ellipse(ex, -80, 4.2, 3.4 * (1 - 0.5 * blink), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.arc(ex + lookX, -80 + lookY * 0.7, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(ex + lookX - 0.6, -80.7 + lookY * 0.7, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Eyebrows: confident arch early, worried slant as the insiders start selling.
+    const worry = clamp(tension * 1.1 + (crashed ? 0.6 : 0), 0, 1.2);
+    ctx.strokeStyle = '#b8943c';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ex - 4.5, -85 - side * worry * 1.6);
+    ctx.lineTo(ex + 4.5, -85 + side * worry * 1.6);
+    ctx.stroke();
+  }
+  // Nose bridge.
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.ellipse(-6, -80, 2, 2, 0, 0, Math.PI * 2);
-  ctx.ellipse(7, -80, 2, 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const flap = Math.abs(Math.sin(r.phase.mouth));
-  ctx.beginPath();
-  ctx.ellipse(2, -66, 6, 2 + flap * 3, 0, 0, Math.PI * 2);
+  ctx.moveTo(1, -79);
+  ctx.lineTo(4, -73);
+  ctx.lineTo(0.5, -72);
   ctx.stroke();
+  // Mouth with shaded interior and teeth flash.
+  const flap = crashed ? 0.85 : Math.abs(Math.sin(r.phase.mouth));
+  const mouthH = 2 + flap * 3.4;
+  ctx.fillStyle = '#4a141c';
+  ink(ctx, 1.8);
+  ctx.beginPath();
+  ctx.ellipse(2, -65, 6.2, mouthH, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  if (mouthH > 3) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2.5, -65 - mouthH + 1, 9, 2);
+  }
   // Sweat from 1.6×, a second bead from 3×.
   const bead = (offset: number): number => (fract(r.phase.sweat + offset));
   drawSweat(ctx, 1, bead(0), smoothstep(0.36, 0.42, tension));
@@ -650,7 +707,7 @@ function drawCrowd(ctx: CanvasRenderingContext2D, r: Rally, multiplier: number, 
   const rowdy = 1 + 3 * tension + 2 * lateFor(multiplier);
   // Your neighbours turn to watch you go, then face the stage again.
   const watch = r.leaving ? smoothstep(0.1, 0.4, r.seatAge) * (1 - smoothstep(2, 2.6, r.seatAge)) : 0;
-  const signs: { x: number; y: number; i: number; s: number }[] = [];
+  const signs: { x: number; y: number; i: number; s: number; colour: string }[] = [];
   for (const fan of FANS) {
     const grow = clamp((count - fan.rank) * 2, 0, 1);
     if (grow <= 0) continue;
@@ -685,7 +742,7 @@ function drawCrowd(ctx: CanvasRenderingContext2D, r: Rally, multiplier: number, 
       ctx.fill();
     }
     ctx.restore();
-    if (fan.sign >= 0) signs.push({ x, y: y - 28, i: fan.sign, s });
+    if (fan.sign >= 0) signs.push({ x, y: y - 28, i: fan.sign, s, colour: fan.colour });
   }
   for (const sign of signs) {
     const face = signFace(r, sign.i);
@@ -694,6 +751,8 @@ function drawCrowd(ctx: CanvasRenderingContext2D, r: Rally, multiplier: number, 
     ctx.scale(sign.s, sign.s);
     ctx.strokeStyle = '#b88c63'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(0, -23); ctx.lineTo(0, 0); ctx.stroke();
+    // Two-bone IK arm reaching from shoulder up to grip the sign pole.
+    limb(ctx, { x: 6, y: 2 }, { x: 0, y: -12 }, 9, 9, -1, 3.5, sign.colour);
     ctx.translate(0, -30);
     ctx.scale(1, Math.max(0.04, face.squash));
     ctx.font = '700 8px system-ui, sans-serif';
@@ -876,18 +935,19 @@ export function drawRally(ctx: CanvasRenderingContext2D, r: Rally, multiplier: n
       limb(ctx, { x: side * 3, y: 3 - stand * 8 }, foot, 12, 12, 1, 3, '#1d3354');
     }
     ctx.translate(0, -stand * 8);
+    const armSwing = Math.sin((distance / 24) * Math.PI * 2) * 5 * stand;
+    limb(ctx, { x: -3, y: -8 }, { x: -5 - armSwing, y: 3 - Math.abs(armSwing) * 0.2 }, 7, 7, -1, 3, '#d5fb6d');
+    ctx.fillStyle = '#d5fb6d';
+    ink(ctx, 1.8);
+    ctx.beginPath();
+    ctx.roundRect(-5, -10, 10, 12, 3);
+    ctx.fill();
+    ctx.stroke();
+    limb(ctx, { x: 3, y: -8 }, { x: 5 + armSwing, y: 3 - Math.abs(armSwing) * 0.2 }, 7, 7, -1, 3, '#d5fb6d');
     ctx.fillStyle = SKIN;
     ctx.beginPath();
     ctx.arc(0, -16, 7, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = '#d5fb6d';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(0, -8);
-    ctx.lineTo(-6, 4);
-    ctx.moveTo(0, -8);
-    ctx.lineTo(8, 2);
     ctx.stroke();
     if (r.leaving) {
       ctx.fillStyle = '#111';

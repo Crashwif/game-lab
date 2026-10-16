@@ -8,6 +8,8 @@
 import { pageAudio } from './audio';
 import { createInput } from './input';
 import { clamp, mix, settleSpring, spring, stepSpring } from './motion';
+import { createPortrait } from './portrait';
+import { pageSound } from './sound';
 import { GROUND, HOP_HEIGHT, MAG, RIDER_X, SEG, camScreen, createWorld, driveAt, hopAt, lotFor, stepWorld, targetAt, type CityEvent, type Trigger, type World } from './city';
 import { C, blend, drawCam, drawHole, drawLot, drawReticle, drawRoad, drawSky, drawSkyline, drawTracer, outlined, roundRect, text } from './art';
 import { INK, createRider, drawCrank, drawFrame, drawRider, drawShadow, drawWheels, recoilRider, riderPose, settleRider, stepRider, type Frame, type RiderRig } from './rider';
@@ -59,6 +61,8 @@ export function createScene(): Scene {
   // Phones have no Space bar: there the picture names the Cash out button instead.
   const touchOnly = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
   const audio = pageAudio({ style: 'phonk', bpm: 132, crash: 'siren', music: 0.5, tempoRise: 0.2 });
+  const sound = pageSound(audio);
+  const { capture, present } = createPortrait('FLOCK OFF', [110, 140, 620, 320], C.lime, 'IN THE KIA', 'NO FACE · NO CASE');
   const canvas = document.querySelector('canvas')!;
   const input = createInput(canvas, (clientX, clientY) => {
     const box = canvas.getBoundingClientRect();
@@ -190,6 +194,7 @@ export function createScene(): Scene {
       resetPursuit(pursuit);
       settleRider(rig, { distance: 0, speed: 0, hop: 0, hopU: 0, aim: null });
       settleSpring(punch, 0);
+      sound.cut();
       if (!first) fadeAt = now;
     }
     let resumed: Bank | null = null;
@@ -227,7 +232,8 @@ export function createScene(): Scene {
       const late = first || view.crashAge > 1500;
       audio.crash('siren', late);
       bust = bustFor(view.currentX100, world.distance, world.speed, world.deflocked, staked && secured === null, npc, leadGap(tension, world.alert));
-      if (!late) { shake = 1.6; punch.v += 1.2; }
+      if (!late) { shake = 1.6; punch.v += 1.2; sound.bust(); }
+      else sound.cut();
       bustLive = !late;
       bustHeard = bustClock(view.crashAge / 1000);
     }
@@ -271,6 +277,7 @@ export function createScene(): Scene {
     previous = view.phase;
     lastElapsed = view.elapsed;
     const hop = running && !first ? hopAt(world.distance, world.seed) : { h: 0, u: 0 };
+    sound.update(clamp(world.speed / 350, 0, 1), tension, hop.h > 4, running);
     const riderDrive = { distance: world.distance, speed: crashed ? 0 : world.speed, hop: hop.h, hopU: hop.u, aim: swapping || crashed ? null : world.aim };
     if (first) settleRider(rig, riderDrive); else stepRider(rig, riderDrive, real * warp);
     if (rig.events.land && running) { audio.fx('thud', 0.3); shake = Math.max(shake, 0.3); }
@@ -358,11 +365,16 @@ export function createScene(): Scene {
       drawReticle(ctx, world.aim.x, world.aim.y, on, clock, label, npc ? C.pink : manual ? C.lime : C.cyan);
       if (!manual && !npc && cmd.pointer) drawReticle(ctx, cmd.pointer.x, cmd.pointer.y, false, clock, touchOnly ? 'TAP TO TAKE THE GUN' : 'CLICK TO TAKE THE GUN', C.white, true);
     }
+    capture(ctx);
     paintHud(ctx, {
       view, incoming, mult, tension, previousEnding, secured, staked, bank, world, manual, npc, touchOnly, crashed, running, idle, now, line, lineAtMs,
       toast, toastUntil, toastColor, bust, t, heat, heatAt, feed, feedAt, clock, since, dusk,
     });
     ctx.restore();
+    const l = crashed && bust ? BUSTED[bust.cause] : idle ? { who: 'NARRATOR', text: 'A man. A BMX. A deep discomfort with being perceived.' } : lineAt(line);
+    const caption = crashed && bust ? CAUSE_LINE[bust.cause] : toast && now < toastUntil ? toast : `${world.deflocked} DEFLOCKED · ${heat}`;
+    const detail = crashed && bust && t > 2.6 ? [0, 0, 960, 540] : undefined;
+    present(ctx, { phase: view.phase, currentX100: view.currentX100, cashoutX100: secured }, caption, `${l.who} · AMMO ${world.ammo}/${MAG}`, l.text, detail);
 
     if (Math.floor(now / 1000) !== ariaAt) {
       ariaAt = Math.floor(now / 1000);
@@ -371,7 +383,7 @@ export function createScene(): Scene {
     }
   }
 
-  return { draw, dispose: () => input.dispose() };
+  return { draw, dispose: () => { sound.cut(); input.dispose(); } };
 }
 
 // ---- The HUD -------------------------------------------------------------------------------------------------------

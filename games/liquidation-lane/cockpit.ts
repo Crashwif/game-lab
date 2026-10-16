@@ -39,8 +39,19 @@ function pepe(ctx: CanvasRenderingContext2D, view: CockpitView): void {
   ellipse(ctx, -26, -23, 22, 23, '#65a04c', '#18382a'); ellipse(ctx, 24, -24, 23, 24, '#65a04c', '#18382a');
   ellipse(ctx, 0, 19, 43, 17, '#8bb55a');
   ellipse(ctx, -39, 12, 10, 6, '#73a84c'); ellipse(ctx, 38, 12, 10, 6, '#73a84c');
-  // Heavy black sunglasses remain on, even after the airbag deploys.
-  ctx.save(); ctx.rotate(smoothstep(0.42, 0.7, view.crashAge) * 0.12 * view.wreck);
+  // Eyes peeking over the sunglasses as tension climbs or on impact, darting between the SEC lights, phone, and road.
+  const slip = wrecked ? 7 : smoothstep(0.45, 0.85, view.tension) * 6;
+  const lookX = wrecked ? 0 : view.ring > 0.1 ? 3.5 : view.cops > 0.2 && Math.sin(view.time * 2.4) > 0.2 ? -3 : clamp(view.steering * 4, -3, 3);
+  const lookY = wrecked ? -2 : view.ring > 0.1 ? 2.2 : -1;
+  for (const [x, side] of [[-26, -1], [24, 1]] as const) {
+    ellipse(ctx, x, -25, 13, 10, '#ffffff', '#18382a');
+    ellipse(ctx, x + lookX, -25 + lookY, wrecked ? 2.5 : 4, wrecked ? 2.5 : 4.5, INK);
+    ellipse(ctx, x + lookX - 1.2, -26.5 + lookY, 1.3, 1.3, '#ffffff');
+    const worry = clamp(view.tension * 1.1 + (wrecked ? 0.8 : 0), 0, 1.2);
+    line(ctx, [[x - 12, -35 - side * worry * 3], [x + 12, -35 + side * worry * 3]], '#18382a', 3);
+  }
+  // Heavy black sunglasses remain on, slipping down the nose bridge as the heat rises.
+  ctx.save(); ctx.translate(0, slip); ctx.rotate(smoothstep(0.42, 0.7, view.crashAge) * 0.12 * view.wreck);
   for (const x of [-27, 26]) {
     panel(ctx, x - 23, -31, 46, 30, '#101625', '#070b12', 9);
     poly(ctx, [[x - 17, -26], [x - 7, -27], [x + 17, -8], [x + 8, -5]], '#3c6871');

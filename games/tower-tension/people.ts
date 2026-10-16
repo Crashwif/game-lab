@@ -75,26 +75,31 @@ export function drawWojakBust(ctx: CanvasRenderingContext2D, mood: Mood, wave: n
  * A whole tiny Wojak standing on the origin, about 26 px tall. `arms` 0 hangs them, 1 throws them up; `walk`
  * swings the legs (radians); `phone` puts one out in front of the face.
  */
+function limb2(ctx: CanvasRenderingContext2D, sx: number, sy: number, tx: number, ty: number, l1: number, l2: number, sign: number, w: number, col: string): void {
+  const dx = tx - sx, dy = ty - sy, d = Math.max(0.001, Math.hypot(dx, dy));
+  const r = clamp(d, Math.abs(l1 - l2) + 0.01, l1 + l2 - 0.01), ux = dx / d, uy = dy / d;
+  const a = (l1 * l1 - l2 * l2 + r * r) / (2 * r), h = Math.sqrt(Math.max(0, l1 * l1 - a * a)) * sign;
+  const jx = sx + ux * a - uy * h, jy = sy + uy * a + ux * h, ex = sx + ux * r, ey = sy + uy * r;
+  ctx.strokeStyle = INK; ctx.lineWidth = w + 1.6;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(jx, jy); ctx.lineTo(ex, ey); ctx.stroke();
+  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+}
+
 export function drawWojak(ctx: CanvasRenderingContext2D, mood: Mood, arms: number, walk: number, tone: number, phone = false): void {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const leg = (x0: number, x1: number) => {
-    ctx.strokeStyle = INK; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(x0, -11); ctx.lineTo(x1, 0); ctx.stroke();
-    ctx.strokeStyle = '#2f3f5c'; ctx.lineWidth = 2.6; ctx.stroke();
-  };
-  leg(-2.5, -3 - Math.sin(walk) * 4);
-  leg(2.5, 3 + Math.sin(walk) * 4);
+  const sL = Math.sin(walk);
+  limb2(ctx, -2.5, -11, -3 - sL * 4, -Math.max(0, -Math.cos(walk)) * 1.5, 6, 6, 1, 2.6, '#2f3f5c');
+  limb2(ctx, 2.5, -11, 3 + sL * 4, -Math.max(0, Math.cos(walk)) * 1.5, 6, 6, -1, 2.6, '#2f3f5c');
   ctx.fillStyle = shirt(tone);
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.roundRect(-5, -21, 10, 11, 2); ctx.fill(); ctx.stroke();
   const up = clamp(arms, 0, 1);
-  for (const side of [-1, 1]) {
-    const hx = side * (6 + 3 * up);
-    const hy = -14 - 14 * up + (side > 0 && phone ? 2 : 0);
-    ctx.strokeStyle = INK; ctx.lineWidth = 3.4;
-    ctx.beginPath(); ctx.moveTo(side * 4, -19); ctx.lineTo(phone && side > 0 ? 3 : hx, phone && side > 0 ? -25 : hy); ctx.stroke();
-    ctx.strokeStyle = SKIN; ctx.lineWidth = 2; ctx.stroke();
+  for (const side of [-1, 1] as const) {
+    const hx = phone && side > 0 ? 3 : side * (6 + 3 * up);
+    const hy = phone && side > 0 ? -25 : -14 - 14 * up;
+    limb2(ctx, side * 4, -19, hx, hy, 5.2, 5.2, side, 2, SKIN);
   }
   if (phone) {
     ctx.fillStyle = '#1b1b1f';

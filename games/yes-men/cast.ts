@@ -214,15 +214,41 @@ function medal(ctx: CanvasRenderingContext2D, x: number, y: number, i: number): 
   ctx.stroke();
 }
 
-/** A two-point sleeve from the shoulder to the hand with the elbow bowed outward by `bow`. */
-function sleeve(ctx: CanvasRenderingContext2D, sx: number, sy: number, hx: number, hy: number, bow: number, colour: string, width: number): void {
-  const mx = (sx + hx) / 2;
-  const my = (sy + hy) / 2;
+/** Law-of-cosines two-bone IK solver keeping fixed upper and lower segment lengths. */
+function solveLimb(sx: number, sy: number, hx: number, hy: number, upper: number, lower: number, bend: number): { ex: number; ey: number; hx: number; hy: number } {
   const dx = hx - sx;
   const dy = hy - sy;
-  const len = Math.hypot(dx, dy) || 1;
-  const ex = mx + (-dy / len) * bow;
-  const ey = my + (dx / len) * bow;
+  const dist = Math.hypot(dx, dy) || 1e-5;
+  const reach = upper + lower - 1e-4;
+  const minReach = Math.abs(upper - lower) + 1e-4;
+  const clamped = Math.min(Math.max(dist, minReach), reach);
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const tx = sx + ux * clamped;
+  const ty = sy + uy * clamped;
+  const a = (upper * upper - lower * lower + clamped * clamped) / (2 * clamped);
+  const h = Math.sqrt(Math.max(0, upper * upper - a * a));
+  const sign = bend >= 0 ? 1 : -1;
+  return { ex: sx + ux * a - uy * h * sign, ey: sy + uy * a + ux * h * sign, hx: tx, hy: ty };
+}
+
+/** Distance-driven foot offset with grounded stance and smooth parabolic swing lift. */
+function gaitFoot(distance: number, stride: number, phase: number, lift: number): { x: number; y: number } {
+  if (distance <= 0) return { x: 0, y: 0 };
+  const ramp = clamp(distance / (stride * 0.45), 0, 1);
+  const u = ((distance / stride) + phase) % 1;
+  if (u < 0.55) {
+    const s = u / 0.55;
+    return { x: (0.5 - s) * stride * ramp, y: 0 };
+  }
+  const w = (u - 0.55) / 0.45;
+  const s = w * w * (3 - 2 * w);
+  return { x: (-0.5 + s) * stride * ramp, y: -Math.sin(w * Math.PI) * lift * ramp };
+}
+
+/** A two-bone IK sleeve from the shoulder to the hand with fixed bone lengths. */
+function sleeve(ctx: CanvasRenderingContext2D, sx: number, sy: number, hx: number, hy: number, bow: number, colour: string, width: number, upper = 24, lower = 24): void {
+  const { ex, ey, hx: tx, hy: ty } = solveLimb(sx, sy, hx, hy, upper, lower, bow);
   ctx.strokeStyle = INK;
   ctx.lineWidth = width + 5;
   ctx.lineCap = 'round';
@@ -230,7 +256,7 @@ function sleeve(ctx: CanvasRenderingContext2D, sx: number, sy: number, hx: numbe
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(ex, ey);
-  ctx.lineTo(hx, hy);
+  ctx.lineTo(tx, ty);
   ctx.stroke();
   ctx.strokeStyle = colour;
   ctx.lineWidth = width;
@@ -329,10 +355,10 @@ export function drawLeader(ctx: CanvasRenderingContext2D, l: Leader, medals: num
   const bx = mix(BUTTON_HAND_REST.x, BUTTON_HAND_OVER.x, clamp(l.hover.x, 0, 1)) - LEADER.x + Math.sin(time * 37) * tremble;
   const by = mix(BUTTON_HAND_REST.y, BUTTON_HAND_OVER.y, clamp(l.hover.x, 0, 1)) - LEADER.y + Math.cos(time * 41) * tremble * 0.6;
   const buttonHand = { x: mix(bx, 6, slam), y: mix(by, 52, slam) };
-  const rightHand = { x: mix(stampHand.x, -70, raise), y: mix(stampHand.y, -120, raise) };
-  const leftHand = { x: mix(buttonHand.x, 70, raise), y: mix(buttonHand.y, -120, raise) };
-  sleeve(ctx, -46 * puff, 10, rightHand.x, rightHand.y, mix(-14, 18, raise), '#4b5a3a', 16);
-  sleeve(ctx, 46 * puff, 10, leftHand.x, leftHand.y, mix(14, -18, raise), '#4b5a3a', 16);
+  const rightHand = { x: mix(stampHand.x, -74, raise), y: mix(stampHand.y, -116, raise) };
+  const leftHand = { x: mix(buttonHand.x, 74, raise), y: mix(buttonHand.y, -116, raise) };
+  sleeve(ctx, -46 * puff, 10, rightHand.x, rightHand.y, -1, '#4b5a3a', 16, 68, 68);
+  sleeve(ctx, 46 * puff, 10, leftHand.x, leftHand.y, 1, '#4b5a3a', 16, 68, 68);
   hand(ctx, rightHand.x, rightHand.y, 9);
   hand(ctx, leftHand.x, leftHand.y, 9);
   if (raise < 0.5) {
@@ -614,20 +640,32 @@ function profileHead(ctx: CanvasRenderingContext2D, side: number, o: { hair: num
   ctx.stroke();
 }
 
+/** Draws a two-bone IK leg from hip to ankle. */
+function leg2Bone(ctx: CanvasRenderingContext2D, hx: number, hy: number, fx: number, fy: number, upper: number, lower: number, bend: number, colour: string, width: number): void {
+  const { ex, ey, hx: tx, hy: ty } = solveLimb(hx, hy, fx, fy, upper, lower, bend);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = width + 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(ex, ey);
+  ctx.lineTo(tx, ty);
+  ctx.stroke();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
 /** A suited guard, in profile, bigger than the ministers. */
-export function drawGuard(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, side: number): void {
+export function drawGuard(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, side: number, walkDist = 0): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s * 1.1, s * 1.1);
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 9;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-6, 0);
-  ctx.lineTo(-6, 26);
-  ctx.moveTo(6, 0);
-  ctx.lineTo(6, 26);
-  ctx.stroke();
+  const fL = gaitFoot(walkDist, 26, 0, 6);
+  const fR = gaitFoot(walkDist, 26, 0.5, 6);
+  leg2Bone(ctx, -4, 0, -4 + fL.x * side, 26 + fL.y, 14, 14, side, '#141218', 5.5);
+  leg2Bone(ctx, 4, 0, 4 + fR.x * side, 26 + fR.y, 14, 14, side, '#141218', 5.5);
   box(ctx, -20, -54, 40, 56, 8, '#141218', 2.5);
   ctx.save();
   ctx.translate(0, -54);
@@ -648,7 +686,7 @@ export function yesManDepth(m: YesMan): number {
 }
 
 /** The minister at his seat (or wherever the escort has him), facing the table. */
-export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: number): void {
+export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, _time: number): void {
   const seat = SEATS[m.seat]!;
   const side = seat.side;
   const zeal = clamp(m.zeal.x, 0, 1.05);
@@ -675,6 +713,7 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
   let y = seat.y;
   let s = seat.s;
   let walking = 0;
+  let walkDist = 0;
   let facing = side;
   if (m.escort === 'escorted') {
     const t = clamp((m.escortT - 0.9) / 1.5, 0, 1);
@@ -683,13 +722,16 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
     y = p.y;
     s = p.s;
     walking = m.escortT > 0.9 ? 1 : 0;
+    walkDist = ease(t) * 380;
     facing = 1;
   } else if (m.escort === 'replacing') {
-    const p = seatToDoor(m.seat, 1 - clamp(m.escortT / 1.5, 0, 1));
+    const t = clamp(m.escortT / 1.5, 0, 1);
+    const p = seatToDoor(m.seat, 1 - t);
     x = p.x;
     y = p.y;
     s = p.s;
     walking = 1;
+    walkDist = ease(t) * 380;
     facing = -1;
   }
   const guards = m.escort === 'escorted' ? clamp(m.escortT / 0.5, 0, 1) : 0;
@@ -701,32 +743,19 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
   ctx.translate(x, y);
   ctx.scale(s, s);
   if (walking) {
-    // Marched or marching: upright on the floor, legs swinging.
+    // Marched or marching: upright on the floor, two-bone IK legs stepping with distance.
     ctx.translate(0, -2);
-    const gait = Math.sin(time * 11);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-5, -4);
-    ctx.lineTo(-5 + gait * 9, 24);
-    ctx.moveTo(5, -4);
-    ctx.lineTo(5 - gait * 9, 24);
-    ctx.stroke();
+    const fL = gaitFoot(walkDist, 28, 0, 6);
+    const fR = gaitFoot(walkDist, 28, 0.5, 6);
+    leg2Bone(ctx, -4, -4, -4 + fL.x * facing, 24 + fL.y, 15, 15, facing, m.suit, 5);
+    leg2Bone(ctx, 4, -4, 4 + fR.x * facing, 24 + fR.y, 15, 15, facing, m.suit, 5);
     ctx.translate(0, -26);
   } else {
     // Seated, then up for the ovation with the feet on the floor beside the chair's, then down on the knees.
     ctx.translate(0, -14 * stand + 16 * kneel - kick);
     if (stand > 0.05) {
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 8;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-5, -4);
-      ctx.lineTo(-5, 58 * stand);
-      ctx.moveTo(5, -4);
-      ctx.lineTo(5, 58 * stand);
-      ctx.stroke();
+      leg2Bone(ctx, -5, -4, -5, 56 * stand, 30, 30, side, m.suit, 5);
+      leg2Bone(ctx, 5, -4, 5, 56 * stand, 30, 30, side, m.suit, 5);
     }
     if (kneel > 0.05) {
       ctx.translate(side * 8 * kneel, 0);
@@ -825,8 +854,9 @@ export function drawYesMan(ctx: CanvasRenderingContext2D, m: YesMan, time: numbe
   ctx.restore();
   if (guards > 0) {
     const gx = x + 30 * s;
-    drawGuard(ctx, gx - 34 * s * guards, y, s, facing);
-    drawGuard(ctx, gx + 34 * s * guards - 60 * s, y, s, facing);
+    const guardWalk = m.escortT < 0.5 ? m.escortT * 68 : walkDist;
+    drawGuard(ctx, gx - 34 * s * guards, y, s, facing, guardWalk);
+    drawGuard(ctx, gx + 34 * s * guards - 60 * s, y, s, facing, guardWalk + 14);
   }
 }
 
@@ -928,27 +958,21 @@ export function playerAt(p: Player): { x: number; y: number; s: number } {
   return { x: u * u * YOU.x + 2 * u * t * 866 + t * t * (DOOR.x + DOOR.w / 2), y: u * u * (YOU.y - 12) + 2 * u * t * 522 + t * t * (FLOOR_Y + 2), s: mix(1, 0.56, t) };
 }
 
-/** A figure walking in profile facing `side`: head, torso, swinging legs and arms. */
-function drawWalker(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, side: number, gait: number, hair: string): void {
+/** A figure walking in profile facing `side`: head, torso, two-bone IK legs and swinging arm. */
+function drawWalker(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, side: number, walkDist: number, hair: string): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s, s);
-  const swing = Math.sin(gait);
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 10;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-5, -30);
-  ctx.lineTo(-5 + swing * 13, 0);
-  ctx.moveTo(5, -30);
-  ctx.lineTo(5 - swing * 13, 0);
-  ctx.stroke();
-  ctx.strokeStyle = '#2d3144';
-  ctx.lineWidth = 6;
-  ctx.stroke();
+  const fL = gaitFoot(walkDist, 32, 0, 7);
+  const fR = gaitFoot(walkDist, 32, 0.5, 7);
+  leg2Bone(ctx, -4, -30, -4 + fL.x * side, fL.y, 16, 16, side, '#2d3144', 6);
+  leg2Bone(ctx, 4, -30, 4 + fR.x * side, fR.y, 16, 16, side, '#2d3144', 6);
   box(ctx, -17, -88, 34, 60, 8, '#4a4f6a', 2.5);
-  sleeve(ctx, side * 8, -80, side * 8 - swing * 14 * side, -48, 0, '#4a4f6a', 8);
-  hand(ctx, side * 8 - swing * 14 * side, -48, 4.5);
+  const armSwing = (fR.x - fL.x) * 0.45;
+  const hx = side * 8 + armSwing * side;
+  const hy = -48 - Math.abs(armSwing) * 0.25;
+  sleeve(ctx, side * 6, -80, hx, hy, -side, '#4a4f6a', 8, 19, 19);
+  hand(ctx, hx, hy, 4.5);
   ctx.save();
   ctx.translate(0, -88);
   ctx.fillStyle = SKIN;
@@ -1015,7 +1039,8 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, p: Player, time: numbe
   if (p.mode === 'gone') return;
   if (p.mode === 'walking' || p.mode === 'arriving') {
     const at = playerAt(p);
-    drawWalker(ctx, at.x, at.y + 12, at.s, p.mode === 'walking' ? 1 : -1, time * 10, p.hair);
+    const walkDist = (p.mode === 'walking' ? ease(p.walk) : 1 - ease(p.walk)) * 520;
+    drawWalker(ctx, at.x, at.y + 12, at.s, p.mode === 'walking' ? 1 : -1, walkDist, p.hair);
     drawTag(ctx, at.x, at.y - 120 * at.s, p.tag, time, p.tag === 'YOU' ? '#ff2d4a' : '#e0b64a');
     return;
   }
@@ -1046,7 +1071,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, p: Player, time: numbe
   if (raise > 0.02) {
     const hx = 60;
     const hy = sy - 10 - 70 * raise;
-    sleeve(ctx, 44, sy + 2, hx, hy, 10, '#4a4f6a', 12);
+    sleeve(ctx, 44, sy + 2, hx, hy, 10, '#4a4f6a', 12, 44, 44);
     hand(ctx, hx, hy, 8);
     ctx.strokeStyle = INK;
     ctx.lineWidth = 4;

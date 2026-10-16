@@ -17,6 +17,18 @@ export interface SceneView {
 }
 export interface Scene { draw(c: CanvasRenderingContext2D, view: SceneView, now: number): void }
 const formatX = (x100: number): string => `${(x100 / 100).toFixed(2)}×`;
+const FREEZE_S = 0.13;
+const SLOW_S = 0.34;
+const SLOW_RATE = 0.32;
+/** Hit-stop freeze on the terms-of-service slam, then slow motion before catching up by 1.05s. */
+function crashClock(raw: number): number {
+  if (raw <= FREEZE_S) return 0;
+  if (raw <= FREEZE_S + SLOW_S) return (raw - FREEZE_S) * SLOW_RATE;
+  const elapsedSlow = SLOW_S * SLOW_RATE;
+  const rest = raw - FREEZE_S - SLOW_S;
+  const catchup = Math.min(1, rest / 0.55);
+  return mix(elapsedSlow + rest, raw, catchup);
+}
 
 function hud(c: CanvasRenderingContext2D, view: SceneView, r: Routine, caption: string): void {
   box(c, 18, 17, 224, 60, INK, 7, 0);
@@ -52,7 +64,8 @@ export function createScene(): Scene {
     const running = view.phase === 'running', crashed = view.phase === 'crashed';
     const idle = !running && !crashed;
     const seconds = Math.max(0, view.elapsed / 1000);
-    const age = crashed ? Math.max(0, view.crashAge / 1000) : 0;
+    const rawAge = crashed ? Math.max(0, view.crashAge / 1000) : 0;
+    const age = crashed ? crashClock(rawAge) : 0;
     const secured = view.cashoutX100 !== null;
     // The settled crash duration may trail the shell's last interpolated running frame.
     const reset = running && seconds < previousElapsed || idle && view.phase !== previousPhase;
@@ -72,7 +85,7 @@ export function createScene(): Scene {
     const tension = clamp(Math.log2(Math.max(1, view.currentX100 / 100)) / 10);
     audio.update(view.phase, tension);
     if (crashed && previousPhase !== 'crashed') {
-      const quiet = fresh || age > 1.5;
+      const quiet = fresh || rawAge > 1.5;
       audio.crash('slam', quiet);
       if (!quiet) { audio.fx('clang', 0.7); audio.fx('gasp', 0.4); }
     }
@@ -87,7 +100,11 @@ export function createScene(): Scene {
       if (step !== lastStep && basePose.gait !== 'air') audio.fx('stomp', 0.13 + tension * 0.08);
       lastStep = step;
     }
-    if (crashed && !fresh && !secured && previousAge < 1.22 && age >= 1.22) audio.fx('phone', 0.5);
+    if (crashed && !fresh && !secured) {
+      if (previousAge < 0.23 && age >= 0.23) audio.fx('whoosh', 0.48);
+      if (previousAge < 1.05 && age >= 1.05) audio.fx('thud', 0.55);
+      if (previousAge < 1.22 && age >= 1.22) audio.fx('phone', 0.5);
+    }
     const idleStomp = Math.floor((idleTime + 3.65) / 7.2);
     if (idle && !fresh && idleStomp !== lastIdle) audio.fx('stomp', 0.25);
     lastIdle = idleStomp;

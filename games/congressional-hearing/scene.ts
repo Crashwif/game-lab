@@ -22,6 +22,7 @@ import {
   drawTypewriter, drawWitnessTable, resetMinutes, settleMinutes, stepMinutes, typePage,
 } from './room';
 import { bubbleAlpha, type Bubble, createScript, hush, lastLine, type Line, resetScript, say, settleLine, settleScript, stepScript, talking } from './script';
+import { pageSound } from './sound';
 
 export interface SceneView {
   phase: 'waiting' | 'betting' | 'running' | 'crashed';
@@ -77,6 +78,7 @@ function blankFrom(next: number): number {
 export function createScene(): Scene {
   // Dais muzak, a string quartet in an elevator; the crash is a door slammed on the record.
   const audio = pageAudio({ style: 'elevator', crash: 'slam' });
+  const sound = pageSound(audio);
   const { capture, present } = createPortrait(TITLE, [176, 156, 608, 396], COLOURS.accent, 'MINUTE TAKEN', 'LIVE FROM THE COMMITTEE ROOM');
   const script = createScript(LADDER, OVERTIME);
   const senators: Senator[] = createSenators();
@@ -147,6 +149,7 @@ export function createScene(): Scene {
     resetPage(page);
     resetGallery(gallery);
     resetMinutes(minutes);
+    sound.cut();
     secured = null;
     exitAge = 0;
     outcome = null;
@@ -186,6 +189,7 @@ export function createScene(): Scene {
       gavelUp = crashClock >= CRASH.lastLine;
       minutes.flying = [];
       audio.crash('slam', true);
+      sound.cut();
       return;
     }
     // The crash takes the floor: whatever was being said is cut off.
@@ -199,6 +203,7 @@ export function createScene(): Scene {
     notice.v = 14;
     audio.crash('slam');
     audio.fx('buzz', 1);
+    sound.feedback();
   }
 
   /** A line was said: its prop beat, the gazes, the page's errand, the minutes and the cue. */
@@ -347,6 +352,7 @@ export function createScene(): Scene {
     audio.update(view.phase, tension);
     if (crashed && encore === null) crashClock = view.crashAge / 1000;
     const live = running && !crashed;
+    sound.update(tension, live);
 
     if (view.phase === 'betting' && !opened) {
       opened = true;

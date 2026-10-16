@@ -359,11 +359,13 @@ Styles (`phonk`, `chiptune`, `eurodance`, `trap`, `lofi`, `techno`, `synthwave`,
 
 ## 15. Custom audio on the shared bus
 
-Three games synthesise their own sound on top of the page's `Audio`. The helper exposes `context`, `bus` and `enabled` (`audio.ts:54-61`); both are `null` until the player turns sound on, so a module builds lazily and rebuilds when the context changes:
+Several games synthesise their own continuous sound on top of the page's `Audio`. The helper exposes `context`, `bus` and `enabled` (`audio.ts:54-61`); both are `null` until the player turns sound on, so a module builds lazily and rebuilds when the context changes:
 
 - `boiler-room/sound.ts`: `ensure()` creates a white-noise bed → highpass 1800 Hz → `hiss` gain and a triangle whistle oscillator on `audio.context`/`audio.bus` (`:47-73`); `burst()` plays filtered noise with an exponential decay and an optional cutoff sweep (`:76-93`); `chuff`, `ping` and `blast` are one-shots (`:109-144`); `update(pressure, running, shriek)` runs every frame (`:99-108`).
 - `moon-boys/sound.ts`: a page singleton `pageSound(audio)` (`:21-25`); brown noise → lowpass 160 Hz → gain → bus for the engine, `setTargetAtTime` from thrust and tension (`:49-81`); `twang` is a sawtooth sweep 1400 → 180 Hz frequency-modulated by an 18 Hz sine (`:82-104`).
 - `liquidation-lane/sound.ts`: `engineSound(audio)` builds sawtooth and triangle oscillators → lowpass → gain → bus when the context appears (`:14-24`), maps rpm to frequency, cutoff and gain (`:26-29`), and returns `dispose()` that stops and disconnects the voices; the scene returns it as its own `dispose` (`scene.ts:307`).
+- `mafo/sound.ts`: `pageSound(audio)` builds a brown/white noise boil bed, a bandpass burner roar, and a triangle pressure whistle that creeps in above 2×, plus a low-frequency thump and long hiss on `blast()`.
+- `flock-off/sound.ts`, `gays-of-hormuz/sound.ts`, `vibescam/sound.ts`, `congressional-hearing/sound.ts`, `insider-wallets/sound.ts`: continuous `pageSound(audio)` modules on the shared bus for BMX freehub ratchet + Doppler police wail, ocean bow wake + Pride Air rotor chop, laptop fan thermal whine + GPU coil hum, committee chamber HVAC + gallery murmur + PA feedback ring, and outdoor rally crowd murmur + extraction helicopter chop.
 
 Everything routes through the shared bus, so the one Sound button, the hidden-page muting and `pagehide` close govern a game's own sounds too. The procedural effects (`audio.fx`) are usually enough; add a module only for a continuous sound the one-shots cannot make.
 
@@ -424,7 +426,7 @@ Every game's own files are flat in `games/<slug>/`. The second column names the 
 | hello-world | `scene.ts` | the minimal scene; closed-form bob and damped landing; cue edges |
 | balloon-pump | `pumper.ts`, `balloon.ts`, `sniper.ts`, `motion.ts` | the reference Canvas rig: hands pinned, springs with per-part lag, a face table, a tethered spring, a buoyant body, the asymmetric stroke, hit-stop |
 | boiler-room | `engine.ts`, `stoker.ts`, `particles.ts`, `sound.ts` | slider-crank, belt and governor; a layered particle pool; mode-blended limb targets; a game's own synthesis on the bus |
-| tower-tension | `tower.ts`, `crane.ts`, `worker.ts`, `truck.ts`, `office.ts` | a shear spring chain with substeps; a PD-steered pendulum; camera tracking and collapse framing |
+| tower-tension | `tower.ts`, `crane.ts`, `worker.ts`, `truck.ts`, `office.ts`, `people.ts` | a shear spring chain with substeps; a PD-steered pendulum; two-bone IK worker and tenant limbs; camera tracking and collapse framing |
 | thin-ice | `skater.ts`, `ice.ts`, `engine.ts` | a stride rig; a scarf chain; seeded crack networks; late-entry journey reconstruction; floes; an offscreen tinted ghost |
 | king-of-the-hill | `ape.ts`, `gait.ts`, `hill.ts`, `coin.ts`, `dev.ts`, `airdrop.ts` | planted footsteps as state on a slope; pelvis pull-in; rolling contact; a vehicle pick-up |
 | the-trenches | `squad.ts`, `field.ts` | marching squash per step; elbow flip at full reach; snapshot-and-launch at the crash |
@@ -443,9 +445,9 @@ Every game's own files are flat in `games/<slug>/`. The second column names the 
 | not-financial-advice | `studio.ts`, `overlay.ts`, `acts.ts` | a green-screen tear; sponsor-read springs; a comment column that never repeats; saturation composite at the crash |
 | honeypot | `jar.ts`, `picnic.ts` | a liquid with meniscus, drips and strings; a bear arm through a jar neck; a fox with a stamp; a bee swarm |
 | exit-liquidity | `pool.ts`, `party.ts` | a water surface with slosh and a drain funnel; a plug chain; holders in depth rows; ladder climbing on rungs; a helicopter |
-| insider-wallets | `rally.ts`, `tracker.ts` | a tie on three springs; a crowd grid with a join order; press flashes; a tracker and pie |
+| insider-wallets | `rally.ts`, `tracker.ts`, `portrait.ts`, `sound.ts` | a tie on three springs; expressive candidate gaze and blinks; two-bone IK crowd sign arms and exit stride; press flashes; a tracker and pie; crowd/rotor synthesis |
 | wen-binance | `club.ts`, `queue.ts` | a queue on lagged springs; marquee letters that loosen and drop; doors on a spring; a beat grid |
-| liquidation-lane | `cockpit.ts`, `road.ts`, `sound.ts` | a perspective road with depth sort; a head that lags on springs; hands kept on the wheel; an engine voice with `dispose()` |
+| liquidation-lane | `cockpit.ts`, `road.ts`, `sound.ts` | a perspective road with depth sort; a head that lags on springs; slipping sunglasses and mirror gaze; hands kept on the wheel; an engine voice with `dispose()` |
 | seed-round | `gl.ts`, `render.ts`, `shaders.ts`, `meshes.ts`, `pack.ts`, `path.ts`, `crash.ts`, `fallback.ts` | the WebGL2 reference: instancing, a path bent in the vertex shader, travelling-wave tails, an atlas, context loss, a Canvas fallback |
 | moon-boys | `rocket.ts`, `world.ts`, `crash.ts`, `shaders.ts`, `sound.ts` | stage separation with inherited angular velocity; 96 instanced holders; a 3D two-bone limb; camera-space props; frame-rate-independent emitters |
 | rug-rails | `runner.ts`, `course.ts`, `track.ts`, `input.ts`, `stash.ts` | perspective lanes; a runner from behind with symmetric IK; seeded course generation; input with an autopilot; substeps; a stash |
@@ -454,9 +456,19 @@ Every game's own files are flat in `games/<slug>/`. The second column names the 
 | wen-moon | `rocket.ts`, `scene.ts` | log2 altitude with a lift-then-scroll camera; a pod inheriting angular velocity; a seeded shred |
 | bull-run | `bull.ts`, `scene.ts`, `portrait.ts` | a bucking oscillator on an integrated phase; a rider pinned to the seat and lagging on springs; grip hold at release |
 | pyramid-scheme | `pyramid.ts`, `scene.ts` | rows from the multiplier; recruits that walk in and plant; a seeded staggered collapse; an analytic jump |
-| rage-quit | `acting.ts`, `actor.ts`, `ink.ts`, `room.ts`, `portrait.ts` | stateless pose bag with layered lerps; alternating fist strokes; a phase-wrapped impact ring; a height-dependent pole; an offscreen re-render portrait |
-| beyond-the-colony | `penguin.ts`, `choreography.ts`, `actors.ts`, `motion.ts` | waddle, leap and belly slide from envelopes; `recoil`; two-sample follow-through; a 7 s act script |
-| mumu-bull-run | `rig.ts`, `motion.ts`, `acts.ts`, `art.ts` | a jointed gallop with hooves in the ground frame; time-driven encounters with a contact beat; a two-crop portrait |
-| yes-men | `cast.ts`, `court.ts`, `ink.ts` | a multiplier-keyed script; integrated nod and clap phases; zeal thresholds; an escort state machine; velocity-kicked springs |
+| rage-quit | `acting.ts`, `actor.ts`, `ink.ts`, `room.ts`, `portrait.ts` | stateless pose bag with layered lerps; alternating fist strokes; a phase-wrapped impact ring; a height-dependent pole; hit-stop and slow-mo; an offscreen re-render portrait |
+| beyond-the-colony | `penguin.ts`, `choreography.ts`, `actors.ts`, `motion.ts` | waddle, leap and belly slide from envelopes; `recoil`; two-sample follow-through; hit-stop and slow-mo; a 7 s act script |
+| mumu-bull-run | `rig.ts`, `motion.ts`, `acts.ts`, `art.ts` | a jointed gallop with hooves in the ground frame; two-bone IK bears; time-driven encounters with a contact beat; a two-crop portrait |
+| yes-men | `cast.ts`, `court.ts`, `ink.ts`, `portrait.ts` | a multiplier-keyed script; two-bone IK leader, guards, ministers and player with distance-driven gaits; integrated nod and clap phases; an escort state machine |
 | know-your-clown | `character.ts`, `direction.ts`, `ministry.ts`, `ink.ts` | `outward()` poles with hip settle; rig snapshots blended on mode change; a scale-aware `walked()` stride; an expressive face from windows; cue keys that survive seeks |
-| gays-of-hormuz | `strait.ts`, `ship.ts`, `scene.ts`, `*.test.mjs` | a 2.5D dodger steered in depth; hazard rows that meet the hull at one contact so a clear lane always exists; missile and drone flights and boat runs driven by distance, homing until they commit; an autopilot that plans for clear lanes; a seeded sinking about a pivot with an underwater ghost pass and a camera that eases onto the wreck |
+| gays-of-hormuz | `strait.ts`, `ship.ts`, `art.ts`, `sound.ts`, `*.test.mjs` | a 2.5D dodger steered in depth; two-bone IK deck dancers and bow diva; hazard rows that meet the hull at one contact; an autopilot that plans for clear lanes; a seeded sinking about a pivot; ocean wake and rotor synthesis |
+| the-wake | `cast.ts`, `parlor.ts`, `lines.ts`, `script.ts`, `portrait.ts` | a parlor ensemble around a casket; candle flicker and floral arrangement; a rising deceased rig on the crash; encore preservation across waiting → betting |
+| gender-reveal | `party.ts`, `device.ts`, `lines.ts`, `script.ts`, `portrait.ts` | a backyard contraption with pressure gauges and coloured smoke; couple and guest rigs with gaze tracking; a seeded detonation aftermath |
+| repo-man | `tow.ts`, `driveway.ts`, `cast.ts`, `lines.ts`, `portrait.ts` | a winch cable and boom under load; suspension squat and tire scrub; homeowner and operator rigs; flashing tow beacons on the crash |
+| degen-anonymous | `circle.ts`, `hall.ts`, `lines.ts`, `script.ts`, `portrait.ts` | a church-basement folding-chair circle; speaker hand-raising and coffee urn sips; falling banner and group-hug physics on the crash |
+| congressional-hearing | `cast.ts`, `room.ts`, `gallery.ts`, `lines.ts`, `sound.ts`, `portrait.ts` | five senators on a tiered dais with gavel and phone beats; a stenographer and stacking minutes board; gallery applause and corridor walk-out; chamber HVAC and PA feedback synthesis |
+| the-reading | `office.ts`, `cast.ts`, `lines.ts`, `script.ts`, `portrait.ts` | a lawyer's mahogany desk and reading lamp; heir rigs leaning in with greed and shock; floating codicil pages on the crash |
+| vibescam | `founder.ts`, `den.ts`, `screens.ts`, `chat.ts`, `sound.ts`, `portrait.ts` | a split-screen launch stream with live code generation and a SHIP IT / RUG button; founder IK hands typing and smacking the button; laptop thermal fan and GPU coil whine synthesis |
+| mafo | `junior.ts`, `still.ts`, `cast.ts`, `house.ts`, `blast.ts`, `sound.ts`, `portrait.ts` | a cutaway trailer kitchen and yard with a zooming camera; Junior's two-bone IK stir and pour gestures; three seeded blast endings (pool, truck bed, UFO); continuous boil, burner roar and whistle synthesis |
+| flock-off | `rider.ts`, `cops.ts`, `city.ts`, `art.ts`, `sound.ts`, `portrait.ts` | a BMX rider with crank-pinned feet, bunny-hop suspension and an aim-tracked gun arm; a multi-vehicle police pursuit and two-bone IK dogpile; Kia body-double swap; BMX freehub and Doppler siren synthesis |
+

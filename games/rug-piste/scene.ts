@@ -110,11 +110,13 @@ export function createScene(): Scene {
   let patrol = '';
   let patrolAt = -1e9;
   // Tremors, the heartbeat and the gate rock run on integrated phases, never on sin(clock * rate).
-  let tremorAt = -1e9;
+    let tremorAt = -1e9;
   let tremorAmp = 0;
   let rumble = 0;
   let pulse = 0;
   let rock = 0;
+  let yetiHeard = 0;
+  let yetiLive = false;
   let ending: { view: SceneView; startedAt: number } | null = null;
 
   function draw(ctx: CanvasRenderingContext2D, incoming: SceneView, now: number) {
@@ -149,7 +151,7 @@ export function createScene(): Scene {
     const ahead = (field.h * (1 - skierFrac) + 75) / scale;
     if (reset) {
       world = createWorld(0, newSeed()); secured = null; escapeAt = 0; toast = ''; live = null;
-      beat = 0; patrol = ''; tremorAt = -1e9; rumble = pulse = rock = 0;
+      beat = 0; patrol = ''; tremorAt = -1e9; rumble = pulse = rock = 0; yetiHeard = 0; yetiLive = false;
       if (!first) fadeAt = now;
     }
     let resumed: Bag | null = null;
@@ -185,7 +187,10 @@ export function createScene(): Scene {
       crashAngle = Math.sin(world.time * 40) * world.stumble * 0.12;
       crashLean = world.lean;
       crashFrom = world.distance; crashSpeed = world.speed;
-      audio.crash('boom', first || view.crashAge > 1500);
+      const late = first || view.crashAge > 1500;
+      audio.crash('boom', late);
+      yetiLive = !late;
+      yetiHeard = impactAge(view.crashAge / 1000);
     }
     audio.update(view.phase, tension);
     if (!running && !crashed) {
@@ -195,6 +200,14 @@ export function createScene(): Scene {
     }
     // Crash time after the hit-stop.
     const age = crashed ? (impactAge(view.crashAge / 1000)) : 0;
+    if (crashed && yetiLive) {
+      if (yetiHeard < 0.12 && age >= 0.12) audio.fx('whoosh', 0.55);
+      if (yetiHeard < 1.05 && age >= 1.05) audio.fx('punch', 0.5);
+      if (yetiHeard < 2.55 && age >= 2.55) audio.fx('gasp', 0.45);
+      if (yetiHeard < 3.85 && age >= 3.85) audio.fx('whoosh', 0.45);
+      if (yetiHeard < 4.42 && age >= 4.42) { audio.fx('punch', 0.7); audio.fx('pop', 0.5); }
+      yetiHeard = age;
+    }
     // The still-in degen skis in from behind once the chair has collected the player.
     const since = (now - escapeAt) / 1000;
     // A crash hurries a late arrival into place before the yeti reaches for him.

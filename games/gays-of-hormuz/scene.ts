@@ -7,6 +7,7 @@
 import { pageAudio } from './audio';
 import { createInput } from './input';
 import { mulberry32, settleSpring, spring, stepSpring } from './motion';
+import { pageSound } from './sound';
 import { BEAM, DEPTH_MAX, DEPTH_MIN, DRONE_SHOW, RADIUS, boatX, clamp, createWorld, depthScale, driveAt, stepWorld, strikeProgress, type Hazard, type Helm, type StraitEvent, type World } from './strait';
 import {
   C, COAST_PARALLAX, PRIDE, drawBoat, drawCoast, drawDisco, drawDrone, drawFloatie, drawForeground, drawHeli, drawIslands, drawMine,
@@ -104,6 +105,7 @@ export function createScene(): Scene {
   // Phones have no Space bar: there the frame names the Cash out button instead.
   const touchOnly = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
   const audio = pageAudio({ style: 'eurodance', bpm: 124, crash: 'boom', music: 0.45, tempoRise: 0.16 });
+  const sound = pageSound(audio);
   const canvas = document.querySelector('canvas')!;
   let layout: Layout = LANDSCAPE;
   const input = createInput(canvas, clientY => {
@@ -228,6 +230,7 @@ export function createScene(): Scene {
       secured = null; escapeAt = 0; wreck = null; live = null; line = 0; lineAtMs = -1e9; rung = 0; pulse = 0;
       toast = ''; blasts = []; floaters = []; shake = 0;
       settleSpring(jolt, 0); settleSpring(duck, 0);
+      sound.cut();
       if (!first) fadeAt = now;
     }
     let resumed: Bank | null = null;
@@ -259,11 +262,15 @@ export function createScene(): Scene {
       const late = first || view.crashAge > 1500;
       audio.crash('boom', late);
       wreck = wreckFor(view.currentX100, world, crowdNow, staked && secured === null);
-      if (!late) shake = 1.6;
+      if (!late) { shake = 1.6; sound.sink(); }
+      else sound.cut();
       sinkLive = !late;
       sinkHeard = sinkClock(view.crashAge / 1000);
     }
     audio.update(view.phase, tension);
+    const airliftSince = secured === null ? -1 : (now - escapeAt) / 1000;
+    const airlift = airliftSince >= 0 && airliftSince < 3.6 ? Math.sin((airliftSince / 3.6) * Math.PI) : 0;
+    sound.update(clamp(world.speed / 360, 0, 1), tension, airlift, running);
 
     if (running) {
       const npc = secured !== null;

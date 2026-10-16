@@ -355,16 +355,28 @@ export function drawWorker(ctx: CanvasRenderingContext2D, w: WorkerState): void 
   ctx.fillStyle = '#f7f2c6';
   ctx.fillRect(-11, -31, 22, 3);
   ctx.fillRect(-11, -25, 22, 3);
-  // Arms: down when calm, up and out when it gets wobbly.
+  // Arms: solved with two-bone IK (13 px upper, 12 px forearm); gripping the cage rail when rescuing.
   const raise = clamp(w.arms.x, 0, 1.2);
-  for (const side of [-1, 1]) {
-    const angle = side * (0.12 + raise * 1.8);
-    const shoulder = { x: side * 10, y: -35 };
-    const elbow = { x: shoulder.x + Math.sin(angle) * 13, y: shoulder.y + Math.cos(angle) * 13 };
-    const forearm = angle + side * (0.4 + Math.sin(w.time * 4 + side) * raise * 0.2);
-    const hand = { x: elbow.x + Math.sin(forearm) * 12, y: elbow.y + Math.cos(forearm) * 12 };
-    line(shoulder.x, shoulder.y, elbow.x, elbow.y, 5, SKIN);
-    line(elbow.x, elbow.y, hand.x, hand.y, 5, SKIN);
+  for (const side of [-1, 1] as const) {
+    const sx = side * 10, sy = -35;
+    let hx: number, hy: number;
+    if (w.mode === 'rescuing') {
+      hx = side * 12;
+      hy = -22;
+    } else {
+      const angle = side * (0.12 + raise * 1.8);
+      const forearm = angle + side * (0.4 + Math.sin(w.time * 4 + side) * raise * 0.2);
+      hx = sx + Math.sin(angle) * 13 + Math.sin(forearm) * 12;
+      hy = sy + Math.cos(angle) * 13 + Math.cos(forearm) * 12;
+    }
+    const dx = hx - sx, dy = hy - sy, dist = Math.max(0.001, Math.hypot(dx, dy));
+    const reach = clamp(dist, 1.01, 24.99), ux = dx / dist, uy = dy / dist;
+    const tx = sx + ux * reach, ty = sy + uy * reach;
+    const along = (13 * 13 - 12 * 12 + reach * reach) / (2 * reach);
+    const bend = Math.sqrt(Math.max(0, 13 * 13 - along * along)) * side;
+    const ex = sx + ux * along + uy * bend, ey = sy + uy * along - ux * bend;
+    line(sx, sy, ex, ey, 5, SKIN);
+    line(ex, ey, tx, ty, 5, SKIN);
   }
   drawFace(ctx, w, mood);
   if (mood !== 'calm' && mood !== 'smug' && mood !== 'out') {
