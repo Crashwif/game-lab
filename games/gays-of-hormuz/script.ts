@@ -7,43 +7,43 @@ import type { HazardKind } from './strait';
 
 export interface Line { at: number; who: string; text: string }
 
-export const BOARDING: Line = { at: 1, who: 'ANITA LIFEBOAT, CRUISE DIRECTOR', text: 'All aboard the SS Sashay, darlings. Next stop: open water.' };
+export const BOARDING: Line = { at: 1, who: 'ANITA LIFEBOAT, CRUISE DIRECTOR', text: 'All aboard the SS Sashay! Sponsored by Raytheon Pride Month.' };
 
 /** Half of all rounds end before 2×, so the early lines come a few seconds apart. */
 export const LINES: readonly Line[] = [
-  { at: 1, who: 'CAPTAIN', text: 'Anchors up. Next stop, open water. Hold on to your wigs.' },
-  { at: 1.08, who: 'ANITA LIFEBOAT', text: 'The Strait of Hormuz. Straight? Not on our watch.' },
-  { at: 1.18, who: 'BRIDGE', text: 'Mines off the bow. Steer like you are avoiding your ex.' },
-  { at: 1.3, who: 'DJ SONAR', text: 'This next one goes out to the minesweepers.' },
-  { at: 1.45, who: 'CAPTAIN', text: 'Missiles inbound. Please remain seated and stunning.' },
-  { at: 1.62, who: 'ANITA LIFEBOAT', text: 'Speedboats off the bow. They are not on the guest list.' },
-  { at: 1.8, who: 'PURSER', text: 'The foam party has been moved below deck. For now.' },
-  { at: 2, who: 'CAPTAIN', text: 'Halfway to open water. Shantay, we stay.' },
-  { at: 2.25, who: 'BRIDGE', text: 'Drones overhead. Find your light, girls.' },
-  { at: 2.55, who: 'ANITA LIFEBOAT', text: 'Lifeboats are colour-coded. Purple is VIP.' },
-  { at: 2.9, who: 'DJ SONAR', text: 'Turn it up. We can no longer hear the sirens.' },
-  { at: 3.3, who: 'CAPTAIN', text: 'The buffet remains open. We have priorities.' },
-  { at: 3.8, who: 'ANITA LIFEBOAT', text: 'Missiles now outnumber drag queens. Barely.' },
-  { at: 4.5, who: 'BRIDGE', text: 'Swarm off the bow. Choreography, people!' },
-  { at: 5.3, who: 'DJ SONAR', text: 'Five times! Even the dolphins are voguing.' },
-  { at: 6.5, who: 'CAPTAIN', text: 'Hydrate. Moisturise. Evade.' },
-  { at: 8, who: 'ANITA LIFEBOAT', text: 'The wig is secured. The ship, less so.' },
-  { at: 10, who: 'BRIDGE', text: 'Ten times. Technically we are a navy now.' },
-  { at: 13, who: 'CAPTAIN', text: 'Open water is close. It has been close for a while.' },
-  { at: 17, who: 'PURSER', text: 'Room service now arrives by jet ski. Tip generously.' },
-  { at: 22, who: 'ANITA LIFEBOAT', text: 'Somebody check on the captain. She is thriving.' },
+  { at: 1, who: 'CAPTAIN', text: 'Anchors up! Exporting democracy, brunch, and 40-foot wigs.' },
+  { at: 1.08, who: 'ANITA LIFEBOAT', text: 'The Strait of Hormuz? Honey, nothing out here is straight.' },
+  { at: 1.18, who: 'BRIDGE', text: 'Theocratic speedboats at 2 o’clock! Wave your pronouns at them!' },
+  { at: 1.3, who: 'DJ SONAR', text: 'This next Cher remix is funded by the Pentagon’s DEI budget!' },
+  { at: 1.45, who: 'CAPTAIN', text: 'Fatwa off the port bow! Everybody death-drop on three!' },
+  { at: 1.62, who: 'ANITA LIFEBOAT', text: 'IRGC on the radio! They hate our freedom and our highlights.' },
+  { at: 1.8, who: 'PURSER', text: 'Brent Crude is up 8% and the bottomless mimosas are tax-free!' },
+  { at: 2, who: 'CAPTAIN', text: 'The UN just sent a strongly worded letter. We used it as confetti.' },
+  { at: 2.25, who: 'BRIDGE', text: 'Shahed drones overhead! Give them face, girls, it’s HD!' },
+  { at: 2.55, who: 'ANITA LIFEBOAT', text: 'Lifeboats load by victimhood bracket, then VIP bottle service!' },
+  { at: 2.9, who: 'DJ SONAR', text: 'Lockheed Martin says slay! Literally, the defense bill passed!' },
+  { at: 3.3, who: 'CAPTAIN', text: 'Neocons want war, tankies want a blockade, we want open bar!' },
+  { at: 3.8, who: 'ANITA LIFEBOAT', text: 'State TV just blurred our Lido Deck! We’re famous in Tehran!' },
+  { at: 4.5, who: 'BRIDGE', text: 'Swarm off the bow! Our choreography is tighter than NATO!' },
+  { at: 5.3, who: 'DJ SONAR', text: 'Five times! The Ayatollah’s radar is blinded by body glitter!' },
+  { at: 6.5, who: 'CAPTAIN', text: 'Gas is $9 a gallon back home. Keep voguing for petrodollars!' },
+  { at: 8, who: 'ANITA LIFEBOAT', text: 'The Fifth Fleet just saluted our Cher impersonator!' },
+  { at: 10, who: 'BRIDGE', text: 'Ten times! Congress just declared this foam party a US ally!' },
+  { at: 13, who: 'CAPTAIN', text: 'CNN and Al Jazeera both have us live. Suck in your stomachs!' },
+  { at: 17, who: 'PURSER', text: 'Carbon offsets for the missile smoke are now available at the bar.' },
+  { at: 22, who: 'ANITA LIFEBOAT', text: 'Peace in the Middle East? No, but the lighting is immaculate!' },
 ];
 
 /** Past the ladder, a line every 1.35× of multiplier, in turn, for as long as the voyage lasts. */
 export const OVERTIME: readonly Line[] = [
-  { at: 0, who: 'BRIDGE', text: 'Still sailing. Still serving.' },
-  { at: 0, who: 'DJ SONAR', text: 'The bass is now visible from orbit.' },
-  { at: 0, who: 'CAPTAIN', text: 'The sea is wide. The strait is not. Neither are we.' },
-  { at: 0, who: 'ANITA LIFEBOAT', text: 'New record for a pride parade at sea. Again.' },
-  { at: 0, who: 'PURSER', text: 'The gift shop is out of rainbow life jackets. Order more.' },
-  { at: 0, who: 'BRIDGE', text: 'Open water still ahead. It keeps moving. Rude.' },
-  { at: 0, who: 'DJ SONAR', text: 'Remixing the foghorn. Requests welcome.' },
-  { at: 0, who: 'CAPTAIN', text: 'Nobody touch the wheel. Except you. You have the wheel.' },
+  { at: 0, who: 'BRIDGE', text: 'Still floating, still fabulous, still violating twelve treaties.' },
+  { at: 0, who: 'DJ SONAR', text: 'The bass is rattling centrifuge facilities three hundred miles inland.' },
+  { at: 0, who: 'CAPTAIN', text: 'The State Department disavowed us, which means no coast guard!' },
+  { at: 0, who: 'ANITA LIFEBOAT', text: 'College protesters can’t decide which side of this boat to chant for!' },
+  { at: 0, who: 'PURSER', text: 'Halliburton just bought VIP tables on the poop deck!' },
+  { at: 0, who: 'BRIDGE', text: 'Sanctions? Darling, this entire outfit is an international incident.' },
+  { at: 0, who: 'DJ SONAR', text: 'Remixing the air-raid siren to 128 BPM. Hands up, hostages!' },
+  { at: 0, who: 'CAPTAIN', text: 'We are now the third largest naval superpower in the Persian Gulf.' },
 ];
 
 /** The announcement for a multiplier: the ladder, then the overtime cycle. */
@@ -67,13 +67,13 @@ export function openWater(x: number): string {
 const pick = <T>(list: readonly T[], n: number): T => list[Math.abs(Math.floor(n)) % list.length]!;
 
 const HITS: Readonly<Record<HazardKind, readonly string[]>> = {
-  mine: ['MINE! THE BOW HAS NOTES', 'MINE! WHO PUT THAT THERE', 'MINE! NOT ON THE CHART, HONEY'],
-  missile: ['DIRECT HIT! THE WIG HELD', 'MISSILE! THE LIDO DECK IS SMOKING', 'HIT! THAT WAS ON THE LIST'],
-  drone: ['DRONE STRIKE! NO PHOTOS!', 'DRONE ON THE SUN DECK!', 'DRONE! IT DID NOT RSVP'],
-  boat: ['RAMMED! RUDE', 'SPEEDBOAT! THE NERVE', 'RAMMED! NOT THE VIBE'],
+  mine: ['MINE! OIL FUTURES JUST SPIKED', 'MINE! RIGHT IN THE PRIDE BUDGET', 'MINE! CALL RAYTHEON CUSTOMER CARE'],
+  missile: ['DIRECT HIT! THE WIG HELD', 'MISSILE! THE MIMOSA BAR IS SMOKING', 'HIT! THAT COST TAXPAYERS $2M'],
+  drone: ['DRONE STRIKE! NO FREE CONTENT!', 'DRONE ON THE VIP DECK!', 'DRONE! VERY HOMOPHOBIC TBH'],
+  boat: ['RAMMED BY THE MORALITY POLICE!', 'SPEEDBOAT! NOT ON THE GUEST LIST', 'RAMMED! ZERO TIP FOR THE VALET'],
 };
-const CLOSE = ['CLOSE CALL!', 'MISSED US, SWEETIE', 'NOT TODAY, SATAN', 'SERVING EVASION', 'SHE DUCKED'];
-const BLOCK = ['DISCO SHIELD! DEFLECTED', 'BOUNCED OFF THE SPARKLE', 'MIRRORBALL SAYS NO'];
+const CLOSE = ['DODGED LIKE SANCTIONS!', 'MISSED US, SWEETIE', 'NOT TODAY, AYATOLLAH', 'SERVING EVASION', 'NATO COULD NEVER'];
+const BLOCK = ['RAYTHEON PRIDE SHIELD!', 'BOUNCED OFF THE GLITTER DOME', 'MIRRORBALL IRON DOME!'];
 
 export function hitToast(kind: HazardKind, id: number, lost: number): string {
   const head = pick(HITS[kind], id);
@@ -85,27 +85,27 @@ export const rescueToast = (count: number): string => (count > 1 ? `+${count} GU
 
 /** After the airlift: how far the ship has sailed past your exit, always backing the exit. */
 export const REGRET: readonly (readonly [number, string])[] = [
-  [5, 'THE SHIP IS THRIVING. THE CHOPPER HAS SNACKS.'],
-  [3, 'THREE TIMES YOUR EXIT. ZERO TIMES WET.'],
-  [2, 'DOUBLE WITHOUT YOU. STILL DRY, STILL ICONIC.'],
-  [1.5, 'FIFTY PERCENT FURTHER. ONE HUNDRED PERCENT DRY.'],
-  [1.15, 'THE PARTY GOES ON WITHOUT YOU. BITTER? NEVER.'],
-  [0, 'AIRLIFTED. SHANTAY, YOU STAY (DRY).'],
+  [5, 'THE SHIP IS THRIVING. THE EMBASSY CHOPPER HAS SNACKS.'],
+  [3, 'THREE TIMES YOUR EXIT. ZERO WAR CRIMES ON YOUR TAB.'],
+  [2, 'DOUBLE WITHOUT YOU. STILL DRY, STILL UNSANCTIONED.'],
+  [1.5, 'FIFTY PERCENT FURTHER. ONE HUNDRED PERCENT DIPLOMATIC IMMUNITY.'],
+  [1.15, 'THE FOAM PARTY GOES ON WITHOUT YOU. BITTER? NEVER.'],
+  [0, 'AIRLIFTED BY BLACKWATER PRIDE. SHANTAY, YOU STAY (DRY).'],
 ];
 
 export type Cause = 'mine' | 'missile' | 'drones' | 'boat';
 export const CAUSES: readonly Cause[] = ['mine', 'missile', 'drones', 'boat'];
 export const CAUSE_LINE: Readonly<Record<Cause, string>> = {
-  mine: 'A MINE THAT WAS NOT ON THE CHART',
-  missile: 'ONE MISSILE TOO MANY',
-  drones: 'A DRONE SWARM. NO PHOTOS!',
-  boat: 'A SPEEDBOAT THAT DID NOT RSVP',
+  mine: 'AN UNMARKED NAVAL MINE IN THE BRUNCH LANE',
+  missile: 'ONE ANTI-SHIP MISSILE TOO MANY',
+  drones: 'A DRONE SWARM THAT DID NOT TIP THE DOLLS',
+  boat: 'A SPEEDBOAT FROM THE MORALITY NAVY',
 };
 
 /** The last announcement, by what sank her. */
 export const SINKING: Readonly<Record<Cause, Line>> = {
-  mine: { at: 0, who: 'CAPTAIN', text: 'That mine was not on the chart. Abandon ship, gorgeous!' },
-  missile: { at: 0, who: 'BRIDGE', text: 'One missile too many. Floaties first, wigs second!' },
-  drones: { at: 0, who: 'ANITA LIFEBOAT', text: 'Drones on the sun deck! Everybody off, and smile!' },
-  boat: { at: 0, who: 'CAPTAIN', text: 'Rammed! Drag queens, bears and twinks first!' },
+  mine: { at: 0, who: 'CAPTAIN', text: 'Naval mine! Grab your floaties and blame the military-industrial complex!' },
+  missile: { at: 0, who: 'BRIDGE', text: 'Direct hit! Influencers, defense contractors, and twinks to the rafts!' },
+  drones: { at: 0, who: 'ANITA LIFEBOAT', text: 'Drones on the sun deck! Tag the UN and hit your angles in the water!' },
+  boat: { at: 0, who: 'CAPTAIN', text: 'Rammed! Abandon ship, darlings, oil just hit $200 a barrel!' },
 };
