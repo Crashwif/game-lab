@@ -30,6 +30,12 @@ export const SOURCE_ENTRY = 'main.ts';
 export const LICENCES = new Set(['all-rights-reserved', 'derivatives-royalty', 'open']);
 /** The latest poster moment, in seconds: the deploy captures every poster within its time limit. */
 export const MAX_POSTER_SECONDS = 120;
+/** The hashtags a game's social post carries, in order: the platform's, the game's name, and two for its theme and the moment. */
+export const HASHTAG_COUNT = 4;
+/** The platform's hashtag, first on every post. */
+export const PLATFORM_HASHTAG = '#Crashwif';
+/** A hashtag as the networks take it: # and letters, digits or underscores, with at least one letter. */
+const HASHTAG = /^#(?=.*\p{L})[\p{L}\p{N}_]{1,50}$/u;
 
 /** What a source pack leaves out: the game's gallery entry and README (the extension filter drops the README too). */
 const SOURCE_EXCLUDED = new Set(['gallery.json', 'README.md']);
@@ -129,8 +135,21 @@ export function checkSources(files, entry = SOURCE_ENTRY) {
 }
 
 /**
+ * A game's name as one hashtag: its words capitalised and run together, an
+ * apostrophe dropped and & read as "and" (Pump & Dump is #PumpAndDump). The
+ * second hashtag of a game's social post is this, in whatever case the game
+ * writes it.
+ */
+export function titleHashtag(name) {
+  const words = name.replace(/['’]/g, '').replace(/&/g, ' and ').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return `#${words.map((word) => word[0].toUpperCase() + word.slice(1)).join('')}`;
+}
+
+/**
  * games/<slug>/gallery.json, checked: the copy the gallery shows (name,
- * hook, tagline, renderer and three tags), whether the game is interactive
+ * hook, tagline, renderer and three tags), the four hashtags of its social
+ * post when it names them (#Crashwif, its name as one word and two more),
+ * whether the game is interactive
  * (the player steers it; absent means a game to watch and cash out of), the
  * remix licence and royalty, and poster.seconds. `source` is
  * { from: 'git', commit } or { from: 'worktree' } (the default), as for
@@ -151,6 +170,12 @@ export function readGallery(slug, source = { from: 'worktree' }) {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) fail('it must be a JSON object');
   for (const key of ['name', 'hook', 'tagline', 'renderer']) if (!text(meta[key])) fail(`"${key}" must be a non-empty string`);
   if (!Array.isArray(meta.tags) || meta.tags.length !== 3 || !meta.tags.every(text)) fail('"tags" must be exactly 3 non-empty strings');
+  if (meta.hashtags !== undefined) {
+    if (!Array.isArray(meta.hashtags) || meta.hashtags.length !== HASHTAG_COUNT || !meta.hashtags.every((tag) => typeof tag === 'string' && HASHTAG.test(tag))) fail(`"hashtags" must be exactly ${HASHTAG_COUNT} hashtags, each # and letters, digits or underscores`);
+    if (meta.hashtags[0] !== PLATFORM_HASHTAG) fail(`the first hashtag must be ${PLATFORM_HASHTAG}`);
+    if (meta.hashtags[1].toLowerCase() !== titleHashtag(meta.name).toLowerCase()) fail(`the second hashtag must be the game's name, ${titleHashtag(meta.name)}`);
+    if (new Set(meta.hashtags.map((tag) => tag.toLowerCase())).size !== HASHTAG_COUNT) fail('"hashtags" must not repeat a hashtag');
+  }
   if (meta.interactive !== undefined && typeof meta.interactive !== 'boolean') fail('"interactive" is true for a game the player steers, or left out');
   if (!LICENCES.has(meta.licence)) fail(`licence is one of ${[...LICENCES].join(', ')}`);
   const royaltyBps = meta.royaltyBps ?? 0;
@@ -158,7 +183,7 @@ export function readGallery(slug, source = { from: 'worktree' }) {
   if (meta.licence !== 'derivatives-royalty' && royaltyBps !== 0) fail('only a derivatives-royalty licence sets a royalty');
   const seconds = meta.poster?.seconds;
   if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0 || seconds > MAX_POSTER_SECONDS) fail(`"poster.seconds" must be a number above 0 and at most ${MAX_POSTER_SECONDS}`);
-  return { ...meta, interactive: meta.interactive === true, royaltyBps };
+  return { ...meta, hashtags: meta.hashtags ?? [], interactive: meta.interactive === true, royaltyBps };
 }
 
 /**

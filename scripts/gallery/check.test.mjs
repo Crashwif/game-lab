@@ -6,7 +6,7 @@ import { dirname, extname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { MAX_AI_INPUT_TOKENS, MAX_CATALOG_INPUT_TOKENS, budgetProblems, bundle, catalogBudgetProblems, check, importProblems, listProblems, playerFundsProblems, readmeGames, readmeProblems, remixInputBound, replayProblems } from './check.mjs';
-import { MAX_SOURCE_FILES, MAX_SOURCE_FILE_BYTES, ROOT, SOURCE_EXTENSIONS, checkSources } from './pack.mjs';
+import { MAX_SOURCE_FILES, MAX_SOURCE_FILE_BYTES, ROOT, SOURCE_EXTENSIONS, checkSources, titleHashtag } from './pack.mjs';
 
 test('every game meets the Game Lab contract', async () => {
   assert.deepEqual(await check(), []);
@@ -157,6 +157,48 @@ test('gallery.json marks a game interactive with a boolean, or not at all', asyn
   assert.equal(readGallery('demo').interactive, true);
   await write({ interactive: 'yes' });
   assert.throws(() => readGallery('demo'), /"interactive" is true for a game the player steers, or left out/);
+});
+
+test('gallery.json hashtags are #Crashwif, the game’s name and two more, or left out', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'gallery-hashtags-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, 'scripts/gallery'), { recursive: true });
+  await copyFile(join(ROOT, 'scripts/gallery/pack.mjs'), join(root, 'scripts/gallery/pack.mjs'));
+  await mkdir(join(root, 'games/demo'), { recursive: true });
+  const { readGallery } = await import(pathToFileURL(join(root, 'scripts/gallery/pack.mjs')).href);
+  const meta = { name: 'Demo & Co', hook: 'h', tagline: 't', tags: ['a', 'b', 'c'], renderer: 'Canvas 2D', licence: 'open', poster: { seconds: 10 } };
+  const write = (extra) => writeFile(join(root, 'games/demo/gallery.json'), JSON.stringify({ ...meta, ...extra }));
+  await write({});
+  assert.deepEqual(readGallery('demo').hashtags, []);
+  await write({ hashtags: ['#Crashwif', '#DemoAndCo', '#Crypto', '#Satire'] });
+  assert.deepEqual(readGallery('demo').hashtags, ['#Crashwif', '#DemoAndCo', '#Crypto', '#Satire']);
+  await write({ hashtags: ['#Crashwif', '#demoandco', '#Crypto', '#Satire'] });
+  assert.equal(readGallery('demo').hashtags[1], '#demoandco', 'the name hashtag keeps the case the game writes');
+  for (const [hashtags, problem] of [
+    [['#Crashwif', '#DemoAndCo', '#Crypto'], /"hashtags" must be exactly 4 hashtags/],
+    [['#Crashwif', '#DemoAndCo', '#Crypto', 'Satire'], /"hashtags" must be exactly 4 hashtags/],
+    [['#Crashwif', '#DemoAndCo', '#Crypto', '#not a tag'], /"hashtags" must be exactly 4 hashtags/],
+    [['#Crashwif', '#DemoAndCo', '#Crypto', '#2026'], /"hashtags" must be exactly 4 hashtags/],
+    [['#crashwif', '#DemoAndCo', '#Crypto', '#Satire'], /the first hashtag must be #Crashwif/],
+    [['#Crashwif', '#Demo', '#Crypto', '#Satire'], /the second hashtag must be the game's name, #DemoAndCo/],
+    [['#Crashwif', '#DemoAndCo', '#Crypto', '#crypto'], /"hashtags" must not repeat a hashtag/],
+    ['#Crashwif #DemoAndCo #Crypto #Satire', /"hashtags" must be exactly 4 hashtags/],
+  ]) {
+    await write({ hashtags });
+    assert.throws(() => readGallery('demo'), problem, JSON.stringify(hashtags));
+  }
+});
+
+test('titleHashtag runs a game’s name into one hashtag', () => {
+  assert.equal(titleHashtag('Roadster to Mars'), '#RoadsterToMars');
+  assert.equal(titleHashtag('Pump & Dump'), '#PumpAndDump');
+  assert.equal(titleHashtag('Andy\u2019s Loud Garden'), '#AndysLoudGarden');
+  assert.equal(titleHashtag("Andy's Loud Garden"), '#AndysLoudGarden');
+  assert.equal(titleHashtag('TROLLEY.EXE'), '#TROLLEYEXE');
+  assert.equal(titleHashtag('MUMU Bull Run'), '#MUMUBullRun');
+  assert.equal(titleHashtag('Self-Deport'), '#SelfDeport');
+  assert.equal(titleHashtag('OnlyFrens'), '#OnlyFrens');
+  assert.equal(titleHashtag('hello  world 2'), '#HelloWorld2');
 });
 
 test('an executable source file packs the same from a commit as from the working tree', async (t) => {

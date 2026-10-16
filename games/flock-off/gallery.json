@@ -3,6 +3,7 @@
   "hook": "Deflock the block. No face, no case.",
   "tagline": "A man in all black rides a BMX through Flockville shooting the licence-plate cameras off their poles: aim with the pointer or the keys while the game rides the bike, keep a streak, dodge the reads, and get in the Kia before the police catch him. The crash is the bust: a PIT, a spike strip, a hedge cop, a taser or a Flock drone with a net, then the mugshot.",
   "tags": ["Interactive shooting", "Surveillance satire", "Police-chase crash"],
+  "hashtags": ["#Crashwif", "#FlockOff", "#Surveillance", "#FlockCameras"],
   "renderer": "Canvas 2D",
   "interactive": true,
   "licence": "open",

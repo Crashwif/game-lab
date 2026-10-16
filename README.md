@@ -160,7 +160,7 @@ Complete music is packed as mono Opus at 8 kb/s. `clips.json` must fit the 256 K
 
 This section is for gallery maintainers. Creators can publish their own renderer through Studio or [submit a game from a fork](CONTRIBUTING.md#submit-a-game-from-a-fork).
 
-Each game's `gallery.json` supplies the gallery copy, three tags, renderer, remix licence and poster time; `interactive: true` marks a game the player steers. [Contributing](CONTRIBUTING.md#galleryjson) defines the fields. The catalog order comes from `scripts/games.mjs`.
+Each game's `gallery.json` supplies the gallery copy, three tags, four hashtags for its social post, renderer, remix licence and poster time; `interactive: true` marks a game the player steers. [Contributing](CONTRIBUTING.md#galleryjson) defines the fields. The catalog order comes from `scripts/games.mjs`.
 
 ### Export locally
 

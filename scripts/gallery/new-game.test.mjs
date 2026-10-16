@@ -26,6 +26,7 @@ test('scaffold registers the game and preserves shared source, replay proof and 
   assert.deepEqual(JSON.parse(await read('replay.json')), { ...original, gameId: 'my-game' });
   assert.match(await read('index.html'), /My &lt;Game&gt;/);
   assert.equal(JSON.parse(await read('gallery.json')).name, 'My <Game>');
+  assert.deepEqual(JSON.parse(await read('gallery.json')).hashtags, ['#Crashwif', '#MyGame', '#GameDev', '#IndieDev']);
   assert.match(await readFile(join(root, 'scripts/games.mjs'), 'utf8'), /GAMES = \['hello-world', 'my-game'\]/);
   assert.match(await readFile(join(root, 'README.md'), 'utf8'), /games\/my-game/);
   const before = await read('scene.ts');
