@@ -91,10 +91,19 @@ async function buildMissing(slugs, dist) {
 }
 
 /** Every export includes the entire current catalog; only its expensive build and capture work is selective. */
-export async function exportGallery(options, { games = readGames(options), sharedKey, captureKey, build = buildMissing, capture = capturePosters } = {}) {
+export async function exportGallery(options, { games = readGames(options), sharedKey, captureKey, identify = captureIdentity, build = buildMissing, capture = capturePosters } = {}) {
   if (options.plan && !options.cache) throw new Error('--plan requires --cache');
   if (options.cache && (options.sources !== 'git' || options.skipPosters)) throw new Error('--cache requires --sources git and cannot skip posters');
-  const captureFingerprint = captureKey ?? (options.plan || options.skipPosters || !options.cache ? null : await captureIdentity());
+  let captureFingerprint = captureKey ?? null;
+  if (!captureFingerprint && options.cache && !options.skipPosters) {
+    try { captureFingerprint = await identify(); }
+    catch (error) {
+      // Planning before installation remains conservative. An actual export must
+      // always verify the installed renderer, even when every bundle is cached.
+      if (!options.plan) throw error;
+      console.log(`capture environment unavailable during plan: ${error.message}; poster reuse needs verification after setup`);
+    }
+  }
   const planned = options.cache ? await planGames(games, options.cache, sharedKey ?? sharedInputs(options.commit), captureFingerprint) : games;
   const builds = options.cache ? planned.filter((g) => !g.bundle) : [];
   let posters = options.skipPosters ? [] : planned.filter((g) => !g.cachedPoster);

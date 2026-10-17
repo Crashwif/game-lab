@@ -17,6 +17,7 @@ async function fixture(t) {
   const options = { dist: join(root, 'dist'), out: join(root, 'out'), cache: join(root, 'cache'), commit: '1'.repeat(40), repository: 'https://github.com/Crashwif/game-lab', sources: 'git', skipPosters: false };
   let games = [game('first'), game('second')]; let sharedKey = 'shared-inputs'; let captureKey = digest('capture-inputs'); let buildPrefix = '';
   let built = []; let captured = []; let failCapture = false;
+  let identify = async () => digest('capture-inputs');
   const build = async (slugs, dist) => {
     built.push(...slugs);
     for (const slug of slugs) {
@@ -34,10 +35,10 @@ async function fixture(t) {
     built = []; captured = [];
     // Each run starts on an empty runner; only the explicit output cache survives.
     await rm(options.dist, { recursive: true, force: true });
-    const result = await exportGallery({ ...options, ...overrides }, { games, sharedKey, captureKey, build, capture });
+    const result = await exportGallery({ ...options, ...overrides }, { games, sharedKey, captureKey, identify, build, capture });
     return { ...result, built, captured };
   };
-  return { root, options, run, setGames(value) { games = value; }, setShared(value) { sharedKey = value; }, setCapture(value) { captureKey = value; }, setBuildPrefix(value) { buildPrefix = value; }, failCapture() { failCapture = true; } };
+  return { root, options, run, setGames(value) { games = value; }, setShared(value) { sharedKey = value; }, setCapture(value) { captureKey = value; }, setIdentify(value) { identify = value; }, setBuildPrefix(value) { buildPrefix = value; }, failCapture() { failCapture = true; } };
 }
 
 test('cold exports build and capture every game; warm exports keep the complete catalog and fresh provenance', async (t) => {
@@ -158,6 +159,32 @@ test('failed capture supplies no reusable cache, and cached exports cannot skip 
   await assert.rejects(readdir(f.options.cache), { code: 'ENOENT' });
   await assert.rejects(f.run({ skipPosters: true }), /cannot skip posters/);
   await assert.rejects(f.run({ sources: 'worktree' }), /requires --sources git/);
+});
+
+test('warm plans verify the installed capture runtime and omit unnecessary setup work', async t => {
+  const f = await fixture(t);
+  await f.run();
+  f.setCapture(undefined);
+  let probes = 0;
+  f.setIdentify(async () => { probes++; return digest('capture-inputs'); });
+  const warm = await f.run({ plan: true });
+  assert.equal(probes, 1);
+  assert.deepEqual(warm.build, []);
+  assert.deepEqual(warm.posters, []);
+  assert.deepEqual(warm.reused, ['first', 'second']);
+  f.setIdentify(async () => digest('changed-runtime'));
+  assert.deepEqual((await f.run({ plan: true })).posters, ['first', 'second']);
+});
+
+test('a missing runtime makes planning conservative and prevents a cached export', async t => {
+  const f = await fixture(t);
+  await f.run();
+  f.setCapture(undefined);
+  f.setIdentify(async () => { throw new Error('browser is not installed'); });
+  const plan = await f.run({ plan: true });
+  assert.deepEqual(plan.build, []);
+  assert.deepEqual(plan.posters, ['first', 'second']);
+  await assert.rejects(f.run(), /browser is not installed/);
 });
 
 test('shared fingerprints require a clean matching checkout and cover toolchain, dependency and build changes', async (t) => {

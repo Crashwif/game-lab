@@ -48,23 +48,44 @@ on:
 permissions: {}
 
 jobs:
+  runtime-required:
+    name: Capture runtime setup required
+    if: >-
+      vars.GAME_LAB_CAPTURE_IMAGE == '' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
+      github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: |
+          echo '::notice::Gallery publishing is waiting for its immutable capture image. Run Build gallery capture image, verify it, set GAME_LAB_CAPTURE_IMAGE to its digest, then rerun Deploy Game Lab. No mutable runtime is used.'
+          echo 'Gallery publishing is waiting for GAME_LAB_CAPTURE_IMAGE. Follow README.md: Bootstrap the capture image, then rerun this workflow.' >> "$GITHUB_STEP_SUMMARY"
+
   export:
     name: Build and export
     # workflow_run's branch filter matches a fork's branch name too, so the event and head repository decide.
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      vars.GAME_LAB_CAPTURE_IMAGE != '' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       actions: read
+      packages: read
     outputs:
       commit: ${{ steps.commit.outputs.sha }}
+    env:
+      GAME_LAB_CAPTURE_IMAGE: ${{ vars.GAME_LAB_CAPTURE_IMAGE }}
+      GAME_LAB_CAPTURE_CONCURRENCY: ${{ vars.GAME_LAB_CAPTURE_CONCURRENCY || '2' }}
+      GAME_LAB_CAPTURE_MANIFEST: ${{ runner.temp }}/capture-environment.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -96,6 +117,20 @@ jobs:
         with:
           node-version: ${{ steps.node.outputs.version }}
           cache: npm
+      - name: Read the repository's capture image
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Prepare and verify the immutable capture runtime
+        run: |
+          set -euo pipefail
+          # Use this workflow's tools when exporting an older source commit.
+          mkdir -p "$RUNNER_TEMP/capture-runtime"
+          git archive "$GITHUB_SHA" .nvmrc scripts/gallery/run-capture.mjs scripts/gallery/capture-image.mjs scripts/gallery/capture.Dockerfile |
+            tar -x -C "$RUNNER_TEMP/capture-runtime"
+          node "$RUNNER_TEMP/capture-runtime/scripts/gallery/run-capture.mjs" --verify
       - name: Restore game bundles and posters
         id: cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -110,7 +145,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f scripts/gallery/cache.mjs ]; then
-            node scripts/gallery/export.mjs --commit "$COMMIT" --cache .game-lab-cache --plan
+            node "$RUNNER_TEMP/capture-runtime/scripts/gallery/run-capture.mjs" --commit "$COMMIT" --cache .game-lab-cache --plan
           else
             echo "incremental=false" >> "$GITHUB_OUTPUT"
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -131,14 +166,6 @@ jobs:
           else
             npm run build
           fi
-      - name: Fonts and a browser for the posters
-        if: steps.plan.outputs.posters == 'true'
-        run: |
-          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | sudo debconf-set-selections
-          (sudo apt-get update -qq && sudo apt-get install -y -qq ttf-mscorefonts-installer fontconfig >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1) || echo "::warning::Microsoft core fonts are unavailable; posters use fallback fonts"
-          # A commit from before Playwright was a dev dependency gets the same version, unsaved.
-          npm ls playwright >/dev/null 2>&1 || npm install --no-save playwright@1.63.0
-          npx --no playwright install --with-deps chromium
       - name: Export the gallery
         env:
           COMMIT: ${{ steps.commit.outputs.sha }}
@@ -147,7 +174,15 @@ jobs:
           set -euo pipefail
           flags=()
           if [ "$INCREMENTAL" = true ]; then flags+=(--cache .game-lab-cache); fi
-          node scripts/gallery/export.mjs --dist dist --out gallery-out --commit "$COMMIT" --repository "https://github.com/$GITHUB_REPOSITORY" "${flags[@]}"
+          node "$RUNNER_TEMP/capture-runtime/scripts/gallery/run-capture.mjs" --dist dist --out gallery-out --commit "$COMMIT" --repository "https://github.com/$GITHUB_REPOSITORY" "${flags[@]}"
+      - name: Retain capture fingerprint inputs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: capture-environment
+          path: ${{ runner.temp }}/capture-environment.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Save verified game bundles and posters
         if: steps.plan.outputs.incremental == 'true' && (steps.plan.outputs.build == 'true' || steps.plan.outputs.posters == 'true')
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5

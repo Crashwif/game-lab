@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
-import { filesUnder, fingerprintFiles } from './capture-environment.mjs';
+import { filesUnder, fingerprintFiles, fingerprintManifest } from './capture-environment.mjs';
 
 test('capture fingerprints ignore enumeration order and follow renderer, font and recipe bytes', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'gallery-capture-'));
@@ -12,6 +12,11 @@ test('capture fingerprints ignore enumeration order and follow renderer, font an
   for (const [name, path] of files) await writeFile(path, name);
   const metadata = { arch: 'x64', fontMatch: 'Arial' };
   const initial = await fingerprintFiles(files, metadata);
+  const manifest = await fingerprintManifest(files, metadata);
+  assert.equal(manifest.fingerprint, initial);
+  assert.deepEqual(manifest.metadata, metadata);
+  assert.deepEqual(manifest.files.map(([name]) => name), ['browser', 'font', 'library', 'recipe']);
+  assert.ok(manifest.files.every(([, digest]) => /^[a-f0-9]{64}$/.test(digest)));
   assert.equal(await fingerprintFiles([...files].reverse(), metadata), initial);
   for (const [name, path] of files) {
     await writeFile(path, `changed ${name}`);

@@ -2,9 +2,10 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureRuntime } from './capture-runtime.mjs';
 
 const command = (name, args) => execFileSync(name, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const hashFile = async (path) => {
@@ -26,23 +27,29 @@ export async function filesUnder(path, ancestors = new Set()) {
 }
 
 /** File identities are ordered canonically; absent inputs fail rather than sharing an incomplete key. */
-export async function fingerprintFiles(files, metadata) {
+export async function fingerprintManifest(files, metadata) {
   const hash = createHash('sha256');
   hash.update(JSON.stringify(metadata));
-  for (const [name, path] of [...files].sort(([a], [b]) => a.localeCompare(b))) hash.update(JSON.stringify([name, await hashFile(path)]));
-  return hash.digest('hex');
+  const inputs = [];
+  for (const [name, path] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
+    const entry = [name, await hashFile(path)];
+    hash.update(JSON.stringify(entry)); inputs.push(entry);
+  }
+  return { fingerprint: hash.digest('hex'), metadata, files: inputs };
 }
+
+export async function fingerprintFiles(files, metadata) { return (await fingerprintManifest(files, metadata)).fingerprint; }
 
 export async function captureIdentity() {
   if (process.platform !== 'linux') throw new Error('verified poster caching requires the Linux capture environment');
-  const { chromium } = await import('playwright');
+  const { chromium, corePackage } = await captureRuntime();
   let browserRoot = dirname(chromium.executablePath());
   while (!/^chromium-\d+$/.test(basename(browserRoot))) {
     const parent = dirname(browserRoot);
     if (parent === browserRoot) throw new Error('cannot identify the installed Chromium directory');
     browserRoot = parent;
   }
-  const browserManifest = JSON.parse(await readFile(new URL('browsers.json', import.meta.resolve('playwright-core/package.json')), 'utf8'));
+  const browserManifest = JSON.parse(await readFile(join(dirname(corePackage), 'browsers.json'), 'utf8'));
   const shell = browserManifest.browsers.find((browser) => browser.name === 'chromium-headless-shell');
   if (!shell) throw new Error('Chromium headless shell is missing from the browser manifest');
   const browserFiles = [...await filesUnder(browserRoot), ...await filesUnder(join(dirname(browserRoot), `chromium_headless_shell-${shell.revision}`))];
@@ -60,8 +67,10 @@ export async function captureIdentity() {
   const inputs = [...new Set([...browserFiles, ...libraries, ...fonts, ...await filesUnder('/etc/fonts')])].sort();
   // Browser paths contain the revision, while the runner's home path is immaterial.
   const files = inputs.map((file) => [file.startsWith(dirname(browserRoot)) ? file.slice(dirname(browserRoot).length) : file, file]);
-  for (const path of ['./capture.mjs', './capture-environment.mjs']) files.push([path, fileURLToPath(new URL(path, import.meta.url))]);
-  files.push(['playwright-core/package.json', fileURLToPath(import.meta.resolve('playwright-core/package.json'))]);
-  return fingerprintFiles(files, { platform: process.platform, arch: process.arch,
+  for (const path of ['./capture.mjs', './capture-environment.mjs', './capture-runtime.mjs']) files.push([path, fileURLToPath(new URL(path, import.meta.url))]);
+  files.push(['playwright-core/package.json', corePackage]);
+  const manifest = await fingerprintManifest(files, { platform: process.platform, arch: process.arch,
     fontMatch: command('fc-match', ['--sort', '--format', '%{family}|%{style}|%{file}\n']) });
+  if (process.env.GAME_LAB_CAPTURE_MANIFEST) await writeFile(process.env.GAME_LAB_CAPTURE_MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
+  return manifest.fingerprint;
 }
