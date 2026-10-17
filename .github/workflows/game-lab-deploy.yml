@@ -85,7 +85,6 @@ jobs:
     env:
       GAME_LAB_CAPTURE_IMAGE: ${{ vars.GAME_LAB_CAPTURE_IMAGE }}
       GAME_LAB_CAPTURE_CONCURRENCY: ${{ vars.GAME_LAB_CAPTURE_CONCURRENCY || '2' }}
-      GAME_LAB_CAPTURE_MANIFEST: ${{ runner.temp }}/capture-environment.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,6 +125,7 @@ jobs:
       - name: Prepare and verify the immutable capture runtime
         run: |
           set -euo pipefail
+          echo "GAME_LAB_CAPTURE_MANIFEST=$RUNNER_TEMP/capture-environment.json" >> "$GITHUB_ENV"
           # Use this workflow's tools when exporting an older source commit.
           mkdir -p "$RUNNER_TEMP/capture-runtime"
           git archive "$GITHUB_SHA" .nvmrc scripts/gallery/run-capture.mjs scripts/gallery/capture-image.mjs scripts/gallery/capture.Dockerfile |
