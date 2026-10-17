@@ -8,7 +8,7 @@ import { BUNDLE_FILES, digest, gameKeys, sharedInputs } from './cache.mjs';
 import { exportGallery } from './export.mjs';
 
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
-const game = (slug, code = 'draw()') => ({ slug, name: slug, hook: 'hook', tagline: 'tagline', tags: ['a', 'b', 'c'], renderer: 'Canvas 2D', interactive: false, licence: 'open', royaltyBps: 0,
+const game = (slug, code = 'draw()') => ({ slug, name: slug, hook: 'hook', tagline: 'tagline', tags: ['a', 'b', 'c'], hashtags: ['#Crashwif', `#${slug}`, '#a', '#b'], renderer: 'Canvas 2D', interactive: false, licence: 'open', royaltyBps: 0,
   poster: { seconds: 18 }, sources: { 'main.ts': code, 'index.html': '<canvas></canvas>', 'style.css': 'canvas{}' } });
 
 async function fixture(t) {
@@ -49,6 +49,7 @@ test('cold exports build and capture every game; warm exports keep the complete 
   assert.deepEqual(warm.built, []); assert.deepEqual(warm.captured, []); assert.equal(warm.total, 2);
   const manifest = await json(join(f.options.out, 'manifest.json'));
   assert.equal(manifest.commit, commit); assert.deepEqual(manifest.games.map((g) => g.slug), ['first', 'second']);
+  assert.deepEqual(manifest.games.map((g) => g.hashtags), [['#Crashwif', '#first', '#a', '#b'], ['#Crashwif', '#second', '#a', '#b']]);
   const source = await json(join(f.options.out, 'SOURCE.json'));
   assert.equal(source.commit, commit);
   assert.equal(source.posterCapture, digest('capture-inputs'));

@@ -25,7 +25,7 @@ For a first edit, change `GREETING`, `COLOURS` or the `MILESTONES` captions in `
 To add a separate game in this repository:
 
 1. Copy `games/hello-world/` to `games/my-game/` (for example, `cp -R games/hello-world games/my-game`).
-2. Update the title and canvas description in `index.html`, the copy in `gallery.json`, and your game's README. Edit `scene.ts` and the rules after `/* game */` in `style.css`.
+2. Update the title and canvas description in `index.html`, the copy and hashtags in `gallery.json`, and your game's README. Edit `scene.ts` and the rules after `/* game */` in `style.css`.
 3. Change only `gameId` in the copied `replay.json` to `my-game`. Keep the recorded seed, hash and result together so the recording still verifies. This fixture does not set live outcomes.
 4. Add `my-game` to `GAMES` in `scripts/games.mjs` and a matching row in the root README's reference table at the same position. Add it to `BROWSER_REMIX` if it stays within that budget.
 5. Add a distinct music prompt under your slug in `scripts/audio/prompts.json` for the catalog's audio tooling. Recordings are optional: leave `clips.json` as `{}` to use procedural sound. The template's prompt is an example; nothing is generated when you build or preview.
@@ -38,7 +38,7 @@ To add a separate game in this repository:
 | `scene.ts` | Your drawing, animation and sound cues. Start here. |
 | `index.html` | Page title, canvas description and control labels; preserve the shell's IDs and elements. |
 | `style.css` | Your colours and page styles after `/* game */`; preserve the shared block above it. |
-| `gallery.json` | Gallery name, description, tags, licence and poster time. |
+| `gallery.json` | Gallery name, description, tags, the four hashtags of the share post, licence and poster time. |
 | `replay.json` | A verified 9.07× recorded round, copied from Wen Moon with this game's ID. |
 | `clips.json` | Optional embedded audio. Empty by default; sound is generated locally. |
 | `main.ts`, `audio.ts` | Unmodified copies of the shared shell and audio helper. Shared changes belong in `scripts/shell/`. |

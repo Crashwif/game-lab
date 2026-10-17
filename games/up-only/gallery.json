@@ -7,6 +7,12 @@
     "Candlestick course",
     "FUD storm"
   ],
+  "hashtags": [
+    "#Crashwif",
+    "#UpOnly",
+    "#FlappyBird",
+    "#FUD"
+  ],
   "renderer": "Canvas 2D",
   "interactive": true,
   "licence": "open",

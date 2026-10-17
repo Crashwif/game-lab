@@ -1,6 +1,7 @@
 import { lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PLATFORM_HASHTAG, titleHashtag } from './gallery/pack.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const html = (text) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -30,12 +31,13 @@ export async function newGame(slug, name, { root = ROOT } = {}) {
   const gallery = JSON.parse(files.get('gallery.json'));
   gallery.name = name; gallery.hook = 'A game built from the Hello World starter';
   gallery.tagline = `Explore ${name}, a creator game built on the shared Game Lab shell.`;
+  gallery.hashtags = [PLATFORM_HASHTAG, titleHashtag(name), ...gallery.hashtags.slice(2)];
   files.set('gallery.json', JSON.stringify(gallery, null, 2) + '\n');
   const replay = JSON.parse(files.get('replay.json')); replay.gameId = slug;
   files.set('replay.json', JSON.stringify(replay, null, 2) + '\n');
   files.set('index.html', files.get('index.html').replaceAll('Hello World', html(name)).replaceAll('Hello, world!', html(name)));
   files.set('scene.ts', files.get('scene.ts').replace("const GREETING = 'Hello, world!';", `const GREETING = ${JSON.stringify(name)};`));
-  files.set('README.md', `# ${name}\n\nA game created from the open Hello World starter. Customize scene.ts and the game styles; keep the shared shell and audio helpers in sync.\n\nRun \`npm run preview -- ${slug}\` from the clone root. The preview rebuilds on save; refresh your browser after a successful build. Run the build, typecheck, check and test commands before submitting.\n\nThe backend supplies committed outcomes. Credits have no monetary value. The copied replay keeps its original seed, hash and result. Recorded audio is optional; clips.json uses the starter's procedural sound configuration.\n\nSee [integration](../../docs/integration.md), [animation](../../docs/animation.md) and [contributing](../../CONTRIBUTING.md).\n`);
+  files.set('README.md', `# ${name}\n\nA game created from the open Hello World starter. Customize scene.ts and the game styles; keep the shared shell and audio helpers in sync. In gallery.json, replace the last two hashtags with two that fit the game's theme and what people are posting about; the first two stay.\n\nRun \`npm run preview -- ${slug}\` from the clone root. The preview rebuilds on save; refresh your browser after a successful build. Run the build, typecheck, check and test commands before submitting.\n\nThe backend supplies committed outcomes. Credits have no monetary value. The copied replay keeps its original seed, hash and result. Recorded audio is optional; clips.json uses the starter's procedural sound configuration.\n\nSee [integration](../../docs/integration.md), [animation](../../docs/animation.md) and [contributing](../../CONTRIBUTING.md).\n`);
   prompts.games[slug] = { music: { prompt: `Compose an original 150-second instrumental game score for ${name}. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending.` } };
   const replacements = [
     [catalogPath, catalog, catalog.replace(match[0], `export const GAMES = [${[...games, slug].map((game) => `'${game}'`).join(', ')}];`)],
@@ -65,7 +67,7 @@ if (import.meta.main) {
     else {
       if (args.length < 1 || args.length > 2) throw new Error('Use npm run new-game -- <slug> ["Game name"].');
       const game = await newGame(args[0], args[1]);
-      console.log(`Created games/${game.slug}.\nEdit scene.ts, then run npm run preview -- ${game.slug}.\nReview the Git diff and run the standard validation before submitting.`);
+      console.log(`Created games/${game.slug}.\nEdit scene.ts and the last two hashtags in gallery.json, then run npm run preview -- ${game.slug}.\nReview the Git diff and run the standard validation before submitting.`);
     }
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
