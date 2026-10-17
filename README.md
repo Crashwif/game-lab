@@ -58,6 +58,8 @@ npm run test:browser
 
 The browser suite covers catalog replay/crash/restart on a small screen, the shell's room-curve handling and audio playback. Also exercise live waiting, betting, normal play, instant crash, accepted cash-out, a disconnected host and both browser motion preferences. The [integration guide](docs/integration.md#long-round-presentation) includes fixtures for reviewing long rounds and late entry.
 
+Use selected-game preview and targeted tests while iterating, then run the full required checks once for the final source. [Verification and capture operations](docs/verification.md) documents exact-commit evidence, hosted pull-request checks and the immutable gallery capture runtime. Public forks do not run on the platform's persistent private-repository worker.
+
 ## Reference games
 
 The table follows the gallery order in `scripts/games.mjs`. Use these examples to study richer presentation after starting with Hello World; [the idea shelf](docs/concepts.md) also contains unfinished concepts.
@@ -176,17 +178,19 @@ The export writes versioned bundles and posters to `gallery-out/<short-commit>/<
 
 By default, source packs and gallery metadata come from the selected git commit (`HEAD` unless `--commit` is supplied), while bundles come from `dist/`. Build from the same commit so they agree. For a source export without `.git`, pass `--sources worktree --commit <full SHA>` using the commit the copy came from. Posters are captured from verified replay mode at `poster.seconds`; browser errors and single-colour posters fail the export.
 
+Poster capture runs two games at a time, preserving each game's full playback time. Set `GAME_LAB_CAPTURE_CONCURRENCY` to an integer from 1 to 8 to tune the number of simultaneous pages, for example `GAME_LAB_CAPTURE_CONCURRENCY=4 npm run gallery:export` on a machine with enough CPU and memory. Use `1` for sequential capture on a constrained machine.
+
 For incremental export, first plan the work:
 
 ```sh
 node scripts/gallery/export.mjs --cache .game-lab-cache --plan
 ```
 
-This requires a clean Linux checkout of the selected commit. The plan reports possible captures before the browser environment and rebuilt outputs are available. Install dependencies, Playwright's Chromium and fontconfig; when builds are needed, build `@crashwif/crash-math` then `@crashwif/game-sdk`. Run the same command without `--plan` to build missing or changed games and write a complete export using verified cached outputs for the rest. The final log and Actions summary list games actually built, captured and reused.
+This requires a clean Linux checkout of the selected commit. When the capture runtime is installed, planning verifies it and can report zero captures; without it, the plan conservatively reports possible captures until setup completes. Install dependencies, Playwright's Chromium and fontconfig; when builds are needed, build `@crashwif/crash-math` then `@crashwif/game-sdk`. Run the same command without `--plan` to build missing or changed games and write a complete export using verified cached outputs for the rest. The final log and Actions summary list games actually built, captured and reused.
 
 Bundle keys cover each game's source, shared runtime/build inputs (including `games/tsconfig.json`) and the Node toolchain. Audio-generation prompts, master recordings, gallery tooling, workflow edits, README changes and gallery copy do not change a bundle key. Unknown shared inputs conservatively rebuild games. Poster keys cover the three rendered bundle files, the game's capture time, the capture helper and the installed browser, libraries, fonts and font configuration. A rebuild that produces identical bytes reuses its poster. A timing change captures only that game; a capture recipe or environment change recaptures posters without rebuilding bundles. Missing or corrupt outputs cannot supply reusable bytes.
 
-The cache uses version 2. Records without independent capture provenance require a complete initial capture; byte hashes alone do not establish the browser and fonts that produced a poster. The initial export populates the cache, and an identical export reports zero captures. Browser/font setup still runs to verify the environment before reuse; unrelated runner image labels and workflow changes are absent from the capture key. `SOURCE.json` records `posterCapture`, and platform sync reuses a poster only when this fingerprint, its timing, bundle bytes and recorded poster hash all match.
+The cache uses version 2. Records without independent capture provenance require a complete initial capture; byte hashes alone do not establish the browser and fonts that produced a poster. CI runs plan and export inside an immutable image containing Chromium, Microsoft core fonts, fontconfig and Node; it verifies the configured digest, committed image recipe, tool versions and actual capture inputs. A warm plan can skip dependency installation when all outputs match. `SOURCE.json` records `posterCapture`, and platform sync reuses a poster only when this fingerprint, its timing, bundle bytes and recorded poster hash all match. The `capture-environment` Actions artifact records individual input hashes for diagnosing invalidation.
 
 The non-cached exporter accepts `--skip-posters`, preserving posters already exported for that commit and reporting missing ones. It cannot be combined with `--cache`. Platform sync requires every poster unless `--allow-missing-posters` is explicitly passed.
 
@@ -202,7 +206,11 @@ It reuses posters with matching capture provenance and retains releases for open
 
 The [Deploy Game Lab workflow](.github/workflows/game-lab-deploy.yml) follows successful CI on `main`, or a manual run from `main` selecting a commit on `main` that passed CI. Pull-request CI does not deploy.
 
-- `export` plans, builds and captures affected games, reuses verified cached outputs, and uploads the complete export. It has read access to this repository and no platform token.
+#### Bootstrap the capture image
+
+Run [Build gallery capture image](.github/workflows/game-lab-capture-image.yml) on `main`, verify the produced image, and set repository variable `GAME_LAB_CAPTURE_IMAGE` to the exact `ghcr.io/crashwif/game-lab-capture@sha256:…` value reported in its summary. The package must grant this repository's Actions read access. Then rerun Deploy Game Lab. Before this variable is set, publishing waits with a setup notice; a configured image with the wrong digest, recipe or versions fails. Changes to `scripts/gallery/capture.Dockerfile` require rebuilding, verifying and updating the pin. See the [maintainer commands and smoke checks](docs/verification.md#capture-image-operations).
+
+- `export` plans, builds and captures affected games, reuses verified cached outputs, and uploads the complete export. It has read access to this repository and its capture image, and no platform token. Capture containers have no external network, a read-only root and no Docker socket or registry credentials.
 - `publish` applies the artifact using the workflow's trusted sync script, opens or reuses a platform pull request, waits for its checks, then merges it. The platform's Railway workflow handles deployment. The platform token is used only in this job, including its configuration check, platform checkout and push/PR step.
 
 Publishing requires the `GAME_LAB_PLATFORM_TOKEN` repository secret: a token scoped to the platform repository with Contents and Pull requests read/write, and Checks, Commit statuses, Actions and Metadata read. Use a fine-grained token or mint a scoped GitHub App installation token for the run; do not copy a broad personal gh CLI token or classic PAT. `GAME_LAB_PLATFORM_REPOSITORY` optionally selects the target repository (default `Crashwif/crashwif`). Without the secret, publishing skips with a notice.

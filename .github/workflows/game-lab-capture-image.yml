@@ -1,0 +1,54 @@
+name: Build gallery capture image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/gallery/capture.Dockerfile
+      - .github/workflows/game-lab-capture-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Crashwif/game-lab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Identify the committed recipe
+        id: recipe
+        run: echo "sha=$(node scripts/gallery/capture-image.mjs)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: image
+        with:
+          context: .
+          file: scripts/gallery/capture.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/crashwif/game-lab-capture:recipe-${{ steps.recipe.outputs.sha }}
+          build-args: CAPTURE_RECIPE_SHA=${{ steps.recipe.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/Crashwif/game-lab
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=game-lab-capture-image
+          cache-to: type=gha,scope=game-lab-capture-image,mode=max
+      - name: Report the immutable image to configure
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          echo "Set repository variable GAME_LAB_CAPTURE_IMAGE to ghcr.io/crashwif/game-lab-capture@$DIGEST after verifying this image. The package must grant this repository Actions read access; a package linked by this workflow inherits that access." >> "$GITHUB_STEP_SUMMARY"
