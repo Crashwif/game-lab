@@ -1,0 +1,12 @@
+{
+  "gameId": "balloon-pump",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000001",
+  "serverSeedHash": "ec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 356,
+  "rallyN": 0,
+  "bets": []
+}

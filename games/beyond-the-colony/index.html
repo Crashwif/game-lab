@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beyond the Colony — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <div class="stage"><canvas aria-label="A furious little penguin escapes the colony, belly-slides past an HR drone, rejects a seal boss, fights the wind and becomes an absurd cosmic overman. Confirmed cash-out escapes to a cloud lounge. The backend crash triggers an avalanche that dumps the penguin back into an office."></canvas></div>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

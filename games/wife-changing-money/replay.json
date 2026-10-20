@@ -1,0 +1,12 @@
+{
+  "gameId": "wife-changing-money",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000391",
+  "serverSeedHash": "dc59dc4fcc8c8dbc21b74804ea2724d4e4477710645b28580bf2bd2b6b21d655",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 665,
+  "rallyN": 0,
+  "bets": []
+}

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0b12">
+  <title>Flock Off — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="Flock Off: a man in all black rides a BMX through a strip-mall city at dusk, shooting the Flock licence-plate cameras on their poles as they scroll past. The game rides the bike; you aim the gun with the pointer, a tap or the arrow keys and fire with a click, a tap, F or the FIRE button, or leave it to the aimbot. Police cruisers, a news chopper, SWAT and a Flock drone close in as the multiplier climbs. A confirmed cash-out brings a Kia alongside for a body-double swap; the round's crash is the moment the police get him."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <div class="round-actions">
+        <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Ride · 50 credits</button>
+        <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out · the Kia</button>
+        <button id="restart" hidden>Replay round</button>
+        <button id="sound" class="secondary">Sound: off</button>
+      </div>
+      <div class="gun" role="group" aria-label="The gun">
+        <button id="fire-button" type="button" class="gun-key" aria-label="Fire at the reticle" aria-keyshortcuts="F Enter"><span aria-hidden="true">✦</span><span>FIRE</span></button>
+        <button id="reload-button" type="button" class="gun-key" aria-label="Reload the magazine" aria-keyshortcuts="R"><span aria-hidden="true">↻</span><span>RELOAD</span></button>
+        <p id="gun-help"><span class="keyboard-hint">Move the mouse to aim, click to fire; or arrows / WASD aim, F fires, R reloads. Space cashes out.</span> <span class="pointer-hint">Tap a camera to shoot it; drag to aim, FIRE shoots.</span> Aiming, hits and reads are arcade play: they never change the round, your bet or when the police catch him. Credits have no monetary value.</p>
+      </div>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

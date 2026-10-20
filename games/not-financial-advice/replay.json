@@ -1,0 +1,12 @@
+{
+  "gameId": "not-financial-advice",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000237",
+  "serverSeedHash": "b8e3f56ed22778e74a87b26240a01b377d772f7700dcbd6ef1de31c96c483deb",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 421,
+  "rallyN": 0,
+  "bets": []
+}

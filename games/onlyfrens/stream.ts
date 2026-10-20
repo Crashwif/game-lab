@@ -1,0 +1,613 @@
+/**
+ * The stream: her room with the LED strips and the ring light, the queen
+ * herself in a hoodie and cat-ear headset, the money bags that stack up
+ * beside her, the door behind her whose handle starts turning, and the
+ * crash: the boyfriend walks through with the bag and the stream ends.
+ * Innuendo only: nothing is ever revealed but him. Nothing here changes
+ * the outcome.
+ */
+import { solveLimb, stepFoot } from './kinematics';
+import { type Spring, clamp, fract, mix, mulberry32, noise, settleSpring, smoothstep, spring, stepSpring } from './motion';
+
+export const INK = '#1c1f26';
+export const VIDEO = { x: 0, y: 0, w: 620, h: 440 } as const;
+export type Point = { x: number; y: number };
+/** The door (hinged on the left, its handle on the right), and where the boyfriend steps in from (the hallway past the latch side) and stops. */
+const DOOR = { x: 400, y: 60, w: 130, h: 300 } as const;
+const BF_FROM = 560, BF_AT = 470;
+/** When the knock's two raps land, in seconds after it starts. */
+export const RAPS: readonly number[] = [0, 0.2];
+
+interface Heart { x: number; y: number; vx: number; age: number; life: number; size: number }
+
+export interface Stream {
+  time: number;
+  bounce: Spring;
+  wave: Spring;
+  kiss: Spring;
+  glance: Spring;
+  handle: Spring;
+  shock: Spring;
+  bags: number;
+  hearts: Heart[];
+  ended: boolean;
+  endAge: number;
+  boyfriendX: Spring;
+  blinkAt: number;
+  eyeOpen: Spring;
+  hair: Spring;
+  static: number;
+  /** The bags squash when another lands on the pile. */
+  bagBounce: Spring;
+  /** The second monitor jolts each time her short grows. */
+  monitor: Spring;
+  /** Her short on her own coin, on the monitor she forgot to angle away: closed in profit at the reveal, with a flash that fades. */
+  shortClosed: boolean;
+  shortFlash: number;
+  /** A green flash on the LED strips for an accepted exit. */
+  cash: number;
+  /** The freeze frame: the picture holds for a beat before the feed cuts. */
+  hold: boolean;
+  /** The door's rattle in its frame near the top. */
+  rattle: number;
+  /** Integrated phases, so a changing rate never jumps the LED pulse, the handle bursts or her glances. */
+  ledPhase: number;
+  doorPhase: number;
+  jigglePhase: number;
+  glancePhase: number;
+  shiftPhase: number;
+  /** Whoever waits behind the frosted pane: how dark the silhouette has gathered. */
+  shadow: Spring;
+  /** Her head lags the sway and the bounce; she leans in toward the camera as the number climbs. */
+  headX: Spring;
+  headY: Spring;
+  lean: Spring;
+  /** The knock at 6 s, as a sideways jolt of the door, and how long ago it came (negative before). */
+  knock: number;
+  knockAge: number;
+  /** The room fades back in after the end card. */
+  boot: number;
+}
+
+export function createStream(): Stream {
+  return { time: 0, bounce: spring(0), wave: spring(0), kiss: spring(0), glance: spring(0), handle: spring(0), shock: spring(0), bags: 0, hearts: [], ended: false, endAge: 0, boyfriendX: spring(BF_FROM), blinkAt: 2, eyeOpen: spring(1), hair: spring(0), static: 0, bagBounce: spring(0), monitor: spring(0), shortClosed: false, shortFlash: 0, cash: 0, hold: false, rattle: 0, ledPhase: 0, doorPhase: .75, jigglePhase: 0, glancePhase: 0, shiftPhase: 0, shadow: spring(0), headX: spring(0), headY: spring(0), lean: spring(0), knock: 0, knockAge: -1, boot: 0 };
+}
+
+export function resetStream(s: Stream): void {
+  settleSpring(s.bounce, 0);
+  settleSpring(s.wave, 0);
+  settleSpring(s.kiss, 0);
+  settleSpring(s.glance, 0);
+  settleSpring(s.handle, 0);
+  settleSpring(s.shock, 0);
+  s.bags = 0;
+  s.hearts = [];
+  s.ended = false;
+  s.endAge = 0;
+  settleSpring(s.boyfriendX, BF_FROM);
+  s.static = 0;
+  settleSpring(s.bagBounce, 0);
+  settleSpring(s.monitor, 0);
+  s.shortClosed = false;
+  s.shortFlash = 0;
+  s.cash = 0;
+  s.hold = false;
+  s.rattle = 0;
+  s.doorPhase = .75;
+  settleSpring(s.shadow, 0);
+  settleSpring(s.lean, 0);
+}
+
+/** The round goes live: she waves hello to the stream. */
+export function goLive(s: Stream): void {
+  s.wave.v += 12;
+  s.bounce.v += 6;
+  s.hair.v += 4;
+}
+
+/** A scene that meets a round late: whoever is behind the door has already gathered, and she is already leaning in. */
+export function settleStream(s: Stream, tension: number, deep: number): void {
+  settleSpring(s.shadow, shadowAt(tension, deep));
+  settleSpring(s.lean, tension);
+}
+
+/** A milestone was reached: a bounce, a wave or a kiss, another bag, and the short on the monitor grows. */
+export function celebrate(s: Stream, index: number): void {
+  s.bounce.v += 14;
+  if (index % 2) s.kiss.v += 10; else s.wave.v += 12;
+  s.bags = Math.min(9, s.bags + 1);
+  s.hair.v += 6;
+  s.bagBounce.v += 12;
+  s.monitor.v += 9;
+}
+
+/** An accepted exit: the LED strips flash green. */
+export function cashFlash(s: Stream): void {
+  s.cash = 1;
+}
+
+/** The boyfriend reveal. `quiet` skips the effects for a crash that already happened. */
+export function endStream(s: Stream, seed: number, quiet: boolean): void {
+  if (s.ended) return;
+  s.ended = true;
+  s.endAge = quiet ? 10 : 0;
+  s.hearts = [];
+  s.shortClosed = true;
+  s.shortFlash = quiet ? 0 : 1;
+  if (quiet) { settleSpring(s.boyfriendX, BF_AT); settleSpring(s.shock, 1); return; }
+  const rng = mulberry32(seed);
+  s.static = 0.4 + rng() * 0.3;
+  s.shock.v += 6;
+  s.monitor.v += 14;
+}
+
+export interface StreamDrive {
+  running: boolean; tension: number; multiplier: number;
+  /** Seconds the round has been running: the handle fake-outs are keyed to it, never to the outcome. */
+  elapsed?: number;
+  /** Seconds since the latest knock (the one at 6 s, or an act's), negative before it. */
+  knockAge?: number;
+  /** A slow log driver, 0 at 1× and 1 at 1000×, so long rounds keep changing after tension saturates. */
+  deep?: number;
+  /** How closely she watches the door between acts, 0 to 1. */
+  attention?: number;
+}
+
+/** Whoever waits behind the frosted pane gathers from about 1.6×, and keeps darkening through long rounds. */
+const shadowAt = (tension: number, deep: number): number => Math.min(1, .75 * smoothstep(.33, .6, tension) + .25 * deep);
+/** Someone tries the handle and lets go: a turn, a couple of jiggles and a release over half a second. */
+const tryHandle = (t: number): number => t < 0 || t > .5 ? 0 : smoothstep(0, .08, t) * (1 - smoothstep(.36, .5, t)) * (.7 + .3 * Math.sin(t * 34));
+/** Two knuckle raps, each a damped sideways jolt of the door. */
+const knockAt = (t: number): number => RAPS.reduce((sum, at) => t < at || t > at + .6 ? sum : sum + Math.exp(-(t - at) * 16) * Math.sin((t - at) * 70), 0);
+/** Her idle: two incommensurate sways, so it never reads as one metronome. */
+const queenSway = (s: Stream): number => Math.sin(s.time * 1.4) * 4 + Math.sin(s.time * .53 + 1) * 1.5;
+
+export function stepStream(s: Stream, drive: StreamDrive, dt: number): void {
+  // The freeze frame: for a beat before the cut the picture holds (the walk, the shock, the hearts) while the clock runs on.
+  s.hold = s.ended && s.endAge > 0.72 && s.endAge < 0.9;
+  const sdt = s.hold ? 0 : dt;
+  const previousTime = s.time;
+  s.time += sdt;
+  const { tension, deep = 0, elapsed = 0 } = drive;
+  const live = drive.running && !s.ended;
+  const knockAge = live ? drive.knockAge ?? elapsed - 6 : -1;
+  s.ledPhase += sdt * (2 + 6 * tension);
+  stepSpring(s.bounce, 0, 10, 0.4, sdt);
+  stepSpring(s.wave, 0, 6, 0.5, sdt);
+  stepSpring(s.kiss, 0, 6, 0.5, sdt);
+  stepSpring(s.hair, 0, 12, 0.3, sdt);
+  stepSpring(s.bagBounce, 0, 14, 0.35, sdt);
+  stepSpring(s.monitor, 0, 12, 0.4, sdt);
+  s.shortFlash = Math.max(0, s.shortFlash - dt / 1.2);
+  s.cash = Math.max(0, s.cash - dt / 0.8);
+  s.boot = Math.max(0, s.boot - dt / 0.4);
+  // The door: a knock at 6 s (and with some acts) and the handle tried and let go at 7 s and 12 s, then from 2× it is worked in bursts
+  // that come oftener and last longer the higher it goes.
+  const work = live ? smoothstep(.4, .5, tension) : 0;
+  s.doorPhase += sdt * work * (.16 + .3 * (tension - .5) + .25 * deep);
+  s.jigglePhase += sdt * 15;
+  const u = fract(s.doorPhase) / (.3 + .25 * deep);
+  const burst = u < 1 ? work * smoothstep(0, .15, u) * (1 - smoothstep(.75, 1, u)) * (.72 + .28 * Math.sin(s.jigglePhase)) : 0;
+  const fake = live ? Math.max(tryHandle(elapsed - 7), tryHandle(elapsed - 12)) : 0;
+  stepSpring(s.handle, s.ended ? 1 : Math.max(burst, fake), 12, 0.55, sdt);
+  // She flinches at a knock (only as it lands, not on a late frame) and looks round at the door.
+  if ((s.knockAge < 0 || s.knockAge > knockAge) && knockAge >= 0 && knockAge < 0.1) s.shock.v += 6;
+  s.knockAge = knockAge;
+  s.knock = 2.6 * knockAt(knockAge);
+  // Anticipation: the door rattles in its frame while the handle works, from about 2.5×, harder through long rounds.
+  s.rattle = live ? Math.sin(s.time * 38) * 2.2 * smoothstep(.5, .7, tension) * clamp(s.handle.x, 0, 1) * (1 + .6 * deep) : 0;
+  stepSpring(s.shadow, live ? shadowAt(tension, deep) : 0, 3, 0.9, sdt);
+  s.shiftPhase += sdt * (.6 + .8 * deep);
+  // Her eyes flick to the door from about 1.3×, oftener as it climbs, and whenever the handle moves.
+  s.glancePhase += sdt * (.3 + .3 * tension);
+  const glanceOn = live && tension > .23 && fract(s.glancePhase) < .25 + .15 * tension ? 1 : 0;
+  const heard = knockAge > 0.08 && knockAge < 1.4 ? 1 : 0;
+  stepSpring(s.glance, s.ended ? 1 : Math.max(glanceOn, heard, drive.attention ?? 0, live ? clamp(s.handle.x * 1.6, 0, 1) : 0), 8, 0.8, sdt);
+  // She leans in toward the camera as the number climbs; her head follows the sway and the bounce a beat late.
+  stepSpring(s.lean, live ? tension : 0, 3, 0.9, sdt);
+  stepSpring(s.headX, queenSway(s), 6, 0.5, sdt);
+  stepSpring(s.headY, -clamp(s.bounce.x, -1, 1.5) * 12, 6, 0.5, sdt);
+  const blinking = s.time > s.blinkAt && s.time < s.blinkAt + 0.12;
+  if (s.time >= s.blinkAt + 0.12) s.blinkAt = s.time + 2 + 3 * noise(s.blinkAt);
+  stepSpring(s.eyeOpen, blinking ? 0.08 : s.kiss.x > 0.4 ? 0.2 : 1, 24, 0.9, sdt);
+  if (s.ended) {
+    s.endAge += dt;
+    stepSpring(s.boyfriendX, BF_AT, 4, 0.9, sdt);
+    stepSpring(s.shock, s.endAge < 2.4 ? 1 : 0, 8, 0.8, sdt);
+  } else if (drive.running && tension > .2) {
+    for (let tick = Math.floor(previousTime * 8 + 1e-9) + 1; tick <= Math.floor((s.time + 1e-9) * 8); tick++) {
+      if (noise(tick) <= .7 - .3 * tension || s.hearts.length >= 40) continue;
+      const born = tick / 8;
+      s.hearts.push({ x: 60 + noise(tick * 13) * 500, y: VIDEO.h - 60, vx: (noise(tick * 7) - .5) * 30, age: previousTime - born, life: 2.2 + noise(tick), size: 6 + noise(tick * 3) * 8 });
+    }
+  }
+  if (!s.ended) stepSpring(s.shock, 0, 8, 0.8, sdt);
+  for (const h of s.hearts) { h.age += sdt; h.x += h.vx * sdt; h.y -= 70 * sdt; }
+  s.hearts = s.hearts.filter((h) => h.age < h.life);
+}
+
+/** The push-in on the doorway as he walks through, held through the freeze frame; the cut to static ends it. */
+export function revealZoom(ctx: CanvasRenderingContext2D, s: Stream): void {
+  if (!s.ended || s.endAge >= 0.9) return;
+  const k = 1 + 0.1 * smoothstep(0.05, 0.45, s.endAge);
+  ctx.translate(DOOR.x + DOOR.w / 2, 230); ctx.scale(k, k); ctx.translate(-(DOOR.x + DOOR.w / 2), -230);
+}
+
+const withCommas = (n: number): string => n.toLocaleString('en-US');
+/** Millions, then billions, then trillions. */
+const millions = (n: number): string => (n < 1000 ? `${n.toFixed(1)}M` : n < 1e6 ? `${(n / 1000).toFixed(2)}B` : `${(n / 1e6).toFixed(2)}T`);
+
+/** The second monitor she forgot to angle away: her short on her own coin, growing with the number, closed in profit at the reveal. */
+function drawMonitor(ctx: CanvasRenderingContext2D, s: Stream, multiplier: number): void {
+  // Between the ring light and her arm on the desk.
+  const box = { x: 132, y: 282, w: 80, h: 66 };
+  const k = clamp(s.monitor.x, -1, 1);
+  ctx.save();
+  ctx.translate(box.x + box.w / 2, box.y + box.h);
+  ctx.rotate(k * 0.04);
+  ctx.scale(1 + 0.05 * k, 1 + 0.05 * k);
+  ctx.translate(-(box.x + box.w / 2), -(box.y + box.h));
+  // Stand and bezel.
+  ctx.fillStyle = '#2b2b30'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.roundRect(box.x + box.w / 2 - 14, box.y + box.h, 28, 12, 3); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8, 5); ctx.fill(); ctx.stroke();
+  const flash = clamp(s.shortFlash, 0, 1);
+  ctx.fillStyle = s.shortClosed ? `rgb(${Math.round(mix(16, 40, flash))}, ${Math.round(mix(40, 150, flash))}, ${Math.round(mix(28, 70, flash))})` : '#101822';
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  // The chart: her coin going up, which is her short going under, until the reveal rugs it.
+  const growth = Math.log2(Math.max(1, multiplier));
+  const fill = 1 - Math.exp(-growth / 2.2);
+  ctx.strokeStyle = s.shortClosed ? '#ff4d6d' : '#7cf67c'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i <= 10; i += 1) {
+    const t = i / 10;
+    const y = box.y + box.h - 8 - (box.h - 34) * fill * t * t - noise(i * 2.3) * 4 * t;
+    if (i === 0) ctx.moveTo(box.x + 6, y); else ctx.lineTo(box.x + 6 + (box.w - 12) * t, y);
+  }
+  if (s.shortClosed) ctx.lineTo(box.x + box.w - 6, box.y + box.h - 8);
+  ctx.stroke();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ff9db0'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+  ctx.fillText('$QUEEN SHORT 69x', box.x + 5, box.y + 12, box.w - 10);
+  if (s.shortClosed) {
+    ctx.fillStyle = '#7cf67c'; ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.fillText('CLOSED · TP HIT', box.x + 5, box.y + 29, box.w - 10);
+    ctx.font = '900 14px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`+${withCommas(Math.round(420 * multiplier * 10))} SOL`, box.x + 5, box.y + 47, box.w - 10);
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+    ctx.fillText('GG EZ · NFA', box.x + 5, box.y + 61, box.w - 10);
+  } else {
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 11px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`SIZE ${millions(4.2 * Math.pow(multiplier, 1.6))}`, box.x + 5, box.y + 29, box.w - 10);
+    ctx.fillStyle = '#ff4d6d'; ctx.font = '900 14px Impact, "Arial Black", sans-serif';
+    ctx.fillText(`-${withCommas(Math.round(69 * (multiplier - 1) * 10))} SOL`, box.x + 5, box.y + 47, box.w - 10);
+    ctx.fillStyle = '#ffe27a'; ctx.font = '900 9px Impact, "Arial Black", sans-serif';
+    ctx.fillText('LIQ PRICE: NEVER', box.x + 5, box.y + 61, box.w - 10);
+  }
+  // The sticky note she meant to take off.
+  ctx.save();
+  ctx.translate(box.x + 6, box.y - 2);
+  ctx.rotate(-0.18);
+  ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 1.5;
+  ctx.fillRect(-14, -10, 28, 20); ctx.strokeRect(-14, -10, 28, 20);
+  ctx.fillStyle = INK; ctx.font = '900 8px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('HIDE', 0, -1); ctx.fillText('THIS', 0, 7);
+  ctx.restore();
+  ctx.restore();
+}
+
+function heart(ctx: CanvasRenderingContext2D, x: number, y: number, sz: number, colour: string): void {
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(x, y + sz);
+  ctx.bezierCurveTo(x - sz * 1.4, y - sz * 0.2, x - sz * 0.6, y - sz * 1.2, x, y - sz * 0.4);
+  ctx.bezierCurveTo(x + sz * 0.6, y - sz * 1.2, x + sz * 1.4, y - sz * 0.2, x, y + sz);
+  ctx.fill();
+}
+
+function limb(ctx: CanvasRenderingContext2D, a: Point, b: Point, width: number, colour: string): void {
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = width + 5;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.stroke();
+}
+
+/** Gigachad in the doorway, carrying the bag. */
+function drawBoyfriend(ctx: CanvasRenderingContext2D, x: number, footY: number, speed: number): void {
+  ctx.save();
+  ctx.translate(x, footY);
+  ctx.scale(0.86, 0.86);
+  ctx.lineJoin = 'round';
+  const weight = clamp(Math.abs(speed) / 80, 0, 1);
+  for (const side of [-1, 1]) {
+    const step = stepFoot((BF_FROM - x) / .86, 72, side > 0 ? .5 : 0, 14);
+    const hip = { x: side * 12, y: -80 };
+    const foot = { x: side * 14 - step.x * weight, y: step.y * weight };
+    const knee = solveLimb(hip, foot, 46, 44, -side).joint;
+    limb(ctx, hip, knee, 16, '#2b2b30'); limb(ctx, knee, foot, 15, '#2b2b30');
+  }
+  ctx.fillStyle = '#f2f2f2'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(-40, -150, 80, 74, 12); ctx.fill(); ctx.stroke();
+  limb(ctx, { x: -40, y: -136 }, { x: -52, y: -90 }, 16, '#cfcfcf');
+  limb(ctx, { x: 40, y: -136 }, { x: 50, y: -96 }, 16, '#cfcfcf');
+  // The bag.
+  ctx.fillStyle = '#7a5230';
+  ctx.beginPath(); ctx.moveTo(38, -92); ctx.quadraticCurveTo(24, -50, 54, -44); ctx.quadraticCurveTo(84, -50, 70, -92); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#7cf67c'; ctx.font = '900 20px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('$', 54, -58);
+  // The jaw.
+  const hy = -178;
+  ctx.fillStyle = '#cfcfcf'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-24, hy - 16); ctx.quadraticCurveTo(-26, hy - 40, 0, hy - 40); ctx.quadraticCurveTo(26, hy - 40, 24, hy - 16); ctx.lineTo(22, hy + 14); ctx.quadraticCurveTo(20, hy + 28, 0, hy + 30); ctx.quadraticCurveTo(-20, hy + 28, -22, hy + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#3a3a3a';
+  ctx.beginPath(); ctx.moveTo(-20, hy + 8); ctx.quadraticCurveTo(-18, hy + 26, 0, hy + 28); ctx.quadraticCurveTo(18, hy + 26, 20, hy + 8); ctx.lineTo(18, hy + 4); ctx.quadraticCurveTo(0, hy + 16, -18, hy + 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2b2b2b';
+  ctx.beginPath(); ctx.ellipse(0, hy - 34, 24, 9, 0, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-16, hy - 14); ctx.lineTo(-4, hy - 18); ctx.moveTo(4, hy - 18); ctx.lineTo(16, hy - 14); ctx.stroke();
+  ctx.fillStyle = INK;
+  for (const ex of [-8, 8]) { ctx.beginPath(); ctx.arc(ex, hy - 6, 2.2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-7, hy + 10); ctx.lineTo(7, hy + 10); ctx.stroke();
+  ctx.restore();
+}
+
+/** The door's frosted pane: the hallway light behind it, and whoever is gathering on the other side. */
+function drawPane(ctx: CanvasRenderingContext2D, s: Stream): void {
+  const pane = { x: DOOR.x + 16, y: DOOR.y + 20, w: DOOR.w - 32, h: 110 };
+  ctx.save();
+  ctx.fillStyle = '#8a7096';
+  ctx.fillRect(pane.x, pane.y, pane.w, pane.h);
+  ctx.beginPath(); ctx.rect(pane.x, pane.y, pane.w, pane.h); ctx.clip();
+  const glow = ctx.createRadialGradient(pane.x + pane.w / 2, pane.y + 20, 6, pane.x + pane.w / 2, pane.y + 30, 90);
+  glow.addColorStop(0, 'rgba(255, 233, 176, 0.75)'); glow.addColorStop(1, 'rgba(255, 233, 176, 0.12)');
+  ctx.fillStyle = glow; ctx.fillRect(pane.x, pane.y, pane.w, pane.h);
+  const shadow = clamp(s.shadow.x, 0, 1);
+  if (shadow > 0.02) {
+    // Closer to the glass as it darkens; shifting his weight, and leaning toward the handle when he works it.
+    const k = 0.8 + 0.3 * shadow;
+    const cx = pane.x + pane.w / 2 + (Math.sin(s.shiftPhase) * 5) + 7 * clamp(s.handle.x, 0, 1);
+    const top = pane.y + 50 - 22 * k;
+    for (let i = 2; i >= 0; i -= 1) {
+      const blur = 1 + i * 0.07;
+      ctx.fillStyle = `rgba(36, 18, 44, ${(i ? 0.3 : 0.75) * shadow})`;
+      ctx.beginPath(); ctx.ellipse(cx, top + 16 * k, 15 * k * blur, 19 * k * blur, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx - 42 * k * blur, top + 38 * k, 84 * k * blur, 90, 22 * k); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2;
+  ctx.strokeRect(pane.x, pane.y, pane.w, pane.h);
+}
+
+/** The whole video feed, clipped to its frame. */
+export function drawStream(ctx: CanvasRenderingContext2D, s: Stream, tension: number, multiplier: number): void {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h); ctx.clip();
+  // Room: dark wall lit by LED strips that pulse with the hype, and flash green for an accepted exit.
+  const pulse = 0.5 + 0.5 * Math.sin(s.ledPhase);
+  ctx.save();
+  revealZoom(ctx, s);
+  ctx.fillStyle = '#2a1f3d';
+  ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+  const led = ctx.createLinearGradient(0, 0, VIDEO.w, 0);
+  led.addColorStop(0, `rgba(255, 60, 200, ${0.25 + 0.3 * pulse})`);
+  led.addColorStop(0.5, `rgba(90, 60, 255, ${0.2 + 0.3 * (1 - pulse)})`);
+  led.addColorStop(1, `rgba(255, 60, 200, ${0.25 + 0.3 * pulse})`);
+  ctx.fillStyle = led;
+  ctx.fillRect(0, 0, VIDEO.w, 14);
+  ctx.fillRect(0, 0, 14, VIDEO.h);
+  ctx.fillRect(VIDEO.w - 14, 0, 14, VIDEO.h);
+  if (s.cash > 0.01) {
+    ctx.fillStyle = `rgba(124, 246, 124, ${0.8 * s.cash})`;
+    ctx.fillRect(0, 0, VIDEO.w, 14);
+    ctx.fillRect(0, 0, 14, VIDEO.h);
+    ctx.fillRect(VIDEO.w - 14, 0, 14, VIDEO.h);
+    ctx.fillStyle = `rgba(124, 246, 124, ${0.12 * s.cash})`;
+    ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+  }
+  ctx.fillStyle = 'rgba(255, 80, 200, 0.08)';
+  ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+  // Shelf with plushies and a GM poster.
+  ctx.fillStyle = '#4a3a66'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(40, 120, 150, 10, 3); ctx.fill(); ctx.stroke();
+  for (const [px, c] of [[62, '#ffb3d6'], [100, '#8fd3ff'], [140, '#ffe27a']] as const) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(px, 104, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(px - 5, 100, 2, 0, Math.PI * 2); ctx.arc(px + 5, 100, 2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#14213d';
+  ctx.beginPath(); ctx.roundRect(60, 24, 90, 70, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffe27a'; ctx.font = '900 30px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('GM', 105, 70);
+  // The door behind her: a frosted upper pane with the hallway lit behind it, and its handle. It jolts at the knock
+  // and rattles in its frame while the handle works; at the reveal it swings open and he walks through.
+  const door = DOOR;
+  ctx.save();
+  ctx.translate(s.rattle + s.knock, 0);
+  ctx.fillStyle = '#5a4470'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
+  // Flung open: fast off the latch, easing out against the wall.
+  const open = s.ended ? 1 - (1 - Math.min(1, s.endAge / 0.45)) ** 3 : 0;
+  if (open > 0.02) {
+    ctx.fillStyle = '#ffe9b0';
+    ctx.fillRect(door.x, door.y, door.w, door.h);
+    // He steps in from the hallway, so he shows only inside the doorway.
+    ctx.save();
+    ctx.beginPath(); ctx.rect(door.x, door.y, door.w, door.h); ctx.clip();
+    drawBoyfriend(ctx, s.boyfriendX.x, door.y + door.h - 4, s.boyfriendX.v);
+    ctx.restore();
+    // The leaf swings on its hinge from its full width, so the first frame of the reveal does not jump. Its pane, its
+    // panel and its handle go round with it, foreshortened: `on` maps a point of the closed door onto the leaf.
+    const leaf = door.w * Math.cos(open * Math.PI / 2);
+    const on = (x: number, y: number): [number, number] => [door.x + leaf * x / door.w, door.y + 12 * open * x / door.w + (door.h - 24 * open * x / door.w) * y / door.h];
+    const quad = (x0: number, y0: number, x1: number, y1: number): void => { ctx.beginPath(); for (const [x, y] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as const) ctx.lineTo(...on(x, y)); ctx.closePath(); };
+    ctx.fillStyle = '#5a4470';
+    quad(0, 0, door.w, door.h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#b9a0a2'; ctx.strokeStyle = 'rgba(28, 31, 38, 0.6)'; ctx.lineWidth = 2;
+    quad(16, 20, door.w - 16, 130); ctx.fill(); ctx.stroke();
+    quad(16, 160, door.w - 16, 270); ctx.stroke();
+    const turn = clamp(s.handle.x, 0, 1) * 0.9;
+    ctx.lineCap = 'round';
+    for (const [width, colour] of [[9, INK], [5, '#ffe27a']] as const) { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(...on(door.w - 20, 150)); ctx.lineTo(...on(door.w - 22 - 20 * Math.cos(turn), 150 + 20 * Math.sin(turn))); ctx.stroke(); }
+  } else {
+    ctx.beginPath(); ctx.roundRect(door.x, door.y, door.w, door.h, 3); ctx.fill(); ctx.stroke();
+    drawPane(ctx, s);
+    ctx.strokeStyle = 'rgba(28, 31, 38, 0.4)'; ctx.lineWidth = 2;
+    ctx.strokeRect(door.x + 16, door.y + 160, door.w - 32, 110);
+    // The handle, on the latch side: pressed down as it turns.
+    ctx.save();
+    ctx.translate(door.x + door.w - 22, door.y + 150);
+    ctx.rotate(-clamp(s.handle.x, 0, 1) * 0.9);
+    ctx.fillStyle = '#ffe27a'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(-22, -4, 26, 8, 4); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    // The knock, lettered for anyone with the sound off.
+    ctx.fillStyle = '#ffe9b0'; ctx.font = 'italic 900 16px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'left';
+    for (const [i, at] of RAPS.entries()) {
+      const age = s.knockAge - at;
+      if (age < 0 || age > 1.2) continue;
+      ctx.globalAlpha = 1 - smoothstep(0.6, 1.2, age);
+      ctx.fillText('knock', door.x + door.w + 8 + 10 * i, door.y + 168 + 20 * i - 6 * age);
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.strokeStyle = INK; ctx.lineWidth = 4;
+  ctx.strokeRect(door.x, door.y, door.w, door.h);
+  ctx.restore();
+  // Desk, the money bags stacking up (the pile squashes as each one lands), and the second monitor.
+  ctx.fillStyle = '#3d2c52'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(120, 360, 420, 80, 6); ctx.fill(); ctx.stroke();
+  const squash = clamp(s.bagBounce.x, -0.6, 1);
+  for (let i = 0; i < s.bags; i += 1) {
+    const bx = 430 + (i % 3) * 34;
+    const by = 356 - Math.floor(i / 3) * 30;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.scale(1 + 0.14 * squash, 1 - 0.16 * squash);
+    ctx.translate(-bx, -by);
+    ctx.fillStyle = '#7a5230'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(bx - 10, by - 26); ctx.quadraticCurveTo(bx - 18, by, bx, by); ctx.quadraticCurveTo(bx + 18, by, bx + 10, by - 26); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7cf67c'; ctx.font = '900 13px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('$', bx, by - 7);
+    ctx.restore();
+  }
+  drawMonitor(ctx, s, multiplier);
+  // Ring light.
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * pulse})`; ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.arc(80, 300, 44, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(80, 344); ctx.lineTo(80, 440); ctx.stroke();
+  drawQueen(ctx, s, tension);
+  for (const h of s.hearts) { ctx.globalAlpha = 1 - h.age / h.life; heart(ctx, h.x, h.y, h.size, '#ff4d6d'); }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  // The end: a freeze frame, a hard cut to static, then the card.
+  if (s.ended) {
+    if (s.hold) {
+      for (let i = 0; i < 3; i += 1) { ctx.fillStyle = `rgba(160, 255, 255, ${0.16 + 0.08 * i})`; ctx.fillRect(0, noise(i * 4.1 + 2) * VIDEO.h, VIDEO.w, 3 + i * 2); }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+    }
+    const k = smoothstep(0.9, 1.6, s.endAge);
+    if (s.endAge > 0.9 && s.endAge < 1.6) {
+      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 400; i += 1) { const n = i * 7.1 + Math.floor(s.time * 30); ctx.fillRect(noise(n) * VIDEO.w, noise(n * 1.3) * VIDEO.h, 3, 2); }
+    }
+    if (k > 0) {
+      ctx.fillStyle = `rgba(17, 17, 20, ${k})`;
+      ctx.fillRect(0, 0, VIDEO.w, VIDEO.h);
+      ctx.globalAlpha = k;
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.lineJoin = 'round';
+      ctx.font = '900 54px Impact, "Arial Black", sans-serif'; ctx.textAlign = 'center';
+      ctx.strokeText('STREAM ENDED', VIDEO.w / 2, VIDEO.h / 2 - 10); ctx.fillText('STREAM ENDED', VIDEO.w / 2, VIDEO.h / 2 - 10);
+      ctx.font = '900 20px Impact, "Arial Black", sans-serif';
+      ctx.fillStyle = '#ff9db0';
+      ctx.fillText('thanks for the sol frens', VIDEO.w / 2, VIDEO.h / 2 + 30);
+      ctx.fillStyle = '#7cf67c'; ctx.font = '900 17px Impact, "Arial Black", sans-serif';
+      ctx.fillText(`HER SHORT JUST CLOSED · +${withCommas(Math.round(420 * multiplier * 10))} SOL`, VIDEO.w / 2, VIDEO.h / 2 - 62);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (s.boot > 0) { ctx.fillStyle = `rgba(17, 17, 20, ${s.boot})`; ctx.fillRect(0, 0, VIDEO.w, VIDEO.h); }
+  ctx.restore();
+  // Frame.
+  ctx.strokeStyle = INK; ctx.lineWidth = 5;
+  ctx.strokeRect(VIDEO.x, VIDEO.y, VIDEO.w, VIDEO.h);
+}
+
+/** Equal lengths admit the close-to-shoulder wave without changing sleeve length. */
+export function sleeveElbow(a: Point, b: Point, side: number): Point {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(.001, Math.hypot(dx, dy));
+  const h = Math.sqrt(Math.max(0, 48 * 48 - d * d / 4));
+  return { x: (a.x + b.x) / 2 - dy / d * h * side, y: (a.y + b.y) / 2 + dx / d * h * side };
+}
+function sleeve(ctx: CanvasRenderingContext2D, a: Point, b: Point, side: number, color: string): void {
+  const e = sleeveElbow(a, b, side);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [width, ink] of [[20, INK], [16, color]] as const) {
+    ctx.lineWidth = width; ctx.strokeStyle = ink; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(e.x, e.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+}
+
+/** The queen at her desk: hoodie, cat ears, big eyes, the wave and the kiss, the glance at the door. */
+function drawQueen(ctx: CanvasRenderingContext2D, s: Stream, tension: number): void {
+  const bounce = clamp(s.bounce.x, -1, 1.5);
+  const sway = queenSway(s);
+  const shock = clamp(s.shock.x, 0, 1);
+  // Leaning in toward the camera (lower and a touch bigger), breathing, with her hands kept planted on the desk.
+  const lean = clamp(s.lean.x, 0, 1);
+  const breath = Math.sin(s.time * 1.1);
+  const kx = (1 + 0.06 * lean) * (1 + 0.005 * breath), ky = (1 + 0.06 * lean) * (1 + 0.015 * breath);
+  const base = 372 - bounce * 12 + 12 * lean;
+  ctx.save();
+  ctx.translate(300 + sway, base);
+  ctx.scale(kx, ky);
+  ctx.lineJoin = 'round';
+  const hoodie = '#ff5d9e';
+  ctx.fillStyle = hoodie; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-70, 0); ctx.quadraticCurveTo(-74, -110, -30, -128); ctx.lineTo(30, -128); ctx.quadraticCurveTo(74, -110, 70, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(28, 31, 38, 0.3)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-12, -120); ctx.lineTo(-16, -60); ctx.moveTo(12, -120); ctx.lineTo(16, -60); ctx.stroke();
+  // A fixed-length sleeve follows a continuous hand target through wave, kiss and shock.
+  const wave = clamp(s.wave.x, 0, 1);
+  const kiss = smoothstep(0, .65, clamp(s.kiss.x, 0, 1));
+  for (const side of [-1, 1]) {
+    const rest = { x: (side * 70 - sway) / kx, y: (366 - base) / ky };
+    const raised = side > 0 ? { x: mix(rest.x, 92, wave), y: mix(rest.y, -153 - Math.sin(s.time * 12) * 5 * wave, wave) } : rest;
+    const hand = { x: mix(mix(raised.x, side * 30, kiss), side * 30, shock), y: mix(mix(raised.y, -140, kiss), -150, shock) };
+    sleeve(ctx, { x: side * 60, y: -80 }, hand, side, hoodie);
+    ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(hand.x, hand.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  // Head: a beat behind the body's sway and bounce, and turned a little toward the door when she glances at it.
+  const hy = -166;
+  const glance = clamp(s.glance.x, 0, 1);
+  ctx.translate(s.headX.x - sway + 5 * glance, s.headY.x + bounce * 12);
+  ctx.translate(0, hy); ctx.rotate(0.07 * glance); ctx.translate(0, -hy);
+  ctx.fillStyle = '#f3dccb'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(0, hy, 40, 44, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // Hair and cat-ear headset.
+  const hairBounce = clamp(s.hair.x, -1, 1) * 6;
+  ctx.fillStyle = '#5a3a22';
+  ctx.beginPath(); ctx.moveTo(-42, hy + 10); ctx.quadraticCurveTo(-48, hy - 50, 0, hy - 52); ctx.quadraticCurveTo(48, hy - 50, 42, hy + 10); ctx.lineTo(50, hy + 60 + hairBounce); ctx.lineTo(34, hy + 56 + hairBounce); ctx.lineTo(30, hy - 10); ctx.quadraticCurveTo(0, hy - 30, -30, hy - 10); ctx.lineTo(-34, hy + 56 + hairBounce); ctx.lineTo(-50, hy + 60 + hairBounce); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffb3d6';
+  for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(side * 14, hy - 40); ctx.lineTo(side * 34, hy - 78); ctx.lineTo(side * 40, hy - 34); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(0, hy - 10, 42, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  ctx.fillStyle = '#2b2b30'; ctx.beginPath(); ctx.roundRect(-50, hy - 12, 12, 26, 5); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.roundRect(38, hy - 12, 12, 26, 5); ctx.fill(); ctx.stroke();
+  // Eyes: big, glancing at the door, hearts when she kisses, wide at the reveal.
+  const eyeOpen = clamp(s.eyeOpen.x, 0.08, 1.4) * (shock > 0.4 ? 1.4 : 1);
+  for (const ex of [-15, 15]) {
+    ctx.beginPath(); ctx.ellipse(ex, hy - 2, 9, 11 * eyeOpen, 0, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    if (kiss > 0.4) heart(ctx, ex, hy - 2, 6, '#ff4d6d');
+    else if (eyeOpen > 0.3) { ctx.fillStyle = '#5b8fd6'; ctx.beginPath(); ctx.arc(ex + 5 * glance, hy - 1 - 2 * glance, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(ex + 5 * glance - 2, hy - 4, 1.8, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-24, hy - 18 - 2 * shock); ctx.lineTo(-8, hy - 20 - 6 * shock); ctx.moveTo(8, hy - 20 - 6 * shock); ctx.lineTo(24, hy - 18 - 2 * shock); ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 90, 120, 0.4)';
+  ctx.beginPath(); ctx.ellipse(-24, hy + 12, 8, 4, 0, 0, Math.PI * 2); ctx.ellipse(24, hy + 12, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  if (shock > 0.4) { ctx.ellipse(0, hy + 20, 7, 10, 0, 0, Math.PI * 2); ctx.fillStyle = '#3a1420'; ctx.fill(); }
+  else if (kiss > 0.4) { ctx.ellipse(0, hy + 18, 5, 5, 0, 0, Math.PI * 2); ctx.fillStyle = '#e63946'; ctx.fill(); }
+  else { ctx.moveTo(-9, hy + 16); ctx.quadraticCurveTo(0, hy + 24 + 3 * tension, 9, hy + 16); }
+  ctx.stroke();
+  if (kiss > 0.4) { ctx.globalAlpha = kiss; heart(ctx, 60 + (1 - kiss) * 40, hy - 20 - (1 - kiss) * 40, 10, '#ff4d6d'); ctx.globalAlpha = 1; }
+  ctx.restore();
+}

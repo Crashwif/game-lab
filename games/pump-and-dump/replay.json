@@ -1,0 +1,12 @@
+{
+  "gameId": "pump-and-dump",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "000000000000000000000000000000000000000000000000000000000000006d",
+  "serverSeedHash": "d2c8659d2b888014e0686324a4448a69ef64f1b36156948f17fa600dc170fc35",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 435,
+  "rallyN": 0,
+  "bets": []
+}

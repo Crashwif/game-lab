@@ -1,0 +1,21 @@
+{
+  "name": "Bad Trip",
+  "hook": "The rave has a mouth. You are the encore.",
+  "tagline": "An adult raver keeps taking fictional party drugs as the dancefloor becomes a predatory wellness cult. Cash out before the bass eats you, remixes your body, or absorbs you into the collective.",
+  "tags": [
+    "Psychedelic horror",
+    "Festival satire",
+    "Three endings"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BadTrip",
+    "#RaveCulture",
+    "#IndieGames"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 18
+  }
+}

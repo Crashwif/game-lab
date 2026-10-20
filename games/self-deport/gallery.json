@@ -1,0 +1,12 @@
+{
+  "name": "Self-Deport",
+  "hook": "Run until they catch you, or self-deport while you can",
+  "tagline": "Memo and his leaf blower outrun the whole federal apparatus down a strip-mall street at dawn: an unmarked van, a gaiter guy with his newspaper upside down, a drone, a cruiser that slows, a helicopter, an alligator on a leash. Go cone mode when they look. Cash out to self-deport with the $1,000 stipend; get caught and the game blue-screens with DUE_PROCESS_NOT_FOUND.",
+  "tags": ["Skill chase", "ICE raid crash", "Blue screen of death"],
+  "hashtags": ["#Crashwif", "#SelfDeport", "#Immigration", "#ICE"],
+  "renderer": "Canvas 2D",
+  "interactive": true,
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 14 }
+}

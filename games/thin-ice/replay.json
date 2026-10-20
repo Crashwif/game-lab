@@ -1,0 +1,12 @@
+{
+  "gameId": "thin-ice",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000010",
+  "serverSeedHash": "a3ecde0c1d9daa6b7a949c87a1af7963c69cb2c412fb3086c495f14630c17b7b",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 507,
+  "rallyN": 0,
+  "bets": []
+}

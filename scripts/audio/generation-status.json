@@ -1,0 +1,611 @@
+{
+  "verifiedAt": "2026-10-07T09:18:32.903Z",
+  "provider": "ElevenLabs Music",
+  "requestedDurationSeconds": 150,
+  "encoding": "Opus, mono, 8000 bits/s; higher-quality MP3 masters retained separately",
+  "complete": 30,
+  "total": 30,
+  "sourceFileLimitBytes": 262144,
+  "games": [
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "694d0cba50857b90c3d71f57889dc3611ea77c314669795433efe7852b72b91d",
+      "game": "seed-round",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 247671,
+      "clipsPath": "games/seed-round/clips.json",
+      "masterPath": "scripts/audio/cache/seed-round/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "7146f3c1e6c2ba9400c91d279c725204bcea653daf20709bf4a13642e6d9aae9",
+      "sectionRms": [
+        0.21687,
+        0.25257,
+        0.2565,
+        0.12429,
+        0.2631,
+        0.227
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "ae6c01299a9a761ff3234abf36cc718228a77094ce9eb905d7d336d5b987de63",
+      "game": "blanket-champ",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 249901,
+      "clipsPath": "games/blanket-champ/clips.json",
+      "masterPath": "scripts/audio/cache/blanket-champ/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "127cb125472d37d23725217dc41ba47a45d0e6e58f54b5bd4ec7ab384f5bdeff",
+      "sectionRms": [
+        0.29928,
+        0.26279,
+        0.31576,
+        0.20119,
+        0.26798,
+        0.28348
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "0248d3f6fdab0b53d6f69d9e325544170d3610b4788480969917a27fcc9d61f4",
+      "game": "balloon-pump",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 241682,
+      "clipsPath": "games/balloon-pump/clips.json",
+      "masterPath": "scripts/audio/cache/balloon-pump/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "6da6b6d895db7cabcb060326e15dd020718e49b6043f55c51cfd8a2d69bdcd3b",
+      "sectionRms": [
+        0.26279,
+        0.26502,
+        0.27631,
+        0.26947,
+        0.27112,
+        0.21235
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "7a5b2f238b9c96037a8b188ca8771a4194e61259d34c2b71cad1aa306a80d82c",
+      "game": "andys-loud-garden",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/andys-loud-garden/clips.json",
+      "masterPath": "scripts/audio/cache/andys-loud-garden/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "c03e202705c98d42090a1f9e23e265045f902a1e893970bff42c9cda2f4800a8",
+      "sectionRms": [
+        0.26804,
+        0.25065,
+        0.25788,
+        0.26988,
+        0.25738,
+        0.20626
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "6529da21d060f287279ad7cf63246bc8010b2faaa7eca85f64b4ac81ebf8e1d7",
+      "game": "tower-tension",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 250043,
+      "clipsPath": "games/tower-tension/clips.json",
+      "masterPath": "scripts/audio/cache/tower-tension/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "82e34512ee9ea87138c57acb987af6e4de31a344eac5b0a9717cc194bdfdac16",
+      "sectionRms": [
+        0.23263,
+        0.27129,
+        0.29081,
+        0.30766,
+        0.25805,
+        0.23008
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "c5ae36074ef4bfad61e8e1b412a67d76a94014ab96aae4bb718decdd65228c6d",
+      "game": "boiler-room",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 238968,
+      "clipsPath": "games/boiler-room/clips.json",
+      "masterPath": "scripts/audio/cache/boiler-room/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "7273eb9c28325c668ef73beaaeef8cebd2e8db87e889fd31afc61c60675e29e9",
+      "sectionRms": [
+        0.30796,
+        0.29535,
+        0.25694,
+        0.29153,
+        0.29004,
+        0.26333
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "5ef77dd90c2fbbe353bd6f013491fbaa218f2cb83a5c05aa447b3fd20ce0b136",
+      "game": "thin-ice",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 248787,
+      "clipsPath": "games/thin-ice/clips.json",
+      "masterPath": "scripts/audio/cache/thin-ice/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "03d35ba6cde7f57926f0483b537a151ddeb9fd2be47982cbff07dec5f247d44c",
+      "sectionRms": [
+        0.1577,
+        0.23237,
+        0.21647,
+        0.10545,
+        0.2173,
+        0.19432
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "483bd1571a173bbe37bafa9b1a94f1064b84827db8d1ac10130bf9938ecd0255",
+      "game": "king-of-the-hill",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 249903,
+      "clipsPath": "games/king-of-the-hill/clips.json",
+      "masterPath": "scripts/audio/cache/king-of-the-hill/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "4c39187164a04f8c4ee5944bdfa397b76e98996d5d93c203ad0c5967644042b0",
+      "sectionRms": [
+        0.27361,
+        0.21666,
+        0.30556,
+        0.24065,
+        0.23591,
+        0.28521
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "32fb59b1dda4ab26c4fe8100850c2cfead0d809332a027f23671d19d8cd5944a",
+      "game": "exit-liquidity",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 250320,
+      "clipsPath": "games/exit-liquidity/clips.json",
+      "masterPath": "scripts/audio/cache/exit-liquidity/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "274989fbd00bd6960322551f9c49a0cf1f3258832df3763ca30fe683c4069c6c",
+      "sectionRms": [
+        0.20012,
+        0.25534,
+        0.24284,
+        0.18009,
+        0.25046,
+        0.21697
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "e528f150981487a99a526b81eddaa89e20cf2ad6218a34933e6fa7d27d427ff0",
+      "game": "gas-fees",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 243909,
+      "clipsPath": "games/gas-fees/clips.json",
+      "masterPath": "scripts/audio/cache/gas-fees/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "21975d15904c1c96d7d52d09142877171f86fe2a518f83b1a5f21adf553222e1",
+      "sectionRms": [
+        0.19998,
+        0.19177,
+        0.19663,
+        0.17255,
+        0.19721,
+        0.1906
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "1d3419c341758e14f8eac78d1f2ab50fbd18e3eb2b6517edc3214ee890964165",
+      "game": "onlyfrens",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 238758,
+      "clipsPath": "games/onlyfrens/clips.json",
+      "masterPath": "scripts/audio/cache/onlyfrens/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "5f7900b2e6d637f7c51d5dbb12849d0776a0a05671e81a803bd252e2d2068953",
+      "sectionRms": [
+        0.08288,
+        0.21222,
+        0.24203,
+        0.1122,
+        0.22586,
+        0.227
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "51ef62def1d22682580442497231b4ec7ad7395dbc9a8592fda859b65b5cee94",
+      "game": "pump-and-dump",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 245166,
+      "clipsPath": "games/pump-and-dump/clips.json",
+      "masterPath": "scripts/audio/cache/pump-and-dump/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "1b72d01d699c5c6327d4c199b14e5f62bc08d64e39f455071605aa5e2bd25831",
+      "sectionRms": [
+        0.28761,
+        0.25809,
+        0.2425,
+        0.27233,
+        0.2485,
+        0.24803
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "dd8388782f0b3210584474ee3b6d887ed9470676fd42dcdd5ef87037ff881624",
+      "game": "bonding-curl",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 249906,
+      "clipsPath": "games/bonding-curl/clips.json",
+      "masterPath": "scripts/audio/cache/bonding-curl/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "027510737c555f6b306335e6946e277ef506a54c6c7f97759c8a4f13222260bf",
+      "sectionRms": [
+        0.29308,
+        0.22497,
+        0.27746,
+        0.27155,
+        0.22826,
+        0.24585
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "71a9511327c905ede2f9988bcd1b8c41a0e6dd3eef98ea8dfe462efcc251976f",
+      "game": "wife-changing-money",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 243075,
+      "clipsPath": "games/wife-changing-money/clips.json",
+      "masterPath": "scripts/audio/cache/wife-changing-money/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "9c92daed780f56bd92c28f490e024295cb82951aa1157a607477efa99e016b6d",
+      "sectionRms": [
+        0.17329,
+        0.18154,
+        0.16979,
+        0.18102,
+        0.18446,
+        0.15073
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "1398ebefa139b378f5919aa0d9ae6b33e268a14533f0ddfe6ab494b7ef7af12f",
+      "game": "not-financial-advice",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 241821,
+      "clipsPath": "games/not-financial-advice/clips.json",
+      "masterPath": "scripts/audio/cache/not-financial-advice/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "1d6294cd46ad13a4335781dfca5c40894a8102dd35869a6aea051a729384dc5e",
+      "sectionRms": [
+        0.21252,
+        0.25031,
+        0.24983,
+        0.24171,
+        0.19068,
+        0.22285
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "db9a9f69154de3aade3181b7ed82f82b2d48697ca2c22cb082045a5eabc205d9",
+      "game": "honeypot",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 248088,
+      "clipsPath": "games/honeypot/clips.json",
+      "masterPath": "scripts/audio/cache/honeypot/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "555a6cdfad232fe77b8289530547eb5485e1e089fec8ecd4fd0204e40b28d7a7",
+      "sectionRms": [
+        0.18573,
+        0.25162,
+        0.25748,
+        0.16526,
+        0.20441,
+        0.2393
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "7a878d48214fd793b2dd198067cce402b8af10549d19e88a4671fdf42b4e0491",
+      "game": "insider-wallets",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 248367,
+      "clipsPath": "games/insider-wallets/clips.json",
+      "masterPath": "scripts/audio/cache/insider-wallets/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "498186075362e1fad589c59dfb0f47044b5b4f0a12910d7aebe752d8e04b554d",
+      "sectionRms": [
+        0.18051,
+        0.22607,
+        0.24958,
+        0.22045,
+        0.23212,
+        0.2204
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "82cbcd88657e6e0a39c61628ce0c99690c7f2ede0b0b9a8f700546e885010694",
+      "game": "the-trenches",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 253108,
+      "clipsPath": "games/the-trenches/clips.json",
+      "masterPath": "scripts/audio/cache/the-trenches/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "17073cd29ae742997da14178a3c1927dadb0c7ce1c86f45fa487584060d2c34e",
+      "sectionRms": [
+        0.17934,
+        0.20375,
+        0.20889,
+        0.20467,
+        0.21373,
+        0.19193
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "67c923e271e8a21bd9774d18766bc414ba3aa3ba7b7b2db7f9aa2e53dab65f39",
+      "game": "hopium-drip",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 253524,
+      "clipsPath": "games/hopium-drip/clips.json",
+      "masterPath": "scripts/audio/cache/hopium-drip/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "3f63071f6910346f0104bcd134062d11fb43444a841c7b0075370e9174da3c67",
+      "sectionRms": [
+        0.13377,
+        0.13662,
+        0.15034,
+        0.12048,
+        0.14395,
+        0.12597
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "abac88604dd2f6e6404191cb6674307aff8fbb8b4ec82170cc240a5949ffed11",
+      "game": "i-got-hacked",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 245997,
+      "clipsPath": "games/i-got-hacked/clips.json",
+      "masterPath": "scripts/audio/cache/i-got-hacked/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "97c2e676290fd419278790daf77139be0fc25d0c3adf09155d5a974901b1b65e",
+      "sectionRms": [
+        0.19598,
+        0.26093,
+        0.25423,
+        0.22683,
+        0.26242,
+        0.24039
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "8684dda45a7c388de1762623b2a0822e1f6c51fd5181ad2ee9496f8ab3916ada",
+      "game": "wen-binance",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 247669,
+      "clipsPath": "games/wen-binance/clips.json",
+      "masterPath": "scripts/audio/cache/wen-binance/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "9182a5d3a3101c540052394ea6942857314e3f20f65ad88b5db76e7732b3af07",
+      "sectionRms": [
+        0.20283,
+        0.23466,
+        0.35052,
+        0.19657,
+        0.21455,
+        0.34253
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "fcdd4b9ac7ee9a6e41cdad7a10b97fe6ea9a0422d43402290e3172e86c5841a1",
+      "game": "liquidation-lane",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/liquidation-lane/clips.json",
+      "masterPath": "scripts/audio/cache/liquidation-lane/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "05ab83c7f79af48ba52cde81a8eb74f6aa0692a684c490a4e075e5a3bd128409",
+      "sectionRms": [
+        0.25688,
+        0.27018,
+        0.23973,
+        0.23883,
+        0.26928,
+        0.24584
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "aff768d0c34241322588eb30903bbbbd15c8169092fec7296a05d9de6fc72034",
+      "game": "moon-boys",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/moon-boys/clips.json",
+      "masterPath": "scripts/audio/cache/moon-boys/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "6bf3231318633158f7322fab39c653f1a45683b3ad1d87034155090ff30a8ccb",
+      "sectionRms": [
+        0.26664,
+        0.29803,
+        0.30756,
+        0.0992,
+        0.26627,
+        0.27136
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "76c89a744abf9b24268608a014304fa3bd9388ff39e702f2e74ea55268c45e64",
+      "game": "rug-rails",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/rug-rails/clips.json",
+      "masterPath": "scripts/audio/cache/rug-rails/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "47cb22f128c096baa278a3cef94199f94624d6ad725ec625561fea6bbf715da5",
+      "sectionRms": [
+        0.15249,
+        0.25605,
+        0.25996,
+        0.12668,
+        0.20913,
+        0.18981
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "7135c5c0de0e317bc23546fa0fcee938dbd1c52359424924c6d8af2e06f26629",
+      "game": "wen-moon",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/wen-moon/clips.json",
+      "masterPath": "scripts/audio/cache/wen-moon/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "7d992d08756aba4c0622439e56ef156dbfb090d3f29e24f6dfe1374251b4b415",
+      "sectionRms": [
+        0.24054,
+        0.24794,
+        0.23507,
+        0.17771,
+        0.25385,
+        0.21067
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "98619f20d7d08b59eec6a6b42448248d2acd0d0e016cd93d9a1e2aca94ff80e7",
+      "game": "bull-run",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/bull-run/clips.json",
+      "masterPath": "scripts/audio/cache/bull-run/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "4f539b8d0c63ebc6f291f2e63898ebea246ee1d3bf41043cb0b30ddbf3eeeb2c",
+      "sectionRms": [
+        0.22476,
+        0.22024,
+        0.22211,
+        0.20946,
+        0.21782,
+        0.21078
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "d6f65d90f4a4e1c5ab3279b09169bbac3aef9fb01019ada08948a7463b09a40b",
+      "game": "pyramid-scheme",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/pyramid-scheme/clips.json",
+      "masterPath": "scripts/audio/cache/pyramid-scheme/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "f23acecd407b368df782dd44cd761ff7ae6d882cc837a3551d86a010ab29bce4",
+      "sectionRms": [
+        0.1202,
+        0.14672,
+        0.15061,
+        0.13036,
+        0.13737,
+        0.13534
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "a2b70e8639e21a0c7a48d9a9fc1ea1bfd44b0bc3032b4a4170a120b89f8029f2",
+      "game": "up-only",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/up-only/clips.json",
+      "masterPath": "scripts/audio/cache/up-only/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "3a96d29e4baae010994aa376a201cb8acf689037fbdcc1cf78986047afe32a4b",
+      "sectionRms": [
+        0.21547,
+        0.21856,
+        0.21326,
+        0.21816,
+        0.22044,
+        0.20176
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "d5adf422f5833dd0eda1d2b3e0c92871e8549243b63d3a5bc91e2abde8ec6376",
+      "game": "family-meeting",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/family-meeting/clips.json",
+      "masterPath": "scripts/audio/cache/family-meeting/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "f9631a9ad5d89ab9d611cbbba9939b6b8bd2c10ed973d66bccf122fcb8800e67",
+      "sectionRms": [
+        0.0902,
+        0.13381,
+        0.14834,
+        0.12471,
+        0.16507,
+        0.14927
+      ]
+    },
+    {
+      "masterBytes": 1199587,
+      "masterSha256": "558b7b38b794bc8320bd720785a26af6a0d227c2b5b8b0710213ad6f0eec67bb",
+      "game": "thanksgiving-uncle",
+      "status": "complete",
+      "durationSeconds": 149.999977,
+      "clipsBytes": 208964,
+      "clipsPath": "games/thanksgiving-uncle/clips.json",
+      "masterPath": "scripts/audio/cache/thanksgiving-uncle/music.mp3",
+      "endpoint": "/v1/music",
+      "musicSha256": "6896c30908b2e9204084b4ba9fa931070a2e2f8437ac91314c46bc4f3667770f",
+      "sectionRms": [
+        0.1828,
+        0.20806,
+        0.22845,
+        0.16272,
+        0.22591,
+        0.21737
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Roadster to Mars",
+  "hook": "Well, it worked.",
+  "tagline": "You are the Roadster, not the driver; there is no driver. Each round it drives up the inverted ramp at McGregor, leaves the lip on 600 litres of cold gas and climbs with the multiplier past the Semi, the FAA, the Kármán line, the ISS, the Moon and Starman toward Mars, where it plants a flag reading 2028, actually. Land it before the pressure vessel has opinions.",
+  "tags": ["Scrolling altitude ladder", "Cold-gas jets and a parachute", "Seeded disassembly"],
+  "hashtags": ["#Crashwif", "#RoadsterToMars", "#TeslaRoadster", "#SpaceX"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 14 }
+}

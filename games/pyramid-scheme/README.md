@@ -1,0 +1,16 @@
+# Pyramid Scheme
+
+A wealth summit in a hotel ballroom: velvet curtains, a banner that reads EVERYONE WINS (*early), spotlights, and the founder pitching at a `$PONZI` lectern in front of a slide that flips between pitches (TOKENOMICS: 90% TEAM, AUDIT: SOON) every few seconds. Your degen stands on the stage with a money bag and a CEO sash. Every time the multiplier grows by a third, a row of recruits walks in from the wings, crouches underneath and hoists the pyramid on a spring, so you climb without moving; the newest row is the EXIT LIQUIDITY. Strain follows `1 - 1/x` (0.5 at 2×): the base sweats from about 1.5× and grimaces from 2×, and the whole pyramid buckles a few pixels on a beat that quickens with the multiplier, creaking from about 2×. These fake-outs never know the crash. The founder waves his cash faster as the multiplier climbs and glances at the exit from 3×. From the fourth row (about 2.5×), recruits with MY REF CODE and WEN AIRDROP signs stroll in from the wings, beg beside the pyramid and back out again, through the crash too. An accepted cash-out (JEETED ON MY DOWNLINE) crouches, jumps you off the top and lands you with a squash and a puff of dust, shades on, while the pyramid keeps climbing without you. The crash gives the base away: a hit-stop and punch-in, then the base buckles outward and each level above drops a beat later, you last; bodies bounce, topple to the nearer side and lie dazed, and the founder runs off with the money. A round that busts before anyone joins reads NOBODY SIGNED UP. The house lights come back up on the next seminar as you walk back on.
+
+Lightweight on purpose: a scene, one part file, the motion toolkit and the page, so the whole source pack fits the platform's browser Studio budget (see [the README](../../README.md#lightweight-games-for-the-browser-studio)) and a remix starts in the browser.
+
+- `scene.ts`: the ballroom, the round-phase logic, the rows that join, the buckle beat, the jump and the collapse choreography, the audio cues and the HUD.
+- `pyramid.ts`: the pyramid's layout (rows, heights, places), the recruit rig and its distance-driven feet (the founder runs on the same gait), the seeded collapse and its bodies.
+- `endurance.ts`: the slow lean and brace acts that keep rounds past 42 s changing.
+- `motion.ts`: springs, easing, deterministic noise and a seeded generator.
+- `audio.ts`: the shared page audio (a copy of the shell's, never edited here). Casino lounge that tightens with the multiplier; the crash is a gasp and boos. Cues: a pop and a milestone as each row joins, the base creaking on each buckle from about 2×, the register and a whoosh on a cash-out, thuds as bodies land, the founder's laugh.
+- `main.ts`: the shared page shell. `replay.json`: a verified 7.67× round for the gallery.
+
+The rows follow the displayed multiplier; nothing drawn here changes the committed outcome. A scene that opens mid-round or on a crashed round settles into place. The published game uses full animation regardless of browser motion preferences.
+
+Run `npm run dev` from the repository root and open the Pyramid Scheme URL it prints. Join with 50 local credits, then cash out during a running round to jump off. `npm run build` produces the three publishable files in `dist/pyramid-scheme/`.

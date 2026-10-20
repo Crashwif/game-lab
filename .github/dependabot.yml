@@ -1,0 +1,14 @@
+# Keeps the SHA-pinned actions in .github/workflows current, in one grouped pull request a month.
+#
+# npm is deliberately left out: packages/game-sdk, packages/crash-math and apps/emulator are pinned
+# snapshots of the platform (UPSTREAM.json) and change only when they are synchronised from there, so
+# their dependencies, and the lockfile they share with the games, must not be bumped independently here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

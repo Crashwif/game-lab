@@ -1,0 +1,22 @@
+{
+  "name": "Brotilla",
+  "hook": "The revolution has a guest list.",
+  "tagline": "Direct an absurd influencer flotilla: grand speeches, drones, a VIP yacht and an inflatable Nobel medal. Cash out on the Personal Boundaries before the fictional party crew runs out of cocaine.",
+  "tags": [
+    "Political satire",
+    "Interactive spectacle",
+    "Original illustration"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#Brotilla",
+    "#PoliticalSatire",
+    "#IndieGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 20
+  },
+  "interactive": true
+}

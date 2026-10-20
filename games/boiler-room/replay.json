@@ -1,0 +1,12 @@
+{
+  "gameId": "boiler-room",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000024",
+  "serverSeedHash": "fa282a9c595eea43e942f1678efbff1f4b821a6b27aef7df0ae71b9de53fc8ce",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 874,
+  "rallyN": 0,
+  "bets": []
+}

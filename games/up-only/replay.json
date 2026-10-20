@@ -1,0 +1,12 @@
+{
+  "gameId": "up-only",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000000e0",
+  "serverSeedHash": "436c589e1800d1589b1c67b794c5e1cd67215091b307009fa23d390cf0ac5a9b",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 767,
+  "rallyN": 0,
+  "bets": []
+}

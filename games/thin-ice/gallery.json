@@ -1,0 +1,22 @@
+{
+  "name": "Thin Ice",
+  "hook": "Skate on 100× leverage",
+  "tagline": "A skater glides on 100× leverage over a lake of frozen bagholders. Cracks spread with every stroke; close the long and she carves to the exit before the ice liquidates her and she joins them.",
+  "tags": [
+    "Skating motion",
+    "Spreading cracks",
+    "Shattering ice"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ThinIce",
+    "#Leverage",
+    "#Liquidation"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 18
+  }
+}

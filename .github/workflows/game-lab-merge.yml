@@ -1,0 +1,158 @@
+# Merges a game contribution once a maintainer approves it, so an approved pull request deploys without
+# another step: CI runs on the merge commit, and Deploy Game Lab follows CI on main.
+#
+# A review that approves a pull request, a CI run that completes on one, or a manual run names the pull
+# request. The job then checks, from main's own copy of the rules and the API alone (it runs no code from
+# the pull request), that
+#   - the pull request is open, not a draft, and into main;
+#   - a maintainer approved its current head commit: a user with write, maintain or admin permission on
+#     this repository, not its author, and no maintainer's latest review requests changes. A push after
+#     an approval needs a new approval, whatever branch protection says, because the review's commit is
+#     compared with the head;
+#   - CI passed on that head commit;
+#   - a pull request from a fork changes only game files (scripts/gallery/contribution.mjs): one that
+#     touches the shell, the build, the checks, the workflows or the packages waits for a maintainer to
+#     merge it by hand, after reviewing those as the platform's own code.
+# It merges with a merge commit, as main's history does, and then makes sure CI runs on the merge commit:
+# a merge made with the workflow's own token may not start CI's push run, so after a short wait it starts
+# CI on main itself, which Deploy Game Lab also follows. It holds no secret beyond that token.
+name: Merge approved games
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Pull request number to merge if it is approved and green"
+        required: true
+        type: number
+
+permissions: {}
+
+jobs:
+  merge:
+    name: Merge if approved and green
+    # Other reviews and CI runs on main leave nothing to do; a cancelled or failed CI run cannot merge anything.
+    if: >-
+      (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    # One merge at a time, so two approved pull requests never race each other onto main.
+    concurrency:
+      group: game-lab-merge
+      cancel-in-progress: false
+    steps:
+      # main's copy of the rules, never the pull request's: on pull_request_review the default ref is the pull request's merge commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          sparse-checkout: |
+            scripts/gallery
+            UPSTREAM.json
+            .nvmrc
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Name the pull requests to consider
+        id: pulls
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REVIEWED: ${{ github.event.pull_request.number }}
+          CI_HEAD: ${{ github.event.workflow_run.head_sha }}
+          REQUESTED: ${{ inputs.pull_request }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            pull_request_review) numbers="$REVIEWED" ;;
+            workflow_dispatch) numbers="$REQUESTED" ;;
+            # The open pull requests into this repository whose head is the commit CI ran on; a fork's run lists none in the event itself.
+            workflow_run) numbers="$(gh api "repos/$GITHUB_REPOSITORY/commits/$CI_HEAD/pulls" --jq "[.[] | select(.state == \"open\" and .base.repo.full_name == \"$GITHUB_REPOSITORY\" and .head.sha == \"$CI_HEAD\") | .number] | join(\" \")")" ;;
+          esac
+          echo "numbers=$numbers" >> "$GITHUB_OUTPUT"
+          [ -n "$numbers" ] && echo "pull requests: $numbers" || echo "::notice::No open pull request has head $CI_HEAD"
+      - name: Merge each pull request a maintainer approved on its current head once CI passed
+        if: steps.pulls.outputs.numbers != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBERS: ${{ steps.pulls.outputs.numbers }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          # The permission a user holds here: admin, write (maintain included), read or none; a non-collaborator reads as none.
+          permission() { gh api "repos/$repo/collaborators/$1/permission" --jq .permission 2>/dev/null || echo none; }
+          report() { echo "$1"; echo "- $1" >> "$GITHUB_STEP_SUMMARY"; }
+          echo "## Merge approved games" >> "$GITHUB_STEP_SUMMARY"
+          for n in $NUMBERS; do
+            pr="$(gh api "repos/$repo/pulls/$n")"
+            read -r state draft base head head_repo head_ref author <<< "$(jq -r '"\(.state) \(.draft) \(.base.ref) \(.head.sha) \(.head.repo.full_name // "deleted") \(.head.ref) \(.user.login)"' <<< "$pr")"
+            short="${head:0:7}"
+            if [ "$state" != open ]; then report "#$n is $state: nothing to merge"; continue; fi
+            if [ "$draft" = true ]; then report "#$n is a draft: it merges once it is ready for review and approved"; continue; fi
+            if [ "$base" != main ]; then report "#$n is into $base, not main: a maintainer merges it by hand"; continue; fi
+            cross=""; [ "$head_repo" != "$repo" ] && cross="--cross-repository"
+
+            # Each reviewer's latest standing review: an approval of this very head, or a request for changes.
+            reviews="$(gh api --paginate "repos/$repo/pulls/$n/reviews" --jq '.[]' | jq -s --arg head "$head" --arg author "$author" '
+              map(select(.user.type == "User" and .user.login != $author and (.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")))
+              | sort_by(.submitted_at) | group_by(.user.login) | map(last)
+              | map({login: .user.login, state: .state, current: (.commit_id == $head)})')"
+            approvers=""; blockers=""; stale=""
+            while read -r login rstate current; do
+              [ -n "$login" ] || continue
+              perm="$(permission "$login")"
+              if [ "$perm" != admin ] && [ "$perm" != write ]; then echo "review by $login ($perm permission) does not count"; continue; fi
+              case "$rstate $current" in
+                "APPROVED true") approvers="$approvers $login" ;;
+                "APPROVED false") stale="$stale $login" ;;
+                "CHANGES_REQUESTED "*) blockers="$blockers $login" ;;
+              esac
+            done <<< "$(jq -r '.[] | "\(.login) \(.state) \(.current)"' <<< "$reviews")"
+            if [ -n "$blockers" ]; then report "#$n: changes requested by$blockers"; continue; fi
+            if [ -z "$approvers" ]; then
+              if [ -n "$stale" ]; then report "#$n: the approval by$stale is for an earlier commit; $short needs a maintainer's approval"; else report "#$n: no maintainer has approved $short yet"; fi
+              continue
+            fi
+
+            # CI's pull request run on this head commit, from any repository: head_sha is the pull request's head, not the merge commit.
+            passed="$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&status=success&per_page=5" --jq '.workflow_runs | length')"
+            if [ "$passed" -eq 0 ]; then report "#$n: CI has not passed on $short yet; the run that passes merges it"; continue; fi
+
+            # What it changes, by main's rules: a fork merges on approval only when it changes game files alone.
+            files="$(gh api --paginate "repos/$repo/pulls/$n/files" --jq '.[] | .filename, (.previous_filename // empty)')"
+            if ! node scripts/gallery/contribution.mjs --files - $cross <<< "$files" > contribution.md; then
+              report "#$n: not merged on approval; see below"
+              sed -n '/^### Problems/,$p' contribution.md | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            if gh pr merge "$n" --repo "$repo" --merge --match-head-commit "$head"; then
+              report "#$n merged (approved by$approvers)"
+            else
+              report "#$n: merging $short failed (behind main or in conflict?); the next CI run on it tries again"
+              continue
+            fi
+            # A branch of this repository is done with; a fork's branch is its author's.
+            [ -n "$cross" ] || gh api -X DELETE "repos/$repo/git/refs/heads/$head_ref" >/dev/null || echo "::warning::Could not delete branch $head_ref"
+
+            # Deploy Game Lab follows CI on main. GitHub may not start CI's push run for a merge made with this token, so start one if none appears.
+            merged="$(gh api "repos/$repo/pulls/$n" --jq '.merge_commit_sha // empty')"
+            started=0
+            for _ in $(seq 1 6); do
+              started="$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$merged&event=push&per_page=5" --jq '.workflow_runs | length' || echo 0)"
+              [ "$started" -gt 0 ] && break
+              sleep 15
+            done
+            if [ "$started" -gt 0 ]; then echo "CI started on ${merged:0:7} by its push"; else gh workflow run ci.yml --repo "$repo" --ref main && report "started CI on main for ${merged:0:7}: its push did not start a run"; fi
+          done

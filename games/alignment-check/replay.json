@@ -1,0 +1,12 @@
+{
+  "gameId": "alignment-check",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000020",
+  "serverSeedHash": "9633190bf775667487569d0f5e7adfebc899e55ab9d62aaabe9f8754a3fa9c20",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 2271,
+  "rallyN": 0,
+  "bets": []
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Crossed the Line",
+  "hook": "The Lord giveth. The bracket giveth way.",
+  "tagline": "Father Les Morals turns a sermon into a hostile takeover of Heaven. Cash out with an amen before God drops a crucifix, destroys the pulpit, and leaves a one-star review.",
+  "tags": [
+    "Religious satire",
+    "Cartoon slapstick",
+    "Divine intervention"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CrossedTheLine",
+    "#DarkComedy",
+    "#IndieGames"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 18
+  }
+}

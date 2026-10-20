@@ -1,0 +1,21 @@
+{
+  "name": "Rage Quit",
+  "hook": "CTRL + ALT + DELUSION.",
+  "tagline": "Fight the CAPTCHA, reject the guru and wrestle your own keyboard. A fully animated office rage spiral with an unplugged escape and a spectacularly unhelpful support department. Contains profanity.",
+  "tags": [
+    "Rage comic",
+    "Physical comedy",
+    "Office meltdown"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#RageQuit",
+    "#RageComics",
+    "#OfficeLife"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 10
+  }
+}

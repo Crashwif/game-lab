@@ -1,0 +1,12 @@
+{
+  "gameId": "liquidation-lane",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "000000000000000000000000000000000000000000000000000000000000001e",
+  "serverSeedHash": "4e99747a3d41fe8318c4419b7b688741d8ef7096368129e14894ddbdac31795e",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 1031,
+  "rallyN": 0,
+  "bets": []
+}

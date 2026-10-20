@@ -1,0 +1,22 @@
+{
+  "name": "Seize the Drip",
+  "hook": "Eat the rich. Wear the evidence.",
+  "tagline": "A fictional Paris boutique raid where masked adult revolutionaries grab luxury goods, discover private property and invent increasingly elaborate excuses. Choose the loot; cash out for a chauffeur escape before the police turn the haul into evidence.",
+  "tags": [
+    "Luxury communism",
+    "Interactive satire",
+    "Fashion riot"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SeizeTheDrip",
+    "#EatTheRich",
+    "#IndieGames"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "interactive": true,
+  "poster": {
+    "seconds": 18
+  }
+}
