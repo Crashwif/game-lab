@@ -806,6 +806,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental nautical Eurodance satire score for Brotilla. Start with grandiose maritime strings and a pompous ceremonial brass motif over a rolling 122 BPM beat; introduce increasingly tacky Ibiza piano stabs, yacht-lounge bass, camera-shutter-like percussion and a ridiculous triumphal synth fanfare. Develop five distinct 30-second sections, growing from earnest voyage to influencer VIP afterparty and a floating awards show. Keep space for dialogue captions and game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "tv-licence-raid": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for TV Licence Raid. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

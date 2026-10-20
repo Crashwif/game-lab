@@ -1,0 +1,21 @@
+{
+  "name": "TV Licence Raid",
+  "hook": "Stream illicit sitcoms before the BBC detector van kicks down your door",
+  "tagline": "A sweaty streamer hides in the dark watching free web videos while an inspector van creeps up the street. Cashing out closes the curtains and turns off the Wi-Fi to dodge the fine. Crashing means a high-vis inspector smashes through the drywall with a clipboard and a £1,000 penalty notice.",
+  "tags": [
+    "Satire",
+    "British",
+    "Streaming"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#TVLicenceRaid",
+    "#TVLicence",
+    "#NetflixFee"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
