@@ -44,7 +44,19 @@ test('recorded music adopts asynchronous decode, restarts for a round, stays at 
   await page.evaluate(() => {
     const NativeAudio = window.AudioContext;
     window.sources = [];
+    window.gains = [];
     window.AudioContext = class extends NativeAudio {
+      createGain() {
+        const gain = super.createGain();
+        const setTargetAtTime = gain.gain.setTargetAtTime.bind(gain.gain);
+        gain.gain.targets = [];
+        gain.gain.setTargetAtTime = (target, ...rest) => {
+          gain.gain.targets.push(target);
+          return setTargetAtTime(target, ...rest);
+        };
+        window.gains.push(gain);
+        return gain;
+      }
       createBufferSource() {
         const source = super.createBufferSource();
         const stop = source.stop.bind(source);
@@ -75,11 +87,13 @@ test('recorded music adopts asynchronous decode, restarts for a round, stays at 
     window.audio.update('betting', 0);
     window.audio.update('running', 1);
     const current = tracks().at(-1);
-    const result = { count: tracks().length, initialStopped: initial.wasStopped, rate: current.playbackRate.value, loop: current.loop };
+    const fxGain = Number(window.gains[2].gain.value.toFixed(2));
+    const musicTarget = Number(window.gains[3].gain.targets[0].toFixed(2));
+    const result = { count: tracks().length, initialStopped: initial.wasStopped, rate: current.playbackRate.value, loop: current.loop, fxGain, musicTarget };
     window.audio.crash('pop');
     result.crashStopped = current.wasStopped;
     window.audio.close();
     return result;
   });
-  assert.deepEqual(state, { count: 2, initialStopped: true, rate: 1, loop: true, crashStopped: true });
+  assert.deepEqual(state, { count: 2, initialStopped: true, rate: 1, loop: true, fxGain: 0.8, musicTarget: 0.64, crashStopped: true });
 });

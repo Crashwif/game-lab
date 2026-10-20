@@ -35,7 +35,7 @@ export interface AudioOptions {
   root?: number;
   /** The crash stinger; `crash()` can name another. */
   crash?: Crash;
-  /** Music level (0 to 1, default 0.8) and effects level (default 1). */
+  /** Music level (0 to 1, default 0.64) and effects level (default 0.8). */
   music?: number;
   effects?: number;
   /**
@@ -303,8 +303,8 @@ function createAudio(options: AudioOptions): Audio {
   const tempoRise = options.tempoRise ?? 0.35;
   const root = options.root ?? preset.root;
   const defaultCrash: Crash = options.crash ?? 'boom';
-  const musicLevel = options.music ?? 0.8;
-  const fxLevel = options.effects ?? 1;
+  const musicLevel = options.music ?? 0.64;
+  const fxLevel = options.effects ?? 0.8;
 
   let context: AudioContext | null = null;
   let bus: GainNode | null = null;
