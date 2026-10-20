@@ -1,0 +1,11 @@
+{
+  "name": "TROLLEY.EXE",
+  "hook": "Throw the switches. God is counting.",
+  "tagline": "The trolley problem as a skill game: the line forks again and again, with someone tied to both branches of every fork, from strangers and a praying robot to your mother, the trolley's lawyer, God Himself and five better versions of you. Arrows, W and S or a tap set each switch; AUTO-ETHICS.DLL throws it until you do. The hesitation bonus climbs with every fork you survive while God narrates your choices and His patience drains. Cash out to walk away from the lever; wait too long and the crash takes both branches, tears the picture and ends on a blue screen with the Book of your switches.",
+  "tags": ["Forks on the curve", "A machine that steers", "A crash that crashes"],
+  "hashtags": ["#Crashwif", "#TROLLEYEXE", "#TrolleyProblem", "#AIEthics"],
+  "renderer": "Canvas 2D",
+  "interactive": true,
+  "licence": "open",
+  "poster": { "seconds": 16 }
+}

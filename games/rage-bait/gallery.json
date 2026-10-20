@@ -1,0 +1,15 @@
+{
+  "name": "Rage Bait",
+  "hook": "DO NOT PRESS POST.",
+  "tagline": "Six recurring advice accounts, twenty-four escalating takes on modern dating and gender wars, and a thumb that keeps drifting toward the reply box. Scroll the feed, tap Replies, and cash out to delete your draft and lock the phone before you take the bait.",
+  "tags": [
+    "Social satire",
+    "Physical comedy",
+    "Scroll feed"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

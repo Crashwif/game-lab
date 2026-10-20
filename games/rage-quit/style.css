@@ -1,0 +1,49 @@
+/* Game Lab shell: this block starts every game's style.css (canonical copy: scripts/shell/style.css; npm run shell -- --write). A game restyles it by overriding the tokens after the marker line. */
+:root{--bg:#12212d;--fg:#e7f4f0;--accent:#d5fb6d;--on-accent:#12212d;--canvas:transparent;--bar:68px;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif}
+main{max-width:1100px;margin:auto}
+canvas{display:block;width:100%;aspect-ratio:16/9;background:var(--canvas)}
+/* Opened on its own or in a fixed-size preview frame, the picture leaves room for the controls (main.ts measures --bar). Embedded, the frame grows to fit instead. */
+:root:not([data-mode=embedded]) canvas{width:min(100%,calc((100dvh - var(--bar)) * 16 / 9));margin-inline:auto}
+.controls{position:relative;display:flex;flex-wrap:wrap;align-items:center;align-content:flex-end;gap:8px 12px;padding:12px}
+/* Outside a host frame the band holds the height main.ts measured, with its rows at the foot, so neither the picture nor the buttons move as copy wraps. */
+:root:not([data-mode=embedded]) .controls{min-height:var(--bar)}
+@media (min-width:521px){:root:not([data-mode=embedded]) .controls{align-items:flex-end}:root:not([data-mode=embedded]) .info{align-self:center}}
+.info{flex:1 1 220px;min-width:0}
+#status{margin:0;font-weight:600}
+#readout{margin:2px 0 0;font-size:13px;opacity:.8;font-variant-numeric:tabular-nums}
+#readout:empty{display:none}
+/* Notices sit over the foot of the picture, so they never move the controls or change an embedded frame's height. */
+#notice{position:absolute;left:12px;right:12px;bottom:100%;z-index:1;margin:0;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,#ff5d73 30%,var(--bg));box-shadow:0 4px 16px rgb(0 0 0/.35)}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;min-height:44px;padding:10px 16px;background:var(--accent);color:var(--on-accent);cursor:pointer}
+button.secondary{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--fg) 45%,transparent)}
+button[aria-disabled=true],button:disabled{opacity:.45;cursor:default}
+@media (hover:hover){button:not([aria-disabled=true]):not(:disabled):hover{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}button.secondary:not([aria-disabled=true]):not(:disabled):hover{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--fg) 45%,transparent),0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}}
+button:not([aria-disabled=true]):not(:disabled):active{transform:translateY(1px)}
+button:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+[hidden]{display:none!important}
+[data-mode=embedded]{scrollbar-width:none}
+/* Embedded, the lines keep their room through a round, so the host's panel under the frame stays put. */
+[data-mode=embedded] #readout{min-height:1.4em}
+[data-mode=embedded] #readout:empty{display:block}
+@media (max-width:820px){[data-mode=embedded] #status{min-height:2.8em}}
+/* The replay button stacks both its labels and shows one, so it keeps one width and the row never rewraps mid-recording. */
+#restart{display:inline-grid;place-items:center}
+#restart>span{grid-area:1/1}
+#restart>span[aria-hidden=true]{visibility:hidden}
+[data-mode=embedded]::-webkit-scrollbar{display:none}
+@media (max-width:520px){:root{--bar:97px}.controls{align-items:stretch}.info{flex-basis:100%}.controls button{flex:1 1 0;padding:10px 12px}:root:not([data-mode=replay]) .controls button.secondary{flex:1 1 100%;order:1}:root:not([data-mode=replay]) #status{min-height:2.8em}}
+/* game */
+:root{--bg:#f3eedf;--fg:#242220;--accent:#e63d27;--on-accent:#fff8e8;color-scheme:light}
+.controls{border-top:3px solid #242220;background:#f3eedf}
+button{border:2px solid #242220;border-radius:3px;box-shadow:3px 3px 0 #242220}
+button.secondary{box-shadow:none;border:2px solid #242220}
+#readout{font-family:ui-monospace,monospace}
+#notice{background:#f9ddc6;color:#242220;border:2px solid #242220}
+
+/* The tall stage keeps the full body and a live CRT cutaway readable on phones. */
+@media(max-width:600px){
+  .stage{position:relative;aspect-ratio:540/836;overflow:hidden}
+  :root .stage canvas{position:absolute;inset:0;width:250%;aspect-ratio:540/836;margin:0;transform:scale(.4);transform-origin:0 0}
+}

@@ -1,0 +1,12 @@
+{
+  "gameId": "know-your-clown",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000020627",
+  "serverSeedHash": "c9882637bfb4df0b8906fb53680366c5da84db70531905c2199cbd6012a36090",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 4613822,
+  "rallyN": 0,
+  "bets": []
+}

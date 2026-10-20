@@ -1,0 +1,11 @@
+{
+  "name": "Andy's Loud Garden",
+  "hook": "Just a little backyard gardening",
+  "tagline": "Andy waters his ganja patch into a suspiciously enormous jungle of $ANDY green candles. Jeet the harvest and stroll home, or watch the SEC roll up, serve a Wells notice and tape off the unregistered security at the crash.",
+  "tags": ["Andy", "Growing garden", "SEC raid"],
+  "hashtags": ["#Crashwif", "#AndysLoudGarden", "#Cannabis", "#SEC"],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": { "seconds": 18 }
+}

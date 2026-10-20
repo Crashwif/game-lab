@@ -1,0 +1,12 @@
+{
+  "gameId": "family-meeting",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "000000000000000000000000000000000000000000000000000000000000009c",
+  "serverSeedHash": "3806de5aacf5bdf32a4c995a3423df375f2da13b8fa0f71a9590fba09e59209e",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 1097,
+  "rallyN": 0,
+  "bets": []
+}

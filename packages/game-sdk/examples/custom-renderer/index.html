@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Custom renderer example</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <div id="multiplier">—</div>
+    <div id="phase">waiting for the host</div>
+    <div id="you"></div>
+    <label><input id="auto" type="checkbox" checked /> Auto cashout at 2.00x</label>
+    <button id="bet" disabled>Bet 50 credits</button>
+    <button id="cashout" disabled>Cash out</button>
+    <div id="log"></div>
+  </main>
+  <!-- The bundle's own files only: the frame is sandboxed and its CSP allows nothing else. -->
+  <script src="game.js"></script>
+</body>
+</html>

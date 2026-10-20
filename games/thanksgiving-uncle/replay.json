@@ -1,0 +1,12 @@
+{
+  "gameId": "thanksgiving-uncle",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "00000000000000000000000000000000000000000000000000000000000000cc",
+  "serverSeedHash": "c746094c94e2b37d5244f153cc2e173d36bc80f453bf3f9b1d0dd5f4619b630c",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 1055,
+  "rallyN": 0,
+  "bets": []
+}

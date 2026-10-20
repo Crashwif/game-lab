@@ -1,0 +1,22 @@
+{
+  "name": "Boiler Room",
+  "hook": "Print money until it blows",
+  "tagline": "A stoker shovels retail into the money printer while the pressure needle climbs. Rivets pop, the valve screams, and cashing out hides him behind the offshore shield before the whole brokerage blows.",
+  "tags": [
+    "Piston mechanics",
+    "Rising pressure",
+    "Optional sound"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BoilerRoom",
+    "#MoneyPrinter",
+    "#Fed"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 22
+  }
+}

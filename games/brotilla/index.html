@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brotilla — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="Brotilla: a fictional satire. A parody of Greta leads a boat surrounded by an absurd influencer flotilla. Direct publicity stunts; cash out to leave on the Personal Boundaries. The fictional party crew runs out of cocaine when the round crashes."></canvas>
+    <p id="story" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    <div class="direction" role="group" aria-label="Direct the spectacle">
+      <span class="direction-label">DIRECT THE SPECTACLE</span>
+      <button id="stunt-live" aria-pressed="false" aria-keyshortcuts="1">Go live <kbd>1</kbd></button>
+      <button id="stunt-drone" aria-pressed="false" aria-keyshortcuts="2">Deploy drone <kbd>2</kbd></button>
+      <button id="stunt-statement" aria-pressed="false" aria-keyshortcuts="3">Issue statement <kbd>3</kbd></button>
+      <button id="stunt-centre" aria-pressed="false" aria-keyshortcuts="4">Centre yourself <kbd>4</kbd></button>
+      <button id="stunt-auto" aria-pressed="true" aria-keyshortcuts="0">Auto <kbd>0</kbd></button>
+      <p id="stunt-help">Publicity stunts change the spectacle. Cash out to leave the round.</p>
+    </div>
+    <p class="fiction">Fictional satire · Invented voyage, dialogue and entourage. The party crew’s drug subplot is fictional.</p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

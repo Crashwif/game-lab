@@ -1,0 +1,22 @@
+{
+  "name": "Balloon Pump",
+  "hook": "Backed by hot air",
+  "tagline": "A wide-eyed dev in a pink wif hat pumps his own coin with a floor pump. $HOTAIR swells with every stroke, the laser eyes switch on, and the whole thing blows up in his face.",
+  "tags": [
+    "Expressive characters",
+    "Spring motion",
+    "Balloon physics"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BalloonPump",
+    "#Bubble",
+    "#Inflation"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "royaltyBps": 0,
+  "poster": {
+    "seconds": 14
+  }
+}

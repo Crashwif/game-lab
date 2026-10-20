@@ -1,0 +1,12 @@
+{
+  "gameId": "congressional-hearing",
+  "chainId": 0,
+  "roundIndex": 0,
+  "serverSeed": "0000000000000000000000000000000000000000000000000000000000000098",
+  "serverSeedHash": "77206810491f9011512ca113d8405fdf8d2a0f345baa62f6b6906d17a81d80b1",
+  "salt": "game-lab",
+  "houseEdgeBps": 300,
+  "crashX100": 907,
+  "rallyN": 0,
+  "bets": []
+}

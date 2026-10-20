@@ -1,0 +1,21 @@
+{
+  "name": "BRO-MAXXED",
+  "hook": "He came to mog. He stayed for the spotter.",
+  "tagline": "Fix the hair. Finance the jawline. Outsource the personality. BRO-MAXXED is a crash game about a man who spends so long studying the perfect male physique that he finally works out what he actually wants. Cash out and touch grass, or stay for the most emotionally leveraged wedding in the gym.",
+  "tags": [
+    "Gym comedy",
+    "Social satire",
+    "Romance twist"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BROMAXXED",
+    "#Looksmaxxing",
+    "#GymTok"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
