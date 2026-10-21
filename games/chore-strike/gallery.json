@@ -1,0 +1,21 @@
+{
+  "name": "Chore Strike",
+  "hook": "Dodge the $350 cleaning fee chore list before checkout morning arrives",
+  "tagline": "A exhausted vacationer lounges on the couch while a laminated 14-page chore checklist grows legs and violently demands lawn mowing and gutter scrubbing. Cashing out grabs your carry-on luggage and leaps into an Uber right past the front lawn. Crashing summons an unhinged Superhost who hits you with a 1-star review and a surprise $900 deep-clean bill.",
+  "tags": [
+    "Airbnb",
+    "Travel",
+    "Workplace"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ChoreStrike",
+    "#Airbnb",
+    "#VacationMode"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
