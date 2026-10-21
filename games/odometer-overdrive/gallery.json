@@ -1,0 +1,21 @@
+{
+  "name": "Odometer Overdrive",
+  "hook": "Can your rental hatchback break the sound barrier before the desk clerk notices",
+  "tagline": "You drive a rented compact car whose broken odometer spins faster and faster while billing receipt ticker-tape flies out the exhaust. Cash out to slide cleanly into the airport return lane with a zero-mile dispute form. If you crash, the dashboard erupts in smoke as an infuriated Hertz agent slams you with an astronomical invoice.",
+  "tags": [
+    "CarRental",
+    "RoadTrip",
+    "HiddenFees"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#OdometerOverdrive",
+    "#RentalGlitch",
+    "#OdometerGate"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
