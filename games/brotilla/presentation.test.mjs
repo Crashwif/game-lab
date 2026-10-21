@@ -17,7 +17,7 @@ async function load(name, audio = false) {
 const { createPresentation, stageAt } = await load('presentation');
 const { story } = await load('content');
 const { solveLimb } = await load('ink');
-const { captainPose, crewPose } = await load('cast');
+const { captain, captainPose, crew, crewPose } = await load('cast');
 const { createScene } = await load('scene', true);
 const { createProduction, STUNTS } = await load('production');
 const view = (extra = {}) => ({ phase: 'running', currentX100: 250, elapsed: 9000, crashAge: 0, stake: 50, cashoutX100: null, payout: null, ...extra });
@@ -97,6 +97,37 @@ test('captain and supporting rigs preserve fixed bones and planted feet througho
   for (const role of ['director','sailor','dj','bro','influencer']) for(let t=0;t<=1;t+=.05) {
     const p=crewPose(role,20+t,t);
     check(p.left,23,25);check(p.right,23,25);check(p.back,22,21);check(p.front,22,21);
+  }
+});
+test('near arms layer in front of torsos and Greta left braid while far arms layer behind', () => {
+  const trace = fn => {
+    const ops = []; let move = null, ovalAt = null;
+    const ctx = new Proxy({ fillStyle: '', strokeStyle: '',
+      moveTo(x, y) { move = `${x.toFixed(1)},${y.toFixed(1)}`; },
+      ellipse(x, y, rx, ry) { ovalAt = `${x.toFixed(1)},${y.toFixed(1)}:${rx}x${ry}`; },
+      stroke() { ops.push(`stroke:${this.strokeStyle}@${move}`); },
+      fill() { ops.push(`fill:${this.fillStyle}@${ovalAt ?? move}`); ovalAt = null; },
+    }, { get(target, key) { return key in target ? target[key] : () => {}; } });
+    fn(ctx); return ops;
+  };
+  const f = { phase: 'running', outcomeAge: 0 }, prod = { weights: { live: 0, drone: 0, statement: 1, centre: 0 } };
+  const cp = captainPose(12, f, prod), cops = trace(c => captain(c, 12, f, prod));
+  const cFrontArm = cops.indexOf(`stroke:#f1c54c@${cp.front.root.x.toFixed(1)},${cp.front.root.y.toFixed(1)}`);
+  const cFrontHand = cops.indexOf(`fill:#efbb91@${cp.front.end.x.toFixed(1)},${cp.front.end.y.toFixed(1)}:5.5x6`);
+  const cCoat = cops.findIndex(o => o.startsWith('fill:#efbf42@'));
+  const cLeftBraid = cops.findIndex(o => o.startsWith('fill:#b28748@-'));
+  const cBackArm = cops.indexOf(`stroke:#bf8e2d@${cp.back.root.x.toFixed(1)},${cp.back.root.y.toFixed(1)}`);
+  const cBackHand = cops.indexOf(`fill:#efbb91@${cp.back.end.x.toFixed(1)},${cp.back.end.y.toFixed(1)}:5.5x6`);
+  assert.ok(cFrontArm > 0 && cFrontArm < cFrontHand && cFrontHand < cCoat && cCoat < cLeftBraid && cLeftBraid < cBackArm && cBackArm < cBackHand);
+  for (const role of ['director', 'sailor', 'dj', 'bro', 'influencer']) for (const fall of [0, 1]) {
+    const p = crewPose(role, 12, fall), ops = trace(c => crew(c, role, 12, fall));
+    const frontArm = ops.findIndex(o => o.startsWith('stroke:#') && !o.startsWith('stroke:#132e3b') && o.endsWith(`@${p.front.root.x.toFixed(1)},${p.front.root.y.toFixed(1)}`));
+    const frontHand = ops.findIndex(o => o.endsWith(`@${p.front.end.x.toFixed(1)},${p.front.end.y.toFixed(1)}:5.5x6`));
+    const torso = ops.findIndex(o => o.endsWith(`@${(p.chest.x - 16).toFixed(1)},${(p.chest.y - 4).toFixed(1)}`));
+    const head = ops.findIndex(o => o.endsWith(`@${p.head.x.toFixed(1)},${p.head.y.toFixed(1)}:17x21`));
+    const backArm = ops.findIndex(o => o.startsWith('stroke:#') && !o.startsWith('stroke:#132e3b') && o.endsWith(`@${p.back.root.x.toFixed(1)},${p.back.root.y.toFixed(1)}`));
+    const backHand = ops.findIndex(o => o.endsWith(`@${p.back.end.x.toFixed(1)},${p.back.end.y.toFixed(1)}:5.5x6`));
+    assert.ok(frontArm > 0 && frontArm < frontHand && frontHand < torso && torso < head && head < backArm && backArm < backHand, `${role} fall=${fall}`);
   }
 });
 function canvasContext(portrait = false) {
