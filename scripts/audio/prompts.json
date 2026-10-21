@@ -811,6 +811,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for TV Licence Raid. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "sick-day-six": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Sick Day Six. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

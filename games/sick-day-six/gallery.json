@@ -1,0 +1,21 @@
+{
+  "name": "Sick Day Six",
+  "hook": "Call out of your corporate shift before HR tracks your console down",
+  "tagline": "Dodge frantic corporate Slack pings as your cozy gaming setup scales into an unhinged national blackout of absentee workers. Cash out to slide your status safely to Away while eating cheesy nachos in peace. Crash and your furious manager busts through your bedroom wall brandishing a written write-up.",
+  "tags": [
+    "Workplace",
+    "Gaming",
+    "Satire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SickDaySix",
+    "#GTA6",
+    "#CallInSick"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
