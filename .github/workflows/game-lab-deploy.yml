@@ -329,6 +329,12 @@ jobs:
             pr="$(gh pr create --base main --head "$BRANCH" --title "Refresh Game Lab from $SOURCE_REPOSITORY@$short" --body "Automated export of https://github.com/$SOURCE_REPOSITORY/commit/$sha by the Deploy Game Lab workflow: game bundles, posters, SOURCE.json, the Game Lab page manifest and the remix origins in packages/game-lab. Merges itself once the checks pass; Railway deploys main.")"
             echo "pull request: $pr"
           fi
+          # Close the deploy pull requests this one supersedes right away so older branches do not linger; hand-named game-lab/* branches are left alone.
+          gh pr list --state open --base main --limit 100 --json number,headRefName,isCrossRepository --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^game-lab/[0-9a-f]{7}$"))) | "\(.number) \(.headRefName)"' |
+            while read -r number head_ref; do
+              [ "$head_ref" = "$BRANCH" ] && continue
+              gh pr close "$number" --delete-branch --comment "Superseded by $pr." || echo "::warning::Could not close superseded pull request #$number"
+            done || echo "::warning::Could not list superseded pull requests"
           # Wait until the pull request shows the pushed commit with checks, so an earlier head's results never count.
           for _ in $(seq 1 40); do
             state="$(gh pr view "$pr" --json headRefOid,statusCheckRollup --jq '"\(.headRefOid) \(.statusCheckRollup | length)"')"
@@ -338,9 +344,3 @@ jobs:
           gh pr checks "$pr" --watch --fail-fast --interval 30
           gh pr merge "$pr" --merge --delete-branch --match-head-commit "$head"
           echo "merged: $pr"
-          # Close the deploy pull requests this one supersedes; hand-named game-lab/* branches are left alone.
-          gh pr list --state open --base main --limit 100 --json number,headRefName,isCrossRepository --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^game-lab/[0-9a-f]{7}$"))) | "\(.number) \(.headRefName)"' |
-            while read -r number head_ref; do
-              [ "$head_ref" = "$BRANCH" ] && continue
-              gh pr close "$number" --delete-branch --comment "Superseded by $pr." || echo "::warning::Could not close superseded pull request #$number"
-            done || echo "::warning::Could not list superseded pull requests"
