@@ -816,6 +816,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Sick Day Six. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "pto-heist": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for PTO Heist. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

@@ -125,6 +125,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Brotilla](games/brotilla) | A fictional influencer flotilla: direct publicity stunts around a grandstanding Greta parody, escape on the Personal Boundaries after confirmed cash-out, or watch the invented party crew exhaust its cocaine reserve on the revealed crash | Playable |
 | [TV Licence Raid](games/tv-licence-raid) | Stream illicit sitcoms before the BBC detector van kicks down your door — satire, british, streaming | Playable |
 | [Sick Day Six](games/sick-day-six) | Call out of your corporate shift before HR tracks your console down — workplace, gaming, satire | Playable |
+| [PTO Heist](games/pto-heist) | Fakest cough in history vs. a | [PTO Heist](games/pto-heist) | billion national productivity sinkhole — gta6, workplace, gaming | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

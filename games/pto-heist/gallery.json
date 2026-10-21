@@ -1,0 +1,21 @@
+{
+  "name": "PTO Heist",
+  "hook": "Fakest cough in history vs. a $1 billion national productivity sinkhole",
+  "tagline": "Dial in your phoniest sick-day rasp while watching corporate cubicles empty across the nation into neon Vice City lobbies. Cash out to dodge HR's surprise wellness inspection with a clean excuse note. Crash when your webcam turns on live revealing dual controllers, pizza boxes, and zero pants.",
+  "tags": [
+    "GTA6",
+    "Workplace",
+    "Gaming"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PTOHeist",
+    "#GTA6",
+    "#CallingInSick"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
