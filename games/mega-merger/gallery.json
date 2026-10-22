@@ -1,0 +1,21 @@
+{
+  "name": "Mega Merger",
+  "hook": "Weld a Falcon Heavy directly onto a Cybertruck to bypass regulatory audit",
+  "tagline": "Duct tape electric pickups to interplanetary boosters as the corporate valuation surges toward infinity. Cashing out signs the golden parachute and parachutes safely into a private lagoon. Crashing sparks a catastrophic SEC audit that snaps the merger in half with a galactic pop.",
+  "tags": [
+    "Elon",
+    "SpaceX",
+    "Tesla"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#MegaMerger",
+    "#Tesla",
+    "#SpaceX"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
