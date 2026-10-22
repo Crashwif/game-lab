@@ -128,6 +128,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [PTO Heist](games/pto-heist) | Fakest cough in history vs. a | [PTO Heist](games/pto-heist) | billion national productivity sinkhole — gta6, workplace, gaming | Playable |
 | [Odometer Overdrive](games/odometer-overdrive) | Can your rental hatchback break the sound barrier before the desk clerk notices — carrental, roadtrip, hiddenfees | Playable |
 | [Chore Strike](games/chore-strike) | Dodge the $350 cleaning fee chore list before checkout morning arrives — airbnb, travel, workplace | Playable |
+| [Zuck Exodus](games/zuck-exodus) | Flee California before Sacramento garnishes 5% of your sunscreen stockpile — tech satire, billionaire, california | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

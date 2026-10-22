@@ -1,0 +1,21 @@
+{
+  "name": "Zuck Exodus",
+  "hook": "Flee California before Sacramento garnishes 5% of your sunscreen stockpile",
+  "tagline": "Steer a solar-powered e-foil loaded with servers, VR goggles, and wagyu cattle away from Silicon Valley as state tax auditors give chase in kayaks. Cash out to hop the Nevada border into a zero-tax bunker. Crash and the Golden Gate bridge tolls snap your paddle while state taxmen impound your hydrofoil.",
+  "tags": [
+    "Tech Satire",
+    "Billionaire",
+    "California"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ZuckExodus",
+    "#BillionaireTax",
+    "#ArcadeGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
