@@ -1,0 +1,21 @@
+{
+  "name": "Pixel Conspiracy",
+  "hook": "Squint hard enough at blurry 90s textures and unlock the universe",
+  "tagline": "A sweaty retro gamer runs enhancement algorithms on 4 blurry fountain pixels. Cash out to publish a breathless 3-hour YouTube documentary. Crash and realize the sacred ancient glyphs literally translate to a placeholder dev joke.",
+  "tags": [
+    "Gaming",
+    "Nostalgia",
+    "Conspiracy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PixelConspiracy",
+    "#Mario64",
+    "#GamingLore"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
