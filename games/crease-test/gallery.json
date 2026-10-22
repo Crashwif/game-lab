@@ -1,0 +1,21 @@
+{
+  "name": "Crease Test",
+  "hook": "Fold the dual-screen glass until the hinge screams for mercy",
+  "tagline": "A robotic testing arm violently clamps a glossy folding smartphone open and shut while a livestream viewer counter surges. Cashing out unclips the device with flawless glass intact just in time for an eBay listing. Crashing snaps the hinge completely backward in an explosive spray of dead OLED pixels.",
+  "tags": [
+    "Tech",
+    "Hardware",
+    "Gadgets"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CreaseTest",
+    "#iPhoneDuo",
+    "#TechReview"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

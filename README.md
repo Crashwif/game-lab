@@ -131,6 +131,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Zuck Exodus](games/zuck-exodus) | Flee California before Sacramento garnishes 5% of your sunscreen stockpile — tech satire, billionaire, california | Playable |
 | [Pixel Conspiracy](games/pixel-conspiracy) | Squint hard enough at blurry 90s textures and unlock the universe — gaming, nostalgia, conspiracy | Playable |
 | [Mega Merger](games/mega-merger) | Weld a Falcon Heavy directly onto a Cybertruck to bypass regulatory audit — elon, spacex, tesla | Playable |
+| [Crease Test](games/crease-test) | Fold the dual-screen glass until the hinge screams for mercy — tech, hardware, gadgets | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
