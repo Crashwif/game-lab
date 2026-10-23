@@ -2,7 +2,7 @@
 
 **Smuggle liquid-cooled AI compute past airport customs before the fans spin up**
 
-Stack burning-hot datacenter accelerators under your oversized streetwear while security metal detectors beep frantically. Cash out to slip past the terminal gate clutching your illicit tensor cores. If you crash, thermal runaway melts your zipper and security tackles your whistling rig.
+Stack blazing datacenter accelerators under your oversized streetwear while security metal detectors beep frantically. Cash out to slip past the terminal gate clutching your illicit tensor cores. If you crash, thermal runaway melts your zipper and security tackles your whistling rig.
 
 ## Viral Inspiration
 
