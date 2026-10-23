@@ -1,0 +1,21 @@
+{
+  "name": "GPU Smuggler",
+  "hook": "Smuggle liquid-cooled AI compute past airport customs before the fans spin up",
+  "tagline": "Stack burning-hot datacenter accelerators under your oversized streetwear while security metal detectors beep frantically. Cash out to slip past the terminal gate clutching your illicit tensor cores. If you crash, thermal runaway melts your zipper and security tackles your whistling rig.",
+  "tags": [
+    "AI Hype",
+    "Airport Drama",
+    "Tech Bro"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#GPUSmuggler",
+    "#AIHardware",
+    "#Nvidia"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
