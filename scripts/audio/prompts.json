@@ -871,6 +871,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Black October. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "blind-the-boss": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Blind the Boss. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
