@@ -856,6 +856,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for GPU Smuggler. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "vibe-coder": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Vibe Coder. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

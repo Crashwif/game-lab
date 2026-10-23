@@ -1,0 +1,21 @@
+{
+  "name": "Vibe Coder",
+  "hook": "Prompting your entire enterprise backend into existence with pure vibes",
+  "tagline": "Watch a sleep-deprived dev feed chaotic natural language prompts into an unchecked autonomous coding agent. Cash out before the master branch pushes to production with your laptop on a beach. Crash and a single missing semicolon takes down international banking servers with a fiery blue screen.",
+  "tags": [
+    "AI Dev",
+    "Workplace Humor",
+    "Tech Satire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#VibeCoder",
+    "#VibeCoding",
+    "#DevOps"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
