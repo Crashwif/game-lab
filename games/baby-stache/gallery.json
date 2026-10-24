@@ -1,0 +1,21 @@
+{
+  "name": "Baby Stache",
+  "hook": "Skip kindergarten and speedrun an entire midlife crisis from the crib",
+  "tagline": "A newborn swaddled in nursery fleece rapidly grows an oil-slick handlebar mustache while filling out IRS 1040 tax forms as the multiplier spikes. Cashing out lets him retire early to a golf condo in Florida with his 401k safely rolled over. Crashing triggers a massive colic tantrum that blows his monocle and suspenders clear off.",
+  "tags": [
+    "MidlifeBaby",
+    "MustacheMania",
+    "MemeRun"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BabyStache",
+    "#MustacheBaby",
+    "#ViralNewborn"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
