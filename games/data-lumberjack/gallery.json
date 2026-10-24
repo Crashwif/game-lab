@@ -1,0 +1,21 @@
+{
+  "name": "Data Lumberjack",
+  "hook": "Clear boreal pine groves to feed AI server clusters before regulators wake up",
+  "tagline": "Raze hundreds of square miles of Scandinavian woodland with robotic harvesters as your compute cluster grows exponentially. Cash out to pocket clean tech carbon credits and build a manicured server fortress. Crash when environmental inspectors blockade the logging fleet with furious reindeer.",
+  "tags": [
+    "Big Tech",
+    "AI Infrastructure",
+    "Environmental Bureaucracy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DataLumberjack",
+    "#DataCenter",
+    "#AIBoom"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
