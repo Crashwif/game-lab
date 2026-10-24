@@ -1,0 +1,21 @@
+{
+  "name": "Championship Bait",
+  "hook": "Claim your fake team rings before HR discovers the accounting error",
+  "tagline": "Watch an office mailroom clerk load giant diamond championship rings onto fingers as the multiplier climbs. Cashing out locks in your diamond loot and flees down the service elevator. Crashing triggers a frantic audit squad barging in to revoke all the bling with repo clipboards.",
+  "tags": [
+    "Knicks",
+    "Corporate",
+    "Bling"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ChampionshipBait",
+    "#Knicks",
+    "#NBA"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

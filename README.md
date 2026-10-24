@@ -137,6 +137,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Vice City Sickout](games/vice-city-sickout) | Fake your cough, dodge your boss on Teams, and grind launch day — gaming, workplace, vicecity | Playable |
 | [Black October](games/black-october) | 10,000 frontier models are coming for your password manager — ai panic, cyberattack, silicon valley | Playable |
 | [Blind the Boss](games/blind-the-boss) | Slap sticky notes on the server cam before security catches your rogue agent — autonomous ai, office satire, tech panic | Playable |
+| [Championship Bait](games/championship-bait) | Claim your fake team rings before HR discovers the accounting error — knicks, corporate, bling | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
