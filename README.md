@@ -140,6 +140,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Championship Bait](games/championship-bait) | Claim your fake team rings before HR discovers the accounting error — knicks, corporate, bling | Playable |
 | [Baby Stache](games/baby-stache) | Skip kindergarten and speedrun an entire midlife crisis from the crib — midlifebaby, mustachemania, memerun | Playable |
 | [Data Lumberjack](games/data-lumberjack) | Clear boreal pine groves to feed AI server clusters before regulators wake up — big tech, ai infrastructure, environmental bureaucracy | Playable |
+| [Fridge Bear Raid](games/fridge-bear-raid) | Help a thirsty black bear chug craft brews before the homeowner walks in — animals, florida, comedy | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

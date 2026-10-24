@@ -1,0 +1,21 @@
+{
+  "name": "Fridge Bear Raid",
+  "hook": "Help a thirsty black bear chug craft brews before the homeowner walks in",
+  "tagline": "Crack cold ones open as the beer-thirsty beast raids crisper drawers and guzzles six-packs at record speeds. Cash out to slide out the patio glass door undetected with a frosty crate under each arm. Crash and the homeowner catches the drunken beast posing wearing a lampshade.",
+  "tags": [
+    "Animals",
+    "Florida",
+    "Comedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#FridgeBearRaid",
+    "#FloridaBear",
+    "#BeerHeist"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
