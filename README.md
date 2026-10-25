@@ -142,6 +142,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Data Lumberjack](games/data-lumberjack) | Clear boreal pine groves to feed AI server clusters before regulators wake up — big tech, ai infrastructure, environmental bureaucracy | Playable |
 | [Fridge Bear Raid](games/fridge-bear-raid) | Help a thirsty black bear chug craft brews before the homeowner walks in — animals, florida, comedy | Playable |
 | [Bot Vault](games/bot-vault) | Hand your AI all five credit cards and pray it stops ordering smart balls — ai hype, credit score, degen fintech | Playable |
+| [Bean Bunker](games/bean-bunker) | Stack baked beans to your ceiling before Downing Street panics — stockpile, pantry panic, doomsday prep | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

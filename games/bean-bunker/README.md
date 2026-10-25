@@ -1,0 +1,13 @@
+# Bean Bunker
+
+**Stack baked beans to your ceiling before Downing Street panics**
+
+As the multiplier climbs, your cramped council flat fills from floor to ceiling with towers of canned beans and jugs of tap water. Cashing out slams the reinforced storm door shut with a working can opener safely in hand. If you crash, the wobbly Heinz monolith collapses under its own weight, burying the pantry in tomato sauce.
+
+## Viral Inspiration
+
+Inspired by trending cultural moment: *UK Prime Minister advises citizens to stockpile tinned food and bottled water* ([source](https://x.com/unusual_whales/status/2114152963501625654)).
+
+## Running locally
+
+Run `npm run preview -- bean-bunker` from the clone root. The backend supplies committed outcomes; credits have no monetary value.
