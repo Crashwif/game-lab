@@ -911,6 +911,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for GTA Living Room. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "shed-arsenal": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Shed Arsenal. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

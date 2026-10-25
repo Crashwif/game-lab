@@ -1,0 +1,21 @@
+{
+  "name": "Shed Arsenal",
+  "hook": "Out-engineer the Pentagon using duct tape, leaf blowers, and riding mowers",
+  "tagline": "A suburban dad in safety goggles welds lawn equipment and roman candles onto a rusty riding mower to rival trillion-dollar tech. Cash out to kill the throttle and coast safely into the tool shed before the HOA spots you. Hold too greedily and the nitro-boosted weed-whacker engine detonates, blasting lawn clippings across three subdivisions.",
+  "tags": [
+    "Redneck Engineering",
+    "Suburban Chaos",
+    "DIY Stunts"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ShedArsenal",
+    "#RedneckTech",
+    "#BackyardBuilds"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
