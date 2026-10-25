@@ -906,6 +906,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Bean Bunker. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "gta-living-room": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for GTA Living Room. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

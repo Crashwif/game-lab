@@ -1,0 +1,21 @@
+{
+  "name": "GTA Living Room",
+  "hook": "Upgrade your living room for GTA 6 before the credit card explodes",
+  "tagline": "A gamer continually drags monstrous home theater gear into a tiny living room as the multiplier mounts. Cash out to kick back on the recliner with snacks ready. Crash and the giant 77-inch display rips through the drywall and drops onto the subwoofer.",
+  "tags": [
+    "GTA6",
+    "Gaming",
+    "Tech"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#GTALivingRoom",
+    "#GTA6",
+    "#GamingSetup"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
