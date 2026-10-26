@@ -1,0 +1,21 @@
+{
+  "name": "Soap Tank Heist",
+  "hook": "Plug the spraying gas leak with a bar of soap before you combust",
+  "tagline": "A highway commuter scrambles under a punctured gas tank frantically smearing Irish Spring and Dollar General epoxy putty as the multiplier climbs. Cashing out wraps fifty layers of duct tape and squeals out of the parking lot safely. Crashing blows the soapy makeshift gasket into a massive soapy fireball eruption.",
+  "tags": [
+    "DIY",
+    "Survival",
+    "Roadside"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SoapTankHeist",
+    "#RoadsideHack",
+    "#GasTankFix"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

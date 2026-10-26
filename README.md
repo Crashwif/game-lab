@@ -145,6 +145,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Bean Bunker](games/bean-bunker) | Stack baked beans to your ceiling before Downing Street panics — stockpile, pantry panic, doomsday prep | Playable |
 | [GTA Living Room](games/gta-living-room) | Upgrade your living room for GTA 6 before the credit card explodes — gta6, gaming, tech | Playable |
 | [Shed Arsenal](games/shed-arsenal) | Out-engineer the Pentagon using duct tape, leaf blowers, and riding mowers — redneck engineering, suburban chaos, diy stunts | Playable |
+| [Soap Tank Heist](games/soap-tank-heist) | Plug the spraying gas leak with a bar of soap before you combust — diy, survival, roadside | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
