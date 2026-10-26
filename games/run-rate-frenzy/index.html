@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run-Rate Frenzy — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="Run-Rate Frenzy: A sleep-deprived founder in a Patagonia vest feverishly rewires an S-1 financial curve as multiplier tokens skyrocket. Cashing out triggers a golden umbrella ejection into a pile of founder seed checks. Crashing slams an 80-page risk factor audit onto the desk that vaporizes the balance sheet."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

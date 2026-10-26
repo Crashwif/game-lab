@@ -1,0 +1,21 @@
+{
+  "name": "Run-Rate Frenzy",
+  "hook": "Multiply last month by thirteen and declare yourself liquid before the SEC blinks",
+  "tagline": "A sleep-deprived founder in a Patagonia vest feverishly rewires an S-1 financial curve as multiplier tokens skyrocket. Cashing out triggers a golden umbrella ejection into a pile of founder seed checks. Crashing slams an 80-page risk factor audit onto the desk that vaporizes the balance sheet.",
+  "tags": [
+    "AI Hype",
+    "IPO Season",
+    "Venture Math"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#RunRateFrenzy",
+    "#AnthropicS1",
+    "#TechIPO"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

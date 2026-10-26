@@ -148,6 +148,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Soap Tank Heist](games/soap-tank-heist) | Plug the spraying gas leak with a bar of soap before you combust — diy, survival, roadside | Playable |
 | [Paywall Crawler](games/paywall-crawler) | Guide the rogue AI crawler through premium newswalls and captchas — ai scraper, tech satire, paywall | Playable |
 | [Fallen Ref Flag](games/ref-flag-launch) | Tumble onto the turf and fling penalty flags straight from your back — football, referee, sportsfail | Playable |
+| [Run-Rate Frenzy](games/run-rate-frenzy) | Multiply last month by thirteen and declare yourself liquid before the SEC blinks — ai hype, ipo season, venture math | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
