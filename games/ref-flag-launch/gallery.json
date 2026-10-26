@@ -1,0 +1,21 @@
+{
+  "name": "Fallen Ref Flag",
+  "hook": "Tumble onto the turf and fling penalty flags straight from your back",
+  "tagline": "A stunned referee gets knocked flat on the gridiron and furiously hurls yellow penalty laundry into the stadium rafters. Cashing out blows the official whistle and rolls straight into a timely commercial break. Crashing buries the entire field under a suffocating mountain of flags and thunderous booing.",
+  "tags": [
+    "Football",
+    "Referee",
+    "SportsFail"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#FallenRefFlag",
+    "#NFL",
+    "#FootballMeme"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

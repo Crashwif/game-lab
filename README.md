@@ -147,6 +147,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Shed Arsenal](games/shed-arsenal) | Out-engineer the Pentagon using duct tape, leaf blowers, and riding mowers — redneck engineering, suburban chaos, diy stunts | Playable |
 | [Soap Tank Heist](games/soap-tank-heist) | Plug the spraying gas leak with a bar of soap before you combust — diy, survival, roadside | Playable |
 | [Paywall Crawler](games/paywall-crawler) | Guide the rogue AI crawler through premium newswalls and captchas — ai scraper, tech satire, paywall | Playable |
+| [Fallen Ref Flag](games/ref-flag-launch) | Tumble onto the turf and fling penalty flags straight from your back — football, referee, sportsfail | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
