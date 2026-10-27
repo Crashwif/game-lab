@@ -1,0 +1,21 @@
+{
+  "name": "Day Off Debrief",
+  "hook": "Spam your exhausted working boyfriend with utterly useless leisure updates",
+  "tagline": "You lounge in silk pajamas sending play-by-play texts about eating string cheese while your boyfriend welds steel beams in the mud. Cash out to send a sweet selfie before his cell battery dies. Crash and your 47th voice note about buying a candle pushes him over the edge.",
+  "tags": [
+    "Workplace Satire",
+    "Relationship Meme",
+    "Couch Potato"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DayOffDebrief",
+    "#DayOff",
+    "#ShiftWork"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

@@ -946,6 +946,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for STAR50 Wipeout. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "day-off-debrief": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Day Off Debrief. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
