@@ -1,0 +1,21 @@
+{
+  "name": "AI Meltdown",
+  "hook": "Stack cooling rigs before $480 billion evaporates into thin vapor",
+  "tagline": "Server racks glow white-hot as unhinged valuations push cooling fans to max RPM. Cashing out ejects your server unit onto a refrigerated freight dolly. Crashing blows the main breaker into a fountain of fried circuit boards and sparks.",
+  "tags": [
+    "AI Bubble",
+    "Tech Crash",
+    "Datacenter"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#AIMeltdown",
+    "#AIBubble",
+    "#TechMeltdown"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
