@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STAR50 Wipeout — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="STAR50 Wipeout: A frantic silicon broker stacks glowing tensor cores while index charts skyrocket into ridiculous heights. Cash out to pack up a golden server rack and slide away in an electric rickshaw. If it crashes, the power grid snaps, leaving piles of burning circuit boards and useless balance sheets."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

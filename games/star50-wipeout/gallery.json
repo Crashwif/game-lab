@@ -1,0 +1,21 @@
+{
+  "name": "STAR50 Wipeout",
+  "hook": "Ride the artificial hype rocket before the 480-billion vaporizes",
+  "tagline": "A frantic silicon broker stacks glowing tensor cores while index charts skyrocket into ridiculous heights. Cash out to pack up a golden server rack and slide away in an electric rickshaw. If it crashes, the power grid snaps, leaving piles of burning circuit boards and useless balance sheets.",
+  "tags": [
+    "StockMarket",
+    "TechBubble",
+    "Crypto"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#STAR50Wipeout",
+    "#AIBubble",
+    "#STAR50"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
