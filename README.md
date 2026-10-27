@@ -152,6 +152,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [AI Meltdown](games/ai-market-meltdown) | Stack cooling rigs before $480 billion evaporates into thin vapor — ai bubble, tech crash, datacenter | Playable |
 | [STAR50 Wipeout](games/star50-wipeout) | Ride the artificial hype rocket before the 480-billion vaporizes — stockmarket, techbubble, crypto | Playable |
 | [Day Off Debrief](games/day-off-debrief) | Spam your exhausted working boyfriend with utterly useless leisure updates — workplace satire, relationship meme, couch potato | Playable |
+| [LeakCord Index](games/leak-cord) | Scrub your cringe DMs before Google indexes your entire middle school phase — discord, googleindex, privacyleak | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
