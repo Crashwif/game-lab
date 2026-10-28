@@ -1,0 +1,21 @@
+{
+  "name": "No AI Bailout",
+  "hook": "Beg Capitol Hill for emergency compute credits before the gavel drops",
+  "tagline": "Guide a panicking tech founder clutching a melted server rack as congressional hearings turn frosty. Cash out in time to escape through the lobby turnstile with remaining seed capital. If you bust, the gavel slams down and an auctioneer sells off your algorithms for scrap metal.",
+  "tags": [
+    "AI Panic",
+    "Congress",
+    "Tech Bubble"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#NoAIBailout",
+    "#AIBubble",
+    "#Bankruptcy"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

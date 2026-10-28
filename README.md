@@ -156,6 +156,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Potato Rig RPG](games/potato-rig) | Overclock your grease-drenched spud rig to run the fast food fantasy RPG — gaming, fastfood, techsatire | Playable |
 | [SSD Purge](games/ssd-purge) | Sacrifice precious personal files to make room for a 210GB preload — gaming, storage crisis, console war | Playable |
 | [Layout Roulette](games/layout-roulette) | Pick between two cursed floorplans before the load-bearing wall snaps — architecture, interiorfail, homerenovation | Playable |
+| [No AI Bailout](games/no-ai-bailout) | Beg Capitol Hill for emergency compute credits before the gavel drops — ai panic, congress, tech bubble | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
