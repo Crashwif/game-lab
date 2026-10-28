@@ -1,0 +1,21 @@
+{
+  "name": "SSD Purge",
+  "hook": "Sacrifice precious personal files to make room for a 210GB preload",
+  "tagline": "A desperate gamer frantically deletes childhood photos, taxes, and operating system kernels as the progress bar creeps forward. Cashing out pauses the download and saves your remaining hard drive safely. Crashing triggers a disk write failure that wipes the entire motherboard into smoking slag.",
+  "tags": [
+    "Gaming",
+    "Storage Crisis",
+    "Console War"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SSDPurge",
+    "#GTA6",
+    "#DiskSpaceFull"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

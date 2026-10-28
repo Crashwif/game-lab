@@ -961,6 +961,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Potato Rig RPG. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "ssd-purge": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for SSD Purge. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

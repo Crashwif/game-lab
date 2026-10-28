@@ -154,6 +154,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Day Off Debrief](games/day-off-debrief) | Spam your exhausted working boyfriend with utterly useless leisure updates — workplace satire, relationship meme, couch potato | Playable |
 | [LeakCord Index](games/leak-cord) | Scrub your cringe DMs before Google indexes your entire middle school phase — discord, googleindex, privacyleak | Playable |
 | [Potato Rig RPG](games/potato-rig) | Overclock your grease-drenched spud rig to run the fast food fantasy RPG — gaming, fastfood, techsatire | Playable |
+| [SSD Purge](games/ssd-purge) | Sacrifice precious personal files to make room for a 210GB preload — gaming, storage crisis, console war | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
