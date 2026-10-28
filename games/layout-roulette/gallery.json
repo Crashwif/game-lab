@@ -1,0 +1,21 @@
+{
+  "name": "Layout Roulette",
+  "hook": "Pick between two cursed floorplans before the load-bearing wall snaps",
+  "tagline": "A sweaty interior designer shifts walls back and forth on a 3D blueprint as the toilet moves into the pantry and the shower wraps around the stove. Cashing out locks the deed on a mildly livable duplex and snaps tape measure in triumph. Crashing collapses the drywall stack into a dusty heap of broken ceramic tiles and open plumbing.",
+  "tags": [
+    "Architecture",
+    "InteriorFail",
+    "HomeRenovation"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#LayoutRoulette",
+    "#ArchitectureFails",
+    "#LayoutDesign"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
