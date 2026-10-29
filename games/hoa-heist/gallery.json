@@ -1,0 +1,21 @@
+{
+  "name": "HOA Heist",
+  "hook": "Dodge the manic subdivision board before your monthly dues hit orbit",
+  "tagline": "Watch suburban lawn signs multiply into aggressive assessment demands as an unhinged board president drones over Zoom. Cash out to slip into an unincorporated township tax-free before foreclosure notices paper your front door. If it crashes, your entire driveway gets repoed and turned into a mandatory tennis court.",
+  "tags": [
+    "HOA",
+    "Suburbs",
+    "RealEstate"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#HOAHeist",
+    "#HOAHell",
+    "#SuburbanChaos"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
