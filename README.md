@@ -158,6 +158,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Layout Roulette](games/layout-roulette) | Pick between two cursed floorplans before the load-bearing wall snaps — architecture, interiorfail, homerenovation | Playable |
 | [No AI Bailout](games/no-ai-bailout) | Beg Capitol Hill for emergency compute credits before the gavel drops — ai panic, congress, tech bubble | Playable |
 | [HOA Heist](games/hoa-heist) | Dodge the manic subdivision board before your monthly dues hit orbit — hoa, suburbs, realestate | Playable |
+| [Bus Factor One](games/bus-factor-one) | Keep your phone on Do Not Disturb while your entire corporate office melts — workplace comedy, sysadmin life, quiet quitting | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
