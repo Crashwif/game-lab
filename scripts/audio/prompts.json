@@ -991,6 +991,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Overnight GPU. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "clickbait-curse": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Clickbait Curse. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

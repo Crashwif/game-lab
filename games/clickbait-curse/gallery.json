@@ -1,0 +1,21 @@
+{
+  "name": "Clickbait Curse",
+  "hook": "Scrub the timeline before the algorithm catches you mid-sneeze",
+  "tagline": "A sweaty creator fights to maintain a hyper-edited shocked face thumbnail while YouTube's random frame selector rolls through hideous unflattering pauses. Cash out to publish a 10/10 viral banger and bank the viewcount. Crash out and the algorithm locks in a cursed double-chin mid-blink frame forever.",
+  "tags": [
+    "YouTube",
+    "CreatorEconomy",
+    "Clickbait"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ClickbaitCurse",
+    "#YouTube",
+    "#Thumbnails"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
