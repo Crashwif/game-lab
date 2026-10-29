@@ -159,6 +159,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [No AI Bailout](games/no-ai-bailout) | Beg Capitol Hill for emergency compute credits before the gavel drops — ai panic, congress, tech bubble | Playable |
 | [HOA Heist](games/hoa-heist) | Dodge the manic subdivision board before your monthly dues hit orbit — hoa, suburbs, realestate | Playable |
 | [Bus Factor One](games/bus-factor-one) | Keep your phone on Do Not Disturb while your entire corporate office melts — workplace comedy, sysadmin life, quiet quitting | Playable |
+| [Overnight GPU](games/overnight-gpu) | Ship 300 server racks overnight for fifty bucks before the postal van snaps — server rack, nvidia gpus, ebay listing | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

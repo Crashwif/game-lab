@@ -986,6 +986,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Bus Factor One. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "overnight-gpu": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Overnight GPU. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
