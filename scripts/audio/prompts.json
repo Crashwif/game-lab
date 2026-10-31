@@ -1001,6 +1001,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Capex Furnace. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "key-in-chiron": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Key In Chiron. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

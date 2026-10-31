@@ -1,0 +1,21 @@
+{
+  "name": "Key In Chiron",
+  "hook": "Left the keys in a 3-million-dollar hypercar again",
+  "tagline": "A CEO casually parks his multi-million hypercar with the keys dangling in the ignition as shady opportunists slowly creep out of the bushes. Cashing out locks the doors with a chirping alarm and speeds off into the sunset. Crashing lets a masked joyrider smash the pedal and blast away in a cloud of burnt rubber.",
+  "tags": [
+    "Bugatti",
+    "Joyride",
+    "Hypercar"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#KeyInChiron",
+    "#Bugatti",
+    "#MateRimac"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
