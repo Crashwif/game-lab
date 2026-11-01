@@ -1,0 +1,21 @@
+{
+  "name": "Loot Frenzy",
+  "hook": "Spam claim every skin in the shop before the server hotfix hits",
+  "tagline": "A sweaty battle royale kid feverishly clicks 'Claim All' as rare skins, banana suits, and neon pickaxes pile to the ceiling. Cash out to glider-dive away with a backpack stuffed with free cosmetic glory. Crash and Epic pushes an emergency patch that confiscates your inventory down to default sweatpants.",
+  "tags": [
+    "Gaming",
+    "BattleRoyale",
+    "ItemShop"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#LootFrenzy",
+    "#Fortnite",
+    "#ItemShop"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
