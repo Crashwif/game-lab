@@ -1,0 +1,21 @@
+{
+  "name": "Cart Delay",
+  "hook": "Ship your digital storefront before the shopping cart takes four years",
+  "tagline": "A CEO frantically glues metaverse skins and AI code snippets onto an online game launcher while delaying basic e-commerce features. Cashing out lets you purchase a single digital hat through a real functioning checkout basket. Crashing spawns five community notes as the entire launcher uninstalls your desktop wallpaper.",
+  "tags": [
+    "Gaming",
+    "Metaverse",
+    "Corporate"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CartDelay",
+    "#EpicGames",
+    "#GameDev"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
