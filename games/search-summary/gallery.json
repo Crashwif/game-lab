@@ -1,0 +1,21 @@
+{
+  "name": "Search Summary",
+  "hook": "Burn company market cap by forcing hallucinated answers over paid links",
+  "tagline": "A glowing AI search card stretches across the browser canvas while incinerating sponsored click banners. Cashing out cashes out ad royalties before the algorithmic nonsense spreads. Crashing shows the stock ticker falling off a cliff as the query recommends glue on pizza.",
+  "tags": [
+    "TechSatire",
+    "AIOverviews",
+    "WallStreet"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SearchSummary",
+    "#SearchFail",
+    "#AdMeltdown"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

@@ -165,6 +165,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Key In Chiron](games/key-in-chiron) | Left the keys in a 3-million-dollar hypercar again — bugatti, joyride, hypercar | Playable |
 | [Coach Challenge](games/coach-challenge) | Beg your coach to challenge the whistle before the replay burns your timeout — basketball, stevekerr, referee | Playable |
 | [Cart Delay](games/cart-delay) | Ship your digital storefront before the shopping cart takes four years — gaming, metaverse, corporate | Playable |
+| [Search Summary](games/search-summary) | Burn company market cap by forcing hallucinated answers over paid links — techsatire, aioverviews, wallstreet | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
