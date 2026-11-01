@@ -167,6 +167,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Cart Delay](games/cart-delay) | Ship your digital storefront before the shopping cart takes four years — gaming, metaverse, corporate | Playable |
 | [Search Summary](games/search-summary) | Burn company market cap by forcing hallucinated answers over paid links — techsatire, aioverviews, wallstreet | Playable |
 | [Loot Frenzy](games/loot-frenzy) | Spam claim every skin in the shop before the server hotfix hits — gaming, battleroyale, itemshop | Playable |
+| [Claude Rip Run](games/claude-rip-run) | Prompt faster before the corporate copyright strike nukes the terminal — indiedev, aistunts, copyright | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
