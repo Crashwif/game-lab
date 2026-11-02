@@ -1,0 +1,21 @@
+{
+  "name": "Steam Slop Rush",
+  "hook": "Flood the Steam store with seven-fingered AI assets before Gaben notices",
+  "tagline": "A frantic solo dev types prompts at hyperspeed while conveyor belts dump hallucinated textures, six-legged goblins, and robotic voiceovers onto the store page. Cashing out publishes the title into early access and collects bewildered wishlist dollars. Crashing summons Gabe Newell with a giant ban hammer that delists the entire publisher catalog.",
+  "tags": [
+    "IndieDev",
+    "AIContent",
+    "GamingMemes"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SteamSlopRush",
+    "#Steam",
+    "#AIGaming"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

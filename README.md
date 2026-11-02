@@ -171,6 +171,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [DLC Glitch Loot](games/dlc-glitch-loot) | Spam unlock every paid skin until the corporate legal mods revoke them all — gaming, twitch, satire | Playable |
 | [Prompt Cloner](games/prompt-cloner) | Rip legendary retro classics in seconds before safety filters terminate you — ai dev, anthropic, retro gaming | Playable |
 | [Couch Savings Hack](games/couch-savings) | Skip the bar, boot the console, and bank imaginary nightlife savings — gaming, finance hack, nightlife | Playable |
+| [Steam Slop Rush](games/steam-slop-rush) | Flood the Steam store with seven-fingered AI assets before Gaben notices — indiedev, aicontent, gamingmemes | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

@@ -1046,6 +1046,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Couch Savings Hack. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "steam-slop-rush": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Steam Slop Rush. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
