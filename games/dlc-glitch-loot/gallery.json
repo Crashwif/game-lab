@@ -1,0 +1,21 @@
+{
+  "name": "DLC Glitch Loot",
+  "hook": "Spam unlock every paid skin until the corporate legal mods revoke them all",
+  "tagline": "Watch a rogue community manager shower your streamer rig with ultra-rare skins, cosmetic bundles, and forbidden perks. Cash out to lock the inventory loot forever into your offline locker. If you crash, corporate compliance nukes your account with a ban hammer and clawback notice.",
+  "tags": [
+    "Gaming",
+    "Twitch",
+    "Satire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DLCGlitchLoot",
+    "#DBD",
+    "#TwitchClips"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

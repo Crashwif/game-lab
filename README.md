@@ -168,6 +168,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Search Summary](games/search-summary) | Burn company market cap by forcing hallucinated answers over paid links — techsatire, aioverviews, wallstreet | Playable |
 | [Loot Frenzy](games/loot-frenzy) | Spam claim every skin in the shop before the server hotfix hits — gaming, battleroyale, itemshop | Playable |
 | [Claude Rip Run](games/claude-rip-run) | Prompt faster before the corporate copyright strike nukes the terminal — indiedev, aistunts, copyright | Playable |
+| [DLC Glitch Loot](games/dlc-glitch-loot) | Spam unlock every paid skin until the corporate legal mods revoke them all — gaming, twitch, satire | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
