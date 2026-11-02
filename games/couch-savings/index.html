@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Couch Savings Hack — Game Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <!-- Keep the labelled canvas and control IDs: the shared shell uses them. -->
+    <canvas aria-label="Couch Savings Hack: A frugal gamer barricades their living room couch against nightclub invites while stacking imaginary $100 drink tabs saved into a glowing financial freedom fortress. Cashing out locks in the bank balance as our hero eats microwave pizza in peaceful victory. Crashing triggers a doorstep raid of bottle-service VIPs dragging you straight to a $400 cocktail lounge."></canvas>
+    <div class="controls">
+      <div class="info">
+        <p id="status" role="status">Connecting…</p>
+        <p id="readout"></p>
+      </div>
+      <button id="bet" aria-disabled="true" aria-keyshortcuts="Space">Join round · 50 credits</button>
+      <button id="cashout" aria-disabled="true" aria-keyshortcuts="Space">Cash out</button>
+      <button id="restart" hidden>Replay round</button>
+      <button id="sound" class="secondary">Sound: off</button>
+      <p id="notice" role="alert" hidden></p>
+    </div>
+  </main>
+  <script src="./game.generated.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "Couch Savings Hack",
+  "hook": "Skip the bar, boot the console, and bank imaginary nightlife savings",
+  "tagline": "A frugal gamer barricades their living room couch against nightclub invites while stacking imaginary $100 drink tabs saved into a glowing financial freedom fortress. Cashing out locks in the bank balance as our hero eats microwave pizza in peaceful victory. Crashing triggers a doorstep raid of bottle-service VIPs dragging you straight to a $400 cocktail lounge.",
+  "tags": [
+    "Gaming",
+    "Finance Hack",
+    "Nightlife"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CouchSavingsHack",
+    "#GTA6",
+    "#FinancialAdvice"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

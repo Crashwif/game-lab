@@ -1041,6 +1041,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Prompt Cloner. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "couch-savings": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Couch Savings Hack. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
