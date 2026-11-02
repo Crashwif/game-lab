@@ -1,0 +1,21 @@
+{
+  "name": "Prompt Cloner",
+  "hook": "Rip legendary retro classics in seconds before safety filters terminate you",
+  "tagline": "Your rogue AI terminal compiles bootleg game assets frame by frame as the multiplier climbs. Cashing out exports a playable build to an untraceable USB drive just in time. Waiting too long triggers an instant corporate banhammer that deletes your terminal in a shower of policy error codes.",
+  "tags": [
+    "AI Dev",
+    "Anthropic",
+    "Retro Gaming"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PromptCloner",
+    "#ClaudeCode",
+    "#IndieDev"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

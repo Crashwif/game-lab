@@ -1036,6 +1036,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for DLC Glitch Loot. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "prompt-cloner": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Prompt Cloner. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
