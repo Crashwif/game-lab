@@ -1,0 +1,21 @@
+{
+  "name": "Pulley Steak",
+  "hook": "Lower the sizzling ribeye out the 4th floor window without dropping it",
+  "tagline": "A greasy cast-iron skillet swings precariously down a rickety clothesline rig across busy Manhattan traffic. Cash out in time to drop the steak cleanly into a hungry hipster's tote bag. Crash and the clothesline snaps, bombarding a police cruiser with hot garlic butter.",
+  "tags": [
+    "StreetFood",
+    "NYC",
+    "Comedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PulleySteak",
+    "#NYCFood",
+    "#ArcadeGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
