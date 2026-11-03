@@ -1,0 +1,21 @@
+{
+  "name": "Bridal Clutch",
+  "hook": "Clutch a 1v1 against your fiancée or remain permanently single at the altar",
+  "tagline": "Sweat in your rented tuxedo as bridesmaids set up smoke grenades and flashbangs down the aisle. Cash out early to secure the ring and escape on a golf cart. Crash out when your bride executes a 360 noscope headshot while the priest yells GG.",
+  "tags": [
+    "Gaming",
+    "Weddings",
+    "Valorant"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BridalClutch",
+    "#GamerWedding",
+    "#ArcadeGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
