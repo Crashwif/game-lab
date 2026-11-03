@@ -1,0 +1,21 @@
+{
+  "name": "Pixel Shield",
+  "hook": "Stack ultra-thin curved screens before incoming drywall debris punches through",
+  "tagline": "Weld heavier refresh-rate monitors onto your gaming bunker as stray plaster and flying hardware blast across the room. Cash out to slide your warranty replacement into place safely. Crash and the screen matrix crumbles into thousands of burning dead pixels.",
+  "tags": [
+    "Gaming",
+    "Hardware",
+    "Overclock"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PixelShield",
+    "#GamingSetup",
+    "#TechNews"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

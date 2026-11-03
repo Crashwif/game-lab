@@ -174,6 +174,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Steam Slop Rush](games/steam-slop-rush) | Flood the Steam store with seven-fingered AI assets before Gaben notices — indiedev, aicontent, gamingmemes | Playable |
 | [Pulley Steak](games/pulley-steak) | Lower the sizzling ribeye out the 4th floor window without dropping it — streetfood, nyc, comedy | Playable |
 | [Free Throw Freak](games/free-throw-freak) | Wind up the clumsiest shooting form in hoops history — basketball, sportsfail, viralclip | Playable |
+| [Pixel Shield](games/pixel-shield) | Stack ultra-thin curved screens before incoming drywall debris punches through — gaming, hardware, overclock | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
