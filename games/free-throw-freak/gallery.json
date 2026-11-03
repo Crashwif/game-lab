@@ -1,0 +1,21 @@
+{
+  "name": "Free Throw Freak",
+  "hook": "Wind up the clumsiest shooting form in hoops history",
+  "tagline": "Watch a goofy shooter bend his knees into a pretzel while winding up an impossible shot. Cash out before the release to cleanly swish the net. If you crash, he shatters the backboard or slips backwards onto the mascot.",
+  "tags": [
+    "Basketball",
+    "SportsFail",
+    "ViralClip"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#FreeThrowFreak",
+    "#FreeThrow",
+    "#Shaqtin"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
