@@ -1086,6 +1086,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Viral Reel Rush. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "fake-offer-heist": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Fake Offer Heist. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

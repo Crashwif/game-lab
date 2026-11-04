@@ -1,0 +1,21 @@
+{
+  "name": "Fake Offer Heist",
+  "hook": "Download the recruiter's coding test before IT revokes your badge",
+  "tagline": "A desperate remote engineer sits on a video call downloading dubious interview repos while cash drains from the server behind him. Cash out to close the laptop and pocket your signing bonus before security arrives. Crash and the terminal goes full ransomware skull as multisig locks you in the server closet.",
+  "tags": [
+    "Crypto",
+    "Tech Fail",
+    "Hacking"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#FakeOfferHeist",
+    "#CryptoHack",
+    "#TechJobs"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
