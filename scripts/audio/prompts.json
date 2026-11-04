@@ -1071,6 +1071,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Bridal Clutch. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "open-invite-rush": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Open Invite Rush. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

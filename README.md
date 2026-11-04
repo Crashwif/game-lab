@@ -176,6 +176,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Free Throw Freak](games/free-throw-freak) | Wind up the clumsiest shooting form in hoops history — basketball, sportsfail, viralclip | Playable |
 | [Pixel Shield](games/pixel-shield) | Stack ultra-thin curved screens before incoming drywall debris punches through — gaming, hardware, overclock | Playable |
 | [Bridal Clutch](games/bridal-clutch) | Clutch a 1v1 against your fiancée or remain permanently single at the altar — gaming, weddings, valorant | Playable |
+| [Open Invite Rush](games/open-invite-rush) | An open wedding invite brings 30,000 uninvited guests to your backyard — viral wedding, party crasher, chaos altar | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
