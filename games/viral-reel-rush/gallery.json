@@ -1,0 +1,21 @@
+{
+  "name": "Viral Reel Rush",
+  "hook": "Stack automated engagement hooks before the algorithm flags your account as pure slop",
+  "tagline": "An influencer pushes an AI video machine to pump out auto-generated short reels with neon captions and loud stock footage. As the multiplier rises, the view counter spins out of control and subscriber notifications flood the screen like a tsunami. Cash out to enjoy genuine viral clout, or crash when the algorithm slaps a permanent shadowban across all platforms.",
+  "tags": [
+    "SocialMedia",
+    "AIContent",
+    "GrowthHack"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ViralReelRush",
+    "#ViralGrowth",
+    "#ShortsAlgo"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

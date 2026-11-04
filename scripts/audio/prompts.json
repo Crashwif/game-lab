@@ -1081,6 +1081,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Take-Home Trap. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "viral-reel-rush": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Viral Reel Rush. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
