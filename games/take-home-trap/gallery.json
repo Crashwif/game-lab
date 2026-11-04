@@ -1,0 +1,21 @@
+{
+  "name": "Take-Home Trap",
+  "hook": "Run the shady take-home coding assignment without handing over the vault keys",
+  "tagline": "A sleep-deprived dev installs an innocent Python coding challenge on their company laptop as suspicious terminal logs stack up. Cash out to shut the laptop lid, revoke local repo permissions, and walk away clean. Crashing triggers automated container deploys that dump company treasury logs straight to pastebin.",
+  "tags": [
+    "DevHumor",
+    "Cybersecurity",
+    "CorporateSatire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#TakeHomeTrap",
+    "#DevSecOps",
+    "#CyberSecurity"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
