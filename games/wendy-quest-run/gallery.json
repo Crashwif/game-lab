@@ -1,0 +1,21 @@
+{
+  "name": "WendyQuest Run",
+  "hook": "Grind a 15-hour pixel RPG dungeon just to win a single spicy nugget combo",
+  "tagline": "Battle greased-up goblin fry cooks as your pixelated party hacks through infinite dungeons of deep-fried loot. Cash out to redeem your dripping cardboard voucher bag before the kitchen closes. If it crashes, the dungeon server resets and drops a soggy ice cream coupon instead.",
+  "tags": [
+    "Fast Food",
+    "Pixel RPG",
+    "Grindset"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#WendyQuestRun",
+    "#Wendys",
+    "#Gaming"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
