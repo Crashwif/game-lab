@@ -1,0 +1,21 @@
+{
+  "name": "ATS Shredder",
+  "hook": "Hand your paper resume to the boss before the recruitment AI auto-bins you",
+  "tagline": "A student desperately hands over a paper CV across a checkout counter while robotic ATS scanners fire rejection laser beams. Cashing out locks in a firm handshake and a store badge before the portal triggers. Crashing delivers a three-minute automated regret email directly to your pocket with buzzing red sirens.",
+  "tags": [
+    "AI Satire",
+    "Job Hunt",
+    "Office Comedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ATSShredder",
+    "#JobHunt",
+    "#AIFails"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
