@@ -183,6 +183,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Mascot DMCA](games/mascot-dmca) | Scrub your viral green-owl fan art before corporate legal busts your door — anime, corporate drama, copyright | Playable |
 | [ATS Shredder](games/ats-shredder) | Hand your paper resume to the boss before the recruitment AI auto-bins you — ai satire, job hunt, office comedy | Playable |
 | [WendyQuest Run](games/wendy-quest-run) | Grind a 15-hour pixel RPG dungeon just to win a single spicy nugget combo — fast food, pixel rpg, grindset | Playable |
+| [Chonk Hawk](games/chonk-hawk) | Waddle down the coop buffet before gravity reclaims your raptor wings — chonkhawk, wildlifesatire, farmyardheist | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

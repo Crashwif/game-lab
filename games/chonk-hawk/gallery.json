@@ -1,0 +1,21 @@
+{
+  "name": "Chonk Hawk",
+  "hook": "Waddle down the coop buffet before gravity reclaims your raptor wings",
+  "tagline": "An outrageously plump hawk attempts to lift off from an all-you-can-eat chicken ranch as the multiplier climbs. Cashing out triggers a clumsy glide into a fluffy hay cart with a drumstick intact. Crashing sends the heavyweight bird thudding into the mud with an exhausted burp and flying feathers.",
+  "tags": [
+    "ChonkHawk",
+    "WildlifeSatire",
+    "FarmyardHeist"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ChonkHawk",
+    "#DexertoViral",
+    "#ArcadeGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

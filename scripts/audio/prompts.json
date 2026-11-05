@@ -1106,6 +1106,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for WendyQuest Run. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "chonk-hawk": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Chonk Hawk. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
