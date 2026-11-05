@@ -1,0 +1,21 @@
+{
+  "name": "Mascot DMCA",
+  "hook": "Scrub your viral green-owl fan art before corporate legal busts your door",
+  "tagline": "As the multiplier climbs, an indie illustrator feverishly pumps out viral goth mascot sketches while a giant neon green owl stalks the hallway outside. Cashing out submits your portfolio and logs off just before the copyright strike hits. Crashing unleashes a flock of corporate attorneys serving a devastating cease-and-desist subpoena.",
+  "tags": [
+    "Anime",
+    "Corporate Drama",
+    "Copyright"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#MascotDMCA",
+    "#Duolingo",
+    "#FanArtDMCA"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

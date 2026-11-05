@@ -1091,6 +1091,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Fake Offer Heist. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "mascot-dmca": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Mascot DMCA. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
