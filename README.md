@@ -186,6 +186,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Chonk Hawk](games/chonk-hawk) | Waddle down the coop buffet before gravity reclaims your raptor wings — chonkhawk, wildlifesatire, farmyardheist | Playable |
 | [Pixel Flaps](games/pixel-flaps) | Pass off generative couture to snooty magazine editors before pixels blur — fashion, ai slop, editorial | Playable |
 | [Doctor Yellow Rush](games/yellow-laser-run) | Full-speed track inspection with zero passengers and hairline precision — doctor yellow, shinkansen, speedrun | Playable |
+| [ATM Lockout Run](games/atm-lockout-run) | Spam the cash dispenser button before the mainframe bluescreens nationwide — banking, outage, finance | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

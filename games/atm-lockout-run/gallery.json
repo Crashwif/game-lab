@@ -1,0 +1,21 @@
+{
+  "name": "ATM Lockout Run",
+  "hook": "Spam the cash dispenser button before the mainframe bluescreens nationwide",
+  "tagline": "A salaryman jams his cash card into an erratic ATM machine while flashing error codes cascade across bank terminals. Cashing out grabs the dispensed yen stack and sprints down the subway stairs. Crashing freezes the machine as it chews up the card and flashes Out of Service.",
+  "tags": [
+    "Banking",
+    "Outage",
+    "Finance"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ATMLockoutRun",
+    "#CreditUnionOutage",
+    "#JapanBank"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
