@@ -1,0 +1,21 @@
+{
+  "name": "Cucco Strike",
+  "hook": "Kick the pixel rooster once and prepare to face an avian apocalypse",
+  "tagline": "A streamer clad in green tunic pokes a tiny harmless farm bird as feathers start to scatter. As the multiplier surges, skyward clouds darken with thousands of shrieking poultry locking in their flight vectors. Cashing out activates a smoke bomb roll into a haycart, while crashing triggers an inescapable pecking vortex that reduces the hero to pixel dust.",
+  "tags": [
+    "Gaming Meme",
+    "Zelda Satire",
+    "Streamer Rage"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CuccoStrike",
+    "#Speed",
+    "#ZeldaCucco"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
