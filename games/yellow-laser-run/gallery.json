@@ -1,0 +1,21 @@
+{
+  "name": "Doctor Yellow Rush",
+  "hook": "Full-speed track inspection with zero passengers and hairline precision",
+  "tagline": "Ride the canary-yellow ghost train firing laser sensors down high-speed rails as commuter trains watch in awe. Cashing out triggers a clean track signoff and lucky platform wave. Crashing derails into a comedy laser light show as sparks fly across Tokyo Station.",
+  "tags": [
+    "Doctor Yellow",
+    "Shinkansen",
+    "Speedrun"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DoctorYellowRush",
+    "#DoctorYellow",
+    "#Shinkansen"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
