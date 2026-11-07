@@ -1,0 +1,21 @@
+{
+  "name": "Data Center Pivot",
+  "hook": "Rip graphics cards from weeping gamers to feed hungry server racks",
+  "tagline": "Watch factory conveyor belts reroute every desktop GPU straight into gargantuan corporate AI server racks while desktop gamers sob outside. Cashing out locks in your server rack contract and slips out with a bulk order payout. Crashing triggers a global thermal cascade where over-stacked data servers blow every fuse in the county.",
+  "tags": [
+    "Hardware",
+    "PCGaming",
+    "DataCenter"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DataCenterPivot",
+    "#AMD",
+    "#PCGaming"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

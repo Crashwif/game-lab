@@ -191,6 +191,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Vice Club Heist](games/vice-club-heist) | Loot the Vice City VIP lounge before the bouncers drop the neon hammer — gta6, gaming, vicecity | Playable |
 | [Couch Capy Raid](games/couch-capy-raid) | Blend in with the golden retrievers before Dad checks the living room — animals, stealth, wholesomechaos | Playable |
 | [Leather Spy Date](games/leather-spy-date) | Trade GPU secrets over candlelit dim sum before the feds breach the booth — nvidia, techsatire, spyscandal | Playable |
+| [Data Center Pivot](games/datacenter-pivot) | Rip graphics cards from weeping gamers to feed hungry server racks — hardware, pcgaming, datacenter | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
