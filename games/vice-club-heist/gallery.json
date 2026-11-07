@@ -1,0 +1,21 @@
+{
+  "name": "Vice Club Heist",
+  "hook": "Loot the Vice City VIP lounge before the bouncers drop the neon hammer",
+  "tagline": "Dodge roving bouncers and paparazzi flashbulbs as your duffel bag of club cash swells. Cashing out speeds your pink convertible down Ocean Drive under palm trees. Crashing sends security diving onto you with a full neon dance-floor beatdown.",
+  "tags": [
+    "GTA6",
+    "Gaming",
+    "ViceCity"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ViceClubHeist",
+    "#GTAVI",
+    "#ViceCity"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

@@ -188,6 +188,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Doctor Yellow Rush](games/yellow-laser-run) | Full-speed track inspection with zero passengers and hairline precision — doctor yellow, shinkansen, speedrun | Playable |
 | [ATM Lockout Run](games/atm-lockout-run) | Spam the cash dispenser button before the mainframe bluescreens nationwide — banking, outage, finance | Playable |
 | [Cucco Strike](games/cucco-strike) | Kick the pixel rooster once and prepare to face an avian apocalypse — gaming meme, zelda satire, streamer rage | Playable |
+| [Vice Club Heist](games/vice-club-heist) | Loot the Vice City VIP lounge before the bouncers drop the neon hammer — gta6, gaming, vicecity | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
