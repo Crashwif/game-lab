@@ -1141,6 +1141,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Couch Capy Raid. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "leather-spy-date": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Leather Spy Date. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
