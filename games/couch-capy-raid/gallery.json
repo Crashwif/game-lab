@@ -1,0 +1,21 @@
+{
+  "name": "Couch Capy Raid",
+  "hook": "Blend in with the golden retrievers before Dad checks the living room",
+  "tagline": "A chill capybara trots through the patio sliding door disguised in a collar alongside barking retrievers. As the multiplier spikes, he hops onto the plush velvet sofa, nibbles charcuterie, and switches the TV remote. Cash out to slip behind the ottoman unnoticed, or crash when Dad turns the lights on and screams.",
+  "tags": [
+    "Animals",
+    "Stealth",
+    "WholesomeChaos"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CouchCapyRaid",
+    "#Capybara",
+    "#DogLife"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
