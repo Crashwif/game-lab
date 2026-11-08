@@ -1,0 +1,21 @@
+{
+  "name": "RAM Report Rush",
+  "hook": "Spam Sam Altman's inbox with real-time graphs of every unused gigabyte",
+  "tagline": "A terminal script fires automated diagnostic emails directly to the CEO inbox detailing criminal amounts of idle DDR5 memory. As the multiplier climbs, the email dispatch volume turns into a crushing denial-of-service avalanche of browser tabs. Cashing out submits an unsubscribe link in the nick of time, while crashing triggers an inbox bounceback that bricked your motherboard.",
+  "tags": [
+    "Tech Satire",
+    "Silicon Valley",
+    "OpenAI"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#RAMReportRush",
+    "#AltmanRAM",
+    "#DevHumor"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

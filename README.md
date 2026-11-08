@@ -195,6 +195,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Cybercab Squeeze](games/cybercab-squeeze) | Strip down the assembly line to build liquid silver robotaxis fast — robotaxi, automation, assemblyline | Playable |
 | [Chest RNG Rush](games/chest-rng-rush) | Crack cursed battle royale chests hunting the fabled 1-in-137,500 pirate token — gaming, fortnite, loot rng | Playable |
 | [Agent Harness Rush](games/agent-harness-rush) | Stack automated worker agents before your junior desk gets deleted — ai agents, tech satire, corporate hustle | Playable |
+| [RAM Report Rush](games/ram-report-rush) | Spam Sam Altman's inbox with real-time graphs of every unused gigabyte — tech satire, silicon valley, openai | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
