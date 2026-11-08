@@ -1,0 +1,21 @@
+{
+  "name": "Chest RNG Rush",
+  "hook": "Crack cursed battle royale chests hunting the fabled 1-in-137,500 pirate token",
+  "tagline": "A sweaty default skin franticly pries open glowing loot chests amidst closing storm circles and loot drop piles. Cash out early to secure your shiny cosmetic stash and ride the victory glider home. If you greed for the ultra-rare gold doubloon, the chest spawns a rusted common pistol and the storm collapses right onto your skull.",
+  "tags": [
+    "Gaming",
+    "Fortnite",
+    "Loot RNG"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ChestRNGRush",
+    "#Fortnite",
+    "#ItemShop"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
