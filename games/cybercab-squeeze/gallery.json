@@ -1,0 +1,21 @@
+{
+  "name": "Cybercab Squeeze",
+  "hook": "Strip down the assembly line to build liquid silver robotaxis fast",
+  "tagline": "Robotic arms weld chassis faster and spray gleaming liquid silver enamel as the multiplier revs up. Cashing out puts your sleek driverless cab on open highway with paid fares. Crashing sparks a total factory short circuit that traps engineers in stainless steel scrap heaps.",
+  "tags": [
+    "Robotaxi",
+    "Automation",
+    "AssemblyLine"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CybercabSqueeze",
+    "#Cybercab",
+    "#ElonMusk"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

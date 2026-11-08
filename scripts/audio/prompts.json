@@ -1151,6 +1151,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Data Center Pivot. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "cybercab-squeeze": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Cybercab Squeeze. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
