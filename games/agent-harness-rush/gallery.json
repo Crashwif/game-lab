@@ -1,0 +1,21 @@
+{
+  "name": "Agent Harness Rush",
+  "hook": "Stack automated worker agents before your junior desk gets deleted",
+  "tagline": "A sweaty junior corporate analyst straps on neural harnesses while swarms of bot agents churn out slides and memos. Cash out in time to grab senior partner tenure with zero actual work done. Stay too long and an autonomous loop recurses infinitely, deleting your desk and badge from existence.",
+  "tags": [
+    "AI Agents",
+    "Tech Satire",
+    "Corporate Hustle"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#AgentHarnessRush",
+    "#AIJobs",
+    "#PromptEngineering"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
