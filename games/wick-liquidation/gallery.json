@@ -1,0 +1,21 @@
+{
+  "name": "Wick Liquidation",
+  "hook": "Dodge the red cascading candles before your long position gets vaporized",
+  "tagline": "Ride a tiny bull surfing on a monstrous red descending candlestick as liquidation bells chime. Cash out to eject into a golden parachute safely holding bags of stablecoins. If you linger too long, the ultimate cascade margin call hammers down into a total portfolio flatline.",
+  "tags": [
+    "Crypto",
+    "Trading",
+    "Liquidation"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#WickLiquidation",
+    "#CryptoCrash",
+    "#BitcoinDump"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
