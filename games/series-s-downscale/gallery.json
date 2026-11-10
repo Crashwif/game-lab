@@ -1,0 +1,21 @@
+{
+  "name": "Series S Downscale",
+  "hook": "Keep your frame rate alive before your console melts into pixels",
+  "tagline": "As the multiplier climbs, Vice City aggressively downsamples from 1080p to 480p, pixelated blobs, and retro sprites while the console fan shrieks. Cash out to preserve your crisp resolution and walk away with dignity. Crash out when the graphics chip gives up entirely, reducing the game to a single burning polygon potato.",
+  "tags": [
+    "Gaming",
+    "Console Wars",
+    "GTA6"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SeriesSDownscale",
+    "#XboxSeriesS",
+    "#GTA6"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
