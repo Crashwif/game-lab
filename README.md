@@ -200,6 +200,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Curfew Patrol](games/curfew-patrol) | Kick your feet up on the cruiser dash as Vice City keeps the streets empty — gaming, workplace, gta6 | Playable |
 | [Crust Cartel](games/crust-cartel) | Bake 15 artisanal pies before the hungry mob breaches your hallway — foodies, hypebeast, sandiego | Playable |
 | [FPS Glitchout](games/fps-glitchout) | Spam the spacebar before physics engine launches you into orbit — gaming, twitch, physicsfail | Playable |
+| [Vice Countdown Panic](games/vice-countdown-panic) | Hold out 9 more days without touching grass or getting grounded — gaming, vicecity, releasehype | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
