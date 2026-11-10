@@ -198,6 +198,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [RAM Report Rush](games/ram-report-rush) | Spam Sam Altman's inbox with real-time graphs of every unused gigabyte — tech satire, silicon valley, openai | Playable |
 | [Wick Liquidation](games/wick-liquidation) | Dodge the red cascading candles before your long position gets vaporized — crypto, trading, liquidation | Playable |
 | [Curfew Patrol](games/curfew-patrol) | Kick your feet up on the cruiser dash as Vice City keeps the streets empty — gaming, workplace, gta6 | Playable |
+| [Crust Cartel](games/crust-cartel) | Bake 15 artisanal pies before the hungry mob breaches your hallway — foodies, hypebeast, sandiego | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

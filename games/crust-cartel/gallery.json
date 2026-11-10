@@ -1,0 +1,21 @@
+{
+  "name": "Crust Cartel",
+  "hook": "Bake 15 artisanal pies before the hungry mob breaches your hallway",
+  "tagline": "Dough flings across a cramped kitchen as thousands of desperate foodies storm the apartment stairs. Cash out to slide your slice into a takeout box and slip out the fire escape. Crash and your toaster-oven exploded under heavy marinara crossfire.",
+  "tags": [
+    "Foodies",
+    "Hypebeast",
+    "SanDiego"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CrustCartel",
+    "#PizzaWaitlist",
+    "#FoodieGrind"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
