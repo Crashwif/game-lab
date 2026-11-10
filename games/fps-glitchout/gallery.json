@@ -1,0 +1,21 @@
+{
+  "name": "FPS Glitchout",
+  "hook": "Spam the spacebar before physics engine launches you into orbit",
+  "tagline": "Watch a stressed streamer repeatedly tap the cockpit ladder as uncapped frame rates vibrate the helicopter into pure chaos. Cash out in time to grab the skid and finish the mission clean. Hold too long and high-framerate math flings your character into deep outer space.",
+  "tags": [
+    "Gaming",
+    "Twitch",
+    "PhysicsFail"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#FPSGlitchout",
+    "#SpeedrunFail",
+    "#KaiCenat"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
