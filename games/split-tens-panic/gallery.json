@@ -1,0 +1,21 @@
+{
+  "name": "Split Tens Panic",
+  "hook": "The ultimate table sin is splitting 20 against a dealer five",
+  "tagline": "A sweaty gambler in neon sunglasses insists on splitting two face cards while the casino pit boss sweats through his suit. Cash out to scoop two shiny aces and bolt through the valet. Crash and massive security guards tackle the entire table into green-felt confetti.",
+  "tags": [
+    "Blackjack",
+    "Casino",
+    "Degen"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SplitTensPanic",
+    "#CasinoLife",
+    "#Degens"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

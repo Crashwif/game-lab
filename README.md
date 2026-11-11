@@ -202,6 +202,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [FPS Glitchout](games/fps-glitchout) | Spam the spacebar before physics engine launches you into orbit — gaming, twitch, physicsfail | Playable |
 | [Vice Countdown Panic](games/vice-countdown-panic) | Hold out 9 more days without touching grass or getting grounded — gaming, vicecity, releasehype | Playable |
 | [Series S Downscale](games/series-s-downscale) | Keep your frame rate alive before your console melts into pixels — gaming, console wars, gta6 | Playable |
+| [Split Tens Panic](games/split-tens-panic) | The ultimate table sin is splitting 20 against a dealer five — blackjack, casino, degen | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
