@@ -1211,6 +1211,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Vice Unbox Run. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "preload-choke": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Preload Choke. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

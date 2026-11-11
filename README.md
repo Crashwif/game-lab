@@ -204,6 +204,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Series S Downscale](games/series-s-downscale) | Keep your frame rate alive before your console melts into pixels — gaming, console wars, gta6 | Playable |
 | [Split Tens Panic](games/split-tens-panic) | The ultimate table sin is splitting 20 against a dealer five — blackjack, casino, degen | Playable |
 | [Vice Unbox Run](games/vice-unbox-run) | Peel back the plastic wrap before publisher lawyers breach the door — gta6, gaming, leakculture | Playable |
+| [Preload Choke](games/preload-choke) | Download a 300GB patch before your street's router melts into slag — gaming, internet, speedrun | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

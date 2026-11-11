@@ -1,0 +1,21 @@
+{
+  "name": "Preload Choke",
+  "hook": "Download a 300GB patch before your street's router melts into slag",
+  "tagline": "Watch your home fiber line glow orange as neighborhood bandwidth drains down to dial-up speeds. Cash out to secure the 100% install progress bar on your couch. Crash and your ISP explodes into smoke, dropping you back to 56kbps error 404.",
+  "tags": [
+    "Gaming",
+    "Internet",
+    "Speedrun"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PreloadChoke",
+    "#GTA6",
+    "#BroadbandMeltdown"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
