@@ -205,6 +205,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Split Tens Panic](games/split-tens-panic) | The ultimate table sin is splitting 20 against a dealer five — blackjack, casino, degen | Playable |
 | [Vice Unbox Run](games/vice-unbox-run) | Peel back the plastic wrap before publisher lawyers breach the door — gta6, gaming, leakculture | Playable |
 | [Preload Choke](games/preload-choke) | Download a 300GB patch before your street's router melts into slag — gaming, internet, speedrun | Playable |
+| [Joke Expiry Rush](games/joke-expiry-rush) | Post every last 'we got this before GTA 6' meme before the clock runs out — gaming, memes, countdown | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

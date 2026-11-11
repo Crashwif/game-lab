@@ -1,0 +1,21 @@
+{
+  "name": "Joke Expiry Rush",
+  "hook": "Post every last 'we got this before GTA 6' meme before the clock runs out",
+  "tagline": "A sleep-deprived creator frantically scribbles absurd 'before GTA 6' captions on a smoking whiteboard as the countdown digits flicker red. Cashing out locks in a viral post archive and rolls the credits early. Crashing triggers the midnight launch bell, instantly deprecating every punchline into stale internet museum dust.",
+  "tags": [
+    "Gaming",
+    "Memes",
+    "Countdown"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#JokeExpiryRush",
+    "#GTA6",
+    "#MemeExpiry"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
