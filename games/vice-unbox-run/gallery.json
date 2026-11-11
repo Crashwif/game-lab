@@ -1,0 +1,21 @@
+{
+  "name": "Vice Unbox Run",
+  "hook": "Peel back the plastic wrap before publisher lawyers breach the door",
+  "tagline": "A sweaty streamer frantically peels layers of bubble wrap off a bootleg Vice City game disc while legal cease-and-desist drones circle outside. Cashing out speeds away in a getaway scooter with the holy grail in hand. Crashing summons SWAT attorneys crashing through the drywall with copyright shredders.",
+  "tags": [
+    "GTA6",
+    "Gaming",
+    "LeakCulture"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ViceUnboxRun",
+    "#GTA6",
+    "#GamingLeaks"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
