@@ -1,0 +1,21 @@
+{
+  "name": "Poach The Jacket",
+  "hook": "Lure the leather-jacket billionaire into your electric rocket startup",
+  "tagline": "A tech mogul waves preposterous stock option compensation packets at a rival CEO wearing an iconic black leather biker jacket. Multiplier climbs as datacenter racks and neural supercomputers get thrown into the signing bonus package. Cash out to lock in the superstar hire on an executive NDA; crash and the rival CEO buys your entire gigafactory with pocket change.",
+  "tags": [
+    "Tech",
+    "Billionaires",
+    "SiliconValley"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PoachTheJacket",
+    "#JensenHuang",
+    "#ElonMusk"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
