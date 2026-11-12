@@ -1,0 +1,21 @@
+{
+  "name": "Diploma Pose Off",
+  "hook": "Hold ridiculous commencement poses without tumbling off the stage",
+  "tagline": "Strike increasingly unhinged victory poses as the dean hands over your degree and joins the dance. Cash out early to strut offstage with your rolled parchment and cap intact. Crash and you faceplant off the podium into the brass band's tuba section.",
+  "tags": [
+    "Graduation",
+    "SchoolSatire",
+    "ViralMoments"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DiplomaPoseOff",
+    "#Graduation",
+    "#ClassOf2025"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
