@@ -1231,6 +1231,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Poach The Jacket. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "jensen-exit-panic": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Jensen Exit Panic. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

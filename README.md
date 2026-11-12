@@ -208,6 +208,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Joke Expiry Rush](games/joke-expiry-rush) | Post every last 'we got this before GTA 6' meme before the clock runs out — gaming, memes, countdown | Playable |
 | [Budget Showdown](games/budget-showdown) | Can forty million in grass physics beat a billion-dollar strip mall — gaming, devbudget, openworld | Playable |
 | [Poach The Jacket](games/poach-the-jacket) | Lure the leather-jacket billionaire into your electric rocket startup — tech, billionaires, siliconvalley | Playable |
+| [Jensen Exit Panic](games/jensen-exit-panic) | Hang up the iconic leather jacket before the GPU board revolts — nvidia, tech drama, jensen | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
