@@ -1,0 +1,21 @@
+{
+  "name": "Budget Showdown",
+  "hook": "Can forty million in grass physics beat a billion-dollar strip mall",
+  "tagline": "Two game engines duel on split screens as development spending rockets into orbit. Cashing out locks in your critical review score before marketing expenses eat the profits. Crashing triggers a total studio budget audit that cancels the sequel.",
+  "tags": [
+    "Gaming",
+    "DevBudget",
+    "OpenWorld"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BudgetShowdown",
+    "#GamingMemes",
+    "#GTA6"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

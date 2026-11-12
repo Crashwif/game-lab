@@ -206,6 +206,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Vice Unbox Run](games/vice-unbox-run) | Peel back the plastic wrap before publisher lawyers breach the door — gta6, gaming, leakculture | Playable |
 | [Preload Choke](games/preload-choke) | Download a 300GB patch before your street's router melts into slag — gaming, internet, speedrun | Playable |
 | [Joke Expiry Rush](games/joke-expiry-rush) | Post every last 'we got this before GTA 6' meme before the clock runs out — gaming, memes, countdown | Playable |
+| [Budget Showdown](games/budget-showdown) | Can forty million in grass physics beat a billion-dollar strip mall — gaming, devbudget, openworld | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
