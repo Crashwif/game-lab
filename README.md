@@ -213,6 +213,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Seed Detective](games/seed-detective) | Scrape six trillion AI weight checkpoints before the hardware audit drops — ai drama, silicon war, tech audit | Playable |
 | [Bring Back Jensen](games/bring-back-jensen) | Stack the petition signatures before the boardroom locks the glass doors — nvidia, tech drama, silicon valley | Playable |
 | [GPU Loan Loop](games/gpu-loan-loop) | Lend them cash so they can buy your chips to fund your cash — fintech satire, tech bubble, nvidia loop | Playable |
+| [Server Slayer Loop](games/server-slayer-loop) | An automated health bot decides all healthy servers must die — servercrash, cloudpanic, devops | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

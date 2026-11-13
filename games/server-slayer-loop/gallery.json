@@ -1,0 +1,21 @@
+{
+  "name": "Server Slayer Loop",
+  "hook": "An automated health bot decides all healthy servers must die",
+  "tagline": "As your multiplier rises, an automated server-health robot patrols an infinite data center, labeling green racks as hazardous and executing them with a giant rubber mallet. Cash out to eject your server rack safely onto a backup dolly before the script flags it. Crash and the robot triggers a total hypervisor purge, plunging the datacenter into total blackness and blue screens.",
+  "tags": [
+    "ServerCrash",
+    "CloudPanic",
+    "DevOps"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#ServerSlayerLoop",
+    "#CloudOutage",
+    "#DevOpsLife"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
