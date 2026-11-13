@@ -1,0 +1,21 @@
+{
+  "name": "Bring Back Jensen",
+  "hook": "Stack the petition signatures before the boardroom locks the glass doors",
+  "tagline": "Engineers sprint through the tech campus collecting leather jacket signatures as the multiplier mounts. Cashing out submits the petition right under the HR director's nose for instant stock options. Crashing triggers a corporate reorganization memo that turns everyone into middle management.",
+  "tags": [
+    "Nvidia",
+    "Tech Drama",
+    "Silicon Valley"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BringBackJensen",
+    "#JensenHuang",
+    "#NVDA"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
