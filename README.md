@@ -212,6 +212,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Diploma Pose Off](games/diploma-pose-off) | Hold ridiculous commencement poses without tumbling off the stage — graduation, schoolsatire, viralmoments | Playable |
 | [Seed Detective](games/seed-detective) | Scrape six trillion AI weight checkpoints before the hardware audit drops — ai drama, silicon war, tech audit | Playable |
 | [Bring Back Jensen](games/bring-back-jensen) | Stack the petition signatures before the boardroom locks the glass doors — nvidia, tech drama, silicon valley | Playable |
+| [GPU Loan Loop](games/gpu-loan-loop) | Lend them cash so they can buy your chips to fund your cash — fintech satire, tech bubble, nvidia loop | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

@@ -1251,6 +1251,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Bring Back Jensen. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "gpu-loan-loop": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for GPU Loan Loop. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
