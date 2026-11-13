@@ -210,6 +210,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Poach The Jacket](games/poach-the-jacket) | Lure the leather-jacket billionaire into your electric rocket startup — tech, billionaires, siliconvalley | Playable |
 | [Jensen Exit Panic](games/jensen-exit-panic) | Hang up the iconic leather jacket before the GPU board revolts — nvidia, tech drama, jensen | Playable |
 | [Diploma Pose Off](games/diploma-pose-off) | Hold ridiculous commencement poses without tumbling off the stage — graduation, schoolsatire, viralmoments | Playable |
+| [Seed Detective](games/seed-detective) | Scrape six trillion AI weight checkpoints before the hardware audit drops — ai drama, silicon war, tech audit | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
