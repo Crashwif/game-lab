@@ -1,0 +1,21 @@
+{
+  "name": "Ground Stop Shuffle",
+  "hook": "Keep commuter planes rolling down runways while air traffic monitors freeze",
+  "tagline": "Guide a taxiing airliner through crowded tarmac gates while departure monitors turn into giant blue screens of death. Cash out to park at the gate before the shutdown and snag the last airport pretzel. Crash and a blaring red terminal alert freezes every luggage tug and sends departure flight boards spinning into static.",
+  "tags": [
+    "Aviation",
+    "Airport",
+    "Commute"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#GroundStopShuffle",
+    "#GroundStop",
+    "#TravelChaos"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
