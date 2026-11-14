@@ -217,6 +217,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [FAA Floppy Panic](games/faa-floppy-panic) | Keep the 1982 air traffic server alive before the 5.25-inch disk melts — aviation, tech glitch, office satire | Playable |
 | [Bequeath The Bag](games/bequeath-the-bag) | Hold a catastrophic 2008 penny stock across 16 years of inheritance — finance satire, generational wealth, stock market | Playable |
 | [Ground Stop Shuffle](games/ground-stop-shuffle) | Keep commuter planes rolling down runways while air traffic monitors freeze — aviation, airport, commute | Playable |
+| [Slab Breaker](games/slab-breaker-run) | Crack the graded slab before the grading purists epoxy it forever — gaming, preservation, collectibles | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

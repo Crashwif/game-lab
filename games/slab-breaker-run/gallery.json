@@ -1,0 +1,21 @@
+{
+  "name": "Slab Breaker",
+  "hook": "Crack the graded slab before the grading purists epoxy it forever",
+  "tagline": "A rogue preservationist taps a jewel hammer against an ultra-rare graded plastic cartridge case to dump the lost ROM for humanity. Cashing out pops the cartridge free into a card reader while the crowd cheers. Crashing smashes the brittle acrylic and crushes the vintage memory chip into fine dust.",
+  "tags": [
+    "Gaming",
+    "Preservation",
+    "Collectibles"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SlabBreaker",
+    "#PokePark",
+    "#GamePreservation"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
