@@ -1,0 +1,21 @@
+{
+  "name": "Bequeath The Bag",
+  "hook": "Hold a catastrophic 2008 penny stock across 16 years of inheritance",
+  "tagline": "A dusty CRT monitor flickers inside an estate attorney office as forgotten certificates pile up on a desk. Cashing out sells the portfolio just in time for probate taxes and a sentimental family cruise. Crashing triggers a reverse stock split that leaves you inheriting exactly forty-two cents and a laminated certificate.",
+  "tags": [
+    "Finance Satire",
+    "Generational Wealth",
+    "Stock Market"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BequeathTheBag",
+    "#DiamondHands",
+    "#StockMarket"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
