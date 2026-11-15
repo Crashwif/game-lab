@@ -1,0 +1,21 @@
+{
+  "name": "Uber Hostage ID",
+  "hook": "Hold a stranger's dropped German ID hostage for escalating ransom euros",
+  "tagline": "Dangle a lost laminated driver's license out of an Uber backseat window while demanding higher wire transfers from panicking tourists. Cashing out hands the card back smoothly for a fat stack of euros. Crashing triggers a swift German Bundespolizei tackle that smashes the ID into shreds.",
+  "tags": [
+    "Viral satire",
+    "Escalating chaos",
+    "Animated scene"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#UberHostageID",
+    "#LostAndFound",
+    "#WaymoRansom"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

@@ -221,6 +221,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Petty Crook Climb](games/petty-crook-climb) | Steal loose change and rusty mopeds before the Vice PD busts your hustle — gta6, gaming, heist | Playable |
 | [Streaker Roulette](games/streaker-roulette) | Stack chips fast before casino security throws you a bath towel — casino, heist, comedy | Playable |
 | [Short Squeeze Green](games/short-squeeze-green) | Ride the monster green candle elevator as leveraged short sellers get vaporized — crypto volatility, short squeeze, god candle | Playable |
+| [Uber Hostage ID](games/uber-hostage-id) | Hold a stranger's dropped German ID hostage for escalating ransom euros — viral satire, escalating chaos, animated scene | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

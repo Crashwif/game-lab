@@ -1296,6 +1296,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Short Squeeze Green. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "uber-hostage-id": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Uber Hostage ID. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }
