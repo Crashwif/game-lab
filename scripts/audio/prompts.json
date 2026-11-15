@@ -1301,6 +1301,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Uber Hostage ID. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "motel-grindset": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Motel Grindset. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

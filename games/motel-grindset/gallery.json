@@ -1,0 +1,21 @@
+{
+  "name": "Motel Grindset",
+  "hook": "Dodge suspicious missed calls while barricaded with energy drinks",
+  "tagline": "Stack empty pizza boxes and tactical extension cords across a cheap motel bed as your multiplier climbs. Cash out to answer the FaceTime call holding up a souvenir receipt with clean hands. Crash and your spouse kicks the door off its hinges with a private investigator.",
+  "tags": [
+    "Gaming",
+    "Workplace",
+    "ViceCity"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#MotelGrindset",
+    "#GTA6",
+    "#GamingGrind"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
