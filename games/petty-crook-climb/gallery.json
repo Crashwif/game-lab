@@ -1,0 +1,21 @@
+{
+  "name": "Petty Crook Climb",
+  "hook": "Steal loose change and rusty mopeds before the Vice PD busts your hustle",
+  "tagline": "Two broke stick-up rookies scrounge convenience store registers while eyeing luxury yachts across Vice City. Cash out in time to peel out in a smoking sedan with a trunk full of rolls of quarters. Crash and an undercover cruiser clips your getaway bicycle into a display rack of cheap flip-flops.",
+  "tags": [
+    "GTA6",
+    "Gaming",
+    "Heist"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PettyCrookClimb",
+    "#GTA6",
+    "#ViceCity"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
