@@ -1,0 +1,21 @@
+{
+  "name": "Streaker Roulette",
+  "hook": "Stack chips fast before casino security throws you a bath towel",
+  "tagline": "You sit unclothed at high roller tables stacking stacks of chips while bouncers whisper furiously into earpieces. Cash out to slip into a VIP bathrobe and ride an escalator into the sunset. Crash and get bundled up in a giant velvet tablecloth and hurled into the valet fountain.",
+  "tags": [
+    "Casino",
+    "Heist",
+    "Comedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#StreakerRoulette",
+    "#CasinoLife",
+    "#Degens"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

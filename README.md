@@ -219,6 +219,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Ground Stop Shuffle](games/ground-stop-shuffle) | Keep commuter planes rolling down runways while air traffic monitors freeze — aviation, airport, commute | Playable |
 | [Slab Breaker](games/slab-breaker-run) | Crack the graded slab before the grading purists epoxy it forever — gaming, preservation, collectibles | Playable |
 | [Petty Crook Climb](games/petty-crook-climb) | Steal loose change and rusty mopeds before the Vice PD busts your hustle — gta6, gaming, heist | Playable |
+| [Streaker Roulette](games/streaker-roulette) | Stack chips fast before casino security throws you a bath towel — casino, heist, comedy | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
