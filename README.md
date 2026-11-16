@@ -223,6 +223,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Short Squeeze Green](games/short-squeeze-green) | Ride the monster green candle elevator as leveraged short sellers get vaporized — crypto volatility, short squeeze, god candle | Playable |
 | [Uber Hostage ID](games/uber-hostage-id) | Hold a stranger's dropped German ID hostage for escalating ransom euros — viral satire, escalating chaos, animated scene | Playable |
 | [Motel Grindset](games/motel-grindset) | Dodge suspicious missed calls while barricaded with energy drinks — gaming, workplace, vicecity | Playable |
+| [Buffet Bus Blitz](games/buffet-bus-blitz) | Smash Golden Corral with the boys before kickoff — collegefootball, roadtrip, buffet | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

@@ -1,0 +1,21 @@
+{
+  "name": "Buffet Bus Blitz",
+  "hook": "Smash Golden Corral with the boys before kickoff",
+  "tagline": "A crowded college team charter bus stacks endless plates from Buc-ee's and buffet troughs while tearing down the highway. Cashing out pulls into stadium parking perfectly nourished for game day. Crashing triggers catastrophic food coma lethargy as the bus tilts into a ditch.",
+  "tags": [
+    "CollegeFootball",
+    "RoadTrip",
+    "Buffet"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BuffetBusBlitz",
+    "#Sooners",
+    "#GoldenCorral"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
