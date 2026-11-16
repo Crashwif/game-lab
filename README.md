@@ -226,6 +226,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Buffet Bus Blitz](games/buffet-bus-blitz) | Smash Golden Corral with the boys before kickoff — collegefootball, roadtrip, buffet | Playable |
 | [80-Hour Grind](games/eighty-hour-grind) | Stack impossible graveyard shifts before your eyelids slam shut — overtime, workplace, hustle | Playable |
 | [Booth Grunt Rush](games/booth-grunt-rush) | Crank Tom's mic gain before his chaotic grunt explodes the soundboard — broadcast, football, meme | Playable |
+| [Dr Xbox Sick Note](games/dr-xbox-note) | DJ Khaled prescribes another day off so you can play Vice City in peace — workplace, gaming, dj khaled | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

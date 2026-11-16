@@ -1,0 +1,21 @@
+{
+  "name": "Dr Xbox Sick Note",
+  "hook": "DJ Khaled prescribes another day off so you can play Vice City in peace",
+  "tagline": "Escalate your forged medical excuse on an ornate prescription pad while HR calls the clinic to verify. Cashing out faxes the sealed note just in time for you to boot up your console guilt-free. Crashing reveals DJ Khaled yelling 'Another one!' on speakerphone directly to your angry supervisor.",
+  "tags": [
+    "Workplace",
+    "Gaming",
+    "DJ Khaled"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#DrXboxSickNote",
+    "#GTA6",
+    "#DrXbox"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
