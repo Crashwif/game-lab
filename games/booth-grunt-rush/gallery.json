@@ -1,0 +1,21 @@
+{
+  "name": "Booth Grunt Rush",
+  "hook": "Crank Tom's mic gain before his chaotic grunt explodes the soundboard",
+  "tagline": "As the multiplier climbs, an impeccably groomed NFL analyst lets out increasingly bizarre involuntary grunts, gasps, and primal squeals directly into the headset. Cashing out drops the studio cough-button just in time for clean commercial transition music. Crashing unleashes an ear-piercing subwoofer belch that detonates all mixing desk meters across prime time television.",
+  "tags": [
+    "Broadcast",
+    "Football",
+    "Meme"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BoothGruntRush",
+    "#NFLMemes",
+    "#TomBrady"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
