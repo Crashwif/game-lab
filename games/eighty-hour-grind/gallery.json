@@ -1,0 +1,21 @@
+{
+  "name": "80-Hour Grind",
+  "hook": "Stack impossible graveyard shifts before your eyelids slam shut",
+  "tagline": "A sleepy security guard juggles flashing monitors, thermos refills, and second jobs while the shift clock ticks wildly. Cash out early to clock out clean with your overtime pay intact. Crash and collapse face-first onto the keyboard, triggering every emergency alarm in the building.",
+  "tags": [
+    "Overtime",
+    "Workplace",
+    "Hustle"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#80HourGrind",
+    "#OvertimeGrind",
+    "#KevinOLeary"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
