@@ -1341,6 +1341,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Humblebrag Climb. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "cloud-bill-panic": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Cloud Bill Panic. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

@@ -1,0 +1,21 @@
+{
+  "name": "Cloud Bill Panic",
+  "hook": "Scale your serverless script before the finance team's credit card melts",
+  "tagline": "Watch an unoptimized recursive query burn through server clusters while the billing dashboard ticks up violently. Cashing out triggers a hard quota killswitch and saves your job. Crashing overdraws the company card and summons the chief financial officer.",
+  "tags": [
+    "DevOps",
+    "Tech Satire",
+    "Workplace"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CloudBillPanic",
+    "#DevOps",
+    "#CloudComputing"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
