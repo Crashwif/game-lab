@@ -1,0 +1,21 @@
+{
+  "name": "Patch Diff Panic",
+  "hook": "Update the server before rogue AI bots reverse engineer the git diff",
+  "tagline": "A trembling IT administrator tries to drag a massive firmware update bar while swarm algorithms disassemble the release notes in real time. Cashing out slams the server room airlock shut with pristine zero-trust compliance. Crashing lets the autonomous crawler inject a ransom prompt that turns all office monitors into ASCII skull gifs.",
+  "tags": [
+    "Cybersecurity",
+    "AI Agents",
+    "Tech Panic"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#PatchDiffPanic",
+    "#CyberSecurity",
+    "#GoogleAI"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
