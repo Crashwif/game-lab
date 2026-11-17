@@ -1336,6 +1336,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Patch Diff Panic. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "humblebrag-climb": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Humblebrag Climb. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

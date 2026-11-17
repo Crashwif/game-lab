@@ -1,0 +1,21 @@
+{
+  "name": "Humblebrag Climb",
+  "hook": "Stack insufferable thought leadership buzzwords until LinkedIn breaks",
+  "tagline": "Watch a crisp blazer-clad executive hammer out an escalating humblebrag post about waking up at 3:30 AM to network with stray alley cats. Cashing out locks in thousands of clapping reactions and an unearned keynote invitation. Crashing triggers a merciless screenshot critique that circulates company Slack channels.",
+  "tags": [
+    "LinkedIn",
+    "Corporate Satire",
+    "Meme Culture"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#HumblebragClimb",
+    "#LinkedInLunatics",
+    "#Grindset"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
