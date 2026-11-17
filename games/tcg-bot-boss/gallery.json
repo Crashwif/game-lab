@@ -1,0 +1,21 @@
+{
+  "name": "TCG Bot Boss",
+  "hook": "Beat the 97 percent win-rate neural network before it steals your deck",
+  "tagline": "Watch the glowing cybernetic trading bot evolve from rookie scrapper into an omniscient neon deity as multiplier rises. Cash out before its infinite turn plays every combo card on the felt table. If you crash, the bot plays an illegal 99-card exodia finisher that incinerates your hand.",
+  "tags": [
+    "Cyberpunk",
+    "Gaming",
+    "CardGame"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#TCGBotBoss",
+    "#Cyberpunk",
+    "#GamingNews"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
