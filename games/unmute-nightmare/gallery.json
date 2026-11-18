@@ -1,0 +1,21 @@
+{
+  "name": "Unmute Nightmare",
+  "hook": "Keep gossiping about the board before someone hits the master unmute",
+  "tagline": "As your multiplier climbs, your coffee-fueled rant about leadership becomes louder and the red microphone icon flashes wildly. Cashing out slams the laptop shut just as the CEO asks who is speaking. Crashing broadcasts your full rant across five hundred screens as the HR director pins your webcam.",
+  "tags": [
+    "Workplace",
+    "HotMic",
+    "RemoteWork"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#UnmuteNightmare",
+    "#CorporateLife",
+    "#AllHandsMeeting"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

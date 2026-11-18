@@ -232,6 +232,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Humblebrag Climb](games/humblebrag-climb) | Stack insufferable thought leadership buzzwords until LinkedIn breaks — linkedin, corporate satire, meme culture | Playable |
 | [Cloud Bill Panic](games/cloud-bill-panic) | Scale your serverless script before the finance team's credit card melts — devops, tech satire, workplace | Playable |
 | [Jiggler Protocol](games/jiggler-protocol) | Keep the Slack dot green while you take a 4-hour power nap — wfh, slack, remotecomedy | Playable |
+| [Unmute Nightmare](games/unmute-nightmare) | Keep gossiping about the board before someone hits the master unmute — workplace, hotmic, remotework | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
