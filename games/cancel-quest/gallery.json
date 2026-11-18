@@ -1,0 +1,21 @@
+{
+  "name": "Cancel Quest",
+  "hook": "Dodge guilt-trip popups and invisible font to cancel your subscription",
+  "tagline": "Navigate an absurd labyrinth of microscopic gray buttons while an emotional mascot weeps on screen. Cashing out locks in the final confirmed cancellation email with zero hidden fees. Crashing accidentally auto-renews a lifetime family enterprise plan for twenty years.",
+  "tags": [
+    "DarkPatterns",
+    "Subscriptions",
+    "TechSatire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#CancelQuest",
+    "#DarkPatterns",
+    "#ArcadeGame"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
