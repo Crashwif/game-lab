@@ -1,0 +1,21 @@
+{
+  "name": "Jiggler Protocol",
+  "hook": "Keep the Slack dot green while you take a 4-hour power nap",
+  "tagline": "Stack an oscillating desk fan, a metronome, and a toy train to tap your mouse while you snooze on the couch. Cash out to wake up just in time to reply 'good point!' in team chat. Crash and have your contraption knock the webcam right onto your sleeping face on all-hands.",
+  "tags": [
+    "WFH",
+    "Slack",
+    "RemoteComedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#JigglerProtocol",
+    "#WFHLife",
+    "#MouseJiggler"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
