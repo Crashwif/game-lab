@@ -1,0 +1,21 @@
+{
+  "name": "Badge Swipe Blitz",
+  "hook": "Swipe your badge at the turnstile before HR catches you working from home",
+  "tagline": "Sprint past automated security turnstiles while dodging clipboard-wielding HR auditors. Cashing out beeps green with an authorized scan and slips out to a coffee shop. Crashing triggers a red klaxon lockdown as the gate slams shut on your jacket!",
+  "tags": [
+    "Workplace",
+    "Satire",
+    "RTO"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#BadgeSwipeBlitz",
+    "#RTO",
+    "#CorporateLife"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
