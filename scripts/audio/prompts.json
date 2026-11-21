@@ -1371,6 +1371,11 @@
       "music": {
         "prompt": "Compose an original 150-second instrumental game score for Accept All Push. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
       }
+    },
+    "standup-stall": {
+      "music": {
+        "prompt": "Compose an original 150-second instrumental game score for Standup Stall. Develop distinct sections with space for game sound effects. No voices, lyrics, sampled speech, crash sounds or victory ending."
+      }
     }
   }
 }

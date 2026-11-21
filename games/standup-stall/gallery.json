@@ -1,0 +1,21 @@
+{
+  "name": "Standup Stall",
+  "hook": "Pretend your audio is breaking up before the scrum master asks for updates",
+  "tagline": "Dodge daily sprint accountability as your pixelated avatar stammers through fake static and buffer spinners. Cash out to seamlessly drop call with a crisp Wi-Fi disconnect excuse. Crash out when your mic unmutes in 4K crystal audio while you crunch potato chips.",
+  "tags": [
+    "RemoteWork",
+    "Standup",
+    "TechHumor"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#StandupStall",
+    "#TechTwitter",
+    "#RemoteLife"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}

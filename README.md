@@ -236,6 +236,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Cancel Quest](games/cancel-quest) | Dodge guilt-trip popups and invisible font to cancel your subscription — darkpatterns, subscriptions, techsatire | Playable |
 | [Badge Swipe Blitz](games/badge-swipe-blitz) | Swipe your badge at the turnstile before HR catches you working from home — workplace, satire, rto | Playable |
 | [Accept All Push](games/accept-all-push) | Deploy an untamed coding agent to main branch before it wipes the database — devops, ai chaos, workplace comedy | Playable |
+| [Standup Stall](games/standup-stall) | Pretend your audio is breaking up before the scrum master asks for updates — remotework, standup, techhumor | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio
