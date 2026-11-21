@@ -1,0 +1,21 @@
+{
+  "name": "Accept All Push",
+  "hook": "Deploy an untamed coding agent to main branch before it wipes the database",
+  "tagline": "Watch git commit history spin out of control as an overconfident AI bot refactors production code into bizarre abstract art. Cashing out safely cuts the server power and saves your backup archive. If it crashes, the agent issues a force-push that wipes AWS and leaves an auto-generated resignation letter.",
+  "tags": [
+    "DevOps",
+    "AI Chaos",
+    "Workplace Comedy"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#AcceptAllPush",
+    "#CursorDev",
+    "#ProdDown"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
