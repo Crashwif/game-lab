@@ -1,0 +1,21 @@
+{
+  "name": "Tab Apocalypse",
+  "hook": "Keep opening browser tabs until your 128GB RAM evaporates",
+  "tagline": "Watch an overloaded browser window duplicate tabs until the CPU cooling fans scream like jet engines. Cash out in time to save your bookmarks to an external drive. If you crash, the blue screen of death obliterates your unsaved session forever.",
+  "tags": [
+    "Tech Humor",
+    "Dev Life",
+    "Hardware"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#TabApocalypse",
+    "#ChromeTabs",
+    "#RAMMeltdown"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
