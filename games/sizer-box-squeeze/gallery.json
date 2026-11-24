@@ -1,0 +1,21 @@
+{
+  "name": "Sizer Box Squeeze",
+  "hook": "Cram that swollen duffel into the metal bin before the gate agent notices",
+  "tagline": "The metal luggage frame groans under the impossible volume of an overstuffed weekender bag filled with bubble wrap and trinkets. Cash out to slide the bag in with a satisfying click and print boarding pass group 1. Crash and the zipper ruptures with acoustic fury, scattering tacky fridge magnets across gate 14.",
+  "tags": [
+    "Travel",
+    "Airport Drama",
+    "Luggage Panic"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#SizerBoxSqueeze",
+    "#AirportFails",
+    "#CarryOnOnly"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
