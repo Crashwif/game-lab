@@ -238,6 +238,7 @@ The table follows the gallery order in `scripts/games.mjs`. Use these examples t
 | [Accept All Push](games/accept-all-push) | Deploy an untamed coding agent to main branch before it wipes the database — devops, ai chaos, workplace comedy | Playable |
 | [Standup Stall](games/standup-stall) | Pretend your audio is breaking up before the scrum master asks for updates — remotework, standup, techhumor | Playable |
 | [Tab Apocalypse](games/tab-apocalypse) | Keep opening browser tabs until your 128GB RAM evaporates — tech humor, dev life, hardware | Playable |
+| [Round Eight Grind](games/round-eight-grind) | Survive the gauntlet of culture fit chats before HR ghosts you forever — career, jobhunt, satire | Playable |
 | [Rug Coaster](docs/concepts.md#rug-coaster-3d-webgl) | A WebGL2 rollercoaster on the bonding curve: spline track, instanced rails, a rug-pull ending | Concept |
 
 ### Lightweight games for the browser Studio

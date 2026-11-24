@@ -1,0 +1,21 @@
+{
+  "name": "Round Eight Grind",
+  "hook": "Survive the gauntlet of culture fit chats before HR ghosts you forever",
+  "tagline": "A job seeker sweats in business-casual attire as interviewers rotate like speed daters across a grid of monitors. Cashing out locks in an official offer letter signed in digital ink. Crashing yields a canned automated rejection email thanking you for your time.",
+  "tags": [
+    "Career",
+    "JobHunt",
+    "Satire"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#RoundEightGrind",
+    "#TechInterviews",
+    "#JobSearch"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
