@@ -1,0 +1,21 @@
+{
+  "name": "Streak Stalker",
+  "hook": "Keep your daily language streak alive before the green owl kicks your door in",
+  "tagline": "As the multiplier climbs, the unhinged green mascot creeps from your notifications straight into your living room window. Cashing out submits a quick matching lesson to trigger a protective streak freeze. Crashing lets the feathered terror breach your front door wielding a golden dictionary.",
+  "tags": [
+    "Duolingo",
+    "Brainrot",
+    "MobileGames"
+  ],
+  "hashtags": [
+    "#Crashwif",
+    "#StreakStalker",
+    "#LanguageStreak",
+    "#DuoNightmare"
+  ],
+  "renderer": "Canvas 2D",
+  "licence": "open",
+  "poster": {
+    "seconds": 8
+  }
+}
